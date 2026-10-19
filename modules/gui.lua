@@ -625,42 +625,85 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     local width, height = 170, 22
 
     -- stacks the categories and the open category's pages
-    local function RelayoutTree()
+    -- The tree scrolls with the mouse wheel (treeOffset) when it is taller
+    -- than the window; rows outside the column are hidden. A category whose
+    -- page is open folds and unfolds when clicked again (btn.folded).
+    local treeOffset = 0
+    local function RelayoutTree(reveal)
       local root = pfUI.gui.frames
-      local y = 6
-      for _, btn in ipairs(root.order or {}) do
-        btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT", root.area, "TOPLEFT", 0, -y)
-        btn:SetWidth(width)
-        btn:SetHeight(height)
-        y = y + height
+      local room = (root.area:GetHeight() or 0) - 6
+      if room < height then room = 2000 end -- not laid out yet
 
-        local open = btn.area and btn.area:IsShown()
+      -- every row and its y, top to bottom
+      local rows, y = {}, 6
+      local revealTop, revealBottom
+      for _, btn in ipairs(root.order or {}) do
+        table.insert(rows, { btn, y, height })
+        if btn == reveal then revealTop = y end
+        y = y + height
+        local open = btn.area and btn.area:IsShown() and not btn.folded
         if btn.children then
           btn.arrow:SetText(open and "-" or "+")
           for _, child in ipairs(btn.children) do
             if open then
-              child:ClearAllPoints()
-              child:SetPoint("TOPLEFT", root.area, "TOPLEFT", 0, -y)
-              child:SetWidth(width)
-              child:SetHeight(height - 2)
-              child:Show()
+              table.insert(rows, { child, y, height - 2 })
               y = y + height - 2
             else
               child:Hide()
             end
           end
           if open then y = y + 4 end
+          if btn == reveal then revealBottom = y end
         end
+      end
+
+      -- keep the offset in range; show a just-opened category with its pages
+      local most = math.max(0, y - room)
+      if revealBottom and revealBottom - treeOffset > room then treeOffset = revealBottom - room end
+      if revealTop and revealTop - treeOffset < 6 then treeOffset = revealTop - 6 end
+      if treeOffset > most then treeOffset = most end
+      if treeOffset < 0 then treeOffset = 0 end
+
+      for _, row in ipairs(rows) do
+        local b, top, h = row[1], row[2] - treeOffset, row[3]
+        if top < 0 or top + h > room + 6 then
+          b:Hide()
+        else
+          b:ClearAllPoints()
+          b:SetPoint("TOPLEFT", root.area, "TOPLEFT", 0, -top)
+          b:SetWidth(width)
+          b:SetHeight(h)
+          b:Show()
+        end
+      end
+
+      -- "more above / below" hints
+      if root.area.more then
+        if treeOffset > 0 then root.area.moreUp:Show() else root.area.moreUp:Hide() end
+        if treeOffset < most then root.area.more:Show() else root.area.more:Hide() end
       end
     end
     pfUI.gui_RelayoutTree = RelayoutTree
+
+    local function TreeScroll()
+      treeOffset = treeOffset - arg1 * height * 2
+      RelayoutTree()
+    end
+    pfUI.gui_TreeScroll = TreeScroll
 
     local TabFrameOnClick = function()
       -- a page: open its category first
       if this.isChild and not this.parent.area:IsShown() then
         this.parent:Click()
       end
+
+      -- the open category again: fold / unfold its pages
+      if not this.isChild and this.children and this.area:IsShown() then
+        this.folded = not this.folded
+        RelayoutTree(this)
+        return
+      end
+      if not this.isChild then this.folded = nil end
 
       if not this.area:IsShown() then
         -- hide all others
@@ -671,7 +714,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         end
         this.area:Show()
       end
-      RelayoutTree()
+      RelayoutTree(not this.isChild and this or nil)
     end
 
     local TabFrameOnEnter = function()
@@ -704,6 +747,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       f:SetScript("OnClick", TabFrameOnClick)
       f:SetScript("OnEnter", TabFrameOnEnter)
       f:SetScript("OnLeave", TabFrameOnLeave)
+      f:EnableMouseWheel(true)
+      f:SetScript("OnMouseWheel", TreeScroll)
 
       -- background
       f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -836,6 +881,9 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       pfUI.gui.settingChanged = pfUI.gui.delaySettingChanged
       pfUI.gui.delaySettingChanged = nil
 
+      -- the tree knows its height only once shown
+      if pfUI.gui_RelayoutTree then pfUI.gui_RelayoutTree() end
+
       -- exit unlock mode
       if pfUI.unlock and pfUI.unlock:IsShown() then
         pfUI.unlock:Hide()
@@ -934,6 +982,28 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui.frames.area.divider:SetPoint("BOTTOMLEFT", 170, 0)
     pfUI.gui.frames.area.divider:SetWidth(1)
     pfUI.gui.frames.area.divider:SetTexture(.22, .22, .22, 1)
+
+    -- the empty part of the tree column scrolls the tree too
+    local wheel = CreateFrame("Frame", nil, pfUI.gui.frames.area)
+    wheel:SetPoint("TOPLEFT", 0, 0)
+    wheel:SetPoint("BOTTOMLEFT", 0, 0)
+    wheel:SetWidth(170)
+    wheel:SetFrameLevel(pfUI.gui.frames.area:GetFrameLevel())
+    wheel:EnableMouseWheel(true)
+    wheel:SetScript("OnMouseWheel", function() pfUI.gui_TreeScroll() end)
+
+    -- "more above / below" marks at the column's edges
+    local function More(point, text)
+      local m = pfUI.gui.frames.area:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+      m:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+      m:SetPoint(point, pfUI.gui.frames.area, point == "TOP" and "TOPLEFT" or "BOTTOMLEFT", 85, point == "TOP" and -1 or 1)
+      m:SetTextColor(.6, .6, .6, 1)
+      m:SetText(text)
+      m:Hide()
+      return m
+    end
+    pfUI.gui.frames.area.moreUp = More("TOP", "^")
+    pfUI.gui.frames.area.more = More("BOTTOM", "v")
 
     -- title bar buttons, right to left from the close button
     local function TopButton(text, width, anchor, tooltip, func)

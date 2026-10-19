@@ -547,6 +547,59 @@ if ME then
     pfUI.env.SendChatMessage = envSend
   end
 
+  -- window settings menu (the three-line button)
+  if w1 then
+    w1.menu:Click()
+    ok(pfMeterMenu:IsShown(), "window menu opens")
+    local function find(label)
+      for _, b in ipairs(pfMeterMenu.buttons) do
+        if b:IsShown() and b.text.text and string.find(b.text.text, label, 1, true) then return b end
+      end
+    end
+    ok(find("Docked in the chat panel") and find("Lock position") and find("Merge pets") and find("All meter options"), "menu has dock, lock, tracking and options")
+    -- lock: hides the resize grip, stays open
+    ok(w1.grip:IsShown(), "free window has a resize grip")
+    find("Lock position"):Click()
+    ok(pfUI_config.meters.lock1 == "1" and not w1.grip:IsShown() and pfMeterMenu:IsShown(), "lock hides the grip, menu stays open")
+    find("Lock position"):Click()
+    -- bar height cycles
+    local before = pfUI_config.meters.barheight
+    find("Bar height"):Click()
+    ok(pfUI_config.meters.barheight ~= before, "bar height changes (" .. before .. " -> " .. pfUI_config.meters.barheight .. ")")
+    pfUI_config.meters.barheight = before
+    -- rank numbers off
+    find("Rank numbers"):Click()
+    w1.Refresh(w1)
+    ok(pfUI_config.meters.showrank == "0" and w1.bars[1].left.text == "Tester", "rank numbers off (" .. tostring(w1.bars[1].left.text) .. ")")
+    find("Rank numbers"):Click()
+    pfMeterMenu:Hide()
+
+    -- resize with the grip: the new size is kept
+    w1.GetWidth = function() return 333 end
+    w1.GetHeight = function() return 222 end
+    Mock.Run(w1.grip, "OnMouseDown")
+    Mock.Run(w1.grip, "OnMouseUp")
+    ok(pfUI_config.meters.width1 == "333" and pfUI_config.meters.height1 == "222", "resized window keeps its size")
+    w1.GetWidth, w1.GetHeight = nil, nil
+
+    -- dock and undock while playing (a stand-in right chat)
+    local chat = CreateFrame("Frame", "pfTestChatRight", UIParent)
+    chat.panelTop = CreateFrame("Frame", nil, chat)
+    local oldChat = pfUI.chat
+    pfUI.chat = { right = chat }
+    pfUI_config.chat.right.enable = "1"
+    pfUI.thirdparty.meters.state = nil
+    ME.SetDocked(w1, true)
+    ok(not w1.free and w1:IsShown() and pfUI.thirdparty.meters.damage, "dock: window goes into the chat panel")
+    local p, rel = w1:GetPoint()
+    ok(rel == chat, "docked window anchored to the chat")
+    ok(pfUI.thirdparty.meters.state, "meters shown instead of the chat")
+    ME.SetDocked(w1, false)
+    ok(w1.free and w1:IsShown() and pfUI_config.thirdparty.pfmeter.dock == "0", "undock: free window")
+    ok(not pfUI.thirdparty.meters.state, "nothing docked: chat back")
+    pfUI.chat = oldChat
+  end
+
   -- the fight ends a second after the group leaves combat; named after the enemy
   fighting = false
   Mock.now = Mock.now + 1.5
@@ -653,6 +706,29 @@ do
     local _, _, _, _, yuf = uf:GetPoint()
     ok(y and yuf and y < yuf, "pages sit below their category")
     ok(uf.arrow.text == "-", "open category shows -")
+
+    -- clicking the open category folds and unfolds its pages
+    uf:Click()
+    ok(not player:IsShown() and uf.arrow.text == "+", "click again folds the pages")
+    uf:Click()
+    ok(player:IsShown() and uf.arrow.text == "-", "and unfolds them")
+
+    -- a short window: the tree scrolls, the opened category stays in view
+    F.area.h = 400
+    F["Settings"]:Click()
+    uf:Click()
+    local last = uf.children[table.getn(uf.children)]
+    ok(last:IsShown(), "opening a long category scrolls its last page into view")
+    local hiddenRoot = 0
+    for _, b in ipairs(F.order) do if not b:IsShown() then hiddenRoot = hiddenRoot + 1 end end
+    ok(hiddenRoot > 0, "rows beyond the column are hidden (" .. hiddenRoot .. ")")
+    ok(F.area.moreUp:IsShown() or F.area.more:IsShown(), "more-rows mark shows")
+    arg1 = 1
+    for i = 1, 20 do pfUI.gui_TreeScroll() end
+    ok(F.order[1]:IsShown() and not F.area.moreUp:IsShown(), "wheel up back to the top")
+    arg1 = nil
+    F.area.h = 0
+    pfUI.gui_RelayoutTree()
   end
 end
 
