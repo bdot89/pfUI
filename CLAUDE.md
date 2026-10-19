@@ -57,7 +57,21 @@ see "Roadmap" below.
    Done), Shift on the arrows = 10 px, `/moveui` and `/pfmove`, options window only reopens when
    layout mode was started from it, help box only on first use (`unlock.helpseen`). Config group
    `unlock`: snap, gridsize, helpseen.
-3. Install wizard (ElvUI flow, /pfui install) and profile export/import strings.
+3. Installer + profile strings. DONE 19 Oct (not seen in game).
+   modules/firstrun.lua rewritten as one ElvUI-style window (step list left, Previous / Next /
+   Skip, close X = ask again next login). Steps: init, profile (Octo recommended + stock profiles,
+   UI scale; picking one sets pfUI_init.profile before the reload so it does not ask again),
+   layout (Tank/DPS vs Healer: `pfUI.firstrun.SetRaidLayout` moves `pfRaidCluster` to bottom centre,
+   width from raidlayout columns), cvars, chat_right, chat_position, chat_channels, finalize.
+   AddStep(name, func, title) keeps the old two-argument form. `/pfui install` =
+   `pfUI.firstrun:Restart()`; `/pfui move`, `/pfui export` also work. Meter / combat text steps
+   come with phases 5 and 6.
+   modules/share.lua (/export, /import, /share - pfUI's own) fixed: import no longer runs the
+   pasted text with loadstring (`parse` reads only `["k"] = "v",` / number / `{` / `}` lines),
+   Import shows a per-section change preview, strings without positions/disabled keep the
+   importer's own (pfUI used to reset them), Import accepts the encoded string directly. Two
+   upstream bugs: enc() cut a real character when the text ended on a 92-char line break, dec()
+   used a pattern find (errors on "(" or "["). `pfUI.share` exposes serialize/parse/preview/import.
 4. Options window restyle (ElvUI): headers, group boxes, top bar, Meters + Combat Text pages.
 5. Meters, Details!/Recount depth (the user asked "they should tell you everything, all
    interrupts, all casts"): damage / healing / overhealing / absorbs, damage taken, per-spell and

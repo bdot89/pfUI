@@ -158,6 +158,8 @@ function methods:GetChecked() return self.checked end
 function methods:SetMinMaxValues(a, b) self.min, self.max = a, b end
 function methods:GetMinMaxValues() return self.min or 0, self.max or 1 end
 function methods:SetValue(v)
+  -- the client fires OnValueChanged only when the value changes
+  if self.value == v then return end
   self.value = v
   Run(self, "OnValueChanged")
 end
@@ -513,3 +515,6 @@ function methods:GetPoint(i) local p = (self.points or {})[i or 1] or {} return 
 function methods:ClearAllPoints() self.points = nil self.point = nil end
 function methods:SetThumbTexture(t) self.thumb = self.thumb or New("Texture", nil, self) self.thumb.texture = t end
 function methods:GetThumbTexture() return self.thumb end
+function methods:GetVerticalScrollRange() return 0 end
+function methods:GetVerticalScroll() return self.vscroll or 0 end
+function methods:SetVerticalScroll(v) self.vscroll = v end

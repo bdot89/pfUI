@@ -27,6 +27,100 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
     return match and str or nil
   end
 
+  -- octo: reads the text serialize() writes WITHOUT running it. pfUI used
+  -- loadstring() on whatever was pasted, so a shared string could run any
+  -- code on the importer's client. Only these lines are accepted:
+  --   pfUI_config = {          ["key"] = {          ["key"] = "text",
+  --   ["key"] = 12.5,          },  or  }
+  -- returns: the table, or nil and a message with the bad line number
+  local function parse(text)
+    if type(text) ~= "string" or string.len(text) > 2000000 then return nil, "no text" end
+    local root, stack, depth, lineno = nil, {}, 0, 0
+    local function unescape(s)
+      return (string.gsub(s, "\\(.)", "%1"))
+    end
+    for line in string.gfind(text .. "\n", "([^\n]*)\n") do
+      lineno = lineno + 1
+      line = string.gsub(line, "^%s+", "")
+      line = string.gsub(line, "%s+$", "")
+      local _, key, value
+      if line == "" then
+        -- blank
+      elseif not root then
+        if line ~= "pfUI_config = {" then return nil, "line " .. lineno .. ": not a pfUI profile" end
+        root = {}
+        stack[1] = root
+        depth = 1
+      elseif depth == 0 then
+        return nil, "line " .. lineno .. ": text after the end"
+      elseif line == "}," or line == "}" then
+        stack[depth] = nil
+        depth = depth - 1
+      else
+        _, _, key = string.find(line, '^%["([^"]*)"%] = {$')
+        if key then
+          if depth >= 12 then return nil, "line " .. lineno .. ": nested too deep" end
+          local t = {}
+          stack[depth][key] = t
+          depth = depth + 1
+          stack[depth] = t
+        else
+          _, _, key, value = string.find(line, '^%["([^"]*)"%] = "(.*)",$')
+          if key then
+            stack[depth][key] = unescape(value)
+          else
+            _, _, key, value = string.find(line, '^%["([^"]*)"%] = (%-?[%d%.]+[eE]?[%-%+]?%d*),$')
+            if key and tonumber(value) then
+              stack[depth][key] = tonumber(value)
+            else
+              return nil, "line " .. lineno .. ": not a setting"
+            end
+          end
+        end
+      end
+    end
+    if not root then return nil, "empty" end
+    if depth ~= 0 then return nil, "unfinished (missing })" end
+    return root
+  end
+
+  -- counts the values in the imported config that differ from the current one,
+  -- per top-level section: { {section, count}, ... } sorted by name
+  local function preview(imported, current)
+    local function count(a, b)
+      local n = 0
+      for k, v in pairs(a) do
+        if type(v) == "table" then
+          n = n + count(v, type(b) == "table" and b[k] or {})
+        elseif type(b) ~= "table" or tostring(b[k]) ~= tostring(v) then
+          n = n + 1
+        end
+      end
+      return n
+    end
+    local list = {}
+    for section, v in pairs(imported) do
+      if type(v) == "table" then
+        local n = count(v, current[section])
+        if n > 0 then table.insert(list, { section, n }) end
+      end
+    end
+    table.sort(list, function(a, b) return a[1] < b[1] end)
+    return list
+  end
+
+  -- replaces the config with an imported one; a string exported with
+  -- "Ignore Layout" carries no positions / disabled modules, so the
+  -- importer keeps their own instead of falling back to the defaults
+  local function import(imported)
+    local keep = {}
+    if not imported.position then keep.position = pfUI_config.position end
+    if not imported.disabled then keep.disabled = pfUI_config.disabled end
+    _G.pfUI_config = imported
+    for k, v in pairs(keep) do pfUI_config[k] = v end
+    pfUI:LoadConfig()
+  end
+
   local function compress(input)
     -- based on Rochet2's lzw compression
     if type(input) ~= "string" then
@@ -198,6 +292,9 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
       end
     end
 
+    -- octo: a line break right at the end made the padding cut one real
+    -- character instead (exports of 92*n characters failed to import)
+    encoded = string.gsub(encoded, "\n$", "")
     return string.sub(encoded, 1, -1 - string.len(trailing)) .. trailing
   end
 
@@ -213,7 +310,8 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
 
     for i = 1, string.len(unpadded) do
       local char = string.sub(to_decode, i, i)
-      local offset, _ = string.find(index_table, char)
+      -- octo: plain find; "(" or "[" in the box raised a pattern error
+      local offset, _ = string.find(index_table, char, 1, true)
       if offset == nil then return nil end
 
       local remaining = tonumber(offset-1)
@@ -277,6 +375,20 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
     CreateBackdropShadow(f)
     table.insert(UISpecialFrames, "pfShare")
 
+    -- the profile in the text box, pasted encoded or decoded: table or nil, error
+    function f.GetImport()
+      local text = f.scroll and f.scroll.text and f.scroll.text:GetText() or ""
+      if string.gsub(text, "%s", "") == "" then return nil, "empty" end
+      if not string.find(text, "pfUI_config") then
+        local raw = dec(text)
+        if not raw or raw == "" then return nil, "not encoded" end
+        local good, out = pcall(decompress, raw)
+        if not good or type(out) ~= "string" then return nil, "cannot decode" end
+        text = out
+      end
+      return parse(text)
+    end
+
     do -- Edit Box
       f.scroll = pfUI.api.CreateScrollFrame("pfShareScroll", f)
       f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -30)
@@ -307,8 +419,7 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
         this:GetParent():UpdateScrollChildRect()
         this:GetParent():UpdateScrollState()
 
-        local _, error = loadstring(f.scroll.text:GetText())
-        if error or string.gsub(this:GetText(), " ", "") == "" then
+        if not f.GetImport() then
           f.loadButton:Disable()
           f.loadButton.text:SetTextColor(1,.5,.5,1)
         else
@@ -385,12 +496,33 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
       f.loadButton.text:SetFont(pfUI.font_default, pfUI_config.global.font_size, "OUTLINE")
       f.loadButton.text:SetText(T["Import"])
       f.loadButton:SetScript("OnClick", function()
-        local ImportConfig, error = loadstring(f.scroll.text:GetText())
-        if not error and f.scroll.text:GetText() ~= "" then
-          ImportConfig()
-          pfUI:LoadConfig()
-          CreateQuestionDialog(T["Some settings need to reload the UI to take effect.\nDo you want to reloadUI now?"], ReloadUI)
+        local imported, err = f.GetImport()
+        if not imported then
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpf|rUI: " .. T["This is not a pfUI profile string"] .. " (" .. tostring(err) .. ")")
+          return
         end
+
+        -- preview: which sections change, and whether the layout is kept
+        local list = preview(imported, pfUI_config)
+        local text = T["Import this profile?"] .. "\n\n"
+        local shown = 0
+        for _, entry in ipairs(list) do
+          if shown < 12 then
+            text = text .. entry[1] .. ": |cffffffff" .. entry[2] .. "|r " .. T["changes"] .. "\n"
+          end
+          shown = shown + 1
+        end
+        if shown > 12 then text = text .. "+" .. (shown - 12) .. " " .. T["more sections"] .. "\n" end
+        if shown == 0 then text = text .. T["Nothing differs from your settings."] .. "\n" end
+        if not imported.position then
+          text = text .. "\n|cffaaffaa" .. T["Your frame positions are kept."] .. "|r"
+        end
+        text = text .. "\n" .. T["The UI reloads afterwards."]
+
+        CreateQuestionDialog(text, function()
+          import(imported)
+          ReloadUI()
+        end)
       end)
     end
 
@@ -440,6 +572,10 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
         f.scroll:SetVerticalScroll(0)
       end)
     end
+
+    -- for tests\run.lua and other modules
+    pfUI.share = { serialize = serialize, parse = parse, preview = preview, import = import,
+                   compress = compress, decompress = decompress, enc = enc, dec = dec }
 
     _G.SLASH_PFEXPORT1, _G.SLASH_PFEXPORT2, _G.SLASH_PFEXPORT3 = "/export", "/import", "/share"
     function SlashCmdList.PFEXPORT(msg, editbox)

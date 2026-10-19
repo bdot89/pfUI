@@ -5,6 +5,20 @@ end
 
 SLASH_PFUI1 = '/pfui'
 function SlashCmdList.PFUI(msg, editbox)
+  -- octo: "/pfui install" reruns the installer, "/pfui move" is /moveui
+  local cmd = string.lower(msg or "")
+  if cmd == "install" and pfUI.firstrun then
+    pfUI.gui:Hide()
+    pfUI.firstrun:Restart()
+    return
+  elseif (cmd == "move" or cmd == "moveui" or cmd == "unlock") and pfUI.unlock then
+    if pfUI.unlock:IsShown() then pfUI.unlock:Hide() else pfUI.unlock:Show() end
+    return
+  elseif (cmd == "export" or cmd == "import" or cmd == "share") and pfShare then
+    pfShare:Show()
+    return
+  end
+
   if pfUI.gui:IsShown() then
     pfUI.gui:Hide()
   else

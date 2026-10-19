@@ -61,6 +61,7 @@ function CreateFrame(kind, name, parent, template)
       Mock.New(child == "Button" and "Button" or "FontString", name .. child, f)
     end
   end
+  if template == "OptionsSliderTemplate" then f:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal") end
   return f
 end
 function UIDropDownMenu_SetWidth() end
@@ -76,7 +77,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share" }
 
 -- ---------------------------------------------------------------- load
 
@@ -247,6 +248,131 @@ if U and U.bar then
   ok(not U:IsShown(), "Done leaves layout mode")
   ok(not pfUI.gui:IsShown(), "options window stays closed after /moveui")
   pfUI.movables = realMovables
+end
+
+-- ---------------------------------------------------------------- phase 3: profile strings
+local S = pfUI.share
+ok(S and S.parse, "share module exposes its parser")
+if S then
+  local src = { appearance = { border = { color = "0,0,0,1", default = "1" } }, unitframes = { player = { width = "250" } },
+                global = { font_size = "13", note = 'a "quoted" \\ path' }, numbers = { a = 1.5, b = -2 } }
+  local text = S.serialize(src, nil, "pfUI_config", {})
+  local back, err = S.parse(text)
+  ok(back, "parses its own export: " .. tostring(err))
+  if back then
+    ok(back.appearance.border.default == "1" and back.unitframes.player.width == "250", "round trip keeps values")
+    ok(back.numbers.a == 1.5 and back.numbers.b == -2, "round trip keeps numbers")
+    ok(back.global.note == 'a "quoted" \\ path', "round trip keeps quotes and backslashes (" .. tostring(back.global.note) .. ")")
+  end
+  -- through compression and base64, as /export shows it
+  local encoded = S.enc(S.compress(text))
+  local decoded = S.decompress(S.dec(encoded))
+  ok(S.decompress(S.compress(text)) == text, "compress round trip")
+  ok(S.dec(S.enc("hello world, pfUI!")) == "hello world, pfUI!", "base64 round trip")
+  ok(decoded == text, "compress + base64 round trip")
+  if decoded ~= text and os.getenv("PFUI_TEST_VERBOSE") then
+    local c = S.compress(text)
+    local d = S.dec(S.enc(c))
+    print("  compressed " .. string.len(c) .. " bytes, after base64 " .. string.len(d or "") .. ", equal: " .. tostring(c == d))
+    for i = 1, string.len(c) do
+      if string.sub(c, i, i) ~= string.sub(d or "", i, i) then
+        print("  first difference at byte " .. i .. ": " .. string.byte(c, i) .. " vs " .. tostring(string.byte(d or "", i)))
+        break
+      end
+    end
+  end
+
+  -- code is refused, never run
+  _G.octo_pwned = nil
+  local evil = 'pfUI_config = {\n  ["a"] = "1",\n}\nocto_pwned = true\n'
+  ok(S.parse(evil) == nil, "refuses code after the table")
+  ok(S.parse('pfUI_config = {\n  ["a"] = os.exit(),\n}') == nil, "refuses a function call as a value")
+  ok(S.parse('pfUI_config = {\n  ["a"] = ("x"):rep(9),\n}') == nil, "refuses an expression")
+  ok(S.parse('pfUI_config = {\n  ["a"] = {\n') == nil, "refuses an unfinished table")
+  ok(_G.octo_pwned == nil, "nothing ran")
+
+  -- preview counts changed values per section
+  local list = S.preview({ appearance = { border = { color = "1,1,1,1", default = "1" } } },
+                         { appearance = { border = { color = "0,0,0,1", default = "1" } } })
+  ok(table.getn(list) == 1 and list[1][1] == "appearance" and list[1][2] == 1, "preview: 1 change in appearance")
+
+  -- "Ignore Layout" strings keep the importer's positions
+  local before = pfUI_config
+  pfUI_config.position = { pfPlayer = { xpos = 1, ypos = 2 } }
+  S.import({ appearance = { border = { color = "1,0,0,1" } } })
+  ok(pfUI_config.position and pfUI_config.position.pfPlayer and pfUI_config.position.pfPlayer.xpos == 1, "import keeps positions when the string has none")
+  ok(pfUI_config.appearance.border.color == "1,0,0,1", "import applies the string")
+  ok(pfUI_config.unitframes and pfUI_config.unitframes.player, "import fills defaults")
+  S.import({ appearance = {}, position = { pfTarget = { xpos = 5, ypos = 6 } } })
+  ok(pfUI_config.position.pfTarget and not pfUI_config.position.pfPlayer, "import takes the string's positions when it has them")
+  _G.pfUI_config = before
+  pfUI:LoadConfig()
+
+  -- the window: paste the encoded string, Import is enabled
+  if pfShare then
+    pfShare:Show()
+    pfShare.scroll.text:SetText(encoded)
+    local t, e = pfShare.GetImport()
+    ok(t and t.unitframes.player.width == "250", "window reads a pasted encoded string: " .. tostring(e))
+    pfShare.scroll.text:SetText("print('hi')")
+    ok(pfShare.GetImport() == nil, "window refuses Lua code")
+    pfShare:Hide()
+  end
+end
+
+-- ---------------------------------------------------------------- phase 3: installer
+local FR = pfUI.firstrun
+ok(FR and FR.steps and table.getn(FR.steps) == 8, "installer has 8 steps (" .. (FR and table.getn(FR.steps) or 0) .. ")")
+if FR then
+  -- the steps' actions need the real client: count them instead
+  local did = {}
+  local realCVars = pfUI.SetupCVars
+  pfUI.SetupCVars = function() did.cvars = true end
+  pfUI.chat = pfUI.chat or {}
+  pfUI.chat.SetupRightChat = function() did.right = true end
+  pfUI.chat.SetupPositions = function() did.positions = true end
+  pfUI.chat.SetupChannels = function() did.channels = true end
+  _G.pfUI_init = {}
+  local shown = {}
+  for i = 1, 8 do
+    FR:NextStep()
+    -- the page on screen is the newest shown frame with a .next button
+    local page
+    for _, f in ipairs(Mock.frames) do
+      if f.next and f.prev and f:IsShown() then page = f end
+    end
+    if not page then break end
+    table.insert(shown, page.name)
+    page.next:GetScript("OnClick")()
+  end
+  ok(table.getn(shown) == 8, "Next walks through every step (" .. table.concat(shown, ",") .. ")")
+  ok(pfUI_init.finalize, "all steps marked done")
+  ok(did.cvars and did.right and did.positions and did.channels, "ticked steps ran their setup")
+  pfUI.SetupCVars = realCVars
+
+  -- Previous goes back one step
+  _G.pfUI_init = { init = true, profile = true }
+  FR:NextStep()
+  local page
+  for _, f in ipairs(Mock.frames) do if f.next and f.prev and f:IsShown() then page = f end end
+  ok(page and page.name == "layout", "resumes at the first unfinished step")
+  if page then page.prev:GetScript("OnClick")() end
+  page = nil
+  for _, f in ipairs(Mock.frames) do if f.next and f.prev and f:IsShown() then page = f end end
+  ok(page and page.name == "profile", "Previous goes back to the profile step")
+  if page then page.skip:GetScript("OnClick")() end
+  ok(pfUI_init.chat_channels and pfUI_init.finalize, "Skip marks every step done")
+
+  -- healer layout centres the raid frames, DPS resets them
+  FR.SetRaidLayout("HEALER")
+  ok(pfUI_config.position.pfRaidCluster and pfUI_config.position.pfRaidCluster.anchor == "BOTTOM", "healer layout moves the raid frames to the middle")
+  FR.SetRaidLayout("DPS")
+  ok(pfUI_config.position.pfRaidCluster == nil, "tank/DPS layout resets them")
+
+  -- /pfui install restarts it
+  SlashCmdList.PFUI("install")
+  ok(not pfUI_init.init, "/pfui install starts over")
+  _G.pfUI_init = { init = true, profile = true, layout = true, cvars = true, chat_right = true, chat_position = true, chat_channels = true, finalize = true }
 end
 
 -- ---------------------------------------------------------------- options pages
