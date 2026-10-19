@@ -212,23 +212,28 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   end
 
   -- [ snapping ]
-  -- While a frame is dragged its edges and centre are compared with the grid
-  -- lines, the screen edges and centre, and the edges and centres of every
-  -- other mover; within SNAP pixels the nearest one wins and an accent guide
-  -- line shows it. On release the frame jumps onto it. Alt or the top bar's
-  -- "Snap" box turns it off. All in UIParent units.
-  local SNAP = 8
+  -- While a frame is dragged the outer edges of its box (frame + border) and
+  -- its centre are compared with the outer edges and centres of every other
+  -- mover, the screen edges and centre, then the grid lines; within SNAP
+  -- pixels the nearest one pulls the frame onto it (ElvUI's sticky frames)
+  -- and an accent guide line shows it. Alt or the top bar's "Snap" box turns
+  -- it off. All in UIParent units.
+  local SNAP = 10
 
   local function UIScale(frame)
     return frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
   end
 
-  -- left, right, centre-x, bottom, top, centre-y in UIParent units
+  -- outer left, right, centre-x, bottom, top, centre-y in UIParent units:
+  -- the boxes draw their border outside the frame, so snapping the outer
+  -- edges makes two boxes sit flush instead of overlapping by the border
   local function Edges(frame)
     local l, r, b, t = frame:GetLeft(), frame:GetRight(), frame:GetBottom(), frame:GetTop()
     if not l or not r or not b or not t then return end
     local s = UIScale(frame)
-    return l*s, r*s, (l+r)/2*s, b*s, t*s, (b+t)/2*s
+    local bd = (default_border or 0) * s
+    l, r, b, t = l*s - bd, r*s + bd, b*s - bd, t*s + bd
+    return l, r, (l+r)/2, b, t, (b+t)/2
   end
 
   local function InSelection(frame)
@@ -254,11 +259,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return best, bestline
   end
 
-  -- returns dx, dy (UIParent units) and the guide lines, or nil when off
-  local function GetSnap(frame)
+  -- snap for a box with these outer edges: dx, dy (UIParent units) and the
+  -- guide lines, or nil when snapping is off
+  local function SnapBox(frame, l, r, b, t)
     if C.unlock.snap ~= "1" or IsAltKeyDown() then return end
-    local l, r, cx, b, t, cy = Edges(frame)
-    if not l then return end
+    local cx, cy = (l+r)/2, (b+t)/2
 
     local width, height = GetScreenWidth(), GetScreenHeight()
     local xs, ys = { 0, width, width/2 }, { 0, height, height/2 }
@@ -282,6 +287,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     if abs(dx) > SNAP then dx, xline = 0, nil end
     if abs(dy) > SNAP then dy, yline = 0, nil end
     return dx, dy, xline, yline
+  end
+
+  -- the snap of a frame where it is now
+  local function GetSnap(frame)
+    local l, r, _, b, t = Edges(frame)
+    if not l then return end
+    return SnapBox(frame, l, r, b, t)
   end
 
   local function ShowGuides(xline, yline)
@@ -313,11 +325,55 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
   end
 
-  local function SnapOnUpdate()
-    if ( this.tick or 0 ) > GetTime() then return end
-    this.tick = GetTime() + .03
-    local _, _, xline, yline = GetSnap(this.frame)
+  -- [ dragging ]
+  -- The selection is moved by hand from the cursor instead of the client's
+  -- StartMoving, so the snap can pull it while dragging, and the saved
+  -- position is worked out from these numbers: the client may report a
+  -- moved frame's edges only on the next screen update.
+  local drag = {}
+
+  local function Cursor()
+    local x, y = GetCursorPosition()
+    local s = UIParent:GetEffectiveScale()
+    return x / s, y / s
+  end
+
+  local function PlaceBoxes(dx, dy)
+    for _, box in ipairs(drag.boxes) do
+      box.frame:ClearAllPoints()
+      box.frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (box.il + dx) / box.s, (box.ib + dy) / box.s)
+    end
+  end
+
+  local function DragOnUpdate()
+    local cx, cy = Cursor()
+    local dx, dy = cx - drag.cx, cy - drag.cy
+    local lead = drag.boxes[1]
+    local sx, sy, xline, yline = SnapBox(lead.frame, lead.l + dx, lead.r + dx, lead.b + dy, lead.t + dy)
+    if sx then dx, dy = dx + sx, dy + sy end
     ShowGuides(xline, yline)
+    if dx == drag.dx and dy == drag.dy then return end
+    drag.dx, drag.dy = dx, dy
+    PlaceBoxes(dx, dy)
+  end
+
+  -- the saved anchor follows the screen third the selection ends up in
+  local function AnchorFor(l, r, b, t)
+    local width, height = GetScreenWidth(), GetScreenHeight()
+    local mx, my = (l + r) / 2, (b + t) / 2
+    local h = mx < width/3 and "LEFT" or mx > width*2/3 and "RIGHT" or ""
+    local v = my > height*2/3 and "TOP" or my < height/3 and "BOTTOM" or ""
+    if v .. h == "" then return "CENTER" end
+    return v .. h
+  end
+
+  -- offsets of a box (inner edges, UIParent units) for that anchor, in frame units
+  local function AnchorOffsets(anchor, l, r, b, t, s)
+    local width, height = GetScreenWidth(), GetScreenHeight()
+    local x, y
+    if strfind(anchor, "LEFT") then x = l elseif strfind(anchor, "RIGHT") then x = r - width else x = (l + r)/2 - width/2 end
+    if strfind(anchor, "TOP") then y = t - height elseif strfind(anchor, "BOTTOM") then y = b else y = (b + t)/2 - height/2 end
+    return x / s, y / s
   end
 
   local function GetConfigTable(dlabel)
@@ -447,83 +503,65 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     pfUI.unlock.selection = GetFrames()
 
-    for id, frame in pairs(pfUI.unlock.selection) do
-      frame:StartMoving()
-      frame:StopMovingOrSizing()
-      frame.drag.backdrop:SetBackdropBorderColor(GetAccentColor())
+    -- remember every selected box where it is now (dragged frame first)
+    drag.boxes = {}
+    local function Add(f)
+      local l, r, _, b, t = Edges(f)
+      if not l then return end
+      local s = UIScale(f)
+      local il, ir, ib, it = f:GetLeft() * s, f:GetRight() * s, f:GetBottom() * s, f:GetTop() * s
+      -- saved positions are relative to UIParent (as pfUI did on drop)
+      if f:GetParent() ~= UIParent then
+        f:SetParent(UIParent)
+        s = UIScale(f)
+      end
+      table.insert(drag.boxes, { frame = f, s = s, l = l, r = r, b = b, t = t, il = il, ir = ir, ib = ib, it = it })
+      f.drag.backdrop:SetBackdropBorderColor(GetAccentColor())
     end
+    Add(frame)
+    for _, f in pairs(pfUI.unlock.selection) do
+      if f ~= frame then Add(f) end
+    end
+    if not drag.boxes[1] then return end
 
-    local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame.oldPos = { xpos, ypos, anchor }
-    frame:StartMoving()
-    this:SetScript("OnUpdate", SnapOnUpdate)
+    drag.cx, drag.cy = Cursor()
+    drag.dx, drag.dy = 0, 0
+    PlaceBoxes(0, 0)
+    this:SetScript("OnUpdate", DragOnUpdate)
 
     if frame.OnMove then frame:OnMove() end
   end
 
   local function DraggerOnDragStop()
     local frame = this.frame
-    local name = this.fname
 
-    frame:StopMovingOrSizing()
     this:SetScript("OnUpdate", nil)
     ShowGuides(nil, nil)
+    if not drag.boxes or not drag.boxes[1] then return end
 
-    -- the snap is measured at the drop position and added to the saved
-    -- offsets below: the client may not report a frame's new edges until
-    -- the next screen update, so moving it here and reading it back fails
-    local dx, dy = GetSnap(frame)
-
-    -- calculate and move selection offsets
-    local anchor, xpos, ypos = ConvertFrameAnchor(frame, frame.oldPos[3])
-    local diffxpos = frame.oldPos[1] - xpos
-    local diffypos = frame.oldPos[2] - ypos
-
-    for id, frame in pairs(pfUI.unlock.selection) do
-      frame:SetParent("UIParent")
-      if frame:GetName() ~= name then
-        local anchor, _, _, xpos, ypos = frame:GetPoint()
-        frame:SetPoint(anchor or "TOPLEFT", xpos - diffxpos, ypos - diffypos)
-      end
+    -- where the selection ended up (inner edges, UIParent units)
+    local dx, dy = drag.dx or 0, drag.dy or 0
+    local left, right, bottom, top
+    for _, box in ipairs(drag.boxes) do
+      local l, r, b, t = box.il + dx, box.ir + dx, box.ib + dy, box.it + dy
+      left = left and min(left, l) or l
+      right = right and max(right, r) or r
+      bottom = bottom and min(bottom, b) or b
+      top = top and max(top, t) or t
     end
-
-    -- detect best anchor
-    local bestanchor = "TOPLEFT"
-    local left, top, right, bottom
-    spanframe:ClearAllPoints()
-
-    for id, frame in pairs(pfUI.unlock.selection) do
-      if not left or frame:GetLeft() < left then
-        spanframe:SetPoint("LEFT", frame, "LEFT", 0, 0)
-        left = frame:GetLeft()
-      end
-      if not top or frame:GetTop() > top then
-        top = frame:GetTop()
-        spanframe:SetPoint("TOP", frame, "TOP", 0, 0)
-      end
-      if not right or frame:GetRight() > right then
-        right = frame:GetRight()
-        spanframe:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
-      end
-      if not bottom or frame:GetBottom() < bottom then
-        bottom = frame:GetBottom()
-        spanframe:SetPoint("BOTTOM", frame, "BOTTOM", 0, 0)
-      end
-    end
-    bestanchor = GetBestAnchor(spanframe)
+    local anchor = AnchorFor(left, right, bottom, top)
 
     -- save all frame positions
-    for id, frame in pairs(pfUI.unlock.selection) do
-      CreateBackdrop(frame.drag, nil, nil, .8)
-      local anchor, x, y = ConvertFrameAnchor(frame, bestanchor)
-      if dx then
-        local s = UIScale(frame)
-        x, y = x + dx / s, y + dy / s
-      end
-      frame:ClearAllPoints()
-      frame:SetPoint(anchor, UIParent, anchor, x, y)
-      SavePosition(frame)
+    for _, box in ipairs(drag.boxes) do
+      local f = box.frame
+      local x, y = AnchorOffsets(anchor, box.il + dx, box.ir + dx, box.ib + dy, box.it + dy, box.s)
+      CreateBackdrop(f.drag, nil, nil, .8)
+      f:ClearAllPoints()
+      f:SetPoint(anchor, UIParent, anchor, x, y)
+      SavePosition(f)
+      if f.OnMove then f:OnMove() end
     end
+    drag.boxes = nil
 
     this.backdrop:SetBackdropBorderColor(1,1,1,1)
     UpdateDockValues()

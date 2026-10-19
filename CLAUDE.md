@@ -51,8 +51,13 @@ see "Roadmap" below.
    scrollbar thumbs - phase 4 moves those to the accent.
 2. Layout mode. DONE 19 Oct (not seen in game), modules/unlock.lua. pfUI already had drag, grid,
    middle-click reset and a right-click box (anchor, X/Y, arrows, Configure). Added: snapping while
-   dragging (`GetSnap`: other movers' edges/centres and screen edges/centre first, grid lines
-   second, 8 px, accent guide lines live, Alt or the Snap box = off), grid drawn from the centre
+   dragging (`SnapBox`: other movers' outer edges (frame + border, so boxes sit flush) and
+   centres and the screen edges/centre first, grid lines second, 10 px, accent guide lines, Alt
+   or the Snap box = off). Seen in game 19 Oct: the first version (snap on release after the
+   client's StartMoving) did not snap - the client reports a moved frame's edges late. Now the
+   drag is done by hand: DragOnUpdate moves the selection from the cursor and pulls it onto the
+   snap live; the drop saves from those numbers (AnchorFor = screen third, AnchorOffsets) and
+   never reads edges back. Reparents to UIParent at drag start, as pfUI did on drop. Grid drawn from the centre
    with exact accent centre lines, top bar (Snap, grid -/+ 32/64/128/256 cells, ?, Reset All,
    Done), Shift on the arrows = 10 px, `/moveui` and `/pfmove`, options window only reopens when
    layout mode was started from it, help box only on first use (`unlock.helpseen`). Config group

@@ -225,8 +225,11 @@ if U and U.bar then
   local b = Box("pfTestB", 200, 500, 200, 40)
   pfUI.movables = { pfTestA = a, pfTestB = b }
   U.selection = { a }
+  -- snapping uses the outer edges (frame + border) so the boxes sit flush
+  local _, bd = pfUI.api.GetBorderSize()
+  local function near(v, want) return v and abs(v - want) < .001 end
   local dx, dy, xline, yline = U.GetSnap(a)
-  ok(dx == -3 and xline == 400, "snaps A's left onto B's right edge (dx " .. tostring(dx) .. ")")
+  ok(near(dx, -3 + 2*bd) and near(xline, 400 + bd), "snaps A's outer left onto B's outer right (dx " .. tostring(dx) .. ")")
   -- centre: A centred 5 px off the screen's vertical centre line
   a = Box("pfTestA", 1920/2 - 50 + 5, 123, 100, 40)
   pfUI.movables = { pfTestA = a }
@@ -240,10 +243,10 @@ if U and U.bar then
   ok(U.GetSnap(a) == nil, "Snap box off turns snapping off")
   pfUI_config.unlock.snap = "1"
   -- a full drag and drop: the box's edges never change after SetPoint, as
-  -- when the client reports positions only on the next screen update; the
-  -- saved position must still include the snap (3 px left onto B's edge)
+  -- when the client reports positions only on the next screen update. The
+  -- cursor moves 2 px left; the snap pulls A the rest of the way onto B.
   a = Box("pfTestA", 403, 300, 100, 40)
-  b = Box("pfTestB", 200, 500, 200, 40)
+  b = Box("pfTestB", 200, 300, 200, 40)
   a:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 403, -740)
   pfUI.movables = { pfTestOne = pfTestOne, pfTestTwo = pfTestTwo }
   U:Hide()
@@ -252,14 +255,30 @@ if U and U.bar then
   ok(a.drag, "drag box for the test frame")
   if a.drag then
     pfUI_config.position.pfTestA = nil
+    Mock.cx, Mock.cy = 500, 500
     Mock.Run(a.drag, "OnDragStart")
+    Mock.cx = 498
+    Mock.Run(a.drag, "OnUpdate")
+    -- while dragging: A is already placed on the snap (inner left = 400 + 2*border)
+    local p, _, _, x, y = a:GetPoint()
+    ok(p == "BOTTOMLEFT" and near(x, 400 + 2*bd) and near(y, 300), "pulled onto B while dragging (x " .. tostring(x) .. ")")
+    ok(U.guides and U.guides.x:IsShown(), "guide line shows")
     Mock.Run(a.drag, "OnDragStop")
+    ok(not U.guides.x:IsShown(), "guide line gone after the drop")
     local pos = pfUI_config.position.pfTestA
-    ok(pos and pos.xpos, "drop saved a position")
-    if pos and pos.xpos then
-      local _, x = pfUI.api.ConvertFrameAnchor(a, pos.anchor)
-      ok(pos.xpos == pfUI.api.round(x - 3), "saved position includes the snap (" .. tostring(pos.xpos) .. " vs " .. tostring(pfUI.api.round(x - 3)) .. ")")
-    end
+    ok(pos and pos.anchor == "BOTTOMLEFT", "anchor from the screen third (" .. tostring(pos and pos.anchor) .. ")")
+    ok(pos and pos.xpos == pfUI.api.round(400 + 2*bd) and pos.ypos == 300, "saved where it snapped (" .. tostring(pos and pos.xpos) .. "," .. tostring(pos and pos.ypos) .. ")")
+    -- Alt: no pull
+    pfUI_config.position.pfTestA = nil
+    Mock.cx = 500
+    Mock.Run(a.drag, "OnDragStart")
+    Mock.alt = true
+    Mock.cx = 498
+    Mock.Run(a.drag, "OnUpdate")
+    Mock.Run(a.drag, "OnDragStop")
+    Mock.alt = nil
+    pos = pfUI_config.position.pfTestA
+    ok(pos and pos.xpos == 401, "Alt drag lands where dropped (" .. tostring(pos and pos.xpos) .. ")")
   end
   U:Hide()
   U.selection = {}
