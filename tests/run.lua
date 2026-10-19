@@ -419,13 +419,17 @@ end
 
 -- ---------------------------------------------------------------- options pages
 -- build every page of the options window (pages build on first show)
-local pages, pageErrors = 0, {}
+local pages, pageErrors, built = 0, {}, {}
+-- the page width in game: window 940 - 2*7 margin - 170 tree - 2*2 scroll inset
+local PAGE_WIDTH = 752
 local function BuildPage(path, area)
   local content = area and area.scroll and area.scroll.content
   if not content then return end
   pages = pages + 1
+  content.parent.GetLeft = function() return 0 end
+  content.parent.GetRight = function() return PAGE_WIDTH end
   local good, e = pcall(Mock.Run, content, "OnShow")
-  if not good then pageErrors[path] = e end
+  if not good then pageErrors[path] = e else built[path] = content end
 end
 ok(pfUI.gui and pfUI.gui.frames, "options window built")
 if pfUI.gui and pfUI.gui.frames then
@@ -450,6 +454,147 @@ for path, e in pairs(pageErrors) do
 end
 print(string.format("options pages built in the mock: %d, need more of the client: %d", pages - broken, broken))
 ok(broken == 0, "every options page builds (" .. broken .. " failed)")
+
+-- tree: one column; a category's pages show under it only while it is open
+do
+  local F = pfUI.gui.frames
+  local uf = F["Unit Frames"]
+  ok(uf and uf.children and table.getn(uf.children) > 5, "Unit Frames has its pages in the tree")
+  ok(F.order and table.getn(F.order) >= 15, "categories in the tree (" .. (F.order and table.getn(F.order) or 0) .. ")")
+  if uf and uf.children then
+    F["Settings"]:Click()
+    local hidden = true
+    for _, c in ipairs(uf.children) do if c:IsShown() then hidden = false end end
+    ok(hidden, "closed category hides its pages")
+    -- open a page directly (as search does): its category opens with it
+    local player = uf["Player"]
+
+    player:Click()
+
+    ok(uf.area:IsShown() and player.area:IsShown(), "clicking a page opens it and its category")
+    local shown = 0
+    for _, c in ipairs(uf.children) do if c:IsShown() then shown = shown + 1 end end
+    ok(shown == table.getn(uf.children), "open category lists all its pages")
+    ok(not F["Settings"].area:IsShown(), "the other category closed")
+    local _, _, _, _, y = player:GetPoint()
+    local _, _, _, _, yuf = uf:GetPoint()
+    ok(y and yuf and y < yuf, "pages sit below their category")
+    ok(uf.arrow.text == "-", "open category shows -")
+  end
+end
+
+-- layout: cells of a page never overlap, stay inside the page and inside their group box
+local overlaps, outside, cellsSeen = 0, 0, 0
+local function Cells(content)
+  local list = {}
+  for _, c in ipairs(content.children) do
+    if c.cell and c.cell.h then table.insert(list, c) end
+  end
+  return list
+end
+for path, content in pairs(built) do
+  local list = Cells(content)
+  cellsSeen = cellsSeen + table.getn(list)
+  for i = 1, table.getn(list) do
+    local a = list[i].cell
+    if a.x < 0 or a.x + a.w > PAGE_WIDTH - 16 + .01 then
+      outside = outside + 1
+      if os.getenv("PFUI_TEST_VERBOSE") then print("  outside: " .. path) end
+    end
+    for j = i + 1, table.getn(list) do
+      local b = list[j].cell
+      if a.x < b.x + b.w - .01 and b.x < a.x + a.w - .01 and a.y < b.y + b.h - .01 and b.y < a.y + a.h - .01 then
+        overlaps = overlaps + 1
+        if os.getenv("PFUI_TEST_VERBOSE") then print("  overlap on " .. path) end
+      end
+    end
+  end
+  -- every group box encloses the cells placed after it and before the next one
+  for gi, g in ipairs(content.groups or {}) do
+    local nextg = content.groups[gi + 1]
+    for _, c in ipairs(list) do
+      if c.cell.y >= g.cell.y and (not nextg or c.cell.y < nextg.cell.y) then
+        if c.cell.y + c.cell.h > g.cell.y + (g.h or 0) + .01 then
+          outside = outside + 1
+          if os.getenv("PFUI_TEST_VERBOSE") then print("  cell below its group box: " .. path) end
+        end
+      end
+    end
+  end
+end
+ok(cellsSeen > 500, "settings laid out as cells (" .. cellsSeen .. ")")
+ok(overlaps == 0, "no settings overlap (" .. overlaps .. ")")
+ok(outside == 0, "every setting inside its page and group box (" .. outside .. ")")
+
+-- PFUI_PREVIEW_DIR=<dir>: writes an HTML drawing of each page's layout
+local previewDir = os.getenv("PFUI_PREVIEW_DIR")
+if previewDir then
+  local function esc(s)
+    s = string.gsub(tostring(s or ""), "|c%x%x%x%x%x%x%x%x", "")
+    s = string.gsub(s, "|r", "")
+    s = string.gsub(s, "&", "&amp;")
+    s = string.gsub(s, "<", "&lt;")
+    return s
+  end
+  local ar, ag, ab = pfUI.api.GetAccentColor()
+  local accent = string.format("rgb(%d,%d,%d)", ar * 255, ag * 255, ab * 255)
+  local html = { "<!doctype html><meta charset=utf-8><title>pfUI Octo options preview</title><style>",
+    "body{background:#0b0b0b;color:#eee;font:13px 'PT Sans Narrow',Arial Narrow,sans-serif;margin:16px}",
+    ".page{position:relative;width:" .. PAGE_WIDTH .. "px;background:#161616;border:1px solid #000;margin:0 0 24px 0;overflow:hidden}",
+    ".g{position:absolute;background:rgba(255,255,255,.03);border:1px solid #383838}",
+    ".gt{position:absolute;left:10px;top:6px;color:" .. accent .. ";font-weight:bold;font-size:14px}",
+    ".c{position:absolute;box-sizing:border-box;white-space:nowrap;overflow:hidden}",
+    ".box{display:inline-block;width:12px;height:12px;border:1px solid #000;background:#222;margin:0 8px 0 6px;vertical-align:middle}",
+    ".on{background:" .. accent .. "}",
+    ".lbl{color:#ccc;font-size:12px;padding:2px 6px}",
+    ".in{margin:1px 6px;height:18px;background:#0e0e0e;border:1px solid #000;padding:0 5px;color:" .. accent .. ";line-height:18px}",
+    ".sw{display:inline-block;width:28px;height:12px;border:1px solid #000;margin:0 8px 0 6px;vertical-align:middle;background:#ddd}",
+    ".bt{margin:3px 4px;height:18px;border:1px solid #000;background:#1a1a1a;text-align:center;line-height:18px}",
+    "h2{font-size:18px;margin:4px 0}</style>" }
+  local paths = {}
+  for path in pairs(built) do table.insert(paths, path) end
+  table.sort(paths)
+  for _, path in ipairs(paths) do
+    local content = built[path]
+    local height = 60
+    for _, c in ipairs(Cells(content)) do
+      if c.cell.y + c.cell.h + 20 > height then height = c.cell.y + c.cell.h + 20 end
+    end
+    table.insert(html, "<h2>" .. esc(path) .. "</h2><div class=page style='height:" .. height .. "px'>")
+    if content.title then
+      table.insert(html, "<div class=c style='left:12px;top:10px;font-size:19px;font-weight:bold'>" .. esc(content.title.text) .. "</div>")
+    end
+    for _, g in ipairs(content.groups or {}) do
+      table.insert(html, string.format("<div class=g style='left:%dpx;top:%dpx;width:%dpx;height:%dpx'>", g.cell.x, g.cell.y, g.cell.w, g.h or 0))
+      if g.caption then table.insert(html, "<div class=gt>" .. esc(g.caption.text) .. "</div>") end
+      table.insert(html, "</div>")
+    end
+    for _, c in ipairs(Cells(content)) do
+      local k, inner = c.cellkind, ""
+      local cap = c.caption and esc(c.caption.text) or ""
+      if k == "checkbox" then
+        inner = "<span class='box" .. (c.input and c.input.checked and " on" or "") .. "'></span>" .. cap
+      elseif k == "color" then
+        inner = "<span class=sw></span>" .. cap
+      elseif k == "button" then
+        inner = "<div class=bt>" .. esc(c.button and c.button.text) .. "</div>"
+      elseif k == "dropdown" or k == "list" then
+        inner = "<div class=lbl>" .. cap .. "</div><div class=in>" .. esc(c.input and c.input.text and c.input.text.text) .. " &#9662;</div>"
+      elseif k == "text" then
+        inner = "<div class=lbl>" .. cap .. "</div><div class=in>" .. esc(c.input and c.input.text) .. "</div>"
+      else
+        inner = cap
+      end
+      table.insert(html, string.format("<div class=c style='left:%dpx;top:%dpx;width:%dpx;height:%dpx;line-height:%dpx'>%s</div>",
+        c.cell.x, c.cell.y, c.cell.w, c.cell.h, (k == "checkbox" or k == "color") and c.cell.h or 16, inner))
+    end
+    table.insert(html, "</div>")
+  end
+  local h = io.open(previewDir .. "/options-preview.html", "w")
+  h:write(table.concat(html, "\n"))
+  h:close()
+  print("preview written to " .. previewDir .. "/options-preview.html")
+end
 
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do

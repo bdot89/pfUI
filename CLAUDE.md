@@ -77,15 +77,23 @@ see "Roadmap" below.
    importer's own (pfUI used to reset them), Import accepts the encoded string directly. Two
    upstream bugs: enc() cut a real character when the text ended on a 92-char line break, dec()
    used a pattern find (errors on "(" or "["). `pfUI.share` exposes serialize/parse/preview/import.
-4. Options window restyle. DONE 19 Oct (not seen in game), modules/gui.lua. Window 880x560
-   (was 720x480); title bar: accent "pfUI Octo" + version, search box, Move Frames / Keybinds
-   (hoverbind) / Install / Profiles (share) buttons with tooltips (the bottom button row is gone);
-   tree rows 150x22, left-aligned, hover shade, open entry = accent text + accent gradient + 2 px
-   accent edge; headers = accent text 2 pt larger with a fading accent underline; zebra rows;
-   every teal (.2,1,.8 / .3,1,.8 / |cff33ffcc) in gui.lua and api/ui-widgets.lua now uses
-   GetAccentColor (About page logo left teal). Kept one control per row: pfUI's captions are long
-   ("Colorize player name on WorldMap and BattlefieldMinimap") and would not fit two columns.
-   Meters + Combat Text pages come with phases 5 and 6. All 52 pages build in the mock.
+4. Options window, ElvUI layout. modules/gui.lua. Window 940x600; title bar: accent "pfUI Octo" +
+   version, search, Move Frames / Keybinds (hoverbind) / Install / Profiles (share).
+   First version (one control per row, zebra) seen in game 19 Oct: the user called it "messy"
+   and asked to copy ElvUI. Second version (not seen in game yet):
+   - Tree: ONE column 170 wide (`RelayoutTree`); a category's pages are its `children`, listed
+     indented under it only while it is open (+/- marker); they used to open a second column.
+     Page areas fill the category area (no inner column). Clicking a page opens its category.
+   - Pages: title "Category > Page"; every "header" is a titled group box; CreateConfig only
+     collects cells (`Place`), `Finish(page)` (called after the page's populate func) lays each
+     group out: warnings, then tick boxes / colour swatches / buttons in a 2-column grid, then
+     dropdowns / text fields (label above), then lists; same kinds keep their order; a spacer
+     CreateConfig(nil) starts a new block. Tick box labels are clickable. Cells record
+     `frame.cell` {x,y,w,h} and `frame.cellkind`.
+   - Tests check no cells overlap and all sit inside their page and group. PFUI_PREVIEW_DIR=<dir>
+     makes tests\run.lua write options-preview.html (a drawing of every page from those numbers;
+     serve it over http to view it in the browser pane, which will not screenshot file://).
+   Every teal in gui.lua / api/ui-widgets.lua uses GetAccentColor (About logo left teal).
 5. Meters, Details!/Recount depth (the user asked "they should tell you everything, all
    interrupts, all casts"): damage / healing / overhealing / absorbs, damage taken, per-spell and
    per-target breakdowns with hits, crits, misses, max/min/avg, interrupts (who kicked what), dispels

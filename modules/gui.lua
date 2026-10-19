@@ -49,35 +49,229 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       end
     end
 
+    -- [ octo: ElvUI-style page layout ]
+    -- Every page gets a title and every "header" opens a titled group box.
+    -- While a page is built its settings are only collected; Finish() lays
+    -- each group out like ElvUI: warnings, then an even two-column grid of
+    -- tick boxes ([box] label - the label ticks too), colour swatches and
+    -- buttons, then dropdowns and text fields with their label above, then
+    -- lists. A spacer (CreateConfig(nil)) starts a new block in the group, so
+    -- settings that belong together stay together. Cells are children of the
+    -- page, the group box is a plain frame behind them.
+    local PAGE_PAD, GROUP_PAD, GAP, TITLE_H = 12, 10, 6, 26
+    local CELL = { checkbox = 24, color = 24, button = 24, dropdown = 42, text = 42, list = 42, warning = 50 }
+    local ORDER = { warning = 1, checkbox = 2, color = 2, button = 2, dropdown = 3, text = 3, list = 4 }
+
+    local function Flow(page)
+      if page.flow then return page.flow end
+      local width = 600
+      if page.parent and page.parent:GetRight() and page.parent:GetLeft() then
+        width = page.parent:GetRight() - page.parent:GetLeft() - 16 -- scrollbar
+      end
+      local fl = { top = PAGE_PAD, width = width, cols = 2 }
+      page.flow = fl
+
+      -- page title: "Category  >  Page" from the tree buttons
+      local area = page.parent and page.parent.GetParent and page.parent:GetParent()
+      local btn = area and area.button
+      if btn and btn.text and btn.text:GetText() then
+        local name = btn.text:GetText()
+        if btn.isChild and btn.parent and btn.parent.text then
+          name = "|cff888888" .. btn.parent.text:GetText() .. "  >|r  " .. name
+        end
+        page.title = page:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+        page.title:SetFont(pfUI.font_default, C.global.font_size + 6, "OUTLINE")
+        page.title:SetPoint("TOPLEFT", page, "TOPLEFT", PAGE_PAD, -PAGE_PAD)
+        page.title:SetJustifyH("LEFT")
+        page.title:SetText(name)
+        fl.top = PAGE_PAD + C.global.font_size + 18
+      end
+      return fl
+    end
+
+    local function StartGroup(page, title)
+      local fl = Flow(page)
+      local g = CreateFrame("Frame", nil, page)
+      g:SetFrameLevel(page:GetFrameLevel())
+      g:SetWidth(fl.width - 2 * PAGE_PAD)
+      g:SetHeight(TITLE_H)
+      g:SetBackdrop(pfUI.backdrop_thin)
+      g:SetBackdropColor(1, 1, 1, .03)
+      g:SetBackdropBorderColor(.22, .22, .22, 1)
+      g.blocks = { {} }
+
+      if title then
+        local ar, ag, ab = GetAccentColor()
+        g.caption = g:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+        g.caption:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE")
+        g.caption:SetPoint("TOPLEFT", g, "TOPLEFT", GROUP_PAD, -7)
+        g.caption:SetJustifyH("LEFT")
+        g.caption:SetTextColor(ar, ag, ab, 1)
+        g.caption:SetText(title)
+      end
+
+      fl.group = g
+      page.groups = page.groups or {}
+      table.insert(page.groups, g)
+      return g
+    end
+
+    -- a spacer: the next settings start a new block in the group
+    local function NewBlock(page)
+      local fl = Flow(page)
+      if not fl.group then return end
+      local blocks = fl.group.blocks
+      if table.getn(blocks[table.getn(blocks)]) > 0 then table.insert(blocks, {}) end
+    end
+
+    -- collects a cell (span columns, h high) for Finish()
+    local function Place(page, frame, span, h)
+      local fl = Flow(page)
+      if not fl.group then StartGroup(page, nil) end
+      local blocks = fl.group.blocks
+      frame.span, frame.cellh = span, h
+      frame.seq = (fl.seq or 0) + 1
+      fl.seq = frame.seq
+      table.insert(blocks[table.getn(blocks)], frame)
+    end
+
+    -- lays out every collected group once the page is built
+    local function Finish(page)
+      local fl = page.flow
+      if not fl or not page.groups then return end
+      local cols = fl.cols
+      local inner = fl.width - 2 * PAGE_PAD - 2 * GROUP_PAD
+      local colw = (inner - (cols - 1) * GAP) / cols
+      local y = fl.top
+
+      for _, g in ipairs(page.groups) do
+        local gtop = y
+        g:ClearAllPoints()
+        g:SetPoint("TOPLEFT", page, "TOPLEFT", PAGE_PAD, -gtop)
+        y = y + (g.caption and TITLE_H + 2 or GROUP_PAD)
+
+        local first = true
+        for _, block in ipairs(g.blocks) do
+          if table.getn(block) > 0 then
+            if not first then y = y + GAP * 2 end
+            first = false
+
+            -- same kinds together, in their original order
+            table.sort(block, function(a, b)
+              local oa, ob = ORDER[a.cellkind] or 2, ORDER[b.cellkind] or 2
+              if oa ~= ob then return oa < ob end
+              return a.seq < b.seq
+            end)
+
+            local x, rowh, lastorder = 0, 0, nil
+            for _, frame in ipairs(block) do
+              local span = frame.span > cols and cols or frame.span
+              local order = ORDER[frame.cellkind] or 2
+              -- a new kind or a full row starts a new line
+              if x > 0 and (x + span > cols or order ~= lastorder) then
+                y = y + rowh + GAP
+                x, rowh = 0, 0
+              end
+              local cx = PAGE_PAD + GROUP_PAD + x * (colw + GAP)
+              local cw = span * colw + (span - 1) * GAP
+              frame:ClearAllPoints()
+              frame:SetPoint("TOPLEFT", page, "TOPLEFT", cx, -y)
+              frame:SetWidth(cw)
+              frame:SetHeight(frame.cellh)
+              frame.cell = { x = cx, y = y, w = cw, h = frame.cellh }
+              x = x + span
+              lastorder = order
+              if frame.cellh > rowh then rowh = frame.cellh end
+            end
+            y = y + rowh
+          end
+        end
+
+        y = y + GROUP_PAD
+        g:SetHeight(y - gtop)
+        g.cell = { x = PAGE_PAD, y = gtop, w = fl.width - 2 * PAGE_PAD }
+        y = y + 12
+      end
+    end
+
+    -- lays the widget out inside its cell and places the cell
+    local function ArrangeCell(page, frame, widget)
+      local kind = widget or "text"
+      local h = CELL[kind] or 24
+      local span = (kind == "list" or kind == "warning") and 99 or 1
+
+      if kind == "checkbox" and frame.input then
+        frame.input:ClearAllPoints()
+        frame.input:SetPoint("LEFT", frame, "LEFT", 6, 0)
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("LEFT", frame.input, "RIGHT", 8, 0)
+        frame.caption:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+        -- the label ticks the box too
+        frame:EnableMouse(true)
+        frame:SetScript("OnMouseUp", function()
+          if this.input and this.input:IsEnabled() == 1 then this.input:Click() end
+        end)
+      elseif kind == "color" and frame.color then
+        frame.color:ClearAllPoints()
+        frame.color:SetPoint("LEFT", frame, "LEFT", 6, 0)
+        frame.color:SetWidth(30)
+        frame.color:SetHeight(14)
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("LEFT", frame.color, "RIGHT", 8, 0)
+        frame.caption:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+      elseif kind == "button" and frame.button then
+        frame.button:ClearAllPoints()
+        frame.button:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -3)
+        frame.button:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 3)
+      elseif (kind == "dropdown" or kind == "text" or kind == "list") and frame.caption then
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -3)
+        frame.caption:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
+        frame.caption:SetTextColor(.8, .8, .8, 1)
+        if frame.input then
+          frame.input:ClearAllPoints()
+          frame.input:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -19)
+          if kind == "list" and frame.add then
+            frame.del:ClearAllPoints()
+            frame.del:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -20)
+            frame.input:SetPoint("RIGHT", frame.add, "LEFT", -4, 0)
+          else
+            frame.input:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
+          end
+          frame.input:SetHeight(20)
+          if kind == "text" then frame.input:SetJustifyH("LEFT") end
+        end
+      elseif kind == "warning" and frame.caption then
+        frame.caption:ClearAllPoints()
+        frame.caption:SetAllPoints(frame)
+      end
+
+      frame.cellkind = kind
+      Place(page, frame, span, h)
+    end
+
     function CreateConfig(ufunc, caption, category, config, widget, values, skip, named, type, expansion)
       local disabled = expansion and not strfind(expansion, pfUI.expansion)
       if disabled and pfUI_config.gui.showdisabled == "0" then return end
 
-      -- this object placement
-      if this.objectCount == nil then
-        this.objectCount = 0
-      elseif not skip then
-        this.objectCount = this.objectCount + 1
-        this.lineCount = 1
+      -- kept for code that reads it; placement is done by Place()
+      this.objectCount = (this.objectCount or -1) + 1
+
+      -- spacer: start a new row
+      if not caption then
+        if not skip then NewBlock(this) end
+        return
       end
 
-      if skip then
-        if this.lineCount == nil then
-          this.lineCount = 1
-        end
-
-        if skip then
-          this.lineCount = this.lineCount + 1
-        end
+      -- group header: a titled box the next settings go into
+      if widget == "header" then
+        return StartGroup(this, caption)
       end
 
-      if not caption then return end
-
-      -- basic frame
+      -- basic frame (placed at the end by ArrangeCell)
       local frame = CreateFrame("Frame", nil, this)
-      frame:SetWidth(this.parent:GetRight()-this.parent:GetLeft()-20)
+      frame:SetWidth(200)
       frame:SetHeight(22)
-      frame:SetPoint("TOPLEFT", this, "TOPLEFT", 5, (this.objectCount*-23)-5)
 
       -- populate search index
       if caption and this and this.GetParent and widget ~= "button" and widget ~= "header" then
@@ -105,13 +299,6 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
           frame.tex:SetTexture(1,1,1,.07)
           frame.tex:SetAllPoints()
           frame.tex:Hide()
-
-          -- octo: zebra rows
-          if math.mod(this.objectCount, 2) == 1 then
-            frame.zebra = frame:CreateTexture(nil, "BACKGROUND")
-            frame.zebra:SetTexture(1,1,1,.025)
-            frame.zebra:SetAllPoints()
-          end
         end
 
         if not ufunc and widget ~= "header" and C.gui.reloadmarker == "1" then
@@ -132,6 +319,11 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         end
 
         frame:SetAlpha(.5)
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("LEFT", frame, "LEFT", 6, 0)
+        frame.caption:SetPoint("RIGHT", frame, "RIGHT", -4, 0)
+        frame.cellkind = "checkbox"
+        Place(this, frame, 99, 24)
         return
       end
 
@@ -238,33 +430,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       if widget == "warning" then
         CreateBackdrop(frame, nil, true)
         frame:SetBackdropBorderColor(1,.5,.5)
-        frame:SetHeight(50)
-        frame:SetPoint("TOPLEFT", 25, this.objectCount * -35)
-        this.objectCount = this.objectCount + 2
         frame.caption:SetJustifyH("CENTER")
         frame.caption:SetJustifyV("CENTER")
-      end
-
-      if widget == "header" then
-        frame:SetBackdrop(nil)
-        frame:SetHeight(40)
-        this.objectCount = this.objectCount + 1
-        frame.caption:SetJustifyH("LEFT")
-        frame.caption:SetJustifyV("BOTTOM")
-        frame.caption:SetTextColor(GetAccentColor())
-        frame.caption:SetFont(pfUI.font_default, C.global.font_size + 2, "OUTLINE")
-        frame.caption:ClearAllPoints()
-        frame.caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 3, 0)
-        frame.caption:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 5)
-
-        -- octo: ElvUI-style group title underline
-        local ar, ag, ab = GetAccentColor()
-        frame.line = frame:CreateTexture(nil, "ARTWORK")
-        frame.line:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 1)
-        frame.line:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
-        frame.line:SetHeight(1)
-        frame.line:SetTexture(1,1,1,1)
-        frame.line:SetGradientAlpha("HORIZONTAL", ar,ag,ab,.8,  ar,ag,ab,0)
       end
 
       -- use text widget (default)
@@ -311,7 +478,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         SkinButton(frame.button)
         frame.button:SetWidth(100)
         frame.button:SetHeight(20)
-        frame.button:SetPoint("TOPRIGHT", -(this.lineCount-1) * 105, -5)
+        frame.button:SetPoint("TOPRIGHT", -5, -5)
         frame.button:SetText(caption)
         frame.button:SetTextColor(1,1,1,1)
         frame.button:SetScript("OnClick", values)
@@ -440,6 +607,10 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         end)
       end
 
+      -- a dropdown without values gets no input: lay it out as plain text
+      if widget == "dropdown" and not frame.input then widget = "checkbox" end
+      ArrangeCell(this, frame, widget)
+
       return frame
     end
 
@@ -447,23 +618,61 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       pfUI.gui.search:ClearFocus()
     end
 
+    -- octo: ElvUI-style tree. One column: the categories, and under the open
+    -- category its pages, indented (they used to open a second column next to
+    -- the first, which took the room the settings need). Hover shade, accent
+    -- edge + tint on the open page.
+    local width, height = 170, 22
+
+    -- stacks the categories and the open category's pages
+    local function RelayoutTree()
+      local root = pfUI.gui.frames
+      local y = 6
+      for _, btn in ipairs(root.order or {}) do
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", root.area, "TOPLEFT", 0, -y)
+        btn:SetWidth(width)
+        btn:SetHeight(height)
+        y = y + height
+
+        local open = btn.area and btn.area:IsShown()
+        if btn.children then
+          btn.arrow:SetText(open and "-" or "+")
+          for _, child in ipairs(btn.children) do
+            if open then
+              child:ClearAllPoints()
+              child:SetPoint("TOPLEFT", root.area, "TOPLEFT", 0, -y)
+              child:SetWidth(width)
+              child:SetHeight(height - 2)
+              child:Show()
+              y = y + height - 2
+            else
+              child:Hide()
+            end
+          end
+          if open then y = y + 4 end
+        end
+      end
+    end
+    pfUI.gui_RelayoutTree = RelayoutTree
+
     local TabFrameOnClick = function()
-      if this.area:IsShown() then
-        return
-      else
+      -- a page: open its category first
+      if this.isChild and not this.parent.area:IsShown() then
+        this.parent:Click()
+      end
+
+      if not this.area:IsShown() then
         -- hide all others
         for id, name in pairs(this.parent) do
-          if type(name) == "table" and name.area and id ~= "parent" then
+          if _G.type(name) == "table" and name.area and id ~= "parent" then
             name.area:Hide()
           end
         end
         this.area:Show()
       end
+      RelayoutTree()
     end
-
-    -- octo: ElvUI-style tree - wider rows, text from the left, a hover
-    -- shade and an accent edge + tint on the open entry (CreateArea)
-    local width, height = 150, 22
 
     local TabFrameOnEnter = function()
       if not this.selected then this.bg:SetTexture(1,1,1,.06) end
@@ -474,12 +683,22 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     end
 
     function CreateTabFrame(parent, title)
-      if not parent.area.count then parent.area.count = 0 end
-
-      local f = CreateFrame("Button", nil, parent.area)
-      f:SetPoint("TOPLEFT", parent.area, "TOPLEFT", 0, -parent.area.count*height)
-      f:SetPoint("BOTTOMRIGHT", parent.area, "TOPLEFT", width, -(parent.area.count+1)*height)
+      local root = pfUI.gui.frames
+      local f = CreateFrame("Button", nil, root.area)
+      f:SetWidth(width)
+      f:SetHeight(height)
       f.parent = parent
+
+      if parent ~= root then
+        -- a page of a category: listed under it in the tree
+        f.isChild = true
+        parent.children = parent.children or {}
+        table.insert(parent.children, f)
+        f:Hide()
+      else
+        root.order = root.order or {}
+        table.insert(root.order, f)
+      end
 
       f:SetScript("OnMouseDown", TabFrameOnMouseDown)
       f:SetScript("OnClick", TabFrameOnClick)
@@ -499,22 +718,30 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
 
       -- text
       f.text = f:CreateFontString(nil, "LOW", "GameFontWhite")
-      f.text:SetFont(pfUI.font_default, C.global.font_size)
-      f.text:SetPoint("TOPLEFT", 10, 0)
-      f.text:SetPoint("BOTTOMRIGHT", -4, 0)
+      f.text:SetFont(pfUI.font_default, f.isChild and C.global.font_size - 1 or C.global.font_size + 1, f.isChild and "" or "OUTLINE")
+      f.text:SetPoint("TOPLEFT", f.isChild and 24 or 10, 0)
+      f.text:SetPoint("BOTTOMRIGHT", -18, 0)
       f.text:SetJustifyH("LEFT")
       f.text:SetText(title)
+      f.normal = f.isChild and { .8, .8, .8 } or { 1, 1, 1 }
+      f.text:SetTextColor(f.normal[1], f.normal[2], f.normal[3], 1)
 
-      -- U element count
-      parent.area.count = parent.area.count + 1
+      -- +/- on categories that have pages
+      if not f.isChild then
+        f.arrow = f:CreateFontString(nil, "LOW", "GameFontWhite")
+        f.arrow:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE")
+        f.arrow:SetPoint("RIGHT", -8, 0)
+        f.arrow:SetTextColor(.6, .6, .6, 1)
+      end
 
+      RelayoutTree()
       return f
     end
 
     function CreateArea(parent, title, func)
-      -- create drawarea
+      -- create drawarea; a category's pages fill the whole category area
       local f = CreateFrame("Frame", nil, parent.area)
-      f:SetPoint("TOPLEFT", parent.area, "TOPLEFT", width, 0)
+      f:SetPoint("TOPLEFT", parent.area, "TOPLEFT", parent == pfUI.gui.frames and width or 0, 0)
       f:SetPoint("BOTTOMRIGHT", parent.area, "BOTTOMRIGHT", 0, 0)
 
       if not parent.firstarea then
@@ -525,26 +752,33 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
 
       f.button = parent[title]
 
-      f.bg = f:CreateTexture(nil, "BACKGROUND")
-      f.bg:SetTexture(1,1,1,.05)
-      f.bg:SetAllPoints()
+      if parent == pfUI.gui.frames then
+        f.bg = f:CreateTexture(nil, "BACKGROUND")
+        f.bg:SetTexture(1,1,1,.03)
+        f.bg:SetAllPoints()
+      end
 
       f:SetScript("OnShow", function()
         local ar, ag, ab = GetAccentColor()
+        local b = this.button
         this.indexed = true
-        this.button.selected = true
-        this.button.text:SetTextColor(ar, ag, ab, 1)
-        this.button.bg:SetTexture(1,1,1,1)
-        this.button.bg:SetGradientAlpha("HORIZONTAL", ar,ag,ab,.18,  ar,ag,ab,0)
-        this.button.edge:SetTexture(ar, ag, ab, 1)
-        this.button.edge:Show()
+        b.selected = true
+        b.text:SetTextColor(ar, ag, ab, 1)
+        -- a category with pages only lights its name; its open page gets the bar
+        if not b.children then
+          b.bg:SetTexture(1,1,1,1)
+          b.bg:SetGradientAlpha("HORIZONTAL", ar,ag,ab,.2,  ar,ag,ab,0)
+          b.edge:SetTexture(ar, ag, ab, 1)
+          b.edge:Show()
+        end
       end)
 
       f:SetScript("OnHide", function()
-        this.button.selected = nil
-        this.button.text:SetTextColor(1,1,1,1)
-        this.button.bg:SetTexture(0,0,0,0)
-        this.button.edge:Hide()
+        local b = this.button
+        b.selected = nil
+        b.text:SetTextColor(b.normal[1], b.normal[2], b.normal[3], 1)
+        b.bg:SetTexture(0,0,0,0)
+        b.edge:Hide()
       end)
 
       -- are we a frame with contents?
@@ -556,6 +790,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         f.scroll.content:SetScript("OnShow", function()
           if not this.setup then
             func()
+            Finish(this)
             this.setup = true
           end
         end)
@@ -591,8 +826,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui:SetMovable(true)
     pfUI.gui:EnableMouse(true)
     pfUI.gui:RegisterForDrag("LeftButton")
-    pfUI.gui:SetWidth(880)
-    pfUI.gui:SetHeight(560)
+    pfUI.gui:SetWidth(940)
+    pfUI.gui:SetHeight(600)
     pfUI.gui:SetFrameStrata("DIALOG")
     pfUI.gui:SetPoint("CENTER", 0, 0)
     pfUI.gui:Hide()
@@ -687,6 +922,18 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui.frames.area:SetPoint("TOPLEFT", 7, -38)
     pfUI.gui.frames.area:SetPoint("BOTTOMRIGHT", -7, 7)
     CreateBackdrop(pfUI.gui.frames.area)
+
+    -- tree column: a shade darker than the pages, with a divider
+    pfUI.gui.frames.area.tree = pfUI.gui.frames.area:CreateTexture(nil, "BACKGROUND")
+    pfUI.gui.frames.area.tree:SetPoint("TOPLEFT", 0, 0)
+    pfUI.gui.frames.area.tree:SetPoint("BOTTOMLEFT", 0, 0)
+    pfUI.gui.frames.area.tree:SetWidth(170)
+    pfUI.gui.frames.area.tree:SetTexture(0, 0, 0, .35)
+    pfUI.gui.frames.area.divider = pfUI.gui.frames.area:CreateTexture(nil, "BORDER")
+    pfUI.gui.frames.area.divider:SetPoint("TOPLEFT", 170, 0)
+    pfUI.gui.frames.area.divider:SetPoint("BOTTOMLEFT", 170, 0)
+    pfUI.gui.frames.area.divider:SetWidth(1)
+    pfUI.gui.frames.area.divider:SetTexture(.22, .22, .22, 1)
 
     -- title bar buttons, right to left from the close button
     local function TopButton(text, width, anchor, tooltip, func)

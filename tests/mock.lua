@@ -519,3 +519,4 @@ function methods:GetVerticalScrollRange() return 0 end
 function methods:GetVerticalScroll() return self.vscroll or 0 end
 function methods:SetVerticalScroll(v) self.vscroll = v end
 function methods:GetFontString() self.fontstring = self.fontstring or New("FontString", nil, self) return self.fontstring end
+function methods:Click() Run(self, "OnClick", "LeftButton") end
