@@ -1,6 +1,21 @@
 -- load pfUI environment
 setfenv(1, pfUI:GetEnvironment())
 
+-- [ GetAccentColor ]
+-- The highlight colour of hovered, selected and checked widgets (ElvUI's
+-- "value color"): the player's class colour, or appearance.accent.color.
+-- return:      [number]        r, g, b
+function pfUI.api.GetAccentColor()
+  local accent = pfUI_config.appearance and pfUI_config.appearance.accent
+  if accent and accent.mode == "custom" and accent.color then
+    local r, g, b = pfUI.api.GetStringColor(accent.color)
+    return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1
+  end
+  local _, class = UnitClass("player")
+  local color = RAID_CLASS_COLORS[class] or { r = 1, g = 1, b = 1 }
+  return color.r, color.g, color.b
+end
+
 do -- statusbars
   local animations = {}
   local stepsize, val
@@ -607,9 +622,7 @@ end
 function pfUI.api.SetHighlight(frame, cr, cg, cb)
   if not frame then return end
   if not cr or not cg or not cb then
-    local _, class = UnitClass("player")
-    local color = RAID_CLASS_COLORS[class]
-    cr, cg, cb = color.r , color.g, color.b
+    cr, cg, cb = pfUI.api.GetAccentColor()
   end
 
   frame.cr, frame.cg, frame.cb = cr, cg, cb, ca
@@ -655,9 +668,7 @@ function pfUI.api.SkinButton(button, cr, cg, cb, icon, disableHighlight)
   if not b then b = button end
   if not b then return end
   if not cr or not cg or not cb then
-    local _, class = UnitClass("player")
-    local color = RAID_CLASS_COLORS[class]
-    cr, cg, cb = color.r , color.g, color.b
+    cr, cg, cb = pfUI.api.GetAccentColor()
   end
   pfUI.api.CreateBackdrop(b, nil, true)
   b:SetNormalTexture("")
@@ -735,9 +746,7 @@ end
 function pfUI.api.SkinRotateButton(button)
   pfUI.api.CreateBackdrop(button)
 
-  local _, class = UnitClass("player")
-  local color = RAID_CLASS_COLORS[class]
-  local cr, cg, cb = color.r , color.g, color.b
+  local cr, cg, cb = pfUI.api.GetAccentColor()
 
   button:SetWidth(button:GetWidth() - 18)
   button:SetHeight(button:GetHeight() - 18)
@@ -940,9 +949,7 @@ function pfUI.api.SkinDropDown(frame, cr, cg, cb, useSmall)
   end
 
   if not cr or not cg or not cb then
-    local _, class = UnitClass("player")
-    local color = RAID_CLASS_COLORS[class]
-    cr, cg, cb = color.r , color.g, color.b
+    cr, cg, cb = pfUI.api.GetAccentColor()
   end
 
   SetHighlight(button, cr, cg, cb)

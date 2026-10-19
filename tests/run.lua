@@ -48,6 +48,10 @@ function GetScreenWidth() return 1920 end
 function GetScreenHeight() return 1080 end
 function GetNumAddOns() return 1 end
 function debugstack() return "" end
+ITEM_QUALITY_COLORS = {}
+for i = 0, 6 do ITEM_QUALITY_COLORS[i] = { r = 1, g = 1, b = 1, hex = "|cffffffff" } end
+table.setn(ITEM_QUALITY_COLORS, 7)
+FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = {}
@@ -130,6 +134,71 @@ ok(pfUI.bootup == nil, "bootup finished")
 ok(pfUI.version.string == "5.5.4", "upstream version read from the toc (" .. tostring(pfUI.version.string) .. ")")
 ok(pfUI.version.octo == "1.0.0", "octo version read from X-Octo-Version (" .. tostring(pfUI.version.octo) .. ")")
 ok(pfUI_config and pfUI_config.appearance, "config built")
+
+-- ---------------------------------------------------------------- phase 1: Octo look
+local look = pfUI.octo.look
+ok(pfUI_profiles["Octo"], "Octo profile registered")
+ok(pfUI_config.appearance.border.default == "1", "fresh install uses the Octo profile (1px border)")
+ok(pfUI_config.unitframes.player.bartexture == "Interface\\AddOns\\pfUI\\img\\bar_elvui", "fresh install: ElvUI bar texture")
+ok(pfUI_config.appearance.accent.mode == "class", "accent default is class colour")
+ok(pfUI_config.unitframes.player.width ~= nil, "Octo profile keeps a full config (defaults filled)")
+
+-- the look only touches appearance keys: an existing layout keeps its positions/sizes
+local old = { unitframes = { player = { width = "300", bartexture = "x" } }, appearance = { border = { default = "3" } },
+              position = { pfPlayer = { xpos = 10, ypos = 20 } } }
+pfUI.octo.ApplyLook(old)
+ok(old.unitframes.player.width == "300", "ApplyLook keeps sizes")
+ok(old.position.pfPlayer.xpos == 10, "ApplyLook keeps positions")
+ok(old.unitframes.player.bartexture == "Interface\\AddOns\\pfUI\\img\\bar_elvui", "ApplyLook sets the bar texture")
+ok(old.appearance.border.default == "1", "ApplyLook sets 1px borders")
+for _, path in pairs({ look.global.font_default, look.global.font_unit, look.unitframes.player.bartexture }) do
+  local file = string.gsub(string.gsub(path, "^Interface\\AddOns\\pfUI\\", ""), "\\", "/")
+  local h = io.open(DIR .. "/" .. file, "rb") or io.open(DIR .. "/" .. file .. ".tga", "rb")
+  ok(h, "look file exists: " .. file)
+  if h then h:close() end
+end
+
+-- accent colour
+local cr, cg, cb = pfUI.api.GetAccentColor()
+ok(cr == RAID_CLASS_COLORS[select(2, UnitClass("player"))].r, "accent = class colour by default")
+pfUI_config.appearance.accent.mode = "custom"
+pfUI_config.appearance.accent.color = "0.1,0.2,0.3,1"
+cr, cg, cb = pfUI.api.GetAccentColor()
+ok(cr == 0.1 and cg == 0.2 and cb == 0.3, "custom accent colour")
+pfUI_config.appearance.accent.mode = "class"
+
+-- ---------------------------------------------------------------- options pages
+-- build every page of the options window (pages build on first show)
+local pages, pageErrors = 0, {}
+local function BuildPage(path, area)
+  local content = area and area.scroll and area.scroll.content
+  if not content then return end
+  pages = pages + 1
+  local good, e = pcall(Mock.Run, content, "OnShow")
+  if not good then pageErrors[path] = e end
+end
+ok(pfUI.gui and pfUI.gui.frames, "options window built")
+if pfUI.gui and pfUI.gui.frames then
+  for parent, pframe in pairs(pfUI.gui.frames) do
+    if type(pframe) == "table" and type(parent) == "string" then
+      BuildPage(parent, pframe.area)
+      for title, tframe in pairs(pframe) do
+        if type(tframe) == "table" and type(title) == "string" and tframe.area then
+          BuildPage(parent .. " > " .. title, tframe.area)
+        end
+      end
+    end
+  end
+end
+ok(pages > 30, "options pages found (" .. pages .. ")")
+ok(not pageErrors["Settings > Appearance"], "Settings > Appearance builds: " .. tostring(pageErrors["Settings > Appearance"]))
+ok(not pageErrors["Settings > General"], "Settings > General builds: " .. tostring(pageErrors["Settings > General"]))
+local broken = 0
+for path, e in pairs(pageErrors) do
+  broken = broken + 1
+  if os.getenv("PFUI_TEST_VERBOSE") then print("  page " .. path .. ": " .. tostring(e)) end
+end
+print(string.format("options pages built in the mock: %d, need more of the client: %d", pages - broken, broken))
 
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do

@@ -840,6 +840,10 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         "Interface\\AddOns\\pfUI\\fonts\\PT-Sans-Narrow-Bold.ttf:PT-Sans-Narrow-Bold",
         "Interface\\AddOns\\pfUI\\fonts\\PT-Sans-Narrow-Regular.ttf:PT-Sans-Narrow-Regular"
       },
+      ["accent"] = {
+        "class:" .. T["Class Color"],
+        "custom:" .. T["Custom"],
+      },
       ["border"] = {
         "-1:" .. T["Default"],
         "0:" .. T["None"],
@@ -1503,7 +1507,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         CreateQuestionDialog(T["Do you really want to reset |cffffaaaaEVERYTHING|r?\n\nThis will reset:\n - Current Configuration\n - Current Frame Positions\n - Firstrun Wizard\n - Addon Cache\n - Saved Profiles"],
           function()
             _G["pfUI_init"] = {}
-            _G["pfUI_config"] = pfUI.api.CopyTable(pfUI_profiles["Modern"])
+            _G["pfUI_config"] = pfUI.octo.Profile()
             _G["pfUI_playerDB"] = {}
             _G["pfUI_profiles"] = {}
             _G["pfUI_cache"] = {}
@@ -1516,7 +1520,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       CreateConfig(nil, T["Configuration"], C.global, "profile", "button", function()
         CreateQuestionDialog(T["Do you really want to reset your configuration?\nThis also includes frame positions"],
           function()
-            _G["pfUI_config"] = pfUI.api.CopyTable(pfUI_profiles["Modern"])
+            _G["pfUI_config"] = pfUI.octo.Profile()
             _G["pfUI_init"] = {}
             pfUI:LoadConfig()
             this:GetParent():Hide()
@@ -1542,6 +1546,17 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     end)
 
     CreateGUIEntry(T["Settings"], T["Appearance"], function()
+      CreateConfig(nil, T["Octo Look"], nil, nil, "header")
+      CreateConfig(nil, T["Apply Octo Look (borders, colors, fonts, bar textures)"], C.global, "profile", "button", function()
+        CreateQuestionDialog(T["Apply the Octo look?\n\nBorders, backgrounds, fonts and bar textures change.\nFrame sizes and positions stay as they are."],
+          function()
+            pfUI.octo.ApplyLook()
+            ReloadUI()
+          end)
+      end)
+      CreateConfig(nil, T["Accent Color"], C.appearance.accent, "mode", "dropdown", pfUI.gui.dropdowns.accent)
+      CreateConfig(nil, T["Custom Accent Color"], C.appearance.accent, "color", "color")
+      CreateConfig(nil, T["Colors"], nil, nil, "header")
       CreateConfig(nil, T["Background Color"], C.appearance.border, "background", "color")
       CreateConfig(nil, T["Border Color"], C.appearance.border, "color", "color")
       CreateConfig(U["mapreveal"], T["Map Reveal Color"], C.appearance.worldmap, "mapreveal_color", "color")

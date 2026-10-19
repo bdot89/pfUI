@@ -129,7 +129,21 @@ pfUI:RegisterModule("firstrun", "vanilla:tbc", function ()
   -- choose profile
   pfUI.firstrun:AddStep("profile", function()
     local f = CreateFirstRunPage()
-    f.text:SetText(T["A new installation of |cff33ffccpf|rUI ships with 4 prebuilt design profiles. Click below if you wish to load one of these profiles."])
+    f.text:SetText(T["A new installation of |cff33ffccpf|rUI ships with 5 prebuilt design profiles. Click below if you wish to load one of these profiles."])
+
+    f:SetHeight(210) -- room for the Octo row above the stock profiles
+    f.Octo = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.Octo:SetWidth(250)
+    f.Octo:SetHeight(20)
+    f.Octo:SetPoint("BOTTOM", 0, 125)
+    f.Octo:SetTextColor(1,1,1)
+    f.Octo:SetText("Octo")
+    f.Octo:SetScript("OnClick", function()
+      _G["pfUI_config"] = pfUI.octo.Profile()
+      pfUI:LoadConfig()
+      ReloadUI()
+    end)
+    SkinButton(f.Octo)
 
     f.Modern = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.Modern:SetWidth(120)

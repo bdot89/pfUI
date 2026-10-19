@@ -24,9 +24,12 @@ see "Roadmap" below.
 - `powershell -ExecutionPolicy Bypass -File tests\run.ps1`: loads every file in the toc (following
   the init\*.xml includes) on DmorphOcto's LuaHost (LuaJIT, Lua 5.0 shims), fires ADDON_LOADED and
   starts every module and skin one by one. Unknown CamelCase globals become stand-in widgets, ALL_CAPS
-  constants become strings or small counts (tests\run.lua). 59 of 71 modules start offline; the
-  rest need client parts the mock lacks (slider thumbs, Blizzard child regions). Octo modules go
-  in `MUST_LOAD` and fail the run if they error. `PFUI_TEST_VERBOSE=1` lists the module errors.
+  constants become strings or small counts (tests\run.lua). 61 of 71 modules start offline; the
+  rest need client parts the mock lacks (Blizzard child regions). Then it builds every options
+  page (27 of 52 build; unit frame / action bar pages need more mock). Octo modules go in
+  `MUST_LOAD` and fail the run if they error. `PFUI_TEST_VERBOSE=1` lists module and page errors.
+- Unknown widget fields return a no-op function only when named like a method (Set*, Get*, Is*...,
+  `IsMethodName` in mock.lua): pfUI stores data under CamelCase keys (gui.frames["General"]).
 - `..\OctoBG\tools\LuaCheck.ps1 -Files @(<full paths>) -Globals` on every changed Lua file.
 - tests\mock.lua is a copy of OctoBG's, changed so pfUI can run: absent 1.12 methods look up as nil
   (pfUI tests `if not frame.HookScript`), GetNumPoints / GetPoint / SetGradientAlpha exist (pfUI
@@ -37,7 +40,15 @@ see "Roadmap" below.
 
 ## Roadmap (approved 19 Oct 2026)
 0. Foundation: branch, toc, this file, tests. DONE.
-1. Look and feel: "Octo" appearance preset (pixel borders, dark backdrops, class-colour accents).
+1. Look and feel. DONE 19 Oct (not seen in game): env/octo.lua - `pfUI.octo.look` (1px black
+   borders, 0.06 backdrops, PT Sans Narrow Bold text, Expressway numbers/unit/cooldown/combat,
+   img\bar_elvui on unit frames, castbar, nameplates, tooltip, xp bar), `pfUI_profiles["Octo"]` =
+   Slim + look (fresh installs and both resets use it; first-run wizard has an Octo button),
+   `pfUI.octo.ApplyLook()` = button "Apply Octo Look" at the top of Settings > Appearance (changes
+   only look keys, never sizes/positions). Accent colour: `appearance.accent.mode` class|custom +
+   `.color`, `pfUI.api.GetAccentColor()` used by SetHighlight / SkinButton / rotate / dropdown
+   highlight in api/ui-widgets.lua. Still teal (pfUI's |cff33ffcc / .2,1,.8): options window tree,
+   scrollbar thumbs - phase 4 moves those to the accent.
 2. Layout mode: snapping, nudge box, grid size, /moveui, right-click mover = its options.
 3. Install wizard (ElvUI flow, /pfui install) and profile export/import strings.
 4. Options window restyle (ElvUI): headers, group boxes, top bar, Meters + Combat Text pages.

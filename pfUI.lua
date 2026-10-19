@@ -304,9 +304,9 @@ pfUI:SetScript("OnEvent", function()
     -- updatenotify broadcasts to other pfUI users
     pfUI.version.octo = GetAddOnMetadata(pfUI.name, "X-Octo-Version") or "0"
 
-    -- use "Modern" as default profile on a fresh install
+    -- use the "Octo" profile (env/octo.lua) on a fresh install
     if pfUI.api.isempty(pfUI_init) and pfUI.api.isempty(pfUI_config) then
-      pfUI_config = pfUI.api.CopyTable(pfUI_profiles["Modern"]) or {}
+      pfUI_config = pfUI.octo.Profile()
     end
 
     pfUI:LoadConfig()

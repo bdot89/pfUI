@@ -24,13 +24,28 @@ local meta = {
     -- pfUI tests "if not frame.HookScript then": look-ups give nil, a call
     -- then fails like the client's "attempt to call method"
     if NOT_IN_112[key] then return nil end
-    local first = string.sub(key, 1, 1)
-    if first == string.upper(first) and first ~= "_" then
+    -- unknown widget methods are no-ops; only names shaped like a method
+    -- (pfUI keeps data under CamelCase keys too: gui.frames["General"])
+    if type(key) == "string" and IsMethodName(key) then
       return function() end
     end
     return nil
   end,
 }
+
+local VERBS = { "Set", "Get", "Is", "Enable", "Disable", "Register", "Unregister", "Clear", "Show", "Hide",
+  "Start", "Stop", "Add", "Lock", "Unlock", "Update", "Can", "Has", "Raise", "Lower", "Click", "Allow",
+  "Create", "Toggle", "Scroll", "Insert", "Remove", "Highlight", "Unhighlight", "Play", "Refresh", "Pause",
+  "Fade", "Load", "Move", "Reset", "Focus", "Enter", "Leave", "Disable", "Do", "Hook", "Cast", "Use" }
+function IsMethodName(key)
+  for _, v in ipairs(VERBS) do
+    if string.sub(key, 1, string.len(v)) == v then
+      local nxt = string.sub(key, string.len(v) + 1, string.len(v) + 1)
+      if nxt == "" or string.find(nxt, "^[A-Z]") then return true end
+    end
+  end
+  return false
+end
 
 local function New(kind, name, parent)
   local w = setmetatable({ kind = kind, name = name, parent = parent, shown = true, scripts = {}, events = {},
@@ -496,3 +511,5 @@ end
 function methods:GetNumPoints() return self.points and table.getn(self.points) or 0 end
 function methods:GetPoint(i) local p = (self.points or {})[i or 1] or {} return p[1], p[2], p[3], p[4], p[5] end
 function methods:ClearAllPoints() self.points = nil self.point = nil end
+function methods:SetThumbTexture(t) self.thumb = self.thumb or New("Texture", nil, self) self.thumb.texture = t end
+function methods:GetThumbTexture() return self.thumb end
