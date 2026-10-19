@@ -25,6 +25,7 @@ tinsert, tremove, getn, sort = table.insert, table.remove, table.getn, table.sor
 floor, ceil, abs, min, max, mod, sqrt = math.floor, math.ceil, math.abs, math.min, math.max, math.mod, math.sqrt
 function strtrim(s) return (string.gsub(s or "", "^%s*(.-)%s*$", "%1")) end
 MAX_PARTY_MEMBERS, MAX_RAID_MEMBERS, NUM_CHAT_WINDOWS = 4, 40, 7
+NUM_ACTIONBAR_BUTTONS, NUM_SHAPESHIFT_SLOTS, NUM_PET_ACTION_SLOTS = 12, 10, 10
 
 function GetAddOnInfo(name)
   if name == "pfUI" then return "pfUI", "|cff33ffccpf|cffffffffUI |cff8888ccOcto", "", 1, 1 end
@@ -407,6 +408,7 @@ for path, e in pairs(pageErrors) do
   if os.getenv("PFUI_TEST_VERBOSE") then print("  page " .. path .. ": " .. tostring(e)) end
 end
 print(string.format("options pages built in the mock: %d, need more of the client: %d", pages - broken, broken))
+ok(broken == 0, "every options page builds (" .. broken .. " failed)")
 
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do

@@ -102,9 +102,16 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         if widget ~= "header" then
           frame:SetScript("OnUpdate", EntryUpdate)
           frame.tex = frame:CreateTexture(nil, "BACKGROUND")
-          frame.tex:SetTexture(1,1,1,.05)
+          frame.tex:SetTexture(1,1,1,.07)
           frame.tex:SetAllPoints()
           frame.tex:Hide()
+
+          -- octo: zebra rows
+          if math.mod(this.objectCount, 2) == 1 then
+            frame.zebra = frame:CreateTexture(nil, "BACKGROUND")
+            frame.zebra:SetTexture(1,1,1,.025)
+            frame.zebra:SetAllPoints()
+          end
         end
 
         if not ufunc and widget ~= "header" and C.gui.reloadmarker == "1" then
@@ -244,8 +251,20 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         this.objectCount = this.objectCount + 1
         frame.caption:SetJustifyH("LEFT")
         frame.caption:SetJustifyV("BOTTOM")
-        frame.caption:SetTextColor(.2,1,.8,1)
-        frame.caption:SetAllPoints(frame)
+        frame.caption:SetTextColor(GetAccentColor())
+        frame.caption:SetFont(pfUI.font_default, C.global.font_size + 2, "OUTLINE")
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 3, 0)
+        frame.caption:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 5)
+
+        -- octo: ElvUI-style group title underline
+        local ar, ag, ab = GetAccentColor()
+        frame.line = frame:CreateTexture(nil, "ARTWORK")
+        frame.line:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 1)
+        frame.line:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
+        frame.line:SetHeight(1)
+        frame.line:SetTexture(1,1,1,1)
+        frame.line:SetGradientAlpha("HORIZONTAL", ar,ag,ab,.8,  ar,ag,ab,0)
       end
 
       -- use text widget (default)
@@ -254,7 +273,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         frame.input = CreateFrame("EditBox", nil, frame)
         CreateBackdrop(frame.input, nil, true)
         frame.input:SetTextInsets(5, 5, 5, 5)
-        frame.input:SetTextColor(.2,1,.8,1)
+        frame.input:SetTextColor(GetAccentColor())
         frame.input:SetJustifyH("RIGHT")
 
         frame.input:SetWidth(100)
@@ -273,7 +292,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
               this:GetParent().category[this:GetParent().config] = this:GetText()
               if ufunc then ufunc() else pfUI.gui.settingChanged = true end
             end
-            this:SetTextColor(.2,1,.8,1)
+            this:SetTextColor(GetAccentColor())
           else
             this:SetTextColor(1,.3,.3,1)
           end
@@ -442,7 +461,18 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       end
     end
 
-    local width, height = 130, 20
+    -- octo: ElvUI-style tree - wider rows, text from the left, a hover
+    -- shade and an accent edge + tint on the open entry (CreateArea)
+    local width, height = 150, 22
+
+    local TabFrameOnEnter = function()
+      if not this.selected then this.bg:SetTexture(1,1,1,.06) end
+    end
+
+    local TabFrameOnLeave = function()
+      if not this.selected then this.bg:SetTexture(0,0,0,0) end
+    end
+
     function CreateTabFrame(parent, title)
       if not parent.area.count then parent.area.count = 0 end
 
@@ -453,15 +483,26 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
 
       f:SetScript("OnMouseDown", TabFrameOnMouseDown)
       f:SetScript("OnClick", TabFrameOnClick)
+      f:SetScript("OnEnter", TabFrameOnEnter)
+      f:SetScript("OnLeave", TabFrameOnLeave)
 
       -- background
       f.bg = f:CreateTexture(nil, "BACKGROUND")
       f.bg:SetAllPoints()
 
+      -- accent edge of the open entry
+      f.edge = f:CreateTexture(nil, "ARTWORK")
+      f.edge:SetPoint("TOPLEFT", 0, -2)
+      f.edge:SetPoint("BOTTOMLEFT", 0, 2)
+      f.edge:SetWidth(2)
+      f.edge:Hide()
+
       -- text
       f.text = f:CreateFontString(nil, "LOW", "GameFontWhite")
       f.text:SetFont(pfUI.font_default, C.global.font_size)
-      f.text:SetAllPoints()
+      f.text:SetPoint("TOPLEFT", 10, 0)
+      f.text:SetPoint("BOTTOMRIGHT", -4, 0)
+      f.text:SetJustifyH("LEFT")
       f.text:SetText(title)
 
       -- U element count
@@ -489,15 +530,21 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       f.bg:SetAllPoints()
 
       f:SetScript("OnShow", function()
+        local ar, ag, ab = GetAccentColor()
         this.indexed = true
-        this.button.text:SetTextColor(.2,1,.8,1)
+        this.button.selected = true
+        this.button.text:SetTextColor(ar, ag, ab, 1)
         this.button.bg:SetTexture(1,1,1,1)
-        this.button.bg:SetGradientAlpha("HORIZONTAL", 0,0,0,0,  1,1,1,.05)
+        this.button.bg:SetGradientAlpha("HORIZONTAL", ar,ag,ab,.18,  ar,ag,ab,0)
+        this.button.edge:SetTexture(ar, ag, ab, 1)
+        this.button.edge:Show()
       end)
 
       f:SetScript("OnHide", function()
+        this.button.selected = nil
         this.button.text:SetTextColor(1,1,1,1)
         this.button.bg:SetTexture(0,0,0,0)
+        this.button.edge:Hide()
       end)
 
       -- are we a frame with contents?
@@ -544,8 +591,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui:SetMovable(true)
     pfUI.gui:EnableMouse(true)
     pfUI.gui:RegisterForDrag("LeftButton")
-    pfUI.gui:SetWidth(720)
-    pfUI.gui:SetHeight(480)
+    pfUI.gui:SetWidth(880)
+    pfUI.gui:SetHeight(560)
     pfUI.gui:SetFrameStrata("DIALOG")
     pfUI.gui:SetPoint("CENTER", 0, 0)
     pfUI.gui:Hide()
@@ -597,20 +644,23 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     -- decorations
     pfUI.gui.title = pfUI.gui:CreateFontString("Status", "LOW", "GameFontNormal")
     pfUI.gui.title:SetFontObject(GameFontWhite)
-    pfUI.gui.title:SetPoint("TOPLEFT", pfUI.gui, "TOPLEFT", 8, -8)
+    -- octo: ElvUI-style title bar - name and version left, search and the
+    -- Move Frames / Keybinds / Install / Profiles buttons right
+    local accent = rgbhex(GetAccentColor())
+    pfUI.gui.title:SetPoint("TOPLEFT", pfUI.gui, "TOPLEFT", 10, -10)
     pfUI.gui.title:SetJustifyH("LEFT")
-    pfUI.gui.title:SetFont(pfUI.media["font:Hooge.ttf"], 10)
-    pfUI.gui.title:SetText("|cff33ffccpf|rUI |cff8888ccOcto|r")
+    pfUI.gui.title:SetFont(pfUI.font_default, 16, "OUTLINE")
+    pfUI.gui.title:SetText(accent .. "pf|rUI " .. accent .. "Octo|r")
 
     pfUI.gui.version = pfUI.gui:CreateFontString("Status", "LOW", "GameFontNormal")
     pfUI.gui.version:SetFontObject(GameFontWhite)
-    pfUI.gui.version:SetPoint("LEFT", pfUI.gui.title, "RIGHT", 0, 0)
+    pfUI.gui.version:SetPoint("BOTTOMLEFT", pfUI.gui.title, "BOTTOMRIGHT", 6, 1)
     pfUI.gui.version:SetJustifyH("LEFT")
-    pfUI.gui.version:SetFont(pfUI.media["font:Myriad-Pro.ttf"], 10)
-    pfUI.gui.version:SetText("|cff555555[|r" .. pfUI.version.octo .. " |cff555555(" .. pfUI.version.string .. ")]|r")
+    pfUI.gui.version:SetFont(pfUI.font_default, 10)
+    pfUI.gui.version:SetText("|cff777777" .. pfUI.version.octo .. "  (pfUI " .. pfUI.version.string .. ")|r")
 
     pfUI.gui.close = CreateFrame("Button", "pfQuestionDialogClose", pfUI.gui)
-    pfUI.gui.close:SetPoint("TOPRIGHT", -7, -7)
+    pfUI.gui.close:SetPoint("TOPRIGHT", -10, -13)
     pfUI.api.CreateBackdrop(pfUI.gui.close)
     pfUI.gui.close:SetHeight(10)
     pfUI.gui.close:SetWidth(10)
@@ -634,46 +684,53 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     -- root layer
     pfUI.gui.frames = {}
     pfUI.gui.frames.area = CreateFrame("Frame", nil, pfUI.gui)
-    pfUI.gui.frames.area:SetPoint("TOPLEFT", 7, -25)
-    pfUI.gui.frames.area:SetPoint("BOTTOMRIGHT", -7, 37)
+    pfUI.gui.frames.area:SetPoint("TOPLEFT", 7, -38)
+    pfUI.gui.frames.area:SetPoint("BOTTOMRIGHT", -7, 7)
     CreateBackdrop(pfUI.gui.frames.area)
 
-    -- unlock
-    pfUI.gui.unlock = CreateFrame("Button", nil, pfUI.gui)
-    pfUI.gui.unlock:SetPoint("TOPLEFT", pfUI.gui.frames.area.backdrop, "BOTTOMLEFT", 0, -5)
-    pfUI.gui.unlock:SetWidth(110)
-    pfUI.gui.unlock:SetHeight(25)
-    pfUI.gui.unlock:SetText(T["Unlock"])
-    pfUI.gui.unlock:SetScript("OnClick", function()
-      if pfUI.unlock then pfUI.unlock:Show() end
-    end)
-    SkinButton(pfUI.gui.unlock)
-
-    -- hoverbind
-    pfUI.gui.hoverbind = CreateFrame("Button", nil, pfUI.gui)
-    pfUI.gui.hoverbind:SetPoint("LEFT", pfUI.gui.unlock, "RIGHT", 5, 0)
-    pfUI.gui.hoverbind:SetWidth(110)
-    pfUI.gui.hoverbind:SetHeight(25)
-    pfUI.gui.hoverbind:SetText(T["Hoverbind"])
-    pfUI.gui.hoverbind:SetScript("OnClick", function()
-      if pfUI.hoverbind then pfUI.hoverbind:Show() end
-    end)
-
-    SkinButton(pfUI.gui.hoverbind)
+    -- title bar buttons, right to left from the close button
+    local function TopButton(text, width, anchor, tooltip, func)
+      local b = CreateFrame("Button", nil, pfUI.gui)
+      b:SetPoint("RIGHT", anchor, "LEFT", anchor == pfUI.gui.close and -12 or -6, 0)
+      b:SetWidth(width)
+      b:SetHeight(20)
+      b:SetText(text)
+      b:SetScript("OnClick", func)
+      b:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(tooltip, 1, 1, 1, 1, true)
+        GameTooltip:Show()
+      end)
+      b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      SkinButton(b)
+      return b
+    end
 
     -- share
-    pfUI.gui.share = CreateFrame("Button", nil, pfUI.gui)
-    pfUI.gui.share:SetPoint("LEFT", pfUI.gui.hoverbind, "RIGHT", 5, 0)
-    pfUI.gui.share:SetWidth(110)
-    pfUI.gui.share:SetHeight(25)
-    pfUI.gui.share:SetText(T["Share"])
-    pfUI.gui.share:SetScript("OnClick", function()
+    pfUI.gui.share = TopButton(T["Profiles"], 80, pfUI.gui.close, T["Export your settings as a text string, or import one (/export)"], function()
       if pfShare then
         pfShare:Show()
         pfShareExport:Click()
       end
     end)
-    SkinButton(pfUI.gui.share)
+
+    -- installer
+    pfUI.gui.install = TopButton(T["Install"], 70, pfUI.gui.share, T["Run the installer again (/pfui install)"], function()
+      if pfUI.firstrun then
+        pfUI.gui:Hide()
+        pfUI.firstrun:Restart()
+      end
+    end)
+
+    -- hoverbind
+    pfUI.gui.hoverbind = TopButton(T["Keybinds"], 80, pfUI.gui.install, T["Hover a button and press a key to bind it"], function()
+      if pfUI.hoverbind then pfUI.hoverbind:Show() end
+    end)
+
+    -- unlock
+    pfUI.gui.unlock = TopButton(T["Move Frames"], 100, pfUI.gui.hoverbind, T["Drag, snap and scale frames (/moveui)"], function()
+      if pfUI.unlock then pfUI.unlock:Show() end
+    end)
 
     -- searchbar
     local function SearchEntryClick()
@@ -689,7 +746,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       if not this.obj[-1].highlight then
         this.obj[-1].highlight = this.obj[-1]:CreateTexture(nil, "OVERLAY")
         this.obj[-1].highlight:SetAllPoints()
-        this.obj[-1].highlight:SetTexture(.2,1,.8,.2)
+        local ar, ag, ab = GetAccentColor()
+        this.obj[-1].highlight:SetTexture(ar, ag, ab, .2)
       end
       this.obj[-1].highlight:Show()
     end
@@ -697,7 +755,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     local function CreateSearchEntry(parent, i)
       local f = CreateFrame("Button", nil, parent)
       f:SetPoint("TOPLEFT", 5, -5 + (i-1)*-25)
-      f:SetWidth(565)
+      f:SetWidth(math.max(565, (parent:GetParent():GetWidth() or 0) - 20))
       f:SetHeight(20)
       f:SetScript("OnClick", SearchEntryClick)
       f:SetScript("OnUpdate", EntryUpdate)
@@ -718,12 +776,12 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     end
 
     pfUI.gui.search = CreateFrame("EditBox", nil, pfUI.gui)
-    pfUI.gui.search:SetPoint("LEFT", pfUI.gui.share, "RIGHT", 5, 0)
-    pfUI.gui.search:SetPoint("TOPRIGHT", pfUI.gui.frames.area.backdrop, "BOTTOMRIGHT", 0, -5)
-    pfUI.gui.search:SetHeight(25)
+    pfUI.gui.search:SetPoint("RIGHT", pfUI.gui.unlock, "LEFT", -12, 0)
+    pfUI.gui.search:SetWidth(200)
+    pfUI.gui.search:SetHeight(20)
     pfUI.gui.search:SetAutoFocus(false)
     pfUI.gui.search:SetTextInsets(5, 5, 5, 5)
-    pfUI.gui.search:SetTextColor(.2,1,.8,1)
+    pfUI.gui.search:SetTextColor(GetAccentColor())
     pfUI.gui.search:SetJustifyH("CENTER")
     pfUI.gui.search:SetFontObject(GameFontNormal)
     pfUI.gui.search:SetText(T["Search"] .. "...")
@@ -765,7 +823,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
           -- build caption string
           local caption = ""
           for x=table.getn(obj),1,-1 do
-            caption = caption .. "|cff33ffcc" .. obj[x].text:GetText() .. "|r » "
+            caption = caption .. rgbhex(GetAccentColor()) .. obj[x].text:GetText() .. "|r » "
           end
           caption = caption .. "|cffffffff" .. obj[0]
 
@@ -1298,7 +1356,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       this.update:SetPoint("TOPLEFT", 200, -140)
       this.update:SetPoint("TOPRIGHT", 375, -140)
       this.update:SetJustifyH("CENTER")
-      this.update:SetTextColor(.2,1,.8)
+      this.update:SetTextColor(GetAccentColor())
 
       this.screenc = this:CreateFontString("Status", "LOW", "GameFontWhite")
       this.screenc:SetFont(pfUI.font_default, C.global.font_size)
@@ -1416,7 +1474,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       -- load profile
       CreateConfig(nil, T["Load profile"], C.global, "profile", "button", function()
         if C.global.profile and pfUI_profiles[C.global.profile] then
-          CreateQuestionDialog(T["Load profile"] .. " '|cff33ffcc" .. C.global.profile .. "|r'?", function()
+          CreateQuestionDialog(T["Load profile"] .. " '" .. rgbhex(GetAccentColor()) .. C.global.profile .. "|r'?", function()
             local selp = C.global.profile
             local rchat = C.chat.right.enable
 
@@ -1438,7 +1496,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       -- delete profile
       CreateConfig(nil, T["Delete profile"], C.global, "profile", "button", function()
         if C.global.profile and pfUI_profiles[C.global.profile] then
-          CreateQuestionDialog(T["Delete profile"] .. " '|cff33ffcc" .. C.global.profile .. "|r'?", function()
+          CreateQuestionDialog(T["Delete profile"] .. " '" .. rgbhex(GetAccentColor()) .. C.global.profile .. "|r'?", function()
             pfUI_profiles[C.global.profile] = nil
             this:GetParent():Hide()
           end)
@@ -1448,7 +1506,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       -- save profile
       CreateConfig(nil, T["Save profile"], C.global, "profile", "button", function()
         if C.global.profile and pfUI_profiles[C.global.profile] then
-          CreateQuestionDialog(T["Save current settings to profile"] .. " '|cff33ffcc" .. C.global.profile .. "|r'?", function()
+          CreateQuestionDialog(T["Save current settings to profile"] .. " '" .. rgbhex(GetAccentColor()) .. C.global.profile .. "|r'?", function()
             if pfUI_profiles[C.global.profile] then
               pfUI_profiles[C.global.profile] = CopyTable(C)
             end

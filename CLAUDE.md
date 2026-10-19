@@ -26,7 +26,7 @@ see "Roadmap" below.
   starts every module and skin one by one. Unknown CamelCase globals become stand-in widgets, ALL_CAPS
   constants become strings or small counts (tests\run.lua). 61 of 71 modules start offline; the
   rest need client parts the mock lacks (Blizzard child regions). Then it builds every options
-  page (27 of 52 build; unit frame / action bar pages need more mock). Octo modules go in
+  page (all 52 must build). Octo modules go in
   `MUST_LOAD` and fail the run if they error. `PFUI_TEST_VERBOSE=1` lists module and page errors.
 - Unknown widget fields return a no-op function only when named like a method (Set*, Get*, Is*...,
   `IsMethodName` in mock.lua): pfUI stores data under CamelCase keys (gui.frames["General"]).
@@ -72,7 +72,15 @@ see "Roadmap" below.
    importer's own (pfUI used to reset them), Import accepts the encoded string directly. Two
    upstream bugs: enc() cut a real character when the text ended on a 92-char line break, dec()
    used a pattern find (errors on "(" or "["). `pfUI.share` exposes serialize/parse/preview/import.
-4. Options window restyle (ElvUI): headers, group boxes, top bar, Meters + Combat Text pages.
+4. Options window restyle. DONE 19 Oct (not seen in game), modules/gui.lua. Window 880x560
+   (was 720x480); title bar: accent "pfUI Octo" + version, search box, Move Frames / Keybinds
+   (hoverbind) / Install / Profiles (share) buttons with tooltips (the bottom button row is gone);
+   tree rows 150x22, left-aligned, hover shade, open entry = accent text + accent gradient + 2 px
+   accent edge; headers = accent text 2 pt larger with a fading accent underline; zebra rows;
+   every teal (.2,1,.8 / .3,1,.8 / |cff33ffcc) in gui.lua and api/ui-widgets.lua now uses
+   GetAccentColor (About page logo left teal). Kept one control per row: pfUI's captions are long
+   ("Colorize player name on WorldMap and BattlefieldMinimap") and would not fit two columns.
+   Meters + Combat Text pages come with phases 5 and 6. All 52 pages build in the mock.
 5. Meters, Details!/Recount depth (the user asked "they should tell you everything, all
    interrupts, all casts"): damage / healing / overhealing / absorbs, damage taken, per-spell and
    per-target breakdowns with hits, crits, misses, max/min/avg, interrupts (who kicked what), dispels
