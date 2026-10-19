@@ -49,7 +49,14 @@ see "Roadmap" below.
    `.color`, `pfUI.api.GetAccentColor()` used by SetHighlight / SkinButton / rotate / dropdown
    highlight in api/ui-widgets.lua. Still teal (pfUI's |cff33ffcc / .2,1,.8): options window tree,
    scrollbar thumbs - phase 4 moves those to the accent.
-2. Layout mode: snapping, nudge box, grid size, /moveui, right-click mover = its options.
+2. Layout mode. DONE 19 Oct (not seen in game), modules/unlock.lua. pfUI already had drag, grid,
+   middle-click reset and a right-click box (anchor, X/Y, arrows, Configure). Added: snapping while
+   dragging (`GetSnap`: other movers' edges/centres and screen edges/centre first, grid lines
+   second, 8 px, accent guide lines live, Alt or the Snap box = off), grid drawn from the centre
+   with exact accent centre lines, top bar (Snap, grid -/+ 32/64/128/256 cells, ?, Reset All,
+   Done), Shift on the arrows = 10 px, `/moveui` and `/pfmove`, options window only reopens when
+   layout mode was started from it, help box only on first use (`unlock.helpseen`). Config group
+   `unlock`: snap, gridsize, helpseen.
 3. Install wizard (ElvUI flow, /pfui install) and profile export/import strings.
 4. Options window restyle (ElvUI): headers, group boxes, top bar, Meters + Combat Text pages.
 5. Meters, Details!/Recount depth (the user asked "they should tell you everything, all

@@ -48,13 +48,35 @@ function GetScreenWidth() return 1920 end
 function GetScreenHeight() return 1080 end
 function GetNumAddOns() return 1 end
 function debugstack() return "" end
+-- template children the client creates with "$parent" names
+local TEMPLATE_CHILDREN = {
+  UIDropDownMenuTemplate = { "Button", "Text", "Left", "Middle", "Right" },
+  UICheckButtonTemplate = { "Text" },
+}
+local createFrame = CreateFrame
+function CreateFrame(kind, name, parent, template)
+  local f = createFrame(kind, name, parent, template)
+  if name and template and TEMPLATE_CHILDREN[template] then
+    for _, child in ipairs(TEMPLATE_CHILDREN[template]) do
+      Mock.New(child == "Button" and "Button" or "FontString", name .. child, f)
+    end
+  end
+  return f
+end
+function UIDropDownMenu_SetWidth() end
+function UIDropDownMenu_SetButtonWidth() end
+function UIDropDownMenu_JustifyText() end
+function UIDropDownMenu_SetSelectedID() end
+function UIDropDownMenu_SetText() end
+function UIDropDownMenu_Initialize() end
+function UIDropDownMenu_AddButton() end
 ITEM_QUALITY_COLORS = {}
 for i = 0, 6 do ITEM_QUALITY_COLORS[i] = { r = 1, g = 1, b = 1, hex = "|cffffffff" } end
 table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = {}
+local MUST_LOAD = { "unlock", "gui", "firstrun" }
 
 -- ---------------------------------------------------------------- load
 
@@ -166,6 +188,66 @@ pfUI_config.appearance.accent.color = "0.1,0.2,0.3,1"
 cr, cg, cb = pfUI.api.GetAccentColor()
 ok(cr == 0.1 and cg == 0.2 and cb == 0.3, "custom accent colour")
 pfUI_config.appearance.accent.mode = "class"
+
+-- ---------------------------------------------------------------- phase 2: layout mode
+ok(SlashCmdList.PFMOVEUI and SLASH_PFMOVEUI1 == "/moveui", "/moveui registered")
+local U = pfUI.unlock
+if U and U.bar then
+  -- pfUI's own frames need more of the client than the mock has: use two plain ones
+  local realMovables = pfUI.movables
+  pfUI.movables = { pfTestOne = CreateFrame("Frame", "pfTestOne", UIParent), pfTestTwo = CreateFrame("Frame", "pfTestTwo", UIParent) }
+  pfUI.gui:Hide()
+  SlashCmdList.PFMOVEUI("")
+  ok(U:IsShown(), "/moveui opens layout mode")
+  ok(U.grids and U.grids[128], "grid drawn at the default size")
+  ok(pfUI_config.unlock.helpseen == "1", "help shown once")
+  ok(U.bar.snap:GetChecked(), "snap box ticked by default")
+  U.bar.gridless:GetScript("OnClick")()
+  ok(pfUI_config.unlock.gridsize == "64", "grid '-' makes bigger cells (" .. pfUI_config.unlock.gridsize .. ")")
+  ok(U.grids[64] and U.grids[64]:IsShown() and not U.grids[128]:IsShown(), "only the new grid shows")
+  U.bar.gridmore:GetScript("OnClick")()
+  ok(pfUI_config.unlock.gridsize == "128", "grid '+' goes back")
+
+  -- snapping: two frames with real geometry (UIParent units, scale 1)
+  local function Box(name, l, b, w, h)
+    local f = CreateFrame("Frame", name, UIParent)
+    f.GetLeft = function() return l end
+    f.GetRight = function() return l + w end
+    f.GetBottom = function() return b end
+    f.GetTop = function() return b + h end
+    f.GetEffectiveScale = function() return 1 end
+    return f
+  end
+  local saved = pfUI.movables
+  local a = Box("pfTestA", 403, 300, 100, 40)   -- 3 px right of B's right edge
+  local b = Box("pfTestB", 200, 500, 200, 40)
+  pfUI.movables = { pfTestA = a, pfTestB = b }
+  U.selection = { a }
+  local dx, dy, xline, yline = U.GetSnap(a)
+  ok(dx == -3 and xline == 400, "snaps A's left onto B's right edge (dx " .. tostring(dx) .. ")")
+  -- centre: A centred 5 px off the screen's vertical centre line
+  a = Box("pfTestA", 1920/2 - 50 + 5, 123, 100, 40)
+  pfUI.movables = { pfTestA = a }
+  U.selection = { a }
+  dx, dy, xline = U.GetSnap(a)
+  ok(dx == -5 and xline == 960, "snaps to the screen centre (dx " .. tostring(dx) .. ")")
+  Mock.alt = true
+  ok(U.GetSnap(a) == nil, "Alt turns snapping off")
+  Mock.alt = nil
+  pfUI_config.unlock.snap = "0"
+  ok(U.GetSnap(a) == nil, "Snap box off turns snapping off")
+  pfUI_config.unlock.snap = "1"
+  -- far from anything: no move (grid 128 = 15 px cells, so stay off-grid too)
+  a = Box("pfTestA", 607.5, 300.0 + 1080/2 - 540, 100, 40)
+  pfUI.movables = saved
+  U.selection = {}
+
+  ok(pfTestOne.drag and pfTestOne.drag:IsShown(), "movers get a drag box")
+  U.bar.done:GetScript("OnClick")()
+  ok(not U:IsShown(), "Done leaves layout mode")
+  ok(not pfUI.gui:IsShown(), "options window stays closed after /moveui")
+  pfUI.movables = realMovables
+end
 
 -- ---------------------------------------------------------------- options pages
 -- build every page of the options window (pages build on first show)

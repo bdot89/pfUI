@@ -154,50 +154,179 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     UpdateMovable(frame)
   end
 
+  -- [ grid ]
+  -- Square cells, GetScreenWidth() / unlock.gridsize wide, counted out from
+  -- the screen centre so the two accent-coloured centre lines are exact.
+  -- One grid frame per size, kept for when the size is picked again.
+  local function GridStep()
+    return GetScreenWidth() / (tonumber(C.unlock.gridsize) or 128)
+  end
+
   local function DrawGrid()
-    local grid = CreateFrame("Frame", this:GetName() .. "Grid", pfUI.unlock)
-    grid:SetAllPoints(this)
-
-    local size = 1
-    local line = {}
-
-    local width = GetScreenWidth()
-    local height = GetScreenHeight()
-
-    local ratio = width / GetScreenHeight()
-    local rheight = GetScreenHeight() * ratio
-
-    local wStep = width / 128
-    local hStep = rheight / 128
-
-    -- vertical lines
-    for i = 0, 128 do
-      if i == 128 / 2 then
-        line = grid:CreateTexture(nil, 'BORDER')
-        line:SetTexture(.1, .5, .4)
-      else
-        line = grid:CreateTexture(nil, 'BACKGROUND')
-        line:SetTexture(0, 0, 0, .5)
-      end
-      line:SetPoint("TOPLEFT", grid, "TOPLEFT", i*wStep - (size/2), 0)
-      line:SetPoint('BOTTOMRIGHT', grid, 'BOTTOMLEFT', i*wStep + (size/2), 0)
+    local cells = tonumber(C.unlock.gridsize) or 128
+    pfUI.unlock.grids = pfUI.unlock.grids or {}
+    for size, grid in pairs(pfUI.unlock.grids) do grid:Hide() end
+    if pfUI.unlock.grids[cells] then
+      pfUI.unlock.grids[cells]:Show()
+      return pfUI.unlock.grids[cells]
     end
 
-    -- horizontal lines
-    for i = 1, floor(height/hStep) do
-      if i == floor(height/hStep / 2) then
-        line = grid:CreateTexture(nil, 'BORDER')
-        line:SetTexture(.1, .5, .4)
-      else
-        line = grid:CreateTexture(nil, 'BACKGROUND')
-        line:SetTexture(0, 0, 0)
-      end
+    local grid = CreateFrame("Frame", "pfUnlockGrid" .. cells, pfUI.unlock)
+    grid:SetAllPoints(pfUI.unlock)
+    pfUI.unlock.grids[cells] = grid
 
-      line:SetPoint("TOPLEFT", grid, "TOPLEFT", 0, -(i*hStep) + (size/2))
-      line:SetPoint('BOTTOMRIGHT', grid, 'TOPRIGHT', 0, -(i*hStep + size/2))
+    local size = 1
+    local width, height = GetScreenWidth(), GetScreenHeight()
+    local step = width / cells
+    local cx, cy = width / 2, height / 2
+    local ar, ag, ab = GetAccentColor()
+
+    local function Line(center, vertical, pos)
+      local line = grid:CreateTexture(nil, center and "BORDER" or "BACKGROUND")
+      if center then
+        line:SetTexture(ar, ag, ab, .8)
+      else
+        line:SetTexture(0, 0, 0, .5)
+      end
+      if vertical then
+        line:SetPoint("TOPLEFT", grid, "TOPLEFT", pos - size/2, 0)
+        line:SetPoint("BOTTOMRIGHT", grid, "BOTTOMLEFT", pos + size/2, 0)
+      else
+        line:SetPoint("TOPLEFT", grid, "BOTTOMLEFT", 0, pos + size/2)
+        line:SetPoint("BOTTOMRIGHT", grid, "BOTTOMRIGHT", 0, pos - size/2)
+      end
+    end
+
+    Line(true, true, cx)
+    Line(true, false, cy)
+    for i = 1, ceil(cx / step) do
+      Line(false, true, cx - i*step)
+      Line(false, true, cx + i*step)
+    end
+    for i = 1, ceil(cy / step) do
+      Line(false, false, cy - i*step)
+      Line(false, false, cy + i*step)
     end
 
     return grid
+  end
+
+  -- [ snapping ]
+  -- While a frame is dragged its edges and centre are compared with the grid
+  -- lines, the screen edges and centre, and the edges and centres of every
+  -- other mover; within SNAP pixels the nearest one wins and an accent guide
+  -- line shows it. On release the frame jumps onto it. Alt or the top bar's
+  -- "Snap" box turns it off. All in UIParent units.
+  local SNAP = 8
+
+  local function UIScale(frame)
+    return frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+  end
+
+  -- left, right, centre-x, bottom, top, centre-y in UIParent units
+  local function Edges(frame)
+    local l, r, b, t = frame:GetLeft(), frame:GetRight(), frame:GetBottom(), frame:GetTop()
+    if not l or not r or not b or not t then return end
+    local s = UIScale(frame)
+    return l*s, r*s, (l+r)/2*s, b*s, t*s, (b+t)/2*s
+  end
+
+  local function InSelection(frame)
+    for _, f in pairs(pfUI.unlock.selection) do
+      if f == frame then return true end
+    end
+  end
+
+  -- best move (delta) of one of the values in mine onto a target line;
+  -- frame and screen lines win over grid lines (ElvUI's sticky frames)
+  local function Nearest(mine, targets, gridpos, best, bestline)
+
+    for _, v in pairs(mine) do
+      for _, t in pairs(targets) do
+        if abs(t - v) < abs(best) then best, bestline = t - v, t end
+      end
+    end
+    if bestline or not gridpos then return best, bestline end
+    for _, v in pairs(mine) do
+      local t = gridpos(v)
+      if abs(t - v) < abs(best) then best, bestline = t - v, t end
+    end
+    return best, bestline
+  end
+
+  -- returns dx, dy (UIParent units) and the guide lines, or nil when off
+  local function GetSnap(frame)
+    if C.unlock.snap ~= "1" or IsAltKeyDown() then return end
+    local l, r, cx, b, t, cy = Edges(frame)
+    if not l then return end
+
+    local width, height = GetScreenWidth(), GetScreenHeight()
+    local xs, ys = { 0, width, width/2 }, { 0, height, height/2 }
+    for name, other in pairs(pfUI.movables) do
+      other = other or _G[name]
+      if other and other ~= frame and other:IsShown() and not InSelection(other) then
+        local ol, or_, ocx, ob, ot, ocy = Edges(other)
+        if ol then
+          table.insert(xs, ol) table.insert(xs, or_) table.insert(xs, ocx)
+          table.insert(ys, ob) table.insert(ys, ot) table.insert(ys, ocy)
+        end
+      end
+    end
+
+    local step = GridStep()
+    local gridx = function(v) return width/2 + floor((v - width/2) / step + .5) * step end
+    local gridy = function(v) return height/2 + floor((v - height/2) / step + .5) * step end
+
+    local dx, xline = Nearest({ l, r, cx }, xs, gridx, SNAP + 1)
+    local dy, yline = Nearest({ b, t, cy }, ys, gridy, SNAP + 1)
+    if abs(dx) > SNAP then dx, xline = 0, nil end
+    if abs(dy) > SNAP then dy, yline = 0, nil end
+    return dx, dy, xline, yline
+  end
+
+  local function ShowGuides(xline, yline)
+    local g = pfUI.unlock.guides
+    if not g then
+      g = {}
+      g.x = pfUI.unlock:CreateTexture(nil, "OVERLAY")
+      g.y = pfUI.unlock:CreateTexture(nil, "OVERLAY")
+      pfUI.unlock.guides = g
+    end
+    local ar, ag, ab = GetAccentColor()
+    g.x:SetTexture(ar, ag, ab, 1)
+    g.y:SetTexture(ar, ag, ab, 1)
+    if xline then
+      g.x:ClearAllPoints()
+      g.x:SetPoint("TOPLEFT", pfUI.unlock, "TOPLEFT", xline - 1, 0)
+      g.x:SetPoint("BOTTOMRIGHT", pfUI.unlock, "BOTTOMLEFT", xline + 1, 0)
+      g.x:Show()
+    else
+      g.x:Hide()
+    end
+    if yline then
+      g.y:ClearAllPoints()
+      g.y:SetPoint("TOPLEFT", pfUI.unlock, "BOTTOMLEFT", 0, yline + 1)
+      g.y:SetPoint("BOTTOMRIGHT", pfUI.unlock, "BOTTOMRIGHT", 0, yline - 1)
+      g.y:Show()
+    else
+      g.y:Hide()
+    end
+  end
+
+  -- moves a frame by dx, dy UIParent units
+  local function ShiftFrame(frame, dx, dy)
+    if dx == 0 and dy == 0 then return end
+    local s = UIScale(frame)
+    local anchor, rel, relp, x, y = frame:GetPoint()
+    frame:ClearAllPoints()
+    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relp or anchor or "TOPLEFT", (x or 0) + dx/s, (y or 0) + dy/s)
+  end
+
+  local function SnapOnUpdate()
+    if ( this.tick or 0 ) > GetTime() then return end
+    this.tick = GetTime() + .03
+    local _, _, xline, yline = GetSnap(this.frame)
+    ShowGuides(xline, yline)
   end
 
   local function GetConfigTable(dlabel)
@@ -295,7 +424,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     pfUI.unlock.dock.parent = frame
 
     if frame then
-      pfUI.unlock.dock.parent.backdrop:SetBackdropBorderColor(.2,1,.8,1)
+      pfUI.unlock.dock.parent.backdrop:SetBackdropBorderColor(GetAccentColor())
       pfUI.unlock.dock:Show()
       UpdateDockValues()
     else
@@ -330,12 +459,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     for id, frame in pairs(pfUI.unlock.selection) do
       frame:StartMoving()
       frame:StopMovingOrSizing()
-      frame.drag.backdrop:SetBackdropBorderColor(.2,1,.8,1)
+      frame.drag.backdrop:SetBackdropBorderColor(GetAccentColor())
     end
 
     local anchor, _, _, xpos, ypos = frame:GetPoint()
     frame.oldPos = { xpos, ypos, anchor }
     frame:StartMoving()
+    this:SetScript("OnUpdate", SnapOnUpdate)
 
     if frame.OnMove then frame:OnMove() end
   end
@@ -345,6 +475,12 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local name = this.fname
 
     frame:StopMovingOrSizing()
+    this:SetScript("OnUpdate", nil)
+    ShowGuides(nil, nil)
+
+    -- jump onto the snap line (the rest of the selection follows below)
+    local dx, dy = GetSnap(frame)
+    if dx then ShiftFrame(frame, dx, dy) end
 
     -- calculate and move selection offsets
     local anchor, xpos, ypos = ConvertFrameAnchor(frame, frame.oldPos[3])
@@ -491,7 +627,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       return
     end
 
-    this.grid = this.grid or DrawGrid()
+    this.grid = DrawGrid()
+    this.bar:Update()
 
     for name, frame in pairs(pfUI.movables) do
       local frame = frame or _G[name]
@@ -503,8 +640,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       frame:Show()
     end
 
-    local txt = T["Unlock Mode allows you to move, scale and reset frames:\n\n|cff33ffcc[Left Click]|r Drag Frame\n|cff33ffcc[Middle Click]|r Reset Frame\n|cff33ffcc[Right Click]|r Option Box\n\nHold |cff33ffcc[Shift]|r to select all frames of the same kind\nHold |cff33ffcc[Ctrl]|r to select all frames of the same group\n\n|cff33ffcc[Scroll]|r to change the scale of a frame\n\n|cff33ffcc[Click]|r on an empty area or press |cff33ffcc[Esc]|r to exit\n"]
-    CreateInfoBox(txt, 15, pfUI.unlock, 180)
+    -- go back to the options window on exit only when it was opened from there
+    this.fromGUI = pfUI.gui:IsShown()
+
+    if C.unlock.helpseen ~= "1" then
+      this.bar:ShowHelp()
+      C.unlock.helpseen = "1"
+    end
     pfUI.gui:Hide()
   end)
 
@@ -527,9 +669,115 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
 
     SetDockToFrame(nil)
+    ShowGuides(nil, nil)
     pfUI.unlock:Hide()
-    pfUI.gui:Show()
+    if this.fromGUI then pfUI.gui:Show() end
   end)
+
+  -- [ top bar ]
+  -- ElvUI's layout-mode bar: snap on/off, grid size, help, reset all, done.
+  local GRIDSIZES = { 32, 64, 128, 256 }
+
+  local bar = CreateFrame("Frame", "pfUnlockBar", pfUI.unlock)
+  bar:SetFrameStrata("FULLSCREEN_DIALOG")
+  bar:SetPoint("TOP", pfUI.unlock, "TOP", 0, -20)
+  bar:SetWidth(520)
+  bar:SetHeight(28)
+  bar:EnableMouse(true) -- clicks on the bar do not leave layout mode
+  CreateBackdrop(bar)
+  pfUI.unlock.bar = bar
+
+  bar.title = bar:CreateFontString(nil, "OVERLAY")
+  bar.title:SetFont(pfUI.font_default, C.global.font_size + 2, "OUTLINE")
+  bar.title:SetPoint("LEFT", 8, 0)
+  bar.title:SetText(T["Layout Mode"])
+
+  local function BarButton(text, width, func)
+    local b = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    b:SetWidth(width)
+    b:SetHeight(18)
+    b:SetText(text)
+    b:SetScript("OnClick", func)
+    SkinButton(b)
+    return b
+  end
+
+  -- snap
+  bar.snap = CreateFrame("CheckButton", "pfUnlockBarSnap", bar, "UICheckButtonTemplate")
+  bar.snap:SetWidth(14)
+  bar.snap:SetHeight(14)
+  bar.snap:SetPoint("LEFT", 118, 0)
+  SkinCheckbox(bar.snap, 14)
+  bar.snap:SetScript("OnClick", function()
+    C.unlock.snap = this:GetChecked() and "1" or "0"
+  end)
+  bar.snaptext = bar:CreateFontString(nil, "OVERLAY")
+  bar.snaptext:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  bar.snaptext:SetPoint("LEFT", bar.snap, "RIGHT", 4, 0)
+  bar.snaptext:SetText(T["Snap"])
+
+  -- grid size = cells across the screen: "-" fewer, bigger squares
+  local function SetGrid(dir)
+    local cur = tonumber(C.unlock.gridsize) or 128
+    local idx = 3
+    for i, v in ipairs(GRIDSIZES) do if v == cur then idx = i end end
+    idx = idx + dir
+    if idx < 1 then idx = 1 elseif idx > table.getn(GRIDSIZES) then idx = table.getn(GRIDSIZES) end
+    C.unlock.gridsize = tostring(GRIDSIZES[idx])
+    pfUI.unlock.grid = DrawGrid()
+    bar:Update()
+  end
+  bar.gridless = BarButton("-", 18, function() SetGrid(-1) end)
+  bar.gridless:SetPoint("LEFT", 185, 0)
+  bar.gridtext = bar:CreateFontString(nil, "OVERLAY")
+  bar.gridtext:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  bar.gridtext:SetPoint("LEFT", bar.gridless, "RIGHT", 4, 0)
+  bar.gridtext:SetWidth(60)
+  bar.gridmore = BarButton("+", 18, function() SetGrid(1) end)
+  bar.gridmore:SetPoint("LEFT", bar.gridtext, "RIGHT", 4, 0)
+
+  function bar:ShowHelp()
+    local a = rgbhex(GetAccentColor())
+    local txt = string.gsub(T["Unlock Mode allows you to move, scale and reset frames:\n\n|cff33ffcc[Left Click]|r Drag Frame\n|cff33ffcc[Middle Click]|r Reset Frame\n|cff33ffcc[Right Click]|r Option Box\n\nHold |cff33ffcc[Shift]|r to select all frames of the same kind\nHold |cff33ffcc[Ctrl]|r to select all frames of the same group\n\n|cff33ffcc[Scroll]|r to change the scale of a frame\n\n|cff33ffcc[Click]|r on an empty area or press |cff33ffcc[Esc]|r to exit\n"], "|cff33ffcc", a)
+    txt = txt .. a .. T["[Alt]"] .. "|r " .. T["while dragging: no snapping"] .. "\n"
+    txt = txt .. a .. T["[Shift]"] .. "|r " .. T["on the arrows: move 10 pixels"] .. "\n"
+    CreateInfoBox(txt, 15, pfUI.unlock, 210)
+  end
+  bar.help = BarButton("?", 18, function() bar:ShowHelp() end)
+  bar.help:SetPoint("LEFT", bar.gridmore, "RIGHT", 14, 0)
+
+  bar.done = BarButton(T["Done"], 70, function() pfUI.unlock:Hide() end)
+  bar.done:SetPoint("RIGHT", -6, 0)
+
+  bar.reset = BarButton(T["Reset All"], 80, function()
+    CreateQuestionDialog(T["Move every frame back to its default place?"], function()
+      for name, frame in pairs(pfUI.movables) do
+        frame = frame or _G[name]
+        pfUI_config["position"][frame:GetName()] = nil
+        frame:ClearAllPoints()
+        UpdateMovable(frame)
+        if frame.OnMove then frame:OnMove() end
+      end
+      SetDockToFrame(nil)
+    end)
+  end)
+  bar.reset:SetPoint("RIGHT", bar.done, "LEFT", -6, 0)
+
+  function bar:Update()
+    local ar, ag, ab = GetAccentColor()
+    bar.title:SetTextColor(ar, ag, ab, 1)
+    bar.snap:SetChecked(C.unlock.snap == "1")
+    bar.gridtext:SetText(T["Grid"] .. " " .. (C.unlock.gridsize or "128"))
+  end
+
+  -- for tests\run.lua
+  pfUI.unlock.GetSnap = GetSnap
+
+  -- /moveui (ElvUI's command), /pfmove
+  _G.SLASH_PFMOVEUI1, _G.SLASH_PFMOVEUI2 = "/moveui", "/pfmove"
+  _G.SlashCmdList.PFMOVEUI = function()
+    if pfUI.unlock:IsShown() then pfUI.unlock:Hide() else pfUI.unlock:Show() end
+  end
 
   -- dock frame
   pfUI.unlock.dock = CreateFrame("Button", "pfUnlockDock", pfUI.unlock)
@@ -681,7 +929,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     QueueFunction(SetDockToFrame, pfUI.unlock.dock.parent)
   end)
-  SkinButton(pfUI.unlock.dock.reset,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.reset)
 
   -- move left
   pfUI.unlock.dock.left = CreateFrame("Button", "pfDragDockPosUp", pfUI.unlock.dock, "UIPanelButtonTemplate")
@@ -696,11 +944,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.left:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
     local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos - 1, ypos)
+    frame:SetPoint(anchor or "TOPLEFT", xpos - (IsShiftKeyDown() and 10 or 1), ypos)
     SavePosition(frame)
     UpdateDockValues()
   end)
-  SkinButton(pfUI.unlock.dock.left,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.left)
 
   -- move right
   pfUI.unlock.dock.right = CreateFrame("Button", "pfDragDockPosUp", pfUI.unlock.dock, "UIPanelButtonTemplate")
@@ -715,11 +963,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.right:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
     local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos + 1, ypos)
+    frame:SetPoint(anchor or "TOPLEFT", xpos + (IsShiftKeyDown() and 10 or 1), ypos)
     SavePosition(frame)
     UpdateDockValues()
   end)
-  SkinButton(pfUI.unlock.dock.right,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.right)
 
   -- move up
   pfUI.unlock.dock.up = CreateFrame("Button", "pfDragDockPosUp", pfUI.unlock.dock, "UIPanelButtonTemplate")
@@ -734,11 +982,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.up:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
     local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos + 1)
+    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos + (IsShiftKeyDown() and 10 or 1))
     SavePosition(frame)
     UpdateDockValues()
   end)
-  SkinButton(pfUI.unlock.dock.up,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.up)
 
   -- move down
   pfUI.unlock.dock.down = CreateFrame("Button", "pfDragDockPosUp", pfUI.unlock.dock, "UIPanelButtonTemplate")
@@ -753,11 +1001,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.down:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
     local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos - 1)
+    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos - (IsShiftKeyDown() and 10 or 1))
     SavePosition(frame)
     UpdateDockValues()
   end)
-  SkinButton(pfUI.unlock.dock.down,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.down)
 
   -- open config
   pfUI.unlock.dock.config = CreateFrame("Button", "pfDragDockConfigOpen", pfUI.unlock.dock, "UIPanelButtonTemplate")
@@ -769,5 +1017,5 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local cat, conf = GetConfigTable(pfUI.unlock.dock.parent.label)
     if cat then OpenConfigDialog(cat, conf) end
   end)
-  SkinButton(pfUI.unlock.dock.config,.2,1,.8)
+  SkinButton(pfUI.unlock.dock.config)
 end)
