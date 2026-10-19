@@ -239,10 +239,32 @@ if U and U.bar then
   pfUI_config.unlock.snap = "0"
   ok(U.GetSnap(a) == nil, "Snap box off turns snapping off")
   pfUI_config.unlock.snap = "1"
-  -- far from anything: no move (grid 128 = 15 px cells, so stay off-grid too)
-  a = Box("pfTestA", 607.5, 300.0 + 1080/2 - 540, 100, 40)
-  pfUI.movables = saved
+  -- a full drag and drop: the box's edges never change after SetPoint, as
+  -- when the client reports positions only on the next screen update; the
+  -- saved position must still include the snap (3 px left onto B's edge)
+  a = Box("pfTestA", 403, 300, 100, 40)
+  b = Box("pfTestB", 200, 500, 200, 40)
+  a:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 403, -740)
+  pfUI.movables = { pfTestOne = pfTestOne, pfTestTwo = pfTestTwo }
+  U:Hide()
+  pfUI.movables = { pfTestA = a, pfTestB = b }
+  U:Show()
+  ok(a.drag, "drag box for the test frame")
+  if a.drag then
+    pfUI_config.position.pfTestA = nil
+    Mock.Run(a.drag, "OnDragStart")
+    Mock.Run(a.drag, "OnDragStop")
+    local pos = pfUI_config.position.pfTestA
+    ok(pos and pos.xpos, "drop saved a position")
+    if pos and pos.xpos then
+      local _, x = pfUI.api.ConvertFrameAnchor(a, pos.anchor)
+      ok(pos.xpos == pfUI.api.round(x - 3), "saved position includes the snap (" .. tostring(pos.xpos) .. " vs " .. tostring(pfUI.api.round(x - 3)) .. ")")
+    end
+  end
+  U:Hide()
   U.selection = {}
+  pfUI.movables = { pfTestOne = pfTestOne, pfTestTwo = pfTestTwo }
+  U:Show()
 
   ok(pfTestOne.drag and pfTestOne.drag:IsShown(), "movers get a drag box")
   U.bar.done:GetScript("OnClick")()

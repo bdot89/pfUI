@@ -313,15 +313,6 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
   end
 
-  -- moves a frame by dx, dy UIParent units
-  local function ShiftFrame(frame, dx, dy)
-    if dx == 0 and dy == 0 then return end
-    local s = UIScale(frame)
-    local anchor, rel, relp, x, y = frame:GetPoint()
-    frame:ClearAllPoints()
-    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relp or anchor or "TOPLEFT", (x or 0) + dx/s, (y or 0) + dy/s)
-  end
-
   local function SnapOnUpdate()
     if ( this.tick or 0 ) > GetTime() then return end
     this.tick = GetTime() + .03
@@ -478,9 +469,10 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     this:SetScript("OnUpdate", nil)
     ShowGuides(nil, nil)
 
-    -- jump onto the snap line (the rest of the selection follows below)
+    -- the snap is measured at the drop position and added to the saved
+    -- offsets below: the client may not report a frame's new edges until
+    -- the next screen update, so moving it here and reading it back fails
     local dx, dy = GetSnap(frame)
-    if dx then ShiftFrame(frame, dx, dy) end
 
     -- calculate and move selection offsets
     local anchor, xpos, ypos = ConvertFrameAnchor(frame, frame.oldPos[3])
@@ -524,6 +516,10 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     for id, frame in pairs(pfUI.unlock.selection) do
       CreateBackdrop(frame.drag, nil, nil, .8)
       local anchor, x, y = ConvertFrameAnchor(frame, bestanchor)
+      if dx then
+        local s = UIScale(frame)
+        x, y = x + dx / s, y + dy / s
+      end
       frame:ClearAllPoints()
       frame:SetPoint(anchor, UIParent, anchor, x, y)
       SavePosition(frame)
