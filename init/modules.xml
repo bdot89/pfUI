@@ -37,6 +37,10 @@
   <Include file="..\modules\meters.lua"/>
   <Include file="..\modules\meters-threat.lua"/>
   <Include file="..\modules\meters-window.lua"/>
+  <Include file="..\modules\sct-core.lua"/>
+  <Include file="..\modules\sct-engine.lua"/>
+  <Include file="..\modules\sct-events.lua"/>
+  <Include file="..\modules\sct.lua"/>
   <Include file="..\modules\thirdparty-vanilla.lua"/>
   <Include file="..\modules\thirdparty-tbc.lua"/>
   <Include file="..\modules\buff.lua"/>

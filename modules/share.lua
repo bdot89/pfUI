@@ -19,6 +19,10 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
         elseif type(v) == "number" then
           match = true
           str = str .. spacing .. "  [\""..k.."\"] = ".. string.gsub(v, "\\", "\\\\") ..",\n"
+        elseif type(v) == "boolean" then
+          -- octo: the combat text keeps on / off settings as true / false
+          match = true
+          str = str .. spacing .. "  [\""..k.."\"] = ".. (v and "true" or "false") ..",\n"
         end
       end
     end
@@ -73,7 +77,12 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
             if key and tonumber(value) then
               stack[depth][key] = tonumber(value)
             else
-              return nil, "line " .. lineno .. ": not a setting"
+              _, _, key, value = string.find(line, '^%["([^"]*)"%] = (%a+),$')
+              if key and (value == "true" or value == "false") then
+                stack[depth][key] = (value == "true")
+              else
+                return nil, "line " .. lineno .. ": not a setting"
+              end
             end
           end
         end
@@ -116,6 +125,7 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
     local keep = {}
     if not imported.position then keep.position = pfUI_config.position end
     if not imported.disabled then keep.disabled = pfUI_config.disabled end
+    if not imported.sct then keep.sct = pfUI_config.sct end
     _G.pfUI_config = imported
     for k, v in pairs(keep) do pfUI_config[k] = v end
     pfUI:LoadConfig()

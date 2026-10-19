@@ -59,8 +59,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     -- settings that belong together stay together. Cells are children of the
     -- page, the group box is a plain frame behind them.
     local PAGE_PAD, GROUP_PAD, GAP, TITLE_H = 12, 10, 6, 26
-    local CELL = { checkbox = 24, color = 24, button = 24, dropdown = 42, text = 42, list = 42, warning = 50 }
-    local ORDER = { warning = 1, checkbox = 2, color = 2, button = 2, dropdown = 3, text = 3, list = 4 }
+    local CELL = { checkbox = 24, color = 24, button = 24, dropdown = 42, text = 42, slider = 42, list = 42, warning = 50 }
+    local ORDER = { warning = 1, checkbox = 2, color = 2, button = 2, dropdown = 3, text = 3, slider = 3, list = 4 }
 
     local function Flow(page)
       if page.flow then return page.flow end
@@ -223,6 +223,15 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         frame.button:ClearAllPoints()
         frame.button:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -3)
         frame.button:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 3)
+      elseif kind == "slider" and frame.input then
+        frame.caption:ClearAllPoints()
+        frame.caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -3)
+        frame.caption:SetPoint("RIGHT", frame.value, "LEFT", -6, 0)
+        frame.caption:SetTextColor(.8, .8, .8, 1)
+        frame.input:ClearAllPoints()
+        frame.input:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -25)
+        frame.input:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+        frame.input:SetHeight(8)
       elseif (kind == "dropdown" or kind == "text" or kind == "list") and frame.caption then
         frame.caption:ClearAllPoints()
         frame.caption:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -3)
@@ -554,6 +563,48 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         end)
 
         frame.input:SetSelection(frame.input.current)
+      end
+
+      -- use slider widget (octo, ElvUI style): values = { min, max, step }
+      if widget == "slider" and _G.type(values) == "table" then
+        local lo, hi, step = values[1] or 0, values[2] or 100, values[3] or 1
+        local function Fmt(v)
+          if step >= 1 then return tostring(math.floor(v + .5)) end
+          local s = string.format("%.2f", v)
+          s = string.gsub(s, "0+$", "")
+          return (string.gsub(s, "%.$", ""))
+        end
+        frame.input = CreateFrame("Slider", nil, frame)
+        frame.input:SetOrientation("HORIZONTAL")
+        frame.input:SetHeight(8)
+        frame.input:SetMinMaxValues(lo, hi)
+        frame.input:SetValueStep(step)
+        frame.input:EnableMouseWheel(true)
+        CreateBackdrop(frame.input, nil, true)
+        frame.input:SetThumbTexture("Interface\\BUTTONS\\WHITE8X8")
+        local thumb = frame.input:GetThumbTexture()
+        thumb:SetWidth(8)
+        thumb:SetHeight(14)
+        thumb:SetVertexColor(GetAccentColor())
+        frame.value = frame:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+        frame.value:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+        frame.value:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -3)
+        frame.value:SetTextColor(GetAccentColor())
+        frame.input:SetValue(tonumber(category[config]) or lo)
+        frame.value:SetText(Fmt(tonumber(category[config]) or lo))
+        frame.input:SetScript("OnValueChanged", function()
+          local v = math.floor(this:GetValue() / step + .5) * step
+          if v < lo then v = lo elseif v > hi then v = hi end
+          local p = this:GetParent()
+          p.value:SetText(Fmt(v))
+          if tostring(p.category[p.config]) ~= Fmt(v) then
+            p.category[p.config] = Fmt(v)
+            if ufunc then ufunc() else pfUI.gui.settingChanged = true end
+          end
+        end)
+        frame.input:SetScript("OnMouseWheel", function()
+          this:SetValue(this:GetValue() + arg1 * step)
+        end)
       end
 
       -- use list widget
@@ -923,6 +974,37 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui.CreateConfig = CreateConfig
     pfUI.gui.CreateGUIEntry = CreateGUIEntry
     pfUI.gui.UpdaterFunctions = U
+
+    -- octo: settings kept as real Lua values (booleans, numbers - the
+    -- combat text's) edited with the string widgets: true / false <-> "1" /
+    -- "0", numbers <-> text, and the virtual key "rgb" <-> r, g, b fields.
+    -- get() returns the table (looked up each time, so a reset table works);
+    -- onchange(key) runs after every change.
+    function pfUI.gui.Native(get, onchange)
+      return setmetatable({}, {
+        __index = function(_, k)
+          local t = get()
+          if k == "rgb" then return (t.r or 1) .. "," .. (t.g or 1) .. "," .. (t.b or 1) .. ",1" end
+          local v = t[k]
+          if _G.type(v) == "boolean" then return v and "1" or "0" end
+          if v == nil then return nil end
+          return tostring(v)
+        end,
+        __newindex = function(_, k, v)
+          local t = get()
+          if k == "rgb" then
+            local _, _, r, g, b = string.find(v or "", "([%d%.]+),([%d%.]+),([%d%.]+)")
+            t.r, t.g, t.b = tonumber(r) or t.r, tonumber(g) or t.g, tonumber(b) or t.b
+          else
+            local old = t[k]
+            if _G.type(old) == "boolean" then t[k] = (v == "1")
+            elseif _G.type(old) == "number" then t[k] = tonumber(v) or old
+            else t[k] = v end
+          end
+          if onchange then onchange(k) end
+        end,
+      })
+    end
 
     -- decorations
     pfUI.gui.title = pfUI.gui:CreateFontString("Status", "LOW", "GameFontNormal")

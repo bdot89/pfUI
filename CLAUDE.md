@@ -121,4 +121,23 @@ see "Roadmap" below.
    Meters > General / Threat. Offers to DisableAddOn ShaguDPS + TWThreat once (C.meters.asked).
    tests/globalstrings.lua = the client's combat templates (patch-5) for the offline tests.
    Not yet: nampower events, CC / buff uptime, saved fights across reload, multiple-window snapping.
-6. Combat text: move OctoBG's SCT.lua / SCTEvents.lua / SCTOptions.lua into pfUI; OctoBG defers.
+6. Combat text. DONE 19 Oct (not seen in game). OctoBG's SCT.lua / SCTEvents.lua copied as
+   modules/sct-engine.lua / sct-events.lua (headers, frame names and the area movers changed, the
+   rest as in OctoBG - fix bugs in both or note it), running on modules/sct-core.lua = a stand-in
+   for OctoBG's core (`pfUI.sctB`: B:On / B:Fire / B:Every / B:Print, B.db.sct, U.GuidOf, U.Panel,
+   SpyData.Font). modules/sct.lua (module "sct"): settings `pfUI_config.sct` in REAL Lua values
+   (booleans, numbers), copied once from OctoBGDB.sct (`fromOctoBG`), defaults filled; fires
+   OBG_LOADED at load, OBG_INIT at PLAYER_LOGIN, OBG_ZONE on zone change; B.test while /moveui is
+   open (sample text per area); `/pfui sct test|on|off`; options "Combat Text" > General, Scroll
+   Areas, Nameplates, Crits & Sounds, Messages: Combat, Messages: Alerts, Text & Filters, built
+   with `pfUI.gui.Native(get, onchange)` (true/false <-> "1"/"0", numbers, virtual key "rgb") and
+   the new "slider" widget (values = { min, max, step }). Areas are pfUI movers
+   pfCombatTextIncoming / Outgoing / Healing / Notes / Extra; a drop's x / y come from
+   C.position (anchor + offsets), then C.position is cleared (x / y are the truth).
+   Media: img\sct (burst.tga, Spy's four wavs, sounds\custom for the user's own).
+   Profile strings now carry booleans (share.lua serialize / parse); strings without "sct" keep
+   the importer's combat text. OctoBG (not git; backups in the session scratchpad): SCT.lua
+   `CT:HandedToPfUI()` (pfUI.sct:On()) stops CT:Show, SCTEvents CT:Notify forwards to
+   pfUI.sct.CT:Notify, SCTOptions shows a "moved to pfUI" card; OctoBG tests 328 pass.
+7. Next (user, 19 Oct): SexyMap-style minimap customisation; the user will add more addons
+   "like this" into pfUI Octo.

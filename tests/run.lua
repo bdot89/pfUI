@@ -8,6 +8,9 @@ local DIR = "."
 dofile(DIR .. "/tests/mock.lua")
 dofile(DIR .. "/tests/globalstrings.lua")
 
+-- OctoBG's saved combat text settings, as the user has them: pfUI copies them once
+OctoBGDB = { sct = { speed = 1.5, enabled = true, areas = { inc = { x = -321, size = 24 } } } }
+
 local fails, checks = 0, 0
 local function ok(cond, what)
   checks = checks + 1
@@ -79,7 +82,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct" }
 
 -- ---------------------------------------------------------------- load
 
@@ -298,13 +301,14 @@ local S = pfUI.share
 ok(S and S.parse, "share module exposes its parser")
 if S then
   local src = { appearance = { border = { color = "0,0,0,1", default = "1" } }, unitframes = { player = { width = "250" } },
-                global = { font_size = "13", note = 'a "quoted" \\ path' }, numbers = { a = 1.5, b = -2 } }
+                global = { font_size = "13", note = 'a "quoted" \\ path' }, numbers = { a = 1.5, b = -2 }, flags = { on = true, off = false } }
   local text = S.serialize(src, nil, "pfUI_config", {})
   local back, err = S.parse(text)
   ok(back, "parses its own export: " .. tostring(err))
   if back then
     ok(back.appearance.border.default == "1" and back.unitframes.player.width == "250", "round trip keeps values")
     ok(back.numbers.a == 1.5 and back.numbers.b == -2, "round trip keeps numbers")
+    ok(back.flags and back.flags.on == true and back.flags.off == false, "round trip keeps true / false")
     ok(back.global.note == 'a "quoted" \\ path', "round trip keeps quotes and backslashes (" .. tostring(back.global.note) .. ")")
   end
   -- through compression and base64, as /export shows it
@@ -641,6 +645,68 @@ if ME then
   fighting = false
   ME.Reset()
   ok(table.getn(ME.history) == 0 and not ME.current, "reset clears everything")
+end
+
+-- ---------------------------------------------------------------- phase 6: combat text
+local SB = pfUI.sctB
+ok(pfUI.sct and SB and SB.SCT and SB.db, "combat text loaded with its settings")
+if pfUI.sct and SB and SB.db then
+  local CTX = SB.SCT
+  local s = pfUI_config.sct
+  ok(s.speed == 1.5 and s.areas.inc.x == -321 and s.areas.inc.size == 24, "OctoBG's combat text settings copied")
+  ok(s.fromOctoBG, "marked as copied from OctoBG")
+  ok(s.areas.out and s.areas.out.anim and s.plates and s.events.outMelee, "missing settings filled from the defaults")
+  ok(type(s.enabled) == "boolean" and type(s.speed) == "number", "settings keep real Lua values")
+  ok(pfUI.sct:On(), "combat text on (OctoBG hands over to it)")
+
+  -- login: the five areas are built as pfUI movers
+  SB:Fire("OBG_INIT")
+  local inc = pfCombatTextIncoming
+  ok(inc and pfUI.movables["pfCombatTextIncoming"], "areas are pfUI movers (/moveui)")
+  ok(pfCombatTextNotes and pfCombatTextOutgoing and pfCombatTextHealing and pfCombatTextExtra, "all five areas")
+  local _, _, _, ax, ay = inc:GetPoint()
+  ok(ax == -321, "area placed from its x (" .. tostring(ax) .. ")")
+
+  -- a drop in layout mode: x / y come from pfUI's saved mover position
+  pfUI_config.position.pfCombatTextIncoming = { anchor = "CENTER", xpos = -100, ypos = 50 }
+  inc:OnMove()
+  ok(s.areas.inc.x == -100 and s.areas.inc.y == 50, "moved area keeps its new x / y (" .. s.areas.inc.x .. "," .. s.areas.inc.y .. ")")
+  ok(pfUI_config.position.pfCombatTextIncoming == nil, "mover position folded into x / y")
+
+  -- texts show
+  local before = CTX.nlive
+  local good, e = pcall(CTX.Show, CTX, "-1234", 1, .2, .2, "inc", { crit = true })
+  ok(good and CTX.nlive == before + 1, "a combat text shows: " .. tostring(e))
+  good, e = pcall(CTX.TestMode, CTX, true)
+  ok(good and CTX:Testing(), "test mode starts: " .. tostring(e))
+  good, e = pcall(CTX.TestRound, CTX)
+  ok(good and CTX.nlive > before + 1, "a test round shows texts: " .. tostring(e))
+  CTX:TestMode(false)
+  CTX:Clear()
+  ok(CTX.nlive == 0, "cleared")
+
+  -- layout mode shows samples in each area
+  ok(pfUI.unlock and pfUI.unlock:GetScript("OnShow"), "layout mode hooked")
+
+  -- options proxies write real values back
+  local Nat = pfUI.gui.Native(function() return pfUI_config.sct end)
+  Nat.shadow = "0"
+  ok(pfUI_config.sct.shadow == false, "tick box writes false")
+  Nat.shadow = "1"
+  ok(pfUI_config.sct.shadow == true and Nat.shadow == "1", "and true")
+  Nat.speed = "1.25"
+  ok(pfUI_config.sct.speed == 1.25, "slider writes a number")
+  local Ev = pfUI.gui.Native(function() return pfUI_config.sct.events.outMelee end)
+  Ev.rgb = "0.5,0.25,1,1"
+  ok(pfUI_config.sct.events.outMelee.r == .5 and pfUI_config.sct.events.outMelee.b == 1, "colour writes r, g, b")
+  ok(Ev.rgb == "0.5,0.25,1,1", "colour reads back")
+
+  -- /pfui sct test
+  SlashCmdList.PFUI("sct test")
+  ok(CTX:Testing(), "/pfui sct test starts the test")
+  SlashCmdList.PFUI("sct test")
+  ok(not CTX:Testing(), "and stops it")
+  CTX:Clear()
 end
 
 -- ---------------------------------------------------------------- options pages
