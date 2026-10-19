@@ -44,7 +44,8 @@ function GetAddOnMetadata(name, field)
 end
 function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006", 11200 end
 function GetLocale() return "enUS" end
-function UnitName(u) if u == "player" then return "Tester" end end
+local mockUnitName = UnitName
+function UnitName(u) if u == "player" then return "Tester" end return mockUnitName(u) end
 function GetRealmName() return "OctoWoW" end
 function GetCVar(n) return Mock.cvars and Mock.cvars[n] or "0" end
 Mock.cvars = { gxResolution = "1920x1080", uiScale = "1", useUiScale = "1" }
@@ -112,6 +113,8 @@ local NOT_IN_CLIENT = {
   UnitCastingInfo = 1, UnitChannelInfo = 1, GetUnitGUID = 0, SUPERWOW_VERSION = 1, SpellInfo = 0,
   UnitBuff = 0, GetNampowerVersion = 0, C_Timer = 1, GetItemStats = 1, CombatLogGetCurrentEventInfo = 1,
   GetSpecialization = 1, InCombatLockdown = 1, UnitXP = 0, QueueSpellByName = 1, Bagnon = 1,
+  -- Blizzard_CombatText (LoadOnDemand) and SuperAPI exist only once loaded
+  CombatText = 1, CombatText_AddMessage = 1, CombatText_UpdateDisplayedMessages = 1, SuperAPI = 1,
 }
 setmetatable(_G, { __index = function(t, k)
   if type(k) ~= "string" or NOT_IN_CLIENT[k] then return nil end
@@ -460,6 +463,8 @@ if ME then
   local hp = { player = 3000, party1 = 2000 }
   local partyNames = { player = "Tester", party1 = "Healbot" }
   local realUnitName = UnitName
+  local saved = { UnitIsPlayer = UnitIsPlayer, UnitClass = UnitClass, UnitHealth = UnitHealth, UnitHealthMax = UnitHealthMax,
+                  UnitAffectingCombat = UnitAffectingCombat, UnitExists = UnitExists, UnitCanAttack = UnitCanAttack }
   UnitName = function(u) return partyNames[u] end
   UnitIsPlayer = function(u) return partyNames[u] ~= nil end
   UnitClass = function(u) if u == "player" then return "Mage", "MAGE" elseif u == "party1" then return "Priest", "PRIEST" end end
@@ -643,6 +648,8 @@ if ME then
 
   UnitName = realUnitName
   pfUI.env.UnitHealth = envUnitHealth
+  for k, f in pairs(saved) do _G[k] = f end
+  Mock.party, Mock.raid = 0, 0
   fighting = false
   ME.Reset()
   ok(table.getn(ME.history) == 0 and not ME.current, "reset clears everything")
@@ -709,6 +716,10 @@ if pfUI.sct and SB and SB.db then
   ok(not CTX:Testing(), "and stops it")
   CTX:Clear()
 end
+
+-- the combat text's detailed tests (moved from OctoBG with the engine)
+octo_ok = ok
+if pfUI.sctB and pfUI.sctB.db then dofile(DIR .. "/tests/sct.lua") end
 
 -- ---------------------------------------------------------------- map style (SexyMap)
 local MAP = pfUI.minimap

@@ -67,6 +67,18 @@ pfUI:RegisterModule("sct", "vanilla", function ()
     pfUI.unlock:SetScript("OnHide", function() if hide then hide() end B.test = nil end)
   end
 
+  -- SCT's /sctdisplay 'message' [red green blue 0-10] (when SCT itself is not loaded)
+  local function Display(msg)
+    local _, _, text, r, g, b = string.find(msg or "", "^%s*'(.-)'%s*(%d*)%s*(%d*)%s*(%d*)")
+    if not text then text = msg end
+    r, g, b = tonumber(r), tonumber(g), tonumber(b)
+    CT:Show(text, r and r / 10 or 1, g and g / 10 or 1, b and b / 10 or 1, "note", {})
+  end
+  if not (IsAddOnLoaded("sct") or IsAddOnLoaded("SCT")) then
+    _G.SLASH_PFUISCTDISPLAY1 = "/sctdisplay"
+    _G.SlashCmdList.PFUISCTDISPLAY = Display
+  end
+
   -- /pfui sct test | on | off
   local slash = SlashCmdList.PFUI
   SlashCmdList.PFUI = function(msg, box)

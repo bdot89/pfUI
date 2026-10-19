@@ -136,9 +136,13 @@ see "Roadmap" below.
    C.position (anchor + offsets), then C.position is cleared (x / y are the truth).
    Media: img\sct (burst.tga, Spy's four wavs, sounds\custom for the user's own).
    Profile strings now carry booleans (share.lua serialize / parse); strings without "sct" keep
-   the importer's combat text. OctoBG (not git; backups in the session scratchpad): SCT.lua
-   `CT:HandedToPfUI()` (pfUI.sct:On()) stops CT:Show, SCTEvents CT:Notify forwards to
-   pfUI.sct.CT:Notify, SCTOptions shows a "moved to pfUI" card; OctoBG tests 328 pass.
+   the importer's combat text. Same day, user: "totally moved over out of OBG" - OctoBG's SCT
+   files and menu are deleted (OctoBG 2.2.0, not git): OctoBG\modules\SCTLink.lua forwards its
+   alerts to pfUI.sct.CT:Notify and keeps the threat label's plate lookup and sounds; its threat
+   page is Setup > Threat label. OctoBG's 94 combat text tests moved here as tests\sct.lua
+   (events / clock go only to pfSCTCore + pfCombatTextContainer: Fire / Tick in that file);
+   tests\globalstrings.lua also has the reward templates (honor, rep, skill, loot, money, extra
+   attacks). /sctdisplay is pfUI's now (when SCT itself is not loaded).
 7. Map styles (SexyMap). DONE 19 Oct (not seen in game), modules/minimap-style.lua on pfUI's
    minimap, settings C.mapstyle, options Minimap > Map Style / Buttons & Extras. Shapes: square
    (pfUI's img\minimap), round (the game's textures\MinimapMask), and img\minimap\mask-*.tga +
