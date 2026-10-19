@@ -536,6 +536,12 @@ if ME then
     w1:SetHeight(160)
     w1.Refresh(w1)
     ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    -- raised over the chat, the buttons must still sit above the window (it takes clicks)
+    w1:SetFrameLevel(w1:GetFrameLevel() + 20)
+    ME.Lift(w1)
+    local lvl = w1:GetFrameLevel()
+    ok(w1.menu:GetFrameLevel() > lvl and w1.reset:GetFrameLevel() > lvl and w1.titlebtn:GetFrameLevel() > lvl
+      and w1.bars[1]:GetFrameLevel() > lvl, "header buttons and bars above a raised window")
     w1.bars[1]:Click()
     ok(pfMeterDetails:IsShown(), "click opens the breakdown")
     local found

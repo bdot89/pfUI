@@ -470,6 +470,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     b = CreateFrame("Button", nil, win)
     b.win = win
     b:SetFrameLevel(win:GetFrameLevel() + 2)
+    b.lift = 2
     b.bar = CreateFrame("StatusBar", nil, b)
     b.bar:SetAllPoints()
     b.bar:SetStatusBarTexture(C.meters.texture)
@@ -611,6 +612,20 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     return pfUI.thirdparty and pfUI.thirdparty.meters and pfUI.chat and pfUI.chat.right and C.chat.right.enable == "1"
   end
 
+  -- 1.12 does not carry a parent's new frame level over to its children: after
+  -- the window is raised (docked over the chat) its buttons would sit below
+  -- the window itself, which takes every click. Put each child back on top.
+  local function Lift(win, inner)
+    local level, strata = win:GetFrameLevel(), win:GetFrameStrata()
+    local kids = { win:GetChildren() }
+    for _, kid in ipairs(kids) do
+      kid:SetFrameStrata(strata)
+      kid:SetFrameLevel(level + (inner and 1 or kid.lift or 3))
+      Lift(kid, true)
+    end
+  end
+  M.Lift = Lift
+
   -- fills the right chat, or its half when the other window is docked too
   local function Dock(win)
     if win.free or not CanDock() then return end
@@ -633,6 +648,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win:SetFrameLevel(chat:GetFrameLevel() + 5)
     win.grip:Hide()
     Refresh(win)
+    Lift(win)
   end
 
   -- a free window: its own size and place, movable with the title bar, /moveui
@@ -649,6 +665,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     if C.meters["lock" .. id] == "1" then win.grip:Hide() else win.grip:Show() end
     win:Show()
     Refresh(win)
+    Lift(win)
   end
 
   local function Register(win)
@@ -871,6 +888,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.grip:SetHeight(12)
     win.grip:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 0, 0)
     win.grip:SetFrameLevel(win:GetFrameLevel() + 6)
+    win.grip.lift = 6
     for i = 1, 3 do
       local dot = win.grip:CreateTexture(nil, "OVERLAY")
       dot:SetWidth(2)
