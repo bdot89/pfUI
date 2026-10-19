@@ -53,6 +53,7 @@ function GetScreenWidth() return 1920 end
 function GetScreenHeight() return 1080 end
 function GetNumAddOns() return 1 end
 function debugstack() return "" end
+function GetGameTime() return 13, 37 end
 -- template children the client creates with "$parent" names
 local TEMPLATE_CHILDREN = {
   UIDropDownMenuTemplate = { "Button", "Text", "Left", "Middle", "Right" },
@@ -709,6 +710,94 @@ if pfUI.sct and SB and SB.db then
   CTX:Clear()
 end
 
+-- ---------------------------------------------------------------- map style (SexyMap)
+local MAP = pfUI.minimap
+ok(MAP and MAP.ApplyStyle and MAP.PRESETS, "map style loaded")
+if MAP and MAP.ApplyStyle then
+  local MS = pfUI_config.mapstyle
+  local mask
+  Minimap.SetMaskTexture = function(self, t) mask = t end
+  Minimap.GetWidth = function() return 140 end
+
+  MAP.ApplyStyle()
+  ok(mask == pfUI.media["img:minimap"], "default: pfUI's square mask")
+  ok(MAP.backdrop:IsShown() and not pfMinimapOutline:IsShown(), "default: pfUI's frame, no outline")
+
+  -- every shape has its mask and outline files
+  for _, sh in ipairs({ "rounded", "rounder", "squircle", "octagon", "diamond", "corner-tl", "corner-tr", "corner-bl", "corner-br" }) do
+    local h = io.open(DIR .. "/img/minimap/mask-" .. sh .. ".tga", "rb")
+    ok(h, "mask file " .. sh)
+    if h then h:close() end
+  end
+  for _, sh in ipairs({ "round", "square", "rounded", "octagon" }) do
+    local h = io.open(DIR .. "/img/minimap/outline-" .. sh .. ".tga", "rb")
+    ok(h, "outline file " .. sh)
+    if h then h:close() end
+  end
+
+  -- round + outline: the square frame goes, the outline follows the shape
+  MS.shape, MS.border = "round", "outline"
+  MAP.ApplyStyle()
+  ok(mask == "Textures\\MinimapMask", "round uses the game's own mask")
+  ok(not MAP.backdrop:IsShown() and pfMinimapOutline:IsShown(), "round: no square frame, outline shown")
+  ok(string.find(pfMinimapOutline.tex.texture or "", "outline%-round"), "outline of the round shape")
+  MS.shape = "octagon"
+  MAP.ApplyStyle()
+  ok(string.find(mask or "", "mask%-octagon") and string.find(pfMinimapOutline.tex.texture or "", "outline%-octagon"), "octagon mask and outline")
+
+  -- presets: rune circle spins its art
+  MAP.ApplyPreset("runes")
+  ok(MS.shape == "round" and MS.art1 == "Spells\\AuraRune256", "preset sets the style")
+  local spun
+  local tex = pfMinimapArtAbove
+  ok(tex, "art layer frame")
+  local before = MS.art1speed
+  Mock.Run(pfMinimapArtAbove, "OnUpdate", 1)
+  ok(tonumber(before) ~= 0, "rune circle spins (" .. tostring(before) .. " degrees a second)")
+  MAP.ApplyPreset("pfui")
+  ok(MS.shape == "square" and MS.border == "pfui" and MS.art1 == "none", "back to pfUI's square")
+  MAP.ApplyStyle()
+  ok(MAP.backdrop:IsShown(), "pfUI frame back")
+
+  -- buttons: never / mouse over
+  MS.clock = "hide"
+  MAP.ApplyStyle()
+  ok(pfMinimapClock.alpha == 0, "clock hidden")
+  MS.clock = "hover"
+  MAP.ApplyStyle()
+  Mock.over = nil
+  ok(pfMinimapClock.alpha == 0, "clock waits for the mouse")
+  MS.clock = "show"
+  MAP.ApplyStyle()
+  ok(pfMinimapClock.alpha == 1, "clock always shown")
+  Mock.Run(pfMinimapClock, "OnUpdate")
+  ok(pfMinimapClock.text.text and string.find(pfMinimapClock.text.text, "%d"), "clock shows the time (" .. tostring(pfMinimapClock.text.text) .. ")")
+
+  -- who pinged
+  UnitName = function(u) if u == "party1" then return "Healbot" end if u == "player" then return "Tester" end end
+  Mock.Fire("MINIMAP_PING", "party1", 0.1, 0.2)
+  ok(pfMinimapPing:IsShown() and string.find(pfMinimapPing.text.text or "", "Healbot"), "ping shows who")
+
+  -- zoom back out
+  local zoom = 3
+  Minimap.GetZoom = function() return zoom end
+  Minimap.SetZoom = function(self, z) zoom = z end
+  MS.autozoom = "5"
+  local hoverFrame
+  for _, f in ipairs(Mock.frames) do if f.parent == MAP and f.alpha ~= nil and f.scripts.OnUpdate and f ~= pfMinimapPing and f ~= pfMinimapClock and f ~= pfMinimapArtAbove then hoverFrame = f end end
+  ok(hoverFrame, "map hover / zoom timer found")
+  if hoverFrame then
+    Mock.now = Mock.now + 1
+    Mock.Run(hoverFrame, "OnUpdate", .1)
+    Mock.now = Mock.now + 6
+    Mock.Run(hoverFrame, "OnUpdate", .1)
+    ok(zoom == 0, "zoomed back out after 5 s")
+  end
+  MS.autozoom = "0"
+  MS.shape, MS.border = "square", "pfui"
+  MAP.ApplyStyle()
+end
+
 -- ---------------------------------------------------------------- options pages
 -- build every page of the options window (pages build on first show)
 local pages, pageErrors, built = 0, {}, {}
@@ -746,6 +835,27 @@ for path, e in pairs(pageErrors) do
 end
 print(string.format("options pages built in the mock: %d, need more of the client: %d", pages - broken, broken))
 ok(broken == 0, "every options page builds (" .. broken .. " failed)")
+
+-- Map Style: a preset button changes the style and the page's controls follow
+do
+  local page = built["Minimap > Map Style"]
+  ok(page, "Map Style page built")
+  if page then
+    local arcane, shapeCell
+    for _, c in ipairs(page.children) do
+      if c.button and c.button.text == "Arcane" then arcane = c.button end
+      if c.config == "shape" then shapeCell = c end
+    end
+    ok(arcane and shapeCell, "preset button and shape control on the page")
+    if arcane and shapeCell then
+      local good, e = pcall(arcane:GetScript("OnClick"))
+      ok(good, "preset button works: " .. tostring(e))
+      ok(pfUI_config.mapstyle.shape == "round" and pfUI_config.mapstyle.art1 == "Spells\\AuraRune_A", "Arcane preset applied")
+      ok(string.find(shapeCell.input.text.text or "", "Round"), "shape control shows the new shape (" .. tostring(shapeCell.input.text.text) .. ")")
+      pfUI.minimap.ApplyPreset("pfui")
+    end
+  end
+end
 
 -- tree: one column; a category's pages show under it only while it is open
 do

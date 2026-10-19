@@ -70,6 +70,7 @@
   <Include file="..\modules\socialmod.lua"/>
   <Include file="..\modules\firstrun.lua"/>
   <Include file="..\modules\addonbuttons.lua"/>
+  <Include file="..\modules\minimap-style.lua"/>
   <Include file="..\modules\afkcam.lua"/>
   <Include file="..\modules\screenshot.lua"/>
   <Include file="..\modules\addoncompat.lua"/>

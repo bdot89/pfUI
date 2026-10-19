@@ -975,6 +975,31 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui.CreateGUIEntry = CreateGUIEntry
     pfUI.gui.UpdaterFunctions = U
 
+    -- octo: re-reads every control of a built page from its setting (after a
+    -- preset or a reset changed many at once). page = the page's content frame.
+    function pfUI.gui.RefreshPage(page)
+      if not page or not page.GetChildren then return end
+      for _, c in ipairs({ page:GetChildren() }) do
+        if c.category and c.config and c.cellkind then
+          local v = c.category[c.config]
+          if c.cellkind == "checkbox" and c.input then
+            c.input:SetChecked(v == "1" and 1 or nil)
+          elseif c.cellkind == "slider" and c.input then
+            if tonumber(v) then c.input:SetValue(tonumber(v)) end
+          elseif c.cellkind == "text" and c.input then
+            c.input:SetText(v or "")
+          elseif c.cellkind == "color" and c.color and c.color.prev and v then
+            local r, g, b, a = strsplit(",", v)
+            c.color.prev:SetTexture(r or 1, g or 1, b or 1, a or 1)
+          elseif c.cellkind == "dropdown" and c.input and c.input.UpdateMenu then
+            c.input.current = nil
+            c.input:UpdateMenu()
+            if c.input.current then c.input:SetSelection(c.input.current) end
+          end
+        end
+      end
+    end
+
     -- octo: settings kept as real Lua values (booleans, numbers - the
     -- combat text's) edited with the string widgets: true / false <-> "1" /
     -- "0", numbers <-> text, and the virtual key "rgb" <-> r, g, b fields.

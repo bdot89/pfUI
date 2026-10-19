@@ -139,5 +139,19 @@ see "Roadmap" below.
    the importer's combat text. OctoBG (not git; backups in the session scratchpad): SCT.lua
    `CT:HandedToPfUI()` (pfUI.sct:On()) stops CT:Show, SCTEvents CT:Notify forwards to
    pfUI.sct.CT:Notify, SCTOptions shows a "moved to pfUI" card; OctoBG tests 328 pass.
-7. Next (user, 19 Oct): SexyMap-style minimap customisation; the user will add more addons
-   "like this" into pfUI Octo.
+7. Map styles (SexyMap). DONE 19 Oct (not seen in game), modules/minimap-style.lua on pfUI's
+   minimap, settings C.mapstyle, options Minimap > Map Style / Buttons & Extras. Shapes: square
+   (pfUI's img\minimap), round (the game's textures\MinimapMask), and img\minimap\mask-*.tga +
+   outline-*.tga made by tools\MakeMinimapMasks.ps1 (rounded, rounder, squircle, octagon, diamond,
+   corner-tl/tr/bl/br; white inside, clear outside, 4x4 samples). Border: pfUI frame (square only)
+   / shape outline (colour or accent) / none. Three art layers from the game's spell textures
+   (names checked against every MPQ's (listfile): AuraRune256/_A-D, Holy/Ice/Fire/Nature/InnerFire
+   runes, DemonRune6/7, rings, glows...), size %, colour, ADD/BLEND, above (frame above Minimap) or
+   below (level 0 child of the map), spin via 8-value SetTexCoord. Buttons tracking / mail /
+   battlefield / addon-button toggle / clock: show | hover (fade while the mouse is over the map)
+   | hide (alpha 0 + no mouse). Clock (local/server, 24 h per C.global.twentyfour), ping name
+   (MINIMAP_PING arg1), auto zoom-out, opacity in / out of combat, 10 presets
+   (`pfUI.minimap.ApplyPreset`). `pfUI.gui.RefreshPage(page)` re-reads a built page's controls.
+   Not verified in game: the spell textures' look as minimap art, SetMaskTexture with a 32-bit
+   TGA mask, MINIMAP_PING args, art layer stacking under pfUI's backdrop.
+8. The user will add more addons "like this" into pfUI Octo.
