@@ -1221,6 +1221,11 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         "pfMinimap:" .. T["Minimap"],
         "pfPanelMinimap:" .. T["Minimap Panel"],
       },
+      ["meter_modes"] = {
+        "damage:" .. T["Damage Done"], "dps:" .. T["DPS"], "heal:" .. T["Healing Done"], "hps:" .. T["HPS"],
+        "overheal:" .. T["Overhealing"], "taken:" .. T["Damage Taken"], "interrupts:" .. T["Interrupts"],
+        "dispels:" .. T["Dispels"], "deaths:" .. T["Deaths"], "casts:" .. T["Casts"], "threat:" .. T["Threat"],
+      },
       ["uf_bartexture"] = {
         "Interface\\AddOns\\pfUI\\img\\bar:pfUI",
         "Interface\\AddOns\\pfUI\\img\\bar_tukui:TukUI",
@@ -2699,6 +2704,40 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       CreateConfig(U["nameplates"], T["Unit Is Attacking No One Color"], C.nameplates, "combatstun", "color")
       CreateConfig(U["nameplates"], T["Unit Is Casting Color"], C.nameplates, "combatcasting", "color")
       CreateConfig(U["nameplates"], T["Off-Tank Names"], C.nameplates, "combatofftanks", "list")
+    end)
+
+    -- octo: built-in damage / healing / threat meters (modules/meters*.lua)
+    CreateGUIEntry(T["Meters"], T["General"], function()
+      CreateConfig(nil, T["Meters"], nil, nil, "header")
+      CreateConfig(nil, T["Enable Meters (damage, healing, interrupts, deaths, casts...)"], C.meters, "enable", "checkbox")
+      CreateConfig(nil, T["Number Of Windows"], C.meters, "windows", "dropdown", { "1:1", "2:2" })
+      CreateConfig(nil, T["Dock Meter Into Right Chat"], C.thirdparty.pfmeter, "dock", "checkbox")
+      CreateConfig(nil, T["Dock Second Window Into Right Chat"], C.thirdparty.pfthreat, "dock", "checkbox")
+      CreateConfig(nil, T["Show Meters Instead Of Chat At Login"], C.thirdparty, "showmeter", "checkbox")
+      CreateConfig(nil, T["Ask To Reset When Entering An Instance"], C.meters, "resetask", "checkbox")
+      CreateConfig(nil, T["Window 1 Shows"], C.meters, "mode1", "dropdown", pfUI.gui.dropdowns.meter_modes)
+      CreateConfig(nil, T["Window 2 Shows"], C.meters, "mode2", "dropdown", pfUI.gui.dropdowns.meter_modes)
+
+      CreateConfig(nil, T["Data"], nil, nil, "header")
+      CreateConfig(nil, T["Merge Pets Into Their Owner"], C.meters, "mergepets", "checkbox")
+      CreateConfig(nil, T["Track Everyone Nearby (Battlegrounds)"], C.meters, "trackall", "checkbox")
+      CreateConfig(nil, T["Fights Kept"], C.meters, "history", "dropdown", { "5:5", "10:10", "20:20", "30:30" })
+
+      CreateConfig(nil, T["Look"], nil, nil, "header")
+      CreateConfig(nil, T["Class Colored Bars"], C.meters, "classcolor", "checkbox")
+      CreateConfig(nil, T["Bar Texture"], C.meters, "texture", "dropdown", pfUI.gui.dropdowns.uf_bartexture)
+      CreateConfig(nil, T["Bar Height"], C.meters, "barheight", "text", nil, nil, nil, "number")
+      CreateConfig(nil, T["Background Color"], C.meters, "background", "color")
+      CreateConfig(nil, T["Window Width (not docked)"], C.meters, "width", "text", nil, nil, nil, "number")
+      CreateConfig(nil, T["Window Height (not docked)"], C.meters, "height", "text", nil, nil, nil, "number")
+    end)
+
+    CreateGUIEntry(T["Meters"], T["Threat"], function()
+      CreateConfig(nil, T["Threat"], nil, nil, "header")
+      CreateConfig(nil, T["Enable Threat Meter (asks the server, as TWThreat)"], C.meters, "threat", "checkbox")
+      CreateConfig(nil, T["Warn Me At % Of The Pull Point"], C.meters, "threatwarn", "dropdown", { "70:70%", "80:80%", "90:90%", "95:95%" })
+      CreateConfig(nil, T["Warning Sound"], C.meters, "threatsound", "checkbox")
+      CreateConfig(nil, T["Warning Text On Screen"], C.meters, "threatflash", "checkbox")
     end)
 
     CreateGUIEntry(T["Thirdparty"], T["Integrations"], function()

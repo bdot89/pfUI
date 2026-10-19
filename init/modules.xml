@@ -34,6 +34,9 @@
   <Include file="..\modules\tooltip.lua"/>
   <Include file="..\modules\questitem.lua"/>
   <Include file="..\modules\thirdparty.lua"/>
+  <Include file="..\modules\meters.lua"/>
+  <Include file="..\modules\meters-threat.lua"/>
+  <Include file="..\modules\meters-window.lua"/>
   <Include file="..\modules\thirdparty-vanilla.lua"/>
   <Include file="..\modules\thirdparty-tbc.lua"/>
   <Include file="..\modules\buff.lua"/>

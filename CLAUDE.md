@@ -103,4 +103,22 @@ see "Roadmap" below.
    server) with pull-aggro line and tank view. Sources: nampower events (casts, GUIDs, interrupts)
    where present, combat-log strings as fallback. Credit ShaguDPS for the parser; TWThreat code is
    not copied (no licence).
+   RELEASE 1 DONE 19 Oct (not seen in game): combat-log strings only (no nampower yet, so no
+   in-game probes were needed). modules/meters.lua: SPECS = GlobalStrings template name + kind
+   (dmg heal miss interrupt cast start dispel death) + capture roles; templates sorted by fixed
+   text length (longest first - "Your %s hits %s..." before "%s hits %s..."), anchored ^$,
+   trailers (absorbed/resisted/blocked/vulnerability/glancing/crushing) stripped first. Event name
+   picks the kinds tried (KindsFor). Segments: pfUI.meters.current / history (C.meters.history) /
+   overall; a fight starts on the first tracked action while the group is in combat, ends 1 s after
+   the group leaves combat, named after the enemy that took most damage. Effective heal = min(amount,
+   missing HP of the target's unit). Interrupt "with" = the kicker's last spell within 1.5 s.
+   Dispels = "X's Y is removed." credited to the last dispel-spell cast on X within 2 s (English
+   dispel names via T[]). Casts = cast/perform lines + "begins to cast" + direct hits without a start.
+   Deaths keep the last 15 hits/heals (15 s) with HP %. modules/meters-threat.lua: server protocol,
+   warn at C.meters.threatwarn % of the pull point (110 melee / 130 range). modules/meters-window.lua:
+   2 windows docked in the right chat via pfUI.thirdparty.meters:RegisterMeter (C.thirdparty.pfmeter /
+   pfthreat .dock); first load sets C.thirdparty.showmeter = "1" once (C.meters.shown). Options:
+   Meters > General / Threat. Offers to DisableAddOn ShaguDPS + TWThreat once (C.meters.asked).
+   tests/globalstrings.lua = the client's combat templates (patch-5) for the offline tests.
+   Not yet: nampower events, CC / buff uptime, saved fights across reload, multiple-window snapping.
 6. Combat text: move OctoBG's SCT.lua / SCTEvents.lua / SCTOptions.lua into pfUI; OctoBG defers.

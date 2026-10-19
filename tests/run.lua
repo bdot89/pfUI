@@ -6,6 +6,7 @@
 
 local DIR = "."
 dofile(DIR .. "/tests/mock.lua")
+dofile(DIR .. "/tests/globalstrings.lua")
 
 local fails, checks = 0, 0
 local function ok(cond, what)
@@ -78,7 +79,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window" }
 
 -- ---------------------------------------------------------------- load
 
@@ -415,6 +416,178 @@ if FR then
   SlashCmdList.PFUI("install")
   ok(not pfUI_init.init, "/pfui install starts over")
   _G.pfUI_init = { init = true, profile = true, layout = true, cvars = true, chat_right = true, chat_position = true, chat_channels = true, finalize = true }
+end
+
+-- ---------------------------------------------------------------- phase 5: meters
+local ME = pfUI.meters
+ok(ME and ME.specs, "meters loaded")
+if ME then
+  ok(table.getn(ME.specs) >= 110, "combat log templates found (" .. table.getn(ME.specs) .. ")")
+
+  -- reading single lines
+  local function read(ev, msg)
+    local r = ME.Read(ev, msg)
+    if not r then return {} end
+    local c = {}
+    for k, v in pairs(r) do c[k] = v end
+    return c
+  end
+  local r = read("CHAT_MSG_COMBAT_SELF_HITS", "You hit Hogger for 120.")
+  ok(r.kind == "dmg" and r.src == "Tester" and r.tgt == "Hogger" and r.amt == 120 and not r.crit, "melee hit read")
+  r = read("CHAT_MSG_COMBAT_SELF_HITS", "You crit Hogger for 240. (glancing)")
+  ok(r.kind == "dmg" and r.crit and r.amt == 240 and r.glancing, "melee crit with a trailer read")
+  r = read("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Fireball hits Hogger for 300 Fire damage. (40 resisted)")
+  ok(r.kind == "dmg" and r.spl == "Fireball" and r.amt == 300 and r.sch == "Fire", "spell hit read (" .. tostring(r.spl) .. ")")
+  r = read("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE", "Hogger suffers 50 Shadow damage from your Shadow Word: Pain.")
+  ok(r.kind == "dmg" and r.dot and r.tgt == "Hogger" and r.spl == "Shadow Word: Pain", "damage over time read")
+  r = read("CHAT_MSG_SPELL_SELF_DAMAGE", "You interrupt Kobold Geomancer's Fireball.")
+  ok(r.kind == "interrupt" and r.tgt == "Kobold Geomancer" and r.spl == "Fireball", "interrupt read")
+  r = read("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "Hogger attacks. You dodge.")
+  ok(r.kind == "miss" and r.how == "dodge" and r.src == "Hogger" and r.tgt == "Tester", "dodge read")
+  r = read("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Frostbolt was resisted by Hogger.")
+  ok(r.kind == "miss" and r.how == "resist" and r.spl == "Frostbolt", "spell resist read")
+  r = read("CHAT_MSG_SPELL_PARTY_BUFF", "Healbot casts Dispel Magic on Tester.")
+  ok(r.kind == "cast" and r.src == "Healbot" and r.spl == "Dispel Magic" and r.tgt == "Tester", "targeted cast read")
+  r = read("CHAT_MSG_COMBAT_FRIENDLY_DEATH", "Healbot dies.")
+  ok(r.kind == "death" and r.tgt == "Healbot", "death read")
+
+  -- a fight: Tester (mage) and Healbot (priest) in a party
+  local hp = { player = 3000, party1 = 2000 }
+  local partyNames = { player = "Tester", party1 = "Healbot" }
+  local realUnitName = UnitName
+  UnitName = function(u) return partyNames[u] end
+  UnitIsPlayer = function(u) return partyNames[u] ~= nil end
+  UnitClass = function(u) if u == "player" then return "Mage", "MAGE" elseif u == "party1" then return "Priest", "PRIEST" end end
+  UnitHealth = function(u) return hp[u] or 0 end
+  -- pfUI's feigndeath module keeps its own UnitHealth in pfUI's environment
+  local envUnitHealth = pfUI.env.UnitHealth
+  pfUI.env.UnitHealth = UnitHealth
+  UnitHealthMax = function(u) return u == "player" and 3000 or 2000 end
+  local fighting = true
+  UnitAffectingCombat = function(u) return fighting and partyNames[u] ~= nil end
+  Mock.party, Mock.raid = 1, 0
+  ME.who = {}
+
+  local function log(ev, msg) Mock.Fire(ev, msg) end
+  log("CHAT_MSG_COMBAT_SELF_HITS", "You hit Hogger for 120.")
+  log("CHAT_MSG_COMBAT_SELF_HITS", "You crit Hogger for 240.")
+  log("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Fireball hits Hogger for 300 Fire damage.")
+  log("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE", "Hogger suffers 50 Shadow damage from your Shadow Word: Pain.")
+  log("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Frostbolt was resisted by Hogger.")
+  log("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Fire Blast hits Kobold Geomancer for 80 Fire damage.")
+  log("CHAT_MSG_SPELL_SELF_DAMAGE", "You interrupt Kobold Geomancer's Fireball.")
+  log("CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", "Hogger hits you for 400.")
+  log("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "Hogger attacks. You dodge.")
+  hp.player = 2800
+  log("CHAT_MSG_SPELL_PARTY_BUFF", "Healbot's Flash Heal heals you for 500.")
+  log("CHAT_MSG_SPELL_PARTY_BUFF", "Healbot casts Dispel Magic on Tester.")
+  log("CHAT_MSG_SPELL_AURA_GONE_SELF", "Your Shadow Word: Pain is removed.")
+  log("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "Hogger's Smash hits you for 2600 Physical damage.")
+  log("CHAT_MSG_COMBAT_FRIENDLY_DEATH", "You die.")
+
+  local seg = ME.current
+  ok(seg, "a fight started")
+  local me = seg and seg.actors.Tester
+  local hb = seg and seg.actors.Healbot
+  ok(me and me.damage == 790, "damage done (" .. tostring(me and me.damage) .. ")")
+  ok(me and me.class == "MAGE", "class known")
+  local melee = me and me.spells[pfUI.env.T["Melee"]]
+  ok(melee and melee.hits == 2 and melee.crits == 1 and melee.max == 240 and melee.min == 120, "melee hits, crits, max, min")
+  local swp = me and me.spells["Shadow Word: Pain"]
+  ok(swp and swp.ticks == 1 and swp.hits == 0, "damage over time counted as ticks")
+  local fb = me and me.spells["Frostbolt"]
+  ok(fb and fb.misses == 1 and fb.how.resist == 1, "resist counted on the spell")
+  ok(me and me.targets.Hogger == 710 and me.targets["Kobold Geomancer"] == 80, "damage per target")
+  ok(me and me.interrupts == 1 and me.ilist[1].spell == "Fireball" and me.ilist[1].with == "Fire Blast", "interrupt with what and of what (" .. tostring(me and me.ilist[1] and me.ilist[1].with) .. ")")
+  ok(me and me.taken == 3000 and me.avoid.dodge == 1, "damage taken and dodges")
+  ok(hb and hb.heal == 200 and hb.overheal == 300, "effective healing and overhealing (" .. tostring(hb and hb.heal) .. "/" .. tostring(hb and hb.overheal) .. ")")
+  ok(hb and hb.dispels == 1 and hb.dlist[1].aura == "Shadow Word: Pain" and hb.dlist[1].target == "Tester", "dispel: what and from whom")
+  ok(hb and hb.casts["Dispel Magic"] == 1 and hb.casts["Flash Heal"] == 1, "casts counted")
+  ok(me and me.deaths == 1 and me.deathlogs[1] and table.getn(me.deathlogs[1].log) >= 3, "death with a death log")
+  ok(ME.overall.actors.Tester and ME.overall.actors.Tester.damage == 790, "overall has it too")
+
+  -- rows, windows, details
+  local rows = ME.Rows("damage", "current")
+  ok(rows[1] and rows[1].name == "Tester" and rows[1].text == "790", "damage rows")
+  rows = ME.Rows("heal", "current")
+  ok(rows[1] and rows[1].name == "Healbot", "healing rows")
+  local w1 = pfMeter1
+  ok(w1 and w1:IsShown(), "meter window 1 shown")
+  if w1 then
+    w1:SetHeight(160)
+    w1.Refresh(w1)
+    ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    w1.bars[1]:Click()
+    ok(pfMeterDetails:IsShown(), "click opens the breakdown")
+    local found
+    for _, l in ipairs(pfMeterDetails.lines) do
+      if l:IsShown() and l.cells[1].text == "Fireball" then found = true end
+    end
+    ok(found, "breakdown lists Fireball")
+    pfMeterDetails:Hide()
+    -- each mode and its breakdown builds
+    for _, m in ipairs(ME.MODES) do
+      w1.mode = m.key
+      local good, e = pcall(w1.Refresh, w1)
+      ok(good, "mode " .. m.key .. " draws: " .. tostring(e))
+      if w1.bars[1] and w1.bars[1].row and w1.bars[1].row.actor then
+        good, e = pcall(ME.ShowDetails, w1, w1.bars[1].row)
+        ok(good, "mode " .. m.key .. " breakdown: " .. tostring(e))
+      end
+    end
+    w1.mode = "damage"
+    -- report to party
+    Mock.chat = {}
+    local envSend = pfUI.env.SendChatMessage
+    pfUI.env.SendChatMessage = function(msg, ch) table.insert(Mock.chat, { msg, ch }) end
+    w1.report:Click()
+    pfMeterMenu.buttons[2]:Click()
+    ok(Mock.chat[1] and string.find(Mock.chat[1][1], "Damage Done") and Mock.chat[1][2] == "PARTY", "report title to party")
+    ok(Mock.chat[2] and string.find(Mock.chat[2][1], "1. Tester"), "report lines")
+    pfUI.env.SendChatMessage = envSend
+  end
+
+  -- the fight ends a second after the group leaves combat; named after the enemy
+  fighting = false
+  Mock.now = Mock.now + 1.5
+  pfMetersParser.tick, pfMetersParser.check = 0, 0
+  Mock.Run(pfMetersParser, "OnUpdate")
+  ok(ME.current == nil and ME.history[1] and ME.history[1].name == "Hogger", "fight ended, named Hogger (" .. tostring(ME.history[1] and ME.history[1].name) .. ")")
+
+  -- threat: parse, ask, warn
+  local TH = ME.threat
+  ok(TH, "threat module loaded")
+  if TH then
+    local list = TH.Parse("TWTv4=Tankguy:1:5000:100:1;Tester:0:4600:92:1;Healbot:0:1000:20:0#TMTv1=x")
+    ok(list and table.getn(list) == 3 and list[1].name == "Tankguy" and list[1].tank, "threat answer parsed")
+    -- asking: in a group, target a mob in combat
+    fighting = true
+    UnitExists = function(u) return u == "target" or partyNames[u] ~= nil end
+    UnitCanAttack = function(a, b) return b == "target" end
+    local oldIsPlayer = UnitIsPlayer
+    UnitAffectingCombat = function(u) return u == "target" or (fighting and partyNames[u] ~= nil) end
+    Mock.sent = {}
+    TH.at = 0
+    TH.Ask()
+    ok(Mock.sent[1] and Mock.sent[1][1] == "TWT_UDTSv4" and Mock.sent[1][3] == "PARTY", "asks the server in a party")
+    Mock.sounds = {}
+    Mock.Fire("CHAT_MSG_ADDON", "TWT", "TWTv4=Tankguy:1:5000:100:1;Tester:0:4600:92:1;Healbot:0:1000:20:0")
+    ok(TH.list and TH.list[2].name == "Tester", "answer stored")
+    ok(table.getn(Mock.sounds) == 0, "no warning at 84% of the pull point")
+    Mock.Fire("CHAT_MSG_ADDON", "TWT", "TWTv4=Tankguy:1:5000:100:1;Tester:0:5100:102:1")
+    ok(table.getn(Mock.sounds) == 1, "warning past 90% of the pull point")
+    local w2 = pfMeter2
+    if w2 then
+      w2.Refresh(w2)
+      ok(w2.bars[1] and string.find(w2.bars[1].left.text or "", "Tester") and string.find(w2.bars[1].right.text or "", "102%%") and string.find(w2.bars[2].left.text or "", "Tankguy"), "threat window: most threat first")
+    end
+  end
+
+  UnitName = realUnitName
+  pfUI.env.UnitHealth = envUnitHealth
+  fighting = false
+  ME.Reset()
+  ok(table.getn(ME.history) == 0 and not ME.current, "reset clears everything")
 end
 
 -- ---------------------------------------------------------------- options pages
