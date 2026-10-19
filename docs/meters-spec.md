@@ -342,6 +342,36 @@ can tell whether nampower really supplies other players' events.
 **Not planned**: threat estimate when the server is silent (until proven needed), healing prevented, shield
 remaining, other players' spell power snapshots.
 
+### 4.3b Prior art on 1.12 (from a search-summary screenshot the user pasted, 19 Oct; not checked against the addons)
+
+None of these are installed here. They show what vanilla players already use, so what the Octo meters must beat:
+- **ShaguDPS** (github shagu/ShaguDPS, 3.0.1 installed here) - minimal damage / heal only, locale-independent
+  log parsing, no SuperWoW / nampower. Repo is **archived** (read-only since 1 Jun 2026), 122 commits, no
+  releases, and **no licence file** (the installed folder has none either), unlike pfUI itself (MIT).
+  So: use its *approach* (pattern sanitising, capture-index handling), write our own parser, and do not paste
+  its files into pfUI. The Octo meters have nothing to wait for from upstream.
+- **Caw DPS Meter** - damage, healing, utility and aura uptime in one window; reads SuperWoW's raw combat log
+  and syncs data between players. Supports the plan: `RAW_COMBATLOG` (GUIDs in the log text) is a real
+  source on SuperWoW clients, and sync is what other meters do for out-of-range players. Probe 5 below
+  must confirm the event exists in this build (the only mention of it on this PC is a commented line in
+  `WhoDidIt\Chronicle\debug.lua`, so it is not yet proven here).
+- **DPSMate** (github tdymel/DPSMate, 1.12.1, 852 commits, 97 stars, 70 open issues; the repo page shows no
+  last-commit date, so "newer than ShaguDPS" is not confirmed - it is simply the fuller one and not archived
+  as far as the page says). Its README module list is the best vanilla feature checklist and is a subset of
+  section 2.2: damage done / taken, healing, effective healing, overhealing, absorbs, healing taken, threat,
+  interrupts (incl. stuns and silences), deaths, buffs gained / lost / uptime, dispels (decurse, cure
+  disease / poison, lift magic as separate modules), CC breaker, compare mode, casts, procs, failed
+  actions, friendly fire, total / current / previous segments, report, multiple resizable frames, and
+  "synchronizing, to guarantee accurate data". Two new items for the spec: **procs** (aura gained from a
+  weapon / talent proc, from `BUFF_ADDED_*` with proc spell ids - available) and **failed actions**
+  (`SPELL_FAILED_*`, already counted under casts). It reads the combat log (install step: raise the
+  `CombatLogRange` settings in config.wtf, which confirms the string source is range-limited as in 2.3).
+  Licence **GPL-3.0**: incompatible with pfUI's MIT for copying code; read it for ideas only, copy nothing.
+  Lesson: keep per-hit tables out of the model (numbers only, ring buffers), as section 4.1 says.
+- **GreedMeter** - combined damage + threat window; matches the plan of one window with a threat mode.
+- **SW_Stats** - the old vanilla-era meter; log-string based.
+- Raid logging services (LegacyLogs, Realmplayers) read the game's own log file, not a meter; out of scope.
+
 ### 4.4 Things to verify in game before coding (probe list)
 
 1. Does `AUTO_ATTACK_OTHER` / `SPELL_DAMAGE_EVENT_OTHER` fire for **party/raid members and their pets**, and how far?
