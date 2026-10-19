@@ -42,7 +42,8 @@ function B:On(ev, fn)
   if not handlers[ev] then
     handlers[ev] = {}
     -- internal messages share the bus; their names start with OBG_
-    if string.sub(ev, 1, 4) ~= "OBG_" then frame:RegisterEvent(ev) end
+    -- (guarded: an event this client or its DLLs lack must not stop the file)
+    if string.sub(ev, 1, 4) ~= "OBG_" then pcall(frame.RegisterEvent, frame, ev) end
   end
   table.insert(handlers[ev], fn)
 end

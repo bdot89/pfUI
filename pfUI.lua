@@ -285,14 +285,24 @@ function pfUI:RegisterSkin(name, a2, a3)
   end
 end
 
+-- octo: a module or skin that errors while starting is reported in chat and
+-- the others still start (one error used to stop every module after it)
+local function Start(kind, name, fn)
+  setfenv(fn, pfUI:GetEnvironment())
+  local ok, err = pcall(fn)
+  if not ok then
+    local handler = geterrorhandler and geterrorhandler()
+    local msg = "pfUI " .. kind .. " '" .. tostring(name) .. "' did not start: " .. tostring(err)
+    if handler then handler(msg) else DEFAULT_CHAT_FRAME:AddMessage("|cffcc3333ERROR: |cffff5555" .. msg) end
+  end
+end
+
 function pfUI:LoadModule(m)
-  setfenv(pfUI.module[m], pfUI:GetEnvironment())
-  pfUI.module[m]()
+  Start("module", m, pfUI.module[m])
 end
 
 function pfUI:LoadSkin(s)
-  setfenv(pfUI.skin[s], pfUI:GetEnvironment())
-  pfUI.skin[s]()
+  Start("skin", s, pfUI.skin[s])
 end
 
 pfUI:SetScript("OnEvent", function()

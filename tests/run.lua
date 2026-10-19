@@ -8,8 +8,7 @@ local DIR = "."
 dofile(DIR .. "/tests/mock.lua")
 dofile(DIR .. "/tests/globalstrings.lua")
 
--- OctoBG's saved combat text settings, as the user has them: pfUI copies them once
-OctoBGDB = { sct = { speed = 1.5, enabled = true, areas = { inc = { x = -321, size = 24 } } } }
+-- (OctoBG loads after pfUI in the user's game: its saved settings arrive later, see phase 6)
 
 local fails, checks = 0, 0
 local function ok(cond, what)
@@ -149,19 +148,29 @@ error = realError
 
 ok(pfUI and pfUI.version, "pfUI table exists")
 
--- start modules one by one so one failure does not hide the rest
+-- pfUI's loader (pfUI.lua Start) reports a module that fails through the
+-- error handler and goes on with the rest: note which module it was
 local failedModules = {}
 local LoadModule, LoadSkin = pfUI.LoadModule, pfUI.LoadSkin
+local starting
+local pfErrorHandler = Mock.errorhandler
+seterrorhandler(function(msg)
+  if starting then failedModules[starting] = msg end
+end)
 function pfUI:LoadModule(m)
-  local good, e = pcall(LoadModule, self, m)
-  if not good then failedModules[m] = e end
+  starting = m
+  LoadModule(self, m)
+  starting = nil
 end
 function pfUI:LoadSkin(s)
-  local good, e = pcall(LoadSkin, self, s)
-  if not good then failedModules["skin_" .. s] = e end
+  starting = "skin_" .. s
+  LoadSkin(self, s)
+  starting = nil
 end
 
 Mock.Fire("ADDON_LOADED", "pfUI")
+seterrorhandler(pfErrorHandler)
+ok(Mock.errorhandler == pfErrorHandler, "pfUI's error handler back")
 ok(pfUI.bootup == nil, "bootup finished")
 ok(pfUI.version.string == "5.5.4", "upstream version read from the toc (" .. tostring(pfUI.version.string) .. ")")
 ok(pfUI.version.octo == "1.0.0", "octo version read from X-Octo-Version (" .. tostring(pfUI.version.octo) .. ")")
@@ -661,8 +670,19 @@ ok(pfUI.sct and SB and SB.SCT and SB.db, "combat text loaded with its settings")
 if pfUI.sct and SB and SB.db then
   local CTX = SB.SCT
   local s = pfUI_config.sct
-  ok(s.speed == 1.5 and s.areas.inc.x == -321 and s.areas.inc.size == 24, "OctoBG's combat text settings copied")
+  local tableBefore = SB.db.sct
+  ok(s.speed == 1 and not s.fromOctoBG, "at pfUI's load: defaults (OctoBG not loaded yet)")
+  -- OctoBG loads after pfUI; at login its settings are there (combat text was off in OctoBG)
+  OctoBGDB = { sct = { speed = 1.5, enabled = false, areas = { inc = { x = -321, size = 24 } } } }
+  pfUI.sct.ImportOctoBG()
+  ok(s.speed == 1.5 and s.areas.inc.x == -321 and s.areas.inc.size == 24, "OctoBG's combat text settings copied at login")
   ok(s.fromOctoBG, "marked as copied from OctoBG")
+  ok(s.enabled == true, "pfUI's on / off kept (OctoBG's was off)")
+  ok(SB.db.sct == tableBefore, "the same settings table (live options keep working)")
+  s.speed = 1.2
+  pfUI.sct.ImportOctoBG()
+  ok(s.speed == 1.2, "copied only once")
+  s.speed = 1.5
   ok(s.areas.out and s.areas.out.anim and s.plates and s.events.outMelee, "missing settings filled from the defaults")
   ok(type(s.enabled) == "boolean" and type(s.speed) == "number", "settings keep real Lua values")
   ok(pfUI.sct:On(), "combat text on (OctoBG hands over to it)")
@@ -874,6 +894,7 @@ do
   local uf = F["Unit Frames"]
   ok(uf and uf.children and table.getn(uf.children) > 5, "Unit Frames has its pages in the tree")
   ok(F.order and table.getn(F.order) >= 15, "categories in the tree (" .. (F.order and table.getn(F.order) or 0) .. ")")
+  if os.getenv("PFUI_TREE") then for i, b in ipairs(F.order) do print("  tree " .. i .. " " .. tostring(b.text.text)) end end
   if uf and uf.children then
     F["Settings"]:Click()
     local hidden = true

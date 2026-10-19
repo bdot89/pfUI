@@ -29,20 +29,41 @@ pfUI:RegisterModule("sct", "vanilla", function ()
     end
   end
 
-  if type(pfUI_config.sct) ~= "table" then
-    if type(OctoBGDB) == "table" and type(OctoBGDB.sct) == "table" then
-      pfUI_config.sct = Copy(OctoBGDB.sct)
-      pfUI_config.sct.fromOctoBG = true
-    else
-      pfUI_config.sct = {}
-    end
-  end
+  if type(pfUI_config.sct) ~= "table" then pfUI_config.sct = {} end
   Fill(pfUI_config.sct, B.DEFAULTS.sct)
   B.db = { sct = pfUI_config.sct, pos = {}, locked = true }
+
+  -- OctoBG's combat text settings, copied once. OctoBG may load after pfUI
+  -- (seen in game 19 Oct: its saved settings were not there yet at pfUI's
+  -- load), so this runs at login, when every addon is loaded. The settings
+  -- table stays the same table (B.db.sct). pfUI's on / off is kept.
+  local function ImportOctoBG()
+    local s = pfUI_config.sct
+    if s.fromOctoBG or s.octoChecked then return end
+    s.octoChecked = true
+    if type(OctoBGDB) ~= "table" or type(OctoBGDB.sct) ~= "table" then return end
+    local on = s.enabled
+    for k in pairs(s) do s[k] = nil end
+    for k, v in pairs(Copy(OctoBGDB.sct)) do s[k] = v end
+    Fill(s, B.DEFAULTS.sct)
+    s.enabled = on
+    s.fromOctoBG, s.octoChecked = true, true
+    if CT.panels then for key in pairs(CT.panels) do CT:PlaceArea(key) end end
+  end
 
   pfUI.sct = { B = B, CT = CT }
   function pfUI.sct:On() return B.db and B.db.sct.enabled and not (C.disabled and C.disabled["sct"] == "1") end
 
+  -- each step on its own: an error says so in chat and the rest (above all
+  -- the options pages) still happens
+  local function Try(what, fn)
+    local ok, err = pcall(fn)
+    if not ok then B:Print("|cffff5555error|r (" .. what .. "): " .. tostring(err)) end
+  end
+  pfUI.sct.Try = Try
+  pfUI.sct.ImportOctoBG = ImportOctoBG
+
+  Try("start-up", function()
   B:Fire("OBG_LOADED")
 
   local f = CreateFrame("Frame")
@@ -50,6 +71,7 @@ pfUI:RegisterModule("sct", "vanilla", function ()
   f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
   f:SetScript("OnEvent", function()
     if event == "PLAYER_LOGIN" then
+      Try("import from OctoBG", ImportOctoBG)
       B:Fire("OBG_INIT")
       if pfUI_config.sct.fromOctoBG and not pfUI_config.sct.toldMoved then
         pfUI_config.sct.toldMoved = true
@@ -87,14 +109,27 @@ pfUI:RegisterModule("sct", "vanilla", function ()
       if sub == "test" then CT:TestMode(not CT:Testing())
       elseif sub == "on" then CT:SetEnabled(true)
       elseif sub == "off" then CT:SetEnabled(false)
-      else B:Print("/pfui sct test | on | off") end
+      elseif sub == "status" then pfUI.sct.Status()
+      else B:Print("/pfui sct test | on | off | status") end
       return
     end
     slash(msg, box)
   end
+  end)
+
+  -- /pfui sct status: what is running (for reports)
+  function pfUI.sct.Status()
+    local n = 0
+    for _ in pairs(B.errors) do n = n + 1 end
+    B:Print("on: " .. tostring(pfUI.sct:On()) .. ", areas: " .. tostring(CT.panels and CT.panels.inc ~= nil)
+      .. ", options: " .. tostring(pfUI.gui and pfUI.gui.frames and pfUI.gui.frames[T["Combat Text"]] ~= nil)
+      .. ", errors: " .. n)
+    for err in pairs(B.errors) do B:Print("  " .. err) end
+  end
 
   -- ---------------------------------------------------------------- options
 
+  local function BuildOptions()
   if not pfUI.gui or not pfUI.gui.CreateGUIEntry then return end
   local CreateGUIEntry, CreateConfig, Native = pfUI.gui.CreateGUIEntry, pfUI.gui.CreateConfig, pfUI.gui.Native
   local NOOP = function() end   -- changes apply at once: no reload question
@@ -337,4 +372,7 @@ pfUI:RegisterModule("sct", "vanilla", function ()
       CreateConfig(NOOP, e.label, Native(function() return B.db.sct.events[key] end), "fmt", "text", nil, nil, nil, "string")
     end
   end)
+  end
+
+  Try("options", BuildOptions)
 end)
