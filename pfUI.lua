@@ -300,6 +300,10 @@ pfUI:SetScript("OnEvent", function()
     pfUI.version.fix   = tonumber(fix)   or 0
     pfUI.version.string = pfUI.version.major .. "." .. pfUI.version.minor .. "." .. pfUI.version.fix
 
+    -- octo edition version: kept apart from "Version" (the upstream base), which
+    -- updatenotify broadcasts to other pfUI users
+    pfUI.version.octo = GetAddOnMetadata(pfUI.name, "X-Octo-Version") or "0"
+
     -- use "Modern" as default profile on a fresh install
     if pfUI.api.isempty(pfUI_init) and pfUI.api.isempty(pfUI_config) then
       pfUI_config = pfUI.api.CopyTable(pfUI_profiles["Modern"]) or {}
