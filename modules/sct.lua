@@ -308,7 +308,8 @@ pfUI:RegisterModule("sct", "vanilla", function ()
   local function Messages(groups)
     return function()
       for _, g in ipairs(CT.GROUPS) do
-        if groups[g[1]] then
+        -- OctoBG's alerts only matter while OctoBG is installed and sends them
+        if groups[g[1]] and (g[1] ~= "obg" or IsAddOnLoaded("OctoBG")) then
           CreateConfig(nil, g[2], nil, nil, "header")
           for _, e in ipairs(CT.EVENTS) do
             if e.group == g[1] then
