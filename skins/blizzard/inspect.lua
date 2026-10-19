@@ -59,8 +59,10 @@ pfUI:RegisterSkin("Inspect", "tbc", function ()
       StripTextures(InspectPaperDollFrame)
 
       EnableClickRotate(InspectModelFrame)
-      InspectModelRotateLeftButton:Hide()
-      InspectModelRotateRightButton:Hide()
+      -- OctoWoW renamed these to InspectModelFrameRotate*Button: hide whichever exist
+      for _, n in pairs({"InspectModelRotateLeftButton", "InspectModelRotateRightButton", "InspectModelFrameRotateLeftButton", "InspectModelFrameRotateRightButton"}) do
+        if getglobal(n) then getglobal(n):Hide() end
+      end
 
       for _, slot in pairs(slots) do
         local frame = _G["Inspect"..slot]
@@ -158,8 +160,9 @@ pfUI:RegisterSkin("Inspect", "vanilla", function ()
       StripTextures(InspectPaperDollFrame)
 
       EnableClickRotate(InspectModelFrame)
-      InspectModelRotateLeftButton:Hide()
-      InspectModelRotateRightButton:Hide()
+      for _, n in pairs({"InspectModelRotateLeftButton", "InspectModelRotateRightButton", "InspectModelFrameRotateLeftButton", "InspectModelFrameRotateRightButton"}) do
+        if getglobal(n) then getglobal(n):Hide() end
+      end
 
       for _, slot in pairs(slots) do
         local frame = _G["Inspect"..slot]

@@ -513,6 +513,9 @@ libpredict.sender:SetScript("OnEvent", function()
     if strfind(event, "UNIT_", 1) then -- tbc
       if arg1 ~= "player" then return end
       local spellname, _, _, _, starttime, endtime = UnitCastingInfo("player")
+      -- ClassicAPI adds UNIT_SPELLCAST_START to vanilla: the plain SPELLCAST_START event already
+      -- handles casts there, so skip this one (avoids nil times and double heal predictions)
+      if pfUI.client < 20000 or not spellname or not starttime or not endtime then return end
       spell, time = spellname, endtime - starttime
     end
 
