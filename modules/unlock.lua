@@ -388,6 +388,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   end
 
   local function OpenConfigDialog(category, view)
+    -- octo: the OctoBG-style window opens the page itself
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O and O.Open and O.frame then
+      O:Open(category, view)
+      return
+    end
+
     pfUI.gui:Show()
 
     if not pfUI.gui.frames[category] then return end

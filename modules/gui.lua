@@ -974,6 +974,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     pfUI.gui.CreateConfig = CreateConfig
     pfUI.gui.CreateGUIEntry = CreateGUIEntry
     pfUI.gui.UpdaterFunctions = U
+    -- octo: the window's shell (octo-options.lua) searches these too
+    pfUI.gui.searchDB = searchDB
 
     -- octo: re-reads every control of a built page from its setting (after a
     -- preset or a reset changed many at once). page = the page's content frame.
@@ -1098,6 +1100,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     wheel:SetFrameLevel(pfUI.gui.frames.area:GetFrameLevel())
     wheel:EnableMouseWheel(true)
     wheel:SetScript("OnMouseWheel", function() pfUI.gui_TreeScroll() end)
+    pfUI.gui.frames.area.wheel = wheel
 
     -- "more above / below" marks at the column's edges
     local function More(point, text)

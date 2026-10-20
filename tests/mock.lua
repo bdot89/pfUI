@@ -48,10 +48,10 @@ function IsMethodName(key)
 end
 
 local function New(kind, name, parent)
-  local w = setmetatable({ kind = kind, name = name, parent = parent, shown = true, scripts = {}, events = {},
-                           children = {}, w = 0, h = 0, level = 1, alpha = 1 }, meta)
+  local w = setmetatable({ kind = kind, name = name, _parent = parent, shown = true, scripts = {}, events = {},
+                           _kids = {}, w = 0, h = 0, level = 1, alpha = 1 }, meta)
   if name then _G[name] = w end
-  if parent then table.insert(parent.children, w) end
+  if parent then table.insert(parent._kids, w) end
   if kind ~= "Texture" and kind ~= "FontString" then table.insert(Mock.frames, w) end
   return w
 end
@@ -73,15 +73,24 @@ function methods:GetBottom() return 600 end
 function methods:GetRight() return 300 end
 function methods:GetCenter() return 200, 650 end
 function methods:GetName(a) if a == 1 then return self.plateGuid end return self.name end
-function methods:GetParent() return self.parent end
-function methods:GetChildren() return unpack(self.children) end
-function methods:GetNumChildren() return table.getn(self.children) end
+function methods:GetParent() return self._parent end
+function methods:SetParent(p)
+  if self._parent and self._parent._kids then
+    for i, k in ipairs(self._parent._kids) do
+      if k == self then table.remove(self._parent._kids, i) break end
+    end
+  end
+  self._parent = p
+  if p and p._kids then table.insert(p._kids, self) end
+end
+function methods:GetChildren() return unpack(self._kids) end
+function methods:GetNumChildren() return table.getn(self._kids) end
 function methods:IsShown() return self.shown end
 function methods:IsVisible()
   local w = self
   while w do
     if not w.shown then return false end
-    w = w.parent
+    w = w._parent
   end
   return true
 end

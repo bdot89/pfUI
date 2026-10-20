@@ -83,7 +83,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -821,7 +821,7 @@ if MAP and MAP.ApplyStyle then
   Minimap.SetZoom = function(self, z) zoom = z end
   MS.autozoom = "5"
   local hoverFrame
-  for _, f in ipairs(Mock.frames) do if f.parent == MAP and f.alpha ~= nil and f.scripts.OnUpdate and f ~= pfMinimapPing and f ~= pfMinimapClock and f ~= pfMinimapArtAbove then hoverFrame = f end end
+  for _, f in ipairs(Mock.frames) do if f._parent == MAP and f.alpha ~= nil and f.scripts.OnUpdate and f ~= pfMinimapPing and f ~= pfMinimapClock and f ~= pfMinimapArtAbove then hoverFrame = f end end
   ok(hoverFrame, "map hover / zoom timer found")
   if hoverFrame then
     Mock.now = Mock.now + 1
@@ -879,7 +879,7 @@ do
   ok(page, "Map Style page built")
   if page then
     local arcane, shapeCell
-    for _, c in ipairs(page.children) do
+    for _, c in ipairs(page._kids) do
       if c.button and c.button.text == "Arcane" then arcane = c.button end
       if c.config == "shape" then shapeCell = c end
     end
@@ -950,7 +950,7 @@ end
 local overlaps, outside, cellsSeen = 0, 0, 0
 local function Cells(content)
   local list = {}
-  for _, c in ipairs(content.children) do
+  for _, c in ipairs(content._kids) do
     if c.cell and c.cell.h then table.insert(list, c) end
   end
   return list
@@ -1057,6 +1057,67 @@ if previewDir then
   h:write(table.concat(html, "\n"))
   h:close()
   print("preview written to " .. previewDir .. "/options-preview.html")
+end
+
+-- ---------------------------------------------------------------- the OctoBG-style window
+
+do
+  local O = pfUI.octoui and pfUI.octoui.Options
+  ok(O and O.frame == pfUI.gui, "pfUI's window has the Octo shell")
+  if O and O.frame then
+    pfUI.gui:Show()
+    -- Combat Text first, with OctoBG's six pages
+    local ct = O.octo[1]
+    ok(ct and ct[1] == "Combat Text" and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
+    ok(O.current == "o:ctgeneral", "the window opens on combat text's Basics: " .. tostring(O.current))
+    for _, pg in ipairs(ct and ct[2] or {}) do
+      local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
+      ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
+      local p = O.pages[pg[1]]
+      if p then
+        local rok, rerr = pcall(function() pfUI.octoui.W.Refresh(p) end)
+        ok(rok, "page " .. pg[1] .. " refreshes: " .. tostring(rerr))
+      end
+    end
+    -- a switch on a page changes the setting
+    local wasOn = pfUI_config.sct.enabled
+    O:Select("o:ctgeneral")
+    local ctg = O.pages.ctgeneral
+    local cards = ctg and table.getn(ctg.cards) or 0
+    ok(cards >= 3, "Basics has its cards: " .. cards)
+    -- pfUI's pages: a section per category, shown in the page panel
+    local lkey
+    for k in pairs(O.legacy) do if string.find(k, "^l:" .. "Unit Frames" .. "/") then lkey = lkey or k end end
+    ok(lkey ~= nil, "pfUI's Unit Frames pages are in the topic list")
+    if lkey then
+      O:Select(lkey)
+      local l = O.legacy[lkey]
+      ok(l.cat.area:IsShown() and l.page.area:IsShown() and not ctg.frame:IsShown(), "a pfUI page shows in place of the Octo page")
+      ok(l.cat:GetParent() == O.hidden, "the old tree button is tucked away")
+    end
+    -- O:Open by category name (meter window menu, mover right-click)
+    O:Open("Meters")
+    ok(O.current and string.find(O.current, "^l:" .. "Meters"), "Open(Meters) opens a Meters page: " .. tostring(O.current))
+    -- the Find box finds Octo and pfUI settings
+    O.quickFind:SetText("crit")
+    local res = O.results or {}
+    local octo, legacy = 0, 0
+    for _, e in ipairs(res) do if e.legacy then legacy = legacy + 1 else octo = octo + 1 end end
+    ok(octo > 0, "Find: combat text settings for crit (" .. octo .. ")")
+    O.quickFind:SetText("castbar")
+    legacy = 0
+    for _, e in ipairs(O.results or {}) do if e.legacy then legacy = legacy + 1 end end
+    ok(legacy > 0, "Find: pfUI settings for castbar (" .. legacy .. ")")
+    local first = O.results and O.results[1]
+    if first then
+      local rok, rerr = pcall(function() O:Reveal(first) end)
+      ok(rok, "a result opens its page: " .. tostring(rerr))
+    end
+    O.quickFind:SetText("")
+    ok(not O.searching, "clearing Find goes back to the page")
+    pfUI_config.sct.enabled = wasOn
+    pfUI.gui:Hide()
+  end
 end
 
 local started, broken = 0, 0

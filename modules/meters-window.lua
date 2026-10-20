@@ -703,6 +703,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   -- ---------------------------------------------------------------- the window menu
 
   local function OpenOptions()
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O and O.Open and O.frame then return O:Open(T["Meters"]) end
     pfUI.gui:Show()
     if pfUI.gui.frames[T["Meters"]] then pfUI.gui.frames[T["Meters"]]:Click() end
   end
