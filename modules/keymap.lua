@@ -144,7 +144,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   -- ---------------------------------------------------------------- the window
 
   local UNIT, GAP, PAD = 50, 4, 14
-  local PANEL_W = 210
+  local PANEL_W = 270
 
   local function Full(key)
     if not key then return nil end
@@ -245,6 +245,13 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       KM.Drop(b.key)
       return
     end
+    if KM.command then
+      -- a command picked in All bindings: this key works it
+      SetBinding(key, KM.command)
+      KM.command = nil
+      Save()
+      return
+    end
     if KM.ability then
       -- an unbound ability picked on the right: this key works its button
       SetBinding(key, KM.CommandOf(KM.ability))
@@ -307,7 +314,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     f:SetScript("OnMouseUp", function() this:StopMovingOrSizing() end)
     f:SetScript("OnShow", function() KM:Refresh() end)
     f:SetScript("OnHide", function()
-      KM.picked, KM.ability = nil, nil
+      KM.picked, KM.ability, KM.command = nil, nil, nil
       W.CloseMenus()
     end)
     -- holding a modifier shows its layer (when no layer is clicked on)
@@ -353,13 +360,13 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       table.insert(self.layerButtons, b)
       x = x + 62
     end
-    local unb = W.Button(bar, "Unbound", 80, 22)
+    local unb = W.Button(bar, "Lists", 70, 22)
     unb:SetPoint("LEFT", bar, "LEFT", x + 10, 0)
     unb:SetScript("OnClick", function()
       KM.Store().hidePanel = not KM.Store().hidePanel
       KM:Layout()
     end)
-    W.Tip(unb, "Unbound abilities", "Show or hide the list of action bar buttons that have no key.")
+    W.Tip(unb, "Lists", "Show or hide the lists on the right: unbound abilities and every binding.")
     local quick = W.Button(bar, "Quick Keybind", 110, 22)
     quick:SetPoint("LEFT", unb, "RIGHT", 6, 0)
     quick:SetScript("OnClick", function()
@@ -367,35 +374,61 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       if pfUI.hoverbind then pfUI.hoverbind:Show() end
     end)
     W.Tip(quick, "Quick Keybind", "pfUI's hover binding: hover an action button and press a key.")
-    local all = W.Button(bar, "All bindings", 100, 22)
-    all:SetPoint("LEFT", quick, "RIGHT", 6, 0)
-    all:SetScript("OnClick", function()
-      f:Hide()
-      if pfUI.keybinds then pfUI.keybinds:Toggle() end
-    end)
-    W.Tip(all, "All bindings", "Every command the game knows in a list, in categories (/keybinds).")
 
     self.board = CreateFrame("Frame", nil, f)
     self.board:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -70)
 
-    -- unbound abilities
+    -- the lists on the right: unbound abilities | all bindings (user, 20 Oct
+    -- 2026: two tabs with pictures, both dragged onto keys)
     local panel = CreateFrame("Frame", nil, f)
     panel:SetWidth(PANEL_W)
     panel:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, -70)
     panel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 30)
     W.Flat(panel, K.panel, 1, K.line)
-    local pt = W.Font(panel:CreateFontString(nil, "OVERLAY"), 12, K.accent[1], K.accent[2], K.accent[3])
-    pt:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -8)
-    pt:SetText("Unbound abilities")
-    local ps = W.Font(panel:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
-    ps:SetPoint("TOPLEFT", pt, "BOTTOMLEFT", 0, -3)
-    ps:SetText("Click one, then click a key to bind it.")
     self.panel = panel
     self.abilities = {}
+    self.tabs = {}
+    local tw = (PANEL_W - 22) / 2
+    for i, t in ipairs({ { "unbound", "Unbound", "INV_Misc_Key_01" }, { "all", "All bindings", "INV_Misc_Book_09" } }) do
+      local b = W.Button(panel, "", tw, 28)
+      b:SetPoint("TOPLEFT", panel, "TOPLEFT", 8 + (i - 1) * (tw + 6), -8)
+      local ic = b:CreateTexture(nil, "ARTWORK")
+      ic:SetTexture("Interface\\Icons\\" .. t[3])
+      ic:SetTexCoord(.08, .92, .08, .92)
+      ic:SetWidth(20)
+      ic:SetHeight(20)
+      ic:SetPoint("LEFT", b, "LEFT", 5, 0)
+      b.label:ClearAllPoints()
+      b.label:SetPoint("LEFT", ic, "RIGHT", 6, 0)
+      b:SetText(t[2])
+      b.tab = t[1]
+      b:SetScript("OnClick", function()
+        KM.Store().tab = this.tab
+        KM.ability, KM.command = nil, nil
+        KM:Refresh()
+      end)
+      self.tabs[i] = b
+    end
+    self.hint = W.Font(panel:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
+    self.hint:SetPoint("TOPLEFT", panel, "TOPLEFT", 9, -42)
+    self.hint:SetWidth(PANEL_W - 18)
+    self.hint:SetJustifyH("LEFT")
+    self.hint:SetSpacing(2)
+    -- every binding: folding categories in a scroll list
+    local sf = CreateFrame("ScrollFrame", "pfKeyMapList", panel, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, -72)
+    sf:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -18, 6)
+    W.FlatScroll(sf)
+    local content = CreateFrame("Frame", nil, sf)
+    content:SetWidth(PANEL_W - 26)
+    content:SetHeight(10)
+    sf:SetScrollChild(content)
+    self.listScroll, self.list = sf, content
+    self.listRows, self.listHeads = {}, {}
 
     local help = W.Font(f:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
     help:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 10)
-    help:SetText("Drag spells, macros or items onto keys  |  Click a key to pick it up, click another to move / swap  |  "
+    help:SetText("Drag spells, macros, items - or anything from the lists on the right - onto keys  |  Click a key to pick it up, click another to move / swap  |  "
       .. "Right-click unbinds  |  Hold or click Shift / Ctrl / Alt for their layers")
     self:Layout()
   end
@@ -480,7 +513,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         if b.key or b.modifier then b.label:SetTextColor(1, 1, 1) else b.label:SetTextColor(K.dim[1], K.dim[2], K.dim[3]) end
       end
     end
-    self:RefreshAbilities()
+    self:RefreshPanel()
   end
 
   -- action bar buttons with a spell / item / macro and no key
@@ -498,10 +531,102 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     return out
   end
 
-  function KM:RefreshAbilities()
+  -- ---------------------------------------------------------------- drag and drop
+
+  -- Our own drag (these are not things the game's cursor can carry): a
+  -- picture follows the mouse; let go over a key and that key gets it.
+  -- payload: { slot = n } (an action button) or { cmd = "COMMAND" }
+  function KM.Give(key, payload)
+    if not key or not payload then return end
+    local cmd = payload.cmd or (payload.slot and KM.CommandOf(payload.slot))
+    if not cmd then return end
+    SetBinding(Full(key), cmd)
+    KM.ability, KM.command = nil, nil
+    Save()
+  end
+
+  local function Ghost()
+    if KM.ghost then return KM.ghost end
+    local g = CreateFrame("Frame", nil, UIParent)
+    g:SetFrameStrata("TOOLTIP")
+    g:SetWidth(34)
+    g:SetHeight(34)
+    W.Flat(g, K.field, 1, K.accent)
+    g.icon = g:CreateTexture(nil, "ARTWORK")
+    g.icon:SetPoint("TOPLEFT", g, "TOPLEFT", 2, -2)
+    g.icon:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", -2, 2)
+    g:SetScript("OnUpdate", function()
+      local x, y = GetCursorPosition()
+      local s = UIParent:GetEffectiveScale()
+      this:ClearAllPoints()
+      this:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / s + 14, y / s - 14)
+    end)
+    g:Hide()
+    KM.ghost = g
+    return g
+  end
+
+  local function DragStart()
+    local p = this.payload
+    if not p then return end
+    KM.dragging = p
+    local g = Ghost()
+    g.icon:SetTexture(this.tex or "Interface\\Icons\\INV_Misc_Key_03")
+    if this.coords then g.icon:SetTexCoord(this.coords[1], this.coords[2], this.coords[3], this.coords[4])
+    else g.icon:SetTexCoord(.08, .92, .08, .92) end
+    g:Show()
+  end
+
+  -- the key under the mouse when the drag ends
+  function KM.KeyUnderMouse()
+    for _, c in ipairs(KM.cells) do
+      if c:IsShown() and c.key and MouseIsOver(c) then return c.key end
+    end
+    return nil
+  end
+
+  local function DragStop()
+    local p = KM.dragging
+    KM.dragging = nil
+    this.justDragged = true
+    if KM.ghost then KM.ghost:Hide() end
+    if p then KM.Give(KM.KeyUnderMouse(), p) end
+  end
+
+  local function Draggable(b)
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", DragStart)
+    b:SetScript("OnDragStop", DragStop)
+    -- the mouse-up ending a drag is not a click
+    b:SetScript("OnMouseDown", function() this.justDragged = nil end)
+  end
+
+  -- ---------------------------------------------------------------- the lists
+
+  local HINT = {
+    unbound = "Action bar buttons with no key. |cffffffffDrag one onto a key|r - or click it, then click a key.",
+    all = "Every command, in categories. Open one, then |cffffffffdrag a command onto a key|r - or click it, then a key.",
+  }
+
+  function KM:RefreshPanel()
     if not self.panel:IsShown() then return end
+    local tab = KM.Store().tab or "unbound"
+    for _, b in ipairs(self.tabs) do W.Pick(b, b.tab == tab) end
+    self.hint:SetText(HINT[tab])
+    if tab == "all" then
+      for _, a in ipairs(self.abilities) do a:Hide() end
+      self.listScroll:Show()
+      self:RefreshList()
+    else
+      self.listScroll:Hide()
+      self:RefreshAbilities()
+    end
+  end
+
+  function KM:RefreshAbilities()
     for _, a in ipairs(self.abilities) do a:Hide() end
-    local per, size = 5, 34
+    local size = 36
+    local per = math.floor((PANEL_W - 10) / (size + 6))
     for i, slot in ipairs(KM.Unbound()) do
       local a = self.abilities[i]
       if not a then
@@ -514,28 +639,158 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         a.icon:SetPoint("TOPLEFT", a, "TOPLEFT", 2, -2)
         a.icon:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -2, 2)
         W.Hover(a, .15)
+        Draggable(a)
         a:SetScript("OnClick", function()
+          if this.justDragged then this.justDragged = nil return end
           KM.ability = (KM.ability ~= this.slot) and this.slot or nil
+          KM.command = nil
           KM:Refresh()
         end)
         a:SetScript("OnEnter", function()
           GameTooltip:SetOwner(this, "ANCHOR_LEFT")
           GameTooltip:SetAction(this.slot)
+          GameTooltip:AddLine("Drag onto a key, or click then click a key.", K.accent[1], K.accent[2], K.accent[3])
           GameTooltip:Show()
         end)
         a:SetScript("OnLeave", function() GameTooltip:Hide() end)
         self.abilities[i] = a
       end
       a.slot = slot
-      a.icon:SetTexture(GetActionTexture(slot))
+      a.payload = { slot = slot }
+      a.tex = GetActionTexture(slot)
+      a.icon:SetTexture(a.tex)
       local row, col = math.floor((i - 1) / per), math.mod(i - 1, per)
       a:ClearAllPoints()
-      a:SetPoint("TOPLEFT", self.panel, "TOPLEFT", 8 + col * (size + 6), -44 - row * (size + 6))
-      local picked = KM.ability == slot
-      local l = picked and K.accent or K.line
+      a:SetPoint("TOPLEFT", self.panel, "TOPLEFT", 8 + col * (size + 6), -76 - row * (size + 6))
+      local l = (KM.ability == slot) and K.accent or K.line
       a:SetBackdropBorderColor(l[1], l[2], l[3], 1)
       a:Show()
     end
+  end
+
+  local LROW, LHEAD = 22, 26
+
+  local function ListHead(parent)
+    local h = CreateFrame("Button", nil, parent)
+    h:SetHeight(LHEAD - 2)
+    h:SetWidth(PANEL_W - 26)
+    W.Flat(h, K.head, 1, K.line)
+    W.Hover(h, .05)
+    h.arrow = W.Arrow(h, 8, "right")
+    h.arrow:SetPoint("LEFT", h, "LEFT", 6, 0)
+    h.icon = h:CreateTexture(nil, "ARTWORK")
+    h.icon:SetWidth(18)
+    h.icon:SetHeight(18)
+    h.icon:SetPoint("LEFT", h, "LEFT", 18, 0)
+    h.text = W.Font(h:CreateFontString(nil, "OVERLAY"), 11, K.text[1], K.text[2], K.text[3])
+    h.text:SetPoint("LEFT", h.icon, "RIGHT", 6, 0)
+    h.text:SetPoint("RIGHT", h, "RIGHT", -26, 0)
+    h.text:SetJustifyH("LEFT")
+    h.count = W.Font(h:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
+    h.count:SetPoint("RIGHT", h, "RIGHT", -6, 0)
+    h:SetScript("OnClick", function()
+      local o = KM.Store()
+      if type(o.open) ~= "table" then o.open = {} end
+      o.open[this.id] = not o.open[this.id] or nil
+      KM:RefreshList()
+    end)
+    return h
+  end
+
+  local function ListRow(parent)
+    local r = CreateFrame("Button", nil, parent)
+    r:SetHeight(LROW)
+    r:SetWidth(PANEL_W - 26)
+    local hl = W.Fill(r, K.accent, .12, "HIGHLIGHT")
+    hl:SetAllPoints(r)
+    r.sel = W.Fill(r, K.accent, .2, "BACKGROUND")
+    r.sel:SetAllPoints(r)
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetWidth(18)
+    r.icon:SetHeight(18)
+    r.icon:SetPoint("LEFT", r, "LEFT", 10, 0)
+    r.text = W.Font(r:CreateFontString(nil, "OVERLAY"), 11, K.text[1], K.text[2], K.text[3])
+    r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
+    r.text:SetPoint("RIGHT", r, "RIGHT", -58, 0)
+    r.text:SetJustifyH("LEFT")
+    r.key = W.Font(r:CreateFontString(nil, "OVERLAY"), 10, K.accent[1], K.accent[2], K.accent[3])
+    r.key:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.key:SetWidth(54)
+    r.key:SetJustifyH("RIGHT")
+    Draggable(r)
+    r:SetScript("OnClick", function()
+      if this.justDragged then this.justDragged = nil return end
+      KM.command = (KM.command ~= this.cmd) and this.cmd or nil
+      KM.ability = nil
+      KM:Refresh()
+    end)
+    r:SetScript("OnEnter", function()
+      GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+      GameTooltip:AddLine(this.name, 1, 1, 1)
+      local k1, k2 = GetBindingKey(this.cmd)
+      GameTooltip:AddDoubleLine("Keys", (k1 or "none") .. (k2 and (", " .. k2) or ""), .6, .6, .6, 1, 1, 1)
+      GameTooltip:AddLine("Drag onto a key, or click then click a key.", K.accent[1], K.accent[2], K.accent[3])
+      GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return r
+  end
+
+  -- the categories of pfUI.keybinds, folded until opened
+  function KM:RefreshList()
+    local KB = pfUI.keybinds
+    local secs = KB and KB.Read and KB.Read() or {}
+    local open = KM.Store().open or {}
+    for _, r in ipairs(self.listRows) do r:Hide() end
+    for _, h in ipairs(self.listHeads) do h:Hide() end
+    local y, nh, nr = 0, 0, 0
+    for _, sec in ipairs(secs) do
+      nh = nh + 1
+      local h = self.listHeads[nh] or ListHead(self.list)
+      self.listHeads[nh] = h
+      h.id = sec.id
+      h.text:SetText(sec.name)
+      h.count:SetText(table.getn(sec.rows))
+      if sec.icon then
+        h.icon:SetTexture(sec.icon)
+        h.icon:SetTexCoord(.08, .92, .08, .92)
+      else
+        local tex, a, b, c, d = KB.Icon(sec, "RAIDTARGET1")
+        h.icon:SetTexture(tex)
+        h.icon:SetTexCoord(a, b, c, d)
+      end
+      W.Turn(h.arrow, open[sec.id] and "down" or "right")
+      h:ClearAllPoints()
+      h:SetPoint("TOPLEFT", self.list, "TOPLEFT", 0, -y)
+      h:Show()
+      y = y + LHEAD
+      if open[sec.id] then
+        for _, row in ipairs(sec.rows) do
+          nr = nr + 1
+          local r = self.listRows[nr] or ListRow(self.list)
+          self.listRows[nr] = r
+          r.cmd, r.name = row.cmd, row.name
+          r.payload = { cmd = row.cmd }
+          r.text:SetText(row.name)
+          local tex, a, b, c, d = KB.Icon(sec, row.cmd)
+          r.tex = tex or sec.icon
+          r.coords = tex and { a, b, c, d } or nil
+          r.icon:SetTexture(r.tex)
+          if tex then r.icon:SetTexCoord(a, b, c, d) else r.icon:SetTexCoord(.08, .92, .08, .92) end
+          r.icon:SetAlpha(tex and 1 or .35)
+          local k1 = GetBindingKey(row.cmd)
+          r.key:SetText(k1 and ((GetBindingText and GetBindingText(k1, "KEY_")) or k1) or "")
+          if KM.command == row.cmd then r.sel:Show() else r.sel:Hide() end
+          r:ClearAllPoints()
+          r:SetPoint("TOPLEFT", self.list, "TOPLEFT", 0, -y)
+          r:Show()
+          y = y + LROW
+        end
+        y = y + 4
+      end
+    end
+    self.list:SetHeight(math.max(10, y))
+    self.listScroll:UpdateScrollChildRect()
   end
 
   function KM:Toggle()

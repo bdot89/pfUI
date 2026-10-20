@@ -1266,7 +1266,7 @@ do
   local KB = pfUI.keybinds
   ok(KB ~= nil, "Key Bindings module")
   if KB then
-    local list = { "HEADER_MOVEMENT", "MOVEFORWARD", "JUMP", "HEADER_BLANK", "TOGGLEAUTORUN",
+    local list = { "HEADER_MOVEMENT", "MOVEFORWARD", "JUMP", "HEADER_BLANK2", "TOGGLEAUTORUN",
                    "HEADER_ACTIONBAR", "ACTIONBUTTON1", "HEADER_RAID_TARGET", "RAIDTARGET8" }
     local binds = { W = "MOVEFORWARD", SPACE = "JUMP", ["1"] = "ACTIONBUTTON1" }
     local saved = { GetNumBindings, GetBinding, GetBindingKey, GetBindingAction, SetBinding, SaveBindings }
@@ -1286,8 +1286,15 @@ do
     ok(table.getn(secs) == 3 and secs[1].name == "Movement Keys" and table.getn(secs[1].rows) == 3,
       "categories read from the game's list (BLANK joins the one before)")
     ok(secs[3].raid and KB.Icon(secs[3], "RAIDTARGET8") ~= nil, "raid mark rows show the mark")
+    pfUI.octoui.Store().kbFold = {}
     KB:Toggle()
-    ok(KB.frame:IsShown() and table.getn(KB.rows) >= 5, "/keybinds opens the list with rows")
+    local shown = 0
+    for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
+    ok(KB.frame:IsShown() and table.getn(KB.heads) == 3 and shown == 0, "/keybinds opens with every category folded")
+    KB.heads[1]:Click()
+    shown = 0
+    for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
+    ok(shown == 3, "opening Movement shows its commands (" .. shown .. ")")
     -- bind JUMP's second key
     local jump
     for _, r in ipairs(KB.rows) do if r.cmd == "JUMP" and r:IsShown() then jump = r end end
@@ -1308,16 +1315,56 @@ do
     end
     -- fold a category, search
     KB.heads[1]:Click()
-    local shown = 0
+    shown = 0
     for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
-    ok(shown == 2, "folding Movement hides its rows (" .. shown .. " left)")
-    KB.heads[1]:Click()
+    ok(shown == 0, "folding Movement hides its rows (" .. shown .. " left)")
     KB.find:SetText("autorun")
     shown = 0
     for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
     ok(shown == 1, "search keeps the matching command (" .. shown .. ")")
     KB.find:SetText("")
     KB.frame:Hide()
+    -- the Key Map's All bindings tab: the same categories, folded; drag a command onto a key
+    local KM = pfUI.keymap
+    if KM then
+      KM.Store().tab = "all"
+      KM.Store().open = {}
+      KM.Store().hidePanel = nil
+      KM.layer, KM.locked = "", ""
+      KM:Toggle()
+      ok(KM.listScroll:IsShown() and KM.listHeads[1] and KM.listHeads[1]:IsShown(), "All bindings tab lists the categories")
+      local rowsShown = 0
+      for _, r in ipairs(KM.listRows) do if r:IsShown() then rowsShown = rowsShown + 1 end end
+      ok(rowsShown == 0, "categories start folded")
+      KM.listHeads[1]:Click()
+      local jumpRow
+      for _, r in ipairs(KM.listRows) do if r:IsShown() and r.cmd == "JUMP" then jumpRow = r end end
+      ok(jumpRow ~= nil, "opening one lists its commands")
+      if jumpRow then
+        -- drag JUMP onto F: picture follows, let go over the F key
+        local fcell
+        for _, c in ipairs(KM.cells) do if c.key == "F" then fcell = c end end
+        local mo = MouseIsOver
+        _G.MouseIsOver = function(fr) return fr == fcell end
+        Mock.Run(jumpRow, "OnDragStart")
+        ok(KM.ghost and KM.ghost:IsShown(), "dragging shows the picture")
+        Mock.Run(jumpRow, "OnDragStop")
+        _G.MouseIsOver = mo
+        ok(binds.F == "JUMP" and not KM.ghost:IsShown(), "let go over a key: bound (" .. tostring(binds.F) .. ")")
+        -- click, then click a key
+        Mock.Run(jumpRow, "OnMouseDown")
+        Mock.Run(jumpRow, "OnClick", "LeftButton")
+        ok(KM.command == "JUMP", "clicking a command picks it")
+        local qcell
+        for _, c in ipairs(KM.cells) do if c.key == "Q" then qcell = c end end
+        Mock.Run(qcell, "OnClick", "LeftButton")
+        ok(binds.Q == "JUMP" and KM.command == nil, "then clicking a key binds it")
+      end
+      -- the Unbound tab
+      KM.tabs[1]:Click()
+      ok(not KM.listScroll:IsShown(), "Unbound tab hides the list")
+      KM.frame:Hide()
+    end
     _G.GetNumBindings, _G.GetBinding, _G.GetBindingKey, _G.GetBindingAction, _G.SetBinding, _G.SaveBindings =
       saved[1], saved[2], saved[3], saved[4], saved[5], saved[6]
   end

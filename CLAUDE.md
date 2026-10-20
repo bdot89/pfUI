@@ -227,6 +227,14 @@ see "Roadmap" below.
      rows the mark (UI-RaidTargetingIcons quarters). Key boxes: click then press (modifiers,
      BUTTON3-5, wheel); right-click clears; saved at once. Character specific = SaveBindings(2) /
      LoadBindings(1); Reset = LoadBindings(0). Fold state in pfUI_cache.octoui.kbFold.
-     Not verified in game.
+     Seen in game 20 Oct: BLANK2 / BLANK3 headers showed as categories (now any HEADER_BLANK*
+     joins the one before); categories now start folded (kbFold[id] == false = open).
+   - Key Map side panel (user: "move the All bindings next to Unbound abilities ... make them
+     both drag drops"): two tabs with icons (Unbound INV_Misc_Key_01 / All bindings
+     INV_Misc_Book_09), the All tab = pfUI.keybinds.Read() categories folded in a scroll list
+     (open state keymap.open). Our own drag (not the game cursor): a picture follows the mouse,
+     on release `KM.KeyUnderMouse` (MouseIsOver over the key cells) -> `KM.Give` = SetBinding.
+     Click a list item then a key works too (KM.ability / KM.command). The toolbar's All
+     bindings button went; "Unbound" is now "Lists" (show / hide the panel). Not verified in game.
    - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
      menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.

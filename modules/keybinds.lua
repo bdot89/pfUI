@@ -66,7 +66,7 @@ pfUI:RegisterModule("keybinds", "vanilla", function ()
       if cmd then
         local _, _, hid = string.find(cmd, "^HEADER_(.+)$")
         if hid then
-          if hid ~= "BLANK" then
+          if not string.find(hid, "^BLANK") then   -- BLANK, BLANK2...: spacers, they join the one before
             local info = HEAD[hid] or ADDON
             cur = { id = hid, name = getglobal("BINDING_" .. cmd) or hid, icon = info[1] and (ICON .. info[1]),
                     about = info[2], rows = {} }
@@ -235,7 +235,8 @@ pfUI:RegisterModule("keybinds", "vanilla", function ()
     h.count:SetPoint("RIGHT", h, "RIGHT", -10, 0)
     h:SetScript("OnClick", function()
       local f = Store().kbFold
-      f[this.id] = not f[this.id] or nil
+      -- folded until opened (user: "collapsed naturally"); false = open
+      if f[this.id] == false then f[this.id] = nil else f[this.id] = false end
       KB:Layout()
     end)
     h:SetScript("OnEnter", function()
@@ -483,7 +484,7 @@ pfUI:RegisterModule("keybinds", "vanilla", function ()
         h.count:SetText(table.getn(shown))
         h.icon:SetTexture(sec.icon or RAID)
         if sec.icon then h.icon:SetTexCoord(.08, .92, .08, .92) else h.icon:SetTexCoord(RaidCoords(1)) end
-        local open = KB.search or not fold[sec.id]
+        local open = KB.search or fold[sec.id] == false
         W.Turn(h.arrow, open and "down" or "right")
         h:ClearAllPoints()
         h:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -y)
