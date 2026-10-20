@@ -48,6 +48,78 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     return nil
   end
 
+  -- What spell sits on an action button, and its rank: 1.12 has no
+  -- GetActionInfo, so the button's tooltip is read on a hidden tooltip
+  -- (line 1 left = name, line 1 right = "Rank 3").
+  local scan
+  function KM.ActionSpell(slot)
+    if not slot or not HasAction(slot) then return nil end
+    if not scan then
+      scan = CreateFrame("GameTooltip", "pfKeyMapScan", nil, "GameTooltipTemplate")
+    end
+    scan:SetOwner(WorldFrame, "ANCHOR_NONE")
+    scan:ClearLines()
+    scan:SetAction(slot)
+    local l, r = getglobal("pfKeyMapScanTextLeft1"), getglobal("pfKeyMapScanTextRight1")
+    local name = l and l:IsShown() ~= false and l:GetText()
+    local rank = r and r:IsShown() and r:GetText()
+    if rank == "" then rank = nil end
+    scan:Hide()
+    return name, rank
+  end
+
+  -- every rank of a spell in the spellbook: { { index, rank }, ... } low to high
+  function KM.SpellRanks(name)
+    local out = {}
+    if not name or not GetSpellName then return out end
+    local i = 1
+    while true do
+      local n, r = GetSpellName(i, BOOKTYPE_SPELL or "spell")
+      if not n then break end
+      if n == name then table.insert(out, { i, (r and r ~= "") and r or nil }) end
+      i = i + 1
+    end
+    return out
+  end
+
+  -- Which rank? (user, 20 Oct 2026: "a rank selector when you click on a
+  -- spell"). A menu of the spell's ranks beside anchor; the picked rank is
+  -- put on the action button (PickupSpell + PlaceAction, the old one taken
+  -- off the cursor again). after() runs once a rank is on the button - at
+  -- once when the spell has one rank or the button holds no spell.
+  KM.rankMenus = {}
+  function KM.PickRank(slot, anchor, after)
+    local name, cur = KM.ActionSpell(slot)
+    local ranks = KM.SpellRanks(name)
+    if table.getn(ranks) < 2 then
+      if after then after() end
+      return false
+    end
+    local opts = { { label = name .. " - which rank?", group = true } }
+    local n = table.getn(ranks)
+    for i = n, 1, -1 do
+      local r = ranks[i]
+      local label = r[2] or ("Rank " .. i)
+      if i == n then label = label .. "  |cff999999(highest)|r" end
+      if r[2] and r[2] == cur then label = label .. "  |cff33ccff(on the button)|r" end
+      table.insert(opts, { key = r[1], label = label })
+    end
+    if KM.rankMenu then KM.rankMenu:Hide() end
+    local menu = W.Menu(anchor, opts, 220, function(index)
+      PickupSpell(index, BOOKTYPE_SPELL or "spell")
+      PlaceAction(slot)
+      ClearCursor()
+      if after then after() end
+      KM:Refresh()
+    end)
+    menu:SetFrameStrata("TOOLTIP")
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -4, 0)
+    menu:Show()
+    KM.rankMenu = menu
+    return true
+  end
+
   local function SpellTexture(name)
     if not name or not GetSpellName then return nil end
     local i = 1
@@ -66,6 +138,11 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     if slot then
       local tex = HasAction(slot) and GetActionTexture(slot)
       local text = GetActionText and GetActionText(slot)
+      if tex and not text then
+        -- a spell or item: its name and rank ("Fireball (Rank 3)")
+        local n, r = KM.ActionSpell(slot)
+        if n then text = n .. (r and (" (" .. r .. ")") or "") end
+      end
       return tex, text or (GetBindingText and GetBindingText(action, "BINDING_NAME_")) or action
     end
     local _, _, kind, what = string.find(action, "^(%u+) (.+)$")
@@ -155,8 +232,17 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     local key = Full(b.key)
     local action = GetBindingAction(key)
     GameTooltip:SetOwner(b, "ANCHOR_TOP")
-    local _, name = KM.Describe(action)
-    GameTooltip:AddLine(name or "Not bound", 1, 1, 1)
+    local slot = KM.SlotOf(action)
+    local sname, srank = KM.ActionSpell(slot)
+    if sname then
+      -- the spell on the key's button, with its rank
+      GameTooltip:AddDoubleLine(sname, srank or "", 1, 1, 1, K.accent[1], K.accent[2], K.accent[3])
+      local ranks = table.getn(KM.SpellRanks(sname))
+      if ranks > 1 then GameTooltip:AddLine(ranks .. " ranks known - middle-click this key to pick another", .6, .6, .6) end
+    else
+      local _, name = KM.Describe(action)
+      GameTooltip:AddLine(name or "Not bound", 1, 1, 1)
+    end
     GameTooltip:AddDoubleLine("Key", key, .6, .6, .6, 1, 1, 1)
     if action and action ~= "" then GameTooltip:AddDoubleLine("Binding", action, .6, .6, .6, 1, 1, 1) end
     GameTooltip:AddLine("Drop a spell, item or macro to bind it. Left-click: pick up / move / swap. Right-click: unbind.",
@@ -235,6 +321,12 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     end
     if not b.key then return end
     local key = Full(b.key)
+    if arg1 == "MiddleButton" then
+      -- another rank of the spell on this key's button
+      local slot = KM.SlotOf(GetBindingAction(key))
+      if slot then KM.PickRank(slot, b) end
+      return
+    end
     if arg1 == "RightButton" then
       SetBinding(key)
       KM.picked, KM.pickedAction = nil, nil
@@ -279,7 +371,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   local function MakeKey(parent)
     local b = CreateFrame("Button", nil, parent)
     W.Flat(b, K.field, 1, K.line)
-    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
     W.Hover(b, .08)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetTexCoord(.08, .92, .08, .92)
@@ -604,7 +696,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   -- ---------------------------------------------------------------- the lists
 
   local HINT = {
-    unbound = "Action bar buttons with no key. |cffffffffDrag one onto a key|r - or click it, then click a key.",
+    unbound = "Action bar buttons with no key. Click one to choose its |cffffffffrank|r, then click a key - or |cffffffffdrag it onto a key|r.",
     all = "Every command, in categories. Open one, then |cffffffffdrag a command onto a key|r - or click it, then a key.",
   }
 
@@ -642,14 +734,23 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         Draggable(a)
         a:SetScript("OnClick", function()
           if this.justDragged then this.justDragged = nil return end
-          KM.ability = (KM.ability ~= this.slot) and this.slot or nil
           KM.command = nil
-          KM:Refresh()
+          if KM.ability == this.slot then
+            KM.ability = nil
+            KM:Refresh()
+            return
+          end
+          -- a spell with several ranks asks which one first, then it is picked
+          local slot = this.slot
+          KM.PickRank(slot, this, function()
+            KM.ability = slot
+            KM:Refresh()
+          end)
         end)
         a:SetScript("OnEnter", function()
           GameTooltip:SetOwner(this, "ANCHOR_LEFT")
           GameTooltip:SetAction(this.slot)
-          GameTooltip:AddLine("Drag onto a key, or click then click a key.", K.accent[1], K.accent[2], K.accent[3])
+          GameTooltip:AddLine("Click to choose the rank, then click a key - or drag it onto a key.", K.accent[1], K.accent[2], K.accent[3])
           GameTooltip:Show()
         end)
         a:SetScript("OnLeave", function() GameTooltip:Hide() end)

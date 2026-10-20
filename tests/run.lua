@@ -1260,6 +1260,37 @@ do
   end
 end
 
+-- ---------------------------------------------------------------- Key Map: spell ranks
+
+do
+  local KM = pfUI.keymap
+  if KM then
+    local book = { { "Fireball", "Rank 1" }, { "Frostbolt", "Rank 1" }, { "Fireball", "Rank 2" }, { "Fireball", "Rank 3" } }
+    local saved = { GetSpellName, KM.ActionSpell, PickupSpell, PlaceAction, ClearCursor }
+    _G.GetSpellName = function(i) local s = book[i] if s then return s[1], s[2] end end
+    KM.ActionSpell = function(slot) if slot == 5 then return "Fireball", "Rank 1" end end
+    local ranks = KM.SpellRanks("Fireball")
+    ok(table.getn(ranks) == 3 and ranks[3][1] == 4 and ranks[3][2] == "Rank 3", "every rank of a spell found in the spellbook")
+    local picked, placed, done
+    _G.PickupSpell = function(i) picked = i end
+    _G.PlaceAction = function(s) placed = s end
+    _G.ClearCursor = function() end
+    local anchor = CreateFrame("Button", nil, UIParent)
+    ok(KM.PickRank(5, anchor, function() done = true end) and KM.rankMenu and KM.rankMenu:IsShown(),
+      "a spell with several ranks asks which one")
+    -- the menu lists highest first, under a heading; pick Rank 2 (spellbook index 3)
+    local entry
+    for _, e in ipairs({ KM.rankMenu:GetChildren() }) do if e.key == 3 then entry = e end end
+    ok(entry ~= nil, "each rank is in the menu")
+    if entry then Mock.Run(entry, "OnClick", "LeftButton") end
+    ok(picked == 3 and placed == 5 and done, "the chosen rank goes on the button, then it is picked")
+    KM.ActionSpell = function() return "Frostbolt", "Rank 1" end
+    done = nil
+    ok(not KM.PickRank(6, anchor, function() done = true end) and done, "one rank: no question")
+    _G.GetSpellName, KM.ActionSpell, _G.PickupSpell, _G.PlaceAction, _G.ClearCursor = saved[1], saved[2], saved[3], saved[4], saved[5]
+  end
+end
+
 -- ---------------------------------------------------------------- Key Bindings
 
 do
