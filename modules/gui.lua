@@ -887,6 +887,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
           if not this.setup then
             func()
             Finish(this)
+            -- octo: the window's shell restyles the finished page
+            if pfUI.gui.OnPageBuilt then pfUI.gui.OnPageBuilt(this) end
             this.setup = true
           end
         end)

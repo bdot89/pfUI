@@ -761,6 +761,109 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     if p then W.Refresh(p) end
   end
 
+  -- ---------------------------------------------------------------- pfUI's pages, restyled
+
+  -- pfUI's own pages get OctoBG's look once built: group boxes as cards with
+  -- a title bar, square blue tick boxes, thin blue sliders with a round knob,
+  -- flat text boxes, dropdowns and buttons, Roboto. Layout stays pfUI's.
+  local function Field(f, col, line)
+    local t = f and (f.backdrop or f)
+    if t and t.SetBackdrop then W.Flat(t, col or K.field, 1, line or K.line) end
+  end
+
+  local function SkinCell(c)
+    local kind = c.cellkind
+    if c.caption then W.Font(c.caption, 12, K.text[1], K.text[2], K.text[3]) end
+    if c.tex then c.tex:SetTexture(1, 1, 1, .04) end
+    if kind == "checkbox" and c.input and c.input.SetCheckedTexture then
+      c.input:SetWidth(16)
+      c.input:SetHeight(16)
+      Field(c.input, K.field, K.lineHi)
+      c.input:SetCheckedTexture(B.U.WHITE)
+      local t = c.input:GetCheckedTexture()
+      if t then
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", c.input, "TOPLEFT", 3, -3)
+        t:SetPoint("BOTTOMRIGHT", c.input, "BOTTOMRIGHT", -3, 3)
+        t:SetVertexColor(K.accent[1], K.accent[2], K.accent[3], 1)
+      end
+    elseif kind == "slider" and c.input and c.input.SetThumbTexture then
+      local s = c.input
+      if s.backdrop then s.backdrop:Hide() end
+      if s.SetBackdrop then s:SetBackdrop(nil) end
+      s:SetHeight(16)
+      s:SetThumbTexture(W.ART.disc)
+      local th = s:GetThumbTexture()
+      if th then
+        th:SetWidth(14)
+        th:SetHeight(14)
+        th:SetVertexColor(.95, .95, .96, 1)
+      end
+      local track = W.Fill(s, K.off, 1, "BACKGROUND")
+      track:SetHeight(4)
+      track:SetPoint("LEFT", s, "LEFT", 3, 0)
+      track:SetPoint("RIGHT", s, "RIGHT", -3, 0)
+      s.fill = W.Fill(s, K.accent, 1, "BORDER")
+      s.fill:SetHeight(4)
+      s.fill:SetPoint("LEFT", s, "LEFT", 3, 0)
+      local function Paint()
+        local lo, hi = s:GetMinMaxValues()
+        local w = (s:GetWidth() or 0) - 14
+        local f = (hi and lo and hi > lo) and (s:GetValue() - lo) / (hi - lo) or 0
+        s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4))
+      end
+      local old = s:GetScript("OnValueChanged")
+      s:SetScript("OnValueChanged", function()
+        if old then old() end
+        Paint()
+      end)
+      s:SetScript("OnShow", Paint)
+      s:SetScript("OnSizeChanged", Paint)
+      Paint()
+      if c.value then W.Font(c.value, 12, K.accent[1], K.accent[2], K.accent[3]) end
+    elseif kind == "dropdown" and c.input then
+      Field(c.input)
+      if c.input.text then W.Font(c.input.text, 11, K.text[1], K.text[2], K.text[3]) end
+      if c.input.button and c.input.button.icon then
+        c.input.button.icon:SetVertexColor(K.dim[1], K.dim[2], K.dim[3], 1)
+      end
+      if c.input.menuframe then Field(c.input.menuframe, K.card, K.lineHi) end
+    elseif (kind == "text" or kind == "list") and c.input then
+      Field(c.input)
+      if c.input.SetFont then c.input:SetFont(W.UIFont(), 12, "") end
+    elseif kind == "button" and c.button then
+      Field(c.button, K.btn, K.line)
+      local fs = c.button.GetFontString and c.button:GetFontString()
+      if fs then W.Font(fs, 11, K.text[1], K.text[2], K.text[3]) end
+    elseif kind == "color" and c.color then
+      Field(c.color, K.field, K.lineHi)
+    end
+  end
+
+  local function SkinGroup(grp)
+    W.Flat(grp, K.card, 1, K.line)
+    if grp.caption then
+      local bar = W.Fill(grp, K.head, 1, "BORDER")
+      bar:SetPoint("TOPLEFT", grp, "TOPLEFT", 1, -1)
+      bar:SetPoint("TOPRIGHT", grp, "TOPRIGHT", -1, -1)
+      bar:SetHeight(22)
+      W.Font(grp.caption, 12, K.text[1], K.text[2], K.text[3])
+      grp.caption:ClearAllPoints()
+      grp.caption:SetPoint("TOPLEFT", grp, "TOPLEFT", 12, -6)
+    end
+  end
+
+  function O.SkinPage(page)
+    if not page or page.octoSkinned then return end
+    page.octoSkinned = true
+    if page.title then W.Font(page.title, 17, K.text[1], K.text[2], K.text[3]) end
+    for _, grp in ipairs(page.groups or {}) do SkinGroup(grp) end
+    for _, c in ipairs({ page:GetChildren() }) do
+      if c.cellkind then SkinCell(c) end
+    end
+  end
+  g.OnPageBuilt = O.SkinPage
+
   -- ---------------------------------------------------------------- open / close
 
   O:Build()

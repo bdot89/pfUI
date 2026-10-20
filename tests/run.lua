@@ -1130,6 +1130,13 @@ do
       local l = O.legacy[lkey]
       ok(l.cat.area:IsShown() and l.page.area:IsShown() and not ctg.frame:IsShown(), "a pfUI page shows in place of the Octo page")
       ok(l.cat:GetParent() == O.hidden, "the old tree button is tucked away")
+      local content = l.page.area.scroll and l.page.area.scroll.content
+      ok(content and content.octoSkinned, "pfUI's page gets OctoBG's look")
+      local sliders, skinned = 0, 0
+      for _, c in ipairs(content and { content:GetChildren() } or {}) do
+        if c.cellkind == "slider" then sliders = sliders + 1 if c.input.fill then skinned = skinned + 1 end end
+      end
+      ok(sliders == skinned, "every slider has the blue fill (" .. skinned .. "/" .. sliders .. ")")
     end
     -- O:Open by category name (meter window menu, mover right-click)
     O:Open("Meters")

@@ -159,3 +159,38 @@ see "Roadmap" below.
    Not verified in game: the spell textures' look as minimap art, SetMaskTexture with a 32-bit
    TGA mask, MINIMAP_PING args, art layer stacking under pfUI's backdrop.
 8. The user will add more addons "like this" into pfUI Octo.
+9. OctoBG's look for the whole options window (20 Oct, not seen in game). User (ElvUI screenshots +
+   OctoBG's options): "copy Octo BGS style of UI and update PFUI into being my own addon", and
+   "PLEASE GET SCROLLING COMBAT TEXT OPTION PANEL IT WAS IN OCTO BG" (the CreateConfig pages
+   were not what they knew). Also: tree categories did not visibly fold/unfold for them.
+   - modules/octo-widgets.lua (plain file, `pfUI.octoui.W`) = OctoBG's core\Widgets.lua: pages of
+     folding cards, switches, sliders, dropdowns, Find index. Wider (body 700, card 668, half 326).
+     Folded cards + Background in `pfUI_cache.octoui` (per account, not in profile strings).
+     Fonts/textures copied from OctoBG into pfUI\fonts and img\octo (Roboto, Fira, Share, ...).
+   - modules/octo-options.lua (module, right after gui) turns `pfUI.gui` itself into OctoBG's
+     shell (so every pfUI.gui:Show / Hide / Reload keeps working): title row, quick bar (Move
+     Frames, Keybinds, Install, Profiles, Background, Find a setting), topic list 196 wide (Octo
+     sections first, then one folding section per pfUI category; one open at a time; wheel
+     scrolls), page panel. pfUI's category areas are re-anchored onto the page panel, the old
+     tree buttons reparented to a hidden frame (gui.lua still drives them; O:ShowLegacy shows
+     areas directly, never via Click). Keys: "o:<page>" (Octo) / "l:<Category>[/<Page>]".
+     `O:AddPage(group, key, label, build)`, `O:Open(key | category, page)`. Find searches W.index
+     and gui.lua's searchDB (now `pfUI.gui.searchDB`). gui.lua calls `pfUI.gui.OnPageBuilt(page)`
+     after Finish: O.SkinPage restyles pfUI's pages (cards, blue tick boxes, disc sliders with fill).
+   - modules/sct-options.lua = OctoBG's SCTOptions.lua pages (ctgeneral, ctareas, ctplates,
+     ctcrits, ctevents, ctfilters) almost verbatim; threat page stays in OctoBG. /sct opens them.
+     The CreateConfig "Combat Text" category is gone from sct.lua.
+   - Layout mode (unlock.lua): ElvUI boxes (`Paint`: see-through fill, blue edge + label; gold =
+     Alt-click source), labels in words (`NiceLabel`). Clicks as ElvUI: left = nudge box, right =
+     the frame's options (OpenConfigDialog -> O:Open; frame_configs gained RaidCluster, Meter%d,
+     CombatText%a+ -> "ctareas"), middle = reset. Alt-click two boxes: `MatchSize` (unit frame /
+     castbar width settings, height too between the same kind; meters width/height; else scale).
+     `this.justDragged` (set on drop, cleared on mouse down) keeps the drop from counting as a click.
+   - Raid frames: only pfRaidCluster is a mover, sized to the whole grid (raid.lua); individual
+     pfRaidN movers are removed (old per-frame positions no longer apply). Healer layout centres
+     the cluster with xpos 0. Not verified: a cluster saved with a TOP anchor shifts the grid down
+     by its new height once.
+   - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
+     .children on frames) and has a real SetParent.
+   - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
+     menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.
