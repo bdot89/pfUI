@@ -83,7 +83,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1197,6 +1197,66 @@ do
     ok(not O.searching, "clearing Find goes back to the page")
     pfUI_config.sct.enabled = wasOn
     pfUI.gui:Hide()
+  end
+end
+
+-- ---------------------------------------------------------------- Key Map
+
+do
+  local KM = pfUI.keymap
+  ok(KM ~= nil, "Key Map module")
+  if KM then
+    ok(KM.SlotOf("ACTIONBUTTON5") == 5 and KM.SlotOf("MULTIACTIONBAR1BUTTON2") == 62
+      and KM.SlotOf("MULTIACTIONBAR3BUTTON12") == 36 and KM.SlotOf("TOGGLEBACKPACK") == nil, "binding -> action slot")
+    ok(KM.CommandOf(62) == "MULTIACTIONBAR1BUTTON2" and KM.CommandOf(7) == "ACTIONBUTTON7", "action slot -> binding")
+    for _, l in ipairs(KM.LAYOUTS) do
+      local rows = KM.Rows(l.key)
+      ok(table.getn(rows) == 7, l.key .. " keyboard has its rows")
+    end
+    -- a pretend binding table
+    local binds = { ["1"] = "ACTIONBUTTON1", ["2"] = "ACTIONBUTTON2", Q = "TOGGLEBACKPACK" }
+    local saved = { SetBinding, GetBindingAction, GetBindingKey, SaveBindings, HasAction, GetActionTexture, PlaceAction }
+    _G.SetBinding = function(k, a) binds[k] = a end
+    _G.GetBindingAction = function(k) return binds[k] or "" end
+    _G.GetBindingKey = function(a) for k, v in pairs(binds) do if v == a then return k end end end
+    _G.SaveBindings = function() end
+    local actions = { [1] = "Interface\\Icons\\Spell_Fire_FlameBolt", [3] = "Interface\\Icons\\INV_Misc_Gear_01" }
+    _G.HasAction = function(s) return actions[s] ~= nil end
+    _G.GetActionTexture = function(s) return actions[s] end
+    local placed
+    _G.PlaceAction = function(s) placed = s end
+    KM:Toggle()
+    ok(KM.frame and KM.frame:IsShown(), "/keymap opens the Key Map")
+    local function Cell(key)
+      for _, c in ipairs(KM.cells) do if c.key == key and c:IsShown() then return c end end
+    end
+    local one, two, q = Cell("1"), Cell("2"), Cell("Q")
+    ok(one and one.icon:IsShown(), "a key on an action button shows the spell's icon")
+    ok(q and q.what.text and q.what.text ~= "", "a key with another binding shows its name")
+    -- pick up 1, put it on 2: they swap
+    Mock.Run(one, "OnClick", "LeftButton")
+    ok(KM.picked == "1", "left-click picks a binding up")
+    Mock.Run(two, "OnClick", "LeftButton")
+    ok(binds["2"] == "ACTIONBUTTON1" and binds["1"] == "ACTIONBUTTON2", "clicking another key swaps them")
+    Mock.Run(q, "OnClick", "RightButton")
+    ok(binds.Q == nil, "right-click unbinds")
+    -- unbound abilities: slot 3 has a spell and no key
+    local list = KM.Unbound()
+    ok(table.getn(list) == 1 and list[1] == 3, "unbound ability found on the bars")
+    KM.ability = 3
+    Mock.Run(q, "OnClick", "LeftButton")
+    ok(binds.Q == "ACTIONBUTTON3", "an unbound ability goes onto the clicked key")
+    -- a spell dropped on an action button key goes onto its button
+    ok(KM.Drop("1") and placed == 2, "dropping on an action button key places it there (" .. tostring(placed) .. ")")
+    -- the Shift layer
+    Mock.Run(Cell(nil) or KM.cells[1], "OnShow")
+    for _, c in ipairs(KM.cells) do
+      if c.modifier == "SHIFT" then Mock.Run(c, "OnClick", "LeftButton") break end
+    end
+    ok(KM.layer == "SHIFT-", "clicking Shift shows the Shift layer")
+    KM.frame:Hide()
+    _G.SetBinding, _G.GetBindingAction, _G.GetBindingKey, _G.SaveBindings, _G.HasAction, _G.GetActionTexture, _G.PlaceAction =
+      saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
   end
 end
 

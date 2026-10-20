@@ -203,5 +203,16 @@ see "Roadmap" below.
      "How it works"), `W.NumberBox` on every Octo slider (typed "40%" -> 0.4 for 0-1 values) and
      on pfUI's sliders, `O.NumberSlider` adds a slider beside every pfUI number field
      (`frame.numtype`, range guessed from the key name / value, typing past the end widens it).
+   - Key Map (modules/keymap.lua, `pfUI.keymap`, /keymap /km; quick bar Keybinds = menu: original
+     hover binding or Key Map). User's model: a retail "KeyMap" addon screenshot. A keyboard (UK /
+     US / QWERTZ / AZERTY rows, F-keys, mouse 3-5 and wheel), layers base / SHIFT- / CTRL- / ALT-
+     (click a modifier or layer button to lock, hold one to peek). Keys show the action button's
+     icon (binding ACTIONBUTTONn / MULTIACTIONBARmBUTTONn -> slot as actionbar.lua: bar 1 = 0,
+     MULTI1 = 60, MULTI2 = 48, MULTI3 = 24, MULTI4 = 36), or "SPELL x" / "MACRO x" bindings' icons,
+     or the binding's name. Drop: action key -> PlaceAction(slot); else ClassicAPI GetCursorInfo +
+     SetBindingSpell / Item / Macro (found as "Usage:" strings in ClassicAPI.dll - returns assumed
+     retail-like, NOT verified); else a free action slot + SetBinding. Left-click pick up / move /
+     swap, right-click unbind, Unbound abilities = bar slots with an action and no key. Layout and
+     panel choice in pfUI_cache.octoui.keymap. Not verified in game at all.
    - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
      menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.

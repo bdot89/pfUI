@@ -198,8 +198,26 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         pfUI.unlock:Show()
       end
     end)
-    Btn(T["Keybinds"], 80, "Hover an action button and press a key to bind it.", function()
-      if pfUI.hoverbind then pfUI.hoverbind:Show() end
+    -- Keybinds: pfUI's hover binding or the Key Map keyboard (user, 20 Oct 2026)
+    local kb
+    kb = Btn(T["Keybinds"], 80, "Pick how to bind keys: hover an action button and press a key, or a "
+      .. "picture of your keyboard to drag spells onto (/keymap).", function()
+      if not kb.menu then
+        kb.menu = W.Menu(kb, {
+          { key = "hover", label = "Original hover binding" },
+          { key = "keymap", label = "Keyboard layout (Key Map)" },
+        }, 200, function(k)
+          if k == "keymap" then
+            if pfUI.keymap then pfUI.keymap:Toggle() end
+          elseif pfUI.hoverbind then
+            g:Hide()
+            pfUI.hoverbind:Show()
+          end
+        end)
+      end
+      local open = kb.menu:IsShown()
+      W.CloseMenus()
+      if not open then kb.menu:Show() end
     end)
     Btn(T["Install"], 70, "Run the setup again: profile, layout, chat (/pfui install).", function()
       if pfUI.firstrun then
