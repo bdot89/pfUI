@@ -611,7 +611,20 @@ function W.Heading(p, text, o)
   p.title = text
   local fs = W.Font(p.body:CreateFontString(nil, "OVERLAY"), 17, C.text[1], C.text[2], C.text[3])
   fs:SetText(text)
-  Put(p, fs, 2, 6)
+  Put(p, fs, p.icon and 30 or 2, 6)
+  if p.icon then
+    local ic = p.body:CreateTexture(nil, "ARTWORK")
+    ic:SetTexture(p.icon)
+    ic:SetTexCoord(.08, .92, .08, .92)
+    ic:SetWidth(22)
+    ic:SetHeight(22)
+    ic:SetPoint("RIGHT", fs, "LEFT", -7, 0)
+  end
+  -- (octo) the summary line goes into "How it works" with the rest
+  if o.text then
+    o.about = o.about and (o.text .. "\n\n" .. o.about) or o.text
+    o.text = nil
+  end
   if o.about then
     local h = CreateFrame("Button", nil, p.body)
     h:SetWidth(90)
@@ -627,7 +640,7 @@ function W.Heading(p, text, o)
     sw:SetPoint("TOPRIGHT", p.body, "TOPRIGHT", -X - 2, -6)
     Track(p, { Refresh = sw.Refresh })
   end
-  Index(p, text, o.text, fs)
+  Index(p, text, o.about, fs)
   local line = W.Fill(p.body, C.line, 1, "ARTWORK")
   line:SetWidth(W.WIDTH - 2 * X)
   line:SetHeight(1)
@@ -682,19 +695,17 @@ function W.Card(p, title, o)
     sw:SetPoint("RIGHT", head, "RIGHT", -8, 0)
     Track(p, { Refresh = sw.Refresh })
   end
-  W.Tip(head, o.tip and title, o.tip)
+  -- (octo, user 20 Oct: "get rid of so much text") the card's line of
+  -- explanation lives in its title bar's tooltip, not on the page
+  local tip = o.tip
+  if o.text then tip = tip and (o.text .. "\n\n" .. tip) or o.text end
+  W.Tip(head, tip and title, tip)
   head.c = c
   head:SetScript("OnClick", function() W.SetOpen(this.c, not W.IsOpen(this.c)) end)
   table.insert(p.cards, c)
   Index(p, title, o.tip or o.text, head)
   p.cur = c
   W.ApplyCard(c)
-  -- what the card is for, in one plain line at its top
-  if o.text then
-    local n = W.Note(p, o.text)
-    n:SetTextColor(C.dim[1], C.dim[2], C.dim[3])
-    W.Space(p, 2)
-  end
   return c
 end
 W.Sub = W.Card
@@ -825,21 +836,95 @@ local function Decimals(step)
   return 2
 end
 
+-- The value of a slider as a box you can type in (user, 20 Oct 2026:
+-- "having the option to put numbers in also for accuracy"). It shows the
+-- formatted value ("80%", "12 px"); click it, type a number, press Enter.
+-- onEnter(text) gets what was typed; Escape puts the value back.
+function W.NumberBox(parent, width)
+  local eb = CreateFrame("EditBox", Name("Num"), parent)
+  eb:SetWidth(width or 58)
+  eb:SetHeight(16)
+  eb:SetBackdrop({ bgFile = U.WHITE, edgeFile = U.WHITE, tile = false, tileSize = 0, edgeSize = 1,
+                   insets = { left = 1, right = 1, top = 1, bottom = 1 } })
+  eb:SetBackdropColor(C.field[1], C.field[2], C.field[3], 0)
+  eb:SetBackdropBorderColor(C.line[1], C.line[2], C.line[3], 0)
+  eb:SetTextInsets(4, 4, 0, 0)
+  eb:SetFont(W.UIFont(), 12, "")
+  eb:SetTextColor(C.accent[1], C.accent[2], C.accent[3])
+  eb:SetJustifyH("RIGHT")
+  eb:SetAutoFocus(false)
+  eb:EnableMouse(true)
+  local hl = eb:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetTexture(U.WHITE)
+  hl:SetVertexColor(1, 1, 1, 0.06)
+  hl:SetAllPoints(eb)
+  eb:SetScript("OnEditFocusGained", function()
+    this.typing = true
+    this:SetBackdropColor(C.field[1], C.field[2], C.field[3], 1)
+    this:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], 1)
+    this:SetTextColor(1, 1, 1)
+    this:HighlightText()
+  end)
+  eb:SetScript("OnEditFocusLost", function()
+    this.typing = nil
+    this:SetBackdropColor(C.field[1], C.field[2], C.field[3], 0)
+    this:SetBackdropBorderColor(C.line[1], C.line[2], C.line[3], 0)
+    this:SetTextColor(C.accent[1], C.accent[2], C.accent[3])
+    this:HighlightText(0, 0)
+    if this.Restore then this.Restore() end
+  end)
+  eb:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+  eb:SetScript("OnEnterPressed", function()
+    local text = this:GetText()
+    if this.OnNumber then this.OnNumber(text) end
+    this:ClearFocus()
+  end)
+  return eb
+end
+
+-- the first number in a typed text ("80%", "-12 px", "1.5x")
+function W.ParseNumber(text)
+  local _, _, n = string.find(text or "", "(%-?%d*%.?%d+)")
+  return n and tonumber(n)
+end
+
 -- fmt: a function(value) -> text, or nil for a plain number
 function W.Slider(p, label, desc, min, max, step, get, set, fmt)
   local row, c = Cell(p, 38)
-  local lab = TopLabel(row, label, HALF - 64)
-  local val = W.Font(row:CreateFontString(nil, "OVERLAY"), 12, C.accent[1], C.accent[2], C.accent[3])
-  val:SetPoint("TOPRIGHT", row, "TOPRIGHT", -8, -1)
-  val:SetJustifyH("RIGHT")
+  local lab = TopLabel(row, label, HALF - 76)
+  local val = W.NumberBox(row, 64)
+  val:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, 1)
+  W.Tip(val, label, "Click and type a number for an exact value, then press Enter.")
   local s = W.SliderBar(row, HALF - 12, Name("Slider"))
   s:SetPoint("TOPLEFT", row, "TOPLEFT", 2, -19)
   s:SetMinMaxValues(min, max)
   s:SetValueStep(step)
   local dec = Decimals(step)
+  local shown = min
+  local function Text(v)
+    if fmt then return fmt(v) end
+    return string.format("%." .. dec .. "f", v)
+  end
   local function Show(v)
-    if fmt then val:SetText(fmt(v)) else val:SetText(string.format("%." .. dec .. "f", v)) end
+    shown = v
+    if not val.typing then val:SetText(Text(v)) end
     W.SliderPaint(s)
+  end
+  val.Restore = function() val:SetText(Text(shown)) end
+  -- a typed number: a percent shown for a 0-1 value is divided by 100;
+  -- it may go past the slider's ends (the slider just sits at its end)
+  val.OnNumber = function(text)
+    local n = W.ParseNumber(text)
+    if not n then return end
+    if max <= 1 and string.find(Text(max), "%%") and n > 1 then n = n / 100 end
+    n = math.floor(n / step + 0.5) * step
+    if dec == 0 then n = math.floor(n + 0.5) end
+    set(n)
+    s.loading = true
+    s:SetValue(math.max(min, math.min(max, n)))
+    s.loading = nil
+    Show(n)
+    Changed()
   end
   s:SetScript("OnValueChanged", function()
     if this.loading then return end

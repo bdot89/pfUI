@@ -28,21 +28,28 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["Pet"]                = { T["Unit Frames"], T["Pet"] },
     ["PetTarget"]          = { T["Unit Frames"], T["Pet-Target"] },
     ["Focus"]              = { T["Unit Frames"], T["Focus"] },
+    ["FocusTarget"]        = { T["Unit Frames"], T["Focus-Target"] },
+
+    -- octo: more boxes with a page of their own
+    ["Totems"]             = { T["Buffs"], T["Totem Icons"] },
+    ["TooltipAnchor"]      = { T["Tooltip"], nil },
+    ["Group%dTarget"]      = { T["Unit Frames"], T["Group-Target"] },
+    ["GroupPet%d"]         = { T["Unit Frames"], T["Group-Pet"] },
 
     -- combopoints
     ["Combo%d"]       = { T["Unit Frames"], T["General"] },
 
     -- groupframes
-    ["Raid%d"]        = { T["Group Frames"], T["Raid"] },
-    ["Raid%d%d"]      = { T["Group Frames"], T["Raid"] },
-    ["RaidCluster"]   = { T["Group Frames"], T["Raid"] },
+    ["Raid%d"]        = { T["Unit Frames"], T["Raid"] },
+    ["Raid%d%d"]      = { T["Unit Frames"], T["Raid"] },
+    ["RaidCluster"]   = { T["Unit Frames"], T["Raid"] },
 
     -- octo: meters and combat text (an Octo page key opens that page)
     ["Meter%d"]       = { T["Meters"], nil },
     ["CombatText%a+"] = { "ctareas", nil },
-    ["Group%d"]       = { T["Group Frames"], T["Group"] },
-    ["Party%dTarget"] = { T["Group Frames"], T["Group-Target"] },
-    ["PartyPet%d"]    = { T["Group Frames"], T["Group-Pet"] },
+    ["Group%d"]       = { T["Unit Frames"], T["Group"] },
+    ["Party%dTarget"] = { T["Unit Frames"], T["Group-Target"] },
+    ["PartyPet%d"]    = { T["Unit Frames"], T["Group-Pet"] },
 
     -- chat
     ["ChatLeft"]      = { T["Chat"], nil },
@@ -161,6 +168,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     if NICE[label] then return NICE[label] end
     local s = string.gsub(label, "(%l)(%u)", "%1 %2")
     s = string.gsub(s, "(%a)(%d)", "%1 %2")
+    s = string.gsub(s, "(%d)(%a)", "%1 %2")
     return s
   end
 
@@ -429,7 +437,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     -- octo: the OctoBG-style window opens the page itself
     local O = pfUI.octoui and pfUI.octoui.Options
     if O and O.Open and O.frame then
+      pfUI.gui.keepLayout = true
       O:Open(category, view)
+      pfUI.gui.keepLayout = nil
       return
     end
 

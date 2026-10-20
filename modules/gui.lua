@@ -447,6 +447,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       if not widget or widget == "text" then
         -- input field
         frame.input = CreateFrame("EditBox", nil, frame)
+        frame.numtype = type or "number" -- octo: number fields also get a slider (octo-options.lua)
         CreateBackdrop(frame.input, nil, true)
         frame.input:SetTextInsets(5, 5, 5, 5)
         frame.input:SetTextColor(GetAccentColor())
@@ -938,7 +939,8 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       if pfUI.gui_RelayoutTree then pfUI.gui_RelayoutTree() end
 
       -- exit unlock mode
-      if pfUI.unlock and pfUI.unlock:IsShown() then
+      -- (octo: not when a box was right-clicked: its options open beside the boxes)
+      if pfUI.unlock and pfUI.unlock:IsShown() and not pfUI.gui.keepLayout then
         pfUI.unlock:Hide()
       end
 

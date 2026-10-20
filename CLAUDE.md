@@ -192,5 +192,16 @@ see "Roadmap" below.
      by its new height once.
    - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
      .children on frames) and has a real SetParent.
+   - Seen in game 20 Oct ("looking better"). Then: right-click on a box only closed layout mode
+     and showed the window (frame_configs pointed at a "Group Frames" category upstream pfUI no
+     longer has; gui OnShow also ended layout mode). Now `O:FindLegacy(cat, page)` matches names
+     loosely (case, colour codes, punctuation; a page found in any category; a category's first
+     page) and `pfUI.gui.keepLayout` keeps the boxes up while the page opens. User also: "use
+     actual picture and logos of spells", "get rid of so much text", "sliders ... and numbers
+     for accuracy": section icons (`O.ICONS`, every name checked in the MPQ listfile, scratchpad
+     icons.txt), card / heading explanations moved into tooltips (W.Card text, W.Heading text ->
+     "How it works"), `W.NumberBox` on every Octo slider (typed "40%" -> 0.4 for 0-1 values) and
+     on pfUI's sliders, `O.NumberSlider` adds a slider beside every pfUI number field
+     (`frame.numtype`, range guessed from the key name / value, typing past the end widens it).
    - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
      menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.

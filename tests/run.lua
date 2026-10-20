@@ -1137,6 +1137,43 @@ do
         if c.cellkind == "slider" then sliders = sliders + 1 if c.input.fill then skinned = skinned + 1 end end
       end
       ok(sliders == skinned, "every slider has the blue fill (" .. skinned .. "/" .. sliders .. ")")
+      -- number boxes get a slider beside them; dragging it writes the setting
+      local numc
+      for _, c in ipairs(content and { content:GetChildren() } or {}) do
+        if c.octoSlider and not numc then numc = c end
+      end
+      ok(numc ~= nil, "number fields get a slider")
+      if numc then
+        local was = numc.category[numc.config]
+        local lo, hi = numc.octoSlider:GetMinMaxValues()
+        numc.octoSlider:SetValue(hi)
+        ok(tonumber(numc.category[numc.config]) == hi, "slider writes the number (" .. tostring(numc.category[numc.config]) .. ")")
+        numc.input:SetText(tostring(hi * 3))
+        local _, hi2 = numc.octoSlider:GetMinMaxValues()
+        ok(hi2 >= hi * 3, "typing a bigger number widens the slider")
+        numc.input:SetText(was)
+      end
+    end
+    -- right-click lookups: a page in another category still found, any case
+    ok(O:FindLegacy("Group Frames", "Raid") == "l:Unit Frames/Raid", "page found outside its old category: " .. tostring(O:FindLegacy("Group Frames", "Raid")))
+    ok(O:FindLegacy("unit frames", "player") == "l:Unit Frames/Player", "names match in any case")
+    ok(O:FindLegacy("Castbar") == "l:Castbar", "a category without pages")
+    -- an Octo slider takes a typed number (and percent for 0-1 values)
+    local ar = O:Page("ctareas")
+    if ar then
+      local box
+      for _, e in ipairs(pfUI.octoui.W.index) do
+        if e.page == ar and e.label == "Opacity" then box = e.region end
+      end
+      local nb
+      for _, k in ipairs(box and { box:GetChildren() } or {}) do if k.OnNumber then nb = k end end
+      ok(nb ~= nil, "Octo sliders have a number box")
+      if nb then
+        local a = pfUI_config.sct.areas.inc.alpha
+        nb.OnNumber("40%")
+        ok(math.abs(pfUI_config.sct.areas.inc.alpha - .4) < .001, "typing 40% sets 0.4 (" .. tostring(pfUI_config.sct.areas.inc.alpha) .. ")")
+        pfUI_config.sct.areas.inc.alpha = a
+      end
     end
     -- O:Open by category name (meter window menu, mover right-click)
     O:Open("Meters")

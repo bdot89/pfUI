@@ -320,24 +320,49 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
   end
 
+  -- A picture for each section (user, 20 Oct 2026: "use actual picture and
+  -- logos of spells"), from the game's icons; every name checked against
+  -- the client's MPQ file lists. Keyed by the section name, lower case,
+  -- letters only.
+  local ICON = "Interface\\Icons\\"
+  O.ICONS = {
+    combattext = "Spell_Fire_FlameBolt", settings = "INV_Misc_Gear_01", unitframes = "INV_Misc_Head_Human_01",
+    bagsbank = "INV_Misc_Bag_08", bags = "INV_Misc_Bag_08", loot = "INV_Misc_Coin_01", minimap = "INV_Misc_Map_01",
+    buffs = "Spell_Holy_WordFortitude", actionbar = "Ability_DualWield", panel = "INV_Misc_Note_01",
+    xpbar = "INV_Misc_Book_11", tooltip = "INV_Letter_15", castbar = "Spell_Nature_Lightning",
+    chat = "INV_Scroll_03", nameplates = "Ability_Hunter_SniperShot", meters = "Ability_Marksmanship",
+    thirdparty = "INV_Gizmo_01", components = "Trade_Engineering", about = "INV_Misc_QuestionMark",
+    skins = "INV_Misc_Orb_01", threat = "Ability_Warrior_DefensiveStance",
+  }
+  function O.IconFor(name)
+    local k = string.gsub(string.lower(name or ""), "[^%a]", "")
+    return ICON .. (O.ICONS[k] or "INV_Misc_Rune_01")
+  end
+
   -- A section header that folds its topics open or shut (one open at a time).
   -- A section without topics (a pfUI category with one page) opens its page.
   local function NavHeader(label, single)
     local h = CreateFrame("Button", nil, O.navFrame)
-    h:SetHeight(22)
+    h:SetHeight(24)
     h.icon = W.Arrow(h, 9, "right")
-    h.icon:SetPoint("LEFT", h, "LEFT", 4, 0)
+    h.icon:SetPoint("RIGHT", h, "RIGHT", -6, 0)
     if single then h.icon:Hide() end
+    h.pic = h:CreateTexture(nil, "ARTWORK")
+    h.pic:SetTexture(O.IconFor(label))
+    h.pic:SetTexCoord(.08, .92, .08, .92)
+    h.pic:SetWidth(18)
+    h.pic:SetHeight(18)
+    h.pic:SetPoint("LEFT", h, "LEFT", 4, 0)
     h.sel = W.Fill(h, K.accent, 0.16, "BACKGROUND")
     h.sel:SetAllPoints(h)
     h.sel:Hide()
     local hl = W.Fill(h, { 1, 1, 1 }, 0.04, "HIGHLIGHT")
     hl:SetAllPoints(h)
-    h.text = W.Font(h:CreateFontString(nil, "OVERLAY"), 11, K.text[1], K.text[2], K.text[3])
-    h.text:SetPoint("LEFT", h, "LEFT", 20, 0)
-    h.text:SetPoint("RIGHT", h, "RIGHT", -4, 0)
+    h.text = W.Font(h:CreateFontString(nil, "OVERLAY"), 13, K.text[1], K.text[2], K.text[3])
+    h.text:SetPoint("LEFT", h, "LEFT", 30, 0)
+    h.text:SetPoint("RIGHT", h, "RIGHT", -18, 0)
     h.text:SetJustifyH("LEFT")
-    h.text:SetText(string.upper(label))
+    h.text:SetText(label)
     h:EnableMouseWheel(true)
     h:SetScript("OnMouseWheel", O.navFrame:GetScript("OnMouseWheel"))
     return h
@@ -444,8 +469,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     local rows, y = {}, 6
     for _, grp in ipairs(self.groups) do
       y = y + 2
-      table.insert(rows, { grp.header, 0, y, 22 })
-      y = y + 23
+      table.insert(rows, { grp.header, 0, y, 24 })
+      y = y + 25
       local open = (self.openGroup == grp)
       if not grp.single then W.Turn(grp.header.icon, open and "down" or "right") end
       for _, b in ipairs(grp.buttons) do
@@ -512,6 +537,11 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     p = W.Page(self.content)
     p.key = key
     p.frame:SetFrameLevel(self.content:GetFrameLevel() + 2)
+    for _, sec in ipairs(self.octo) do
+      for _, pg in ipairs(sec[2]) do
+        if pg[1] == key then p.icon = O.IconFor(sec[1]) end
+      end
+    end
     self.BUILD[key](p)
     W.Done(p)
     self.pages[key] = p
@@ -573,6 +603,38 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
   end
 
+  -- The topic key of a pfUI category (and page) by their names, forgiving:
+  -- colour codes, case and punctuation do not matter; a page that is not in
+  -- that category is looked for in every category; a category alone gives
+  -- its first page.
+  local function Norm(s)
+    s = string.gsub(s or "", "|c%x%x%x%x%x%x%x%x", "")
+    s = string.gsub(s, "|r", "")
+    s = string.gsub(string.lower(s), "[^%w]", "")
+    return s
+  end
+  function O:FindLegacy(cat, page)
+    local nc, np = Norm(cat), page and Norm(page)
+    local catFirst, anyPage
+    for _, grp in ipairs(self.groups or {}) do
+      local gname = Norm(grp.header.text:GetText())
+      if grp.single then
+        if gname == nc and not catFirst then catFirst = grp.single end
+      else
+        for _, b in ipairs(grp.buttons) do
+          local _, _, kc, kp = string.find(b.key or "", "^l:(.-)/(.*)$")
+          if kc then
+            local sameCat = Norm(kc) == nc
+            if sameCat and np and Norm(kp) == np then return b.key end
+            if sameCat and not catFirst then catFirst = b.key end
+            if np and not anyPage and Norm(kp) == np then anyPage = b.key end
+          end
+        end
+      end
+    end
+    return catFirst or anyPage
+  end
+
   -- Opens the window on a page: an Octo page key ("ctgeneral"), or a pfUI
   -- category (and page) by their shown names.
   function O:Open(key, page)
@@ -584,15 +646,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     if key and self.BUILD[key] then
       self:Select("o:" .. key)
     elseif key then
-      local k = "l:" .. key .. (page and ("/" .. page) or "")
-      if not self.nav[k] and not page then
-        -- a category with pages: its first page
-        for _, grp in ipairs(self.groups) do
-          local first = grp.buttons[1] and grp.buttons[1].key
-          if first and string.sub(first, 1, string.len(k) + 1) == k .. "/" then k = first break end
-        end
-      end
-      self:Select(k)
+      self:Select(self:FindLegacy(key, page) or self.current)
     else
       self:Select(self.current)
     end
@@ -771,6 +825,85 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     if t and t.SetBackdrop then W.Flat(t, col or K.field, 1, line or K.line) end
   end
 
+  -- A pfUI number box ("200", "-12", "0.8") gets a slider beside it (user,
+  -- 20 Oct 2026: "using sliders instead of numbers ... having the option to
+  -- put numbers in also for accuracy"). The range is a guess from the
+  -- setting's name and value; typing a bigger number widens it.
+  local function Range(key, v)
+    key = string.lower(key or "")
+    local function Nice(n) return math.max(10, math.ceil(n / 10) * 10) end
+    if (string.find(key, "alpha") or string.find(key, "opacity") or string.find(key, "transp")) and v <= 1 then
+      return 0, 1, .05
+    end
+    if string.find(key, "scale") and v <= 5 then return .5, math.max(2, v), .05 end
+    local dec = math.floor(v) ~= v
+    if string.find(key, "off") or string.find(key, "pos") or string.find(key, "[xy]$") or v < 0 then
+      local lim = Nice(math.max(50, math.abs(v) * 2))
+      return -lim, lim, dec and .1 or 1
+    end
+    return 0, Nice(math.max(20, v * 2)), dec and .1 or 1
+  end
+
+  function O.NumberSlider(c)
+    local v = tonumber(c.category and c.config and c.category[c.config])
+    if not v or c.octoSlider then return end
+    local lo, hi, step = Range(c.config, v)
+    local inp = c.input
+    inp:ClearAllPoints()
+    inp:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -19)
+    inp:SetWidth(64)
+    inp:SetHeight(20)
+    inp:SetJustifyH("RIGHT")
+    local s = W.SliderBar(c, 100, nil)
+    s:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -21)
+    s:SetPoint("RIGHT", inp, "LEFT", -10, 0)
+    s:SetMinMaxValues(lo, hi)
+    s:SetValueStep(step)
+    c.octoSlider = s
+    local function Paint()
+      local a, b = s:GetMinMaxValues()
+      local w = (s:GetWidth() or 0) - 14
+      local f = (b > a) and (s:GetValue() - a) / (b - a) or 0
+      s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4))
+    end
+    local function Fmt(n)
+      if step >= 1 then return tostring(math.floor(n + .5)) end
+      local t = string.format("%.2f", n)
+      t = string.gsub(t, "0+$", "")
+      return (string.gsub(t, "%.$", ""))
+    end
+    s.loading = true
+    s:SetValue(math.max(lo, math.min(hi, v)))
+    s.loading = nil
+    s:SetScript("OnValueChanged", function()
+      Paint()
+      if this.loading then return end
+      local n = math.floor(this:GetValue() / step + .5) * step
+      -- the text box saves it (its OnTextChanged), as typing would
+      inp:SetText(Fmt(n))
+    end)
+    s:SetScript("OnShow", Paint)
+    s:SetScript("OnSizeChanged", Paint)
+    local old = inp:GetScript("OnTextChanged")
+    inp:SetScript("OnTextChanged", function()
+      if old then old() end
+      local n = tonumber(this:GetText())
+      if n then
+        local a, b = s:GetMinMaxValues()
+        if n > b then
+          local _, nb = Range(c.config, n)
+          s:SetMinMaxValues(a, math.max(nb, n))
+        end
+        s.loading = true
+        s:SetValue(n)
+        s.loading = nil
+        Paint()
+      end
+    end)
+    W.Tip(s, c.caption and c.caption:GetText(), "Drag, or type an exact number in the box.")
+    Paint()
+  end
+
   local function SkinCell(c)
     local kind = c.cellkind
     if c.caption then W.Font(c.caption, 12, K.text[1], K.text[2], K.text[3]) end
@@ -812,15 +945,29 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         local f = (hi and lo and hi > lo) and (s:GetValue() - lo) / (hi - lo) or 0
         s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4))
       end
+      -- the value: a box to type an exact number in
+      local box
+      if c.value then
+        c.value:Hide()
+        box = W.NumberBox(c, 64)
+        box:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -1)
+        box.Restore = function() box:SetText(c.value:GetText() or "") end
+        box.OnNumber = function(text)
+          local n = W.ParseNumber(text)
+          if n then s:SetValue(n) end
+        end
+        box.Restore()
+        W.Tip(box, c.caption and c.caption:GetText(), "Click and type a number for an exact value, then press Enter.")
+      end
       local old = s:GetScript("OnValueChanged")
       s:SetScript("OnValueChanged", function()
         if old then old() end
         Paint()
+        if box and not box.typing then box.Restore() end
       end)
       s:SetScript("OnShow", Paint)
       s:SetScript("OnSizeChanged", Paint)
       Paint()
-      if c.value then W.Font(c.value, 12, K.accent[1], K.accent[2], K.accent[3]) end
     elseif kind == "dropdown" and c.input then
       Field(c.input)
       if c.input.text then W.Font(c.input.text, 11, K.text[1], K.text[2], K.text[3]) end
@@ -831,6 +978,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     elseif (kind == "text" or kind == "list") and c.input then
       Field(c.input)
       if c.input.SetFont then c.input:SetFont(W.UIFont(), 12, "") end
+      if kind == "text" and c.numtype == "number" then O.NumberSlider(c) end
     elseif kind == "button" and c.button then
       Field(c.button, K.btn, K.line)
       local fs = c.button.GetFontString and c.button:GetFontString()
@@ -856,7 +1004,24 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   function O.SkinPage(page)
     if not page or page.octoSkinned then return end
     page.octoSkinned = true
-    if page.title then W.Font(page.title, 17, K.text[1], K.text[2], K.text[3]) end
+    if page.title then
+      W.Font(page.title, 17, K.text[1], K.text[2], K.text[3])
+      -- the section's picture before the title
+      local area = page.parent and page.parent.GetParent and page.parent:GetParent()
+      local btn = area and area.button
+      local cat = btn and (btn.isChild and btn.parent or btn)
+      if cat and cat.text then
+        local ic = page:CreateTexture(nil, "ARTWORK")
+        ic:SetTexture(O.IconFor(cat.text:GetText()))
+        ic:SetTexCoord(.08, .92, .08, .92)
+        ic:SetWidth(22)
+        ic:SetHeight(22)
+        local p1, rel, p2, x, y = page.title:GetPoint()
+        ic:SetPoint("TOPLEFT", page, "TOPLEFT", x or 12, (y or -12) + 3)
+        page.title:ClearAllPoints()
+        page.title:SetPoint("TOPLEFT", page, "TOPLEFT", (x or 12) + 30, y or -12)
+      end
+    end
     for _, grp in ipairs(page.groups or {}) do SkinGroup(grp) end
     for _, c in ipairs({ page:GetChildren() }) do
       if c.cellkind then SkinCell(c) end
