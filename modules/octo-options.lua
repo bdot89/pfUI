@@ -206,8 +206,11 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         kb.menu = W.Menu(kb, {
           { key = "hover", label = "Original hover binding" },
           { key = "keymap", label = "Keyboard layout (Key Map)" },
+          { key = "keybinds", label = "Every key binding (list)" },
         }, 200, function(k)
-          if k == "keymap" then
+          if k == "keybinds" then
+            if pfUI.keybinds then pfUI.keybinds:Toggle() end
+          elseif k == "keymap" then
             if pfUI.keymap then pfUI.keymap:Toggle() end
           elseif pfUI.hoverbind then
             g:Hide()
@@ -882,7 +885,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       local a, b = s:GetMinMaxValues()
       local w = (s:GetWidth() or 0) - 14
       local f = (b > a) and (s:GetValue() - a) / (b - a) or 0
-      s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4))
+      if not s.fillToThumb then s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4)) end
     end
     local function Fmt(n)
       if step >= 1 then return tostring(math.floor(n + .5)) end
@@ -957,11 +960,12 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       s.fill = W.Fill(s, K.accent, 1, "BORDER")
       s.fill:SetHeight(4)
       s.fill:SetPoint("LEFT", s, "LEFT", 3, 0)
+      W.FillToThumb(s)
       local function Paint()
         local lo, hi = s:GetMinMaxValues()
         local w = (s:GetWidth() or 0) - 14
         local f = (hi and lo and hi > lo) and (s:GetValue() - lo) / (hi - lo) or 0
-        s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4))
+        if not s.fillToThumb then s.fill:SetWidth(math.max(1, f * math.max(w, 1) + 4)) end
       end
       -- the value: a box to type an exact number in
       local box

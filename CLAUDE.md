@@ -214,5 +214,19 @@ see "Roadmap" below.
      retail-like, NOT verified); else a free action slot + SetBinding. Left-click pick up / move /
      swap, right-click unbind, Unbound abilities = bar slots with an action and no key. Layout and
      panel choice in pfUI_cache.octoui.keymap. Not verified in game at all.
+   - Seen in game 20 Oct: Key Map works (icons on keys, Alt layer, unbound list). Slider fill
+     did not follow the knob on stretched sliders (width from GetWidth); now `W.FillToThumb`
+     anchors the fill's right edge to the thumb texture (all Octo, pfUI-page and number sliders).
+   - Key Bindings (modules/keybinds.lua, `pfUI.keybinds`, /keybinds /kb; third entry of the
+     Keybinds menu, "All bindings" on the Key Map). User asked for Blizzard's key binding list
+     in our look, folding categories, a right-hand panel explaining things, pictures everywhere.
+     GetNumBindings / GetBinding (HEADER_x rows start categories, name BINDING_HEADER_x; BLANK
+     joins the previous one; headers from patch-4 Bindings.xml: MOVEMENT CHAT ACTIONBAR
+     MULTIACTIONBAR TARGETING INTERFACE MISC CAMERA RAID_TARGET ITUNES_REMOTE), category icons +
+     one-line explanations, action button rows show their spell (pfUI.keymap.Describe), raid mark
+     rows the mark (UI-RaidTargetingIcons quarters). Key boxes: click then press (modifiers,
+     BUTTON3-5, wheel); right-click clears; saved at once. Character specific = SaveBindings(2) /
+     LoadBindings(1); Reset = LoadBindings(0). Fold state in pfUI_cache.octoui.kbFold.
+     Not verified in game.
    - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
      menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.

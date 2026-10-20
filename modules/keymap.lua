@@ -367,6 +367,13 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       if pfUI.hoverbind then pfUI.hoverbind:Show() end
     end)
     W.Tip(quick, "Quick Keybind", "pfUI's hover binding: hover an action button and press a key.")
+    local all = W.Button(bar, "All bindings", 100, 22)
+    all:SetPoint("LEFT", quick, "RIGHT", 6, 0)
+    all:SetScript("OnClick", function()
+      f:Hide()
+      if pfUI.keybinds then pfUI.keybinds:Toggle() end
+    end)
+    W.Tip(all, "All bindings", "Every command the game knows in a list, in categories (/keybinds).")
 
     self.board = CreateFrame("Frame", nil, f)
     self.board:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -70)

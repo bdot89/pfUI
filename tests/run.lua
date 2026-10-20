@@ -83,7 +83,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1257,6 +1257,69 @@ do
     KM.frame:Hide()
     _G.SetBinding, _G.GetBindingAction, _G.GetBindingKey, _G.SaveBindings, _G.HasAction, _G.GetActionTexture, _G.PlaceAction =
       saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
+  end
+end
+
+-- ---------------------------------------------------------------- Key Bindings
+
+do
+  local KB = pfUI.keybinds
+  ok(KB ~= nil, "Key Bindings module")
+  if KB then
+    local list = { "HEADER_MOVEMENT", "MOVEFORWARD", "JUMP", "HEADER_BLANK", "TOGGLEAUTORUN",
+                   "HEADER_ACTIONBAR", "ACTIONBUTTON1", "HEADER_RAID_TARGET", "RAIDTARGET8" }
+    local binds = { W = "MOVEFORWARD", SPACE = "JUMP", ["1"] = "ACTIONBUTTON1" }
+    local saved = { GetNumBindings, GetBinding, GetBindingKey, GetBindingAction, SetBinding, SaveBindings }
+    _G.GetNumBindings = function() return table.getn(list) end
+    _G.GetBinding = function(i) return list[i] end
+    _G.GetBindingKey = function(a)
+      local ks = {}
+      for k, v in pairs(binds) do if v == a then table.insert(ks, k) end end
+      table.sort(ks)
+      return ks[1], ks[2]
+    end
+    _G.GetBindingAction = function(k) return binds[k] or "" end
+    _G.SetBinding = function(k, a) binds[k] = a end
+    _G.SaveBindings = function() end
+    _G.BINDING_HEADER_MOVEMENT = "Movement Keys"
+    local secs = KB.Read()
+    ok(table.getn(secs) == 3 and secs[1].name == "Movement Keys" and table.getn(secs[1].rows) == 3,
+      "categories read from the game's list (BLANK joins the one before)")
+    ok(secs[3].raid and KB.Icon(secs[3], "RAIDTARGET8") ~= nil, "raid mark rows show the mark")
+    KB:Toggle()
+    ok(KB.frame:IsShown() and table.getn(KB.rows) >= 5, "/keybinds opens the list with rows")
+    -- bind JUMP's second key
+    local jump
+    for _, r in ipairs(KB.rows) do if r.cmd == "JUMP" and r:IsShown() then jump = r end end
+    ok(jump ~= nil, "a row per command")
+    if jump then
+      Mock.Run(jump.k2, "OnClick", "LeftButton")
+      ok(KB.waiting and KB.waiting.cmd == "JUMP", "clicking a key box waits for a key")
+      KB.Pressed("SHIFT")
+      ok(KB.waiting ~= nil, "a modifier alone does not bind")
+      KB.Pressed("NUMPAD0")
+      ok(binds.NUMPAD0 == "JUMP" and binds.SPACE == "JUMP", "the key goes onto key 2, key 1 stays")
+      Mock.Run(jump.k1, "OnClick", "LeftButton")
+      KB.Pressed("W")
+      ok(binds.W == "JUMP", "taking a key from another command")
+      Mock.Run(jump.k1, "OnClick", "RightButton")
+      local k1 = GetBindingKey("JUMP")
+      ok(k1 ~= "NUMPAD0" or binds.NUMPAD0 == "JUMP", "right-click clears a box")
+    end
+    -- fold a category, search
+    KB.heads[1]:Click()
+    local shown = 0
+    for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
+    ok(shown == 2, "folding Movement hides its rows (" .. shown .. " left)")
+    KB.heads[1]:Click()
+    KB.find:SetText("autorun")
+    shown = 0
+    for _, r in ipairs(KB.rows) do if r:IsShown() then shown = shown + 1 end end
+    ok(shown == 1, "search keeps the matching command (" .. shown .. ")")
+    KB.find:SetText("")
+    KB.frame:Hide()
+    _G.GetNumBindings, _G.GetBinding, _G.GetBindingKey, _G.GetBindingAction, _G.SetBinding, _G.SaveBindings =
+      saved[1], saved[2], saved[3], saved[4], saved[5], saved[6]
   end
 end
 

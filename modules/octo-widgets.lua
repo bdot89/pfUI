@@ -356,13 +356,25 @@ function W.SliderBar(parent, width, name)
   s.fill:SetPoint("LEFT", s, "LEFT", 3, 0)
   s.fill:SetWidth(1)
   s.width = width
+  W.FillToThumb(s)
   return s
+end
+
+-- The blue part ends at the knob: anchored to the thumb, so it follows it
+-- wherever the slider's real width ends up (user, 20 Oct 2026: "the blue on
+-- the bars isnt following the dragger" - a width worked out from GetWidth
+-- was wrong on sliders stretched by two anchors).
+function W.FillToThumb(s)
+  local th = s:GetThumbTexture()
+  if not th or not s.fill then return end
+  s.fill:SetPoint("RIGHT", th, "CENTER", 0, 0)
+  s.fillToThumb = true
 end
 function W.SliderPaint(s)
   local lo, hi = s:GetMinMaxValues()
   local f = 0
   if hi and lo and hi > lo then f = (s:GetValue() - lo) / (hi - lo) end
-  s.fill:SetWidth(math.max(1, f * (s.width - 14) + 4))
+  if not s.fillToThumb then s.fill:SetWidth(math.max(1, f * (s.width - 14) + 4)) end
 end
 
 -- A flat text box. Focus is tracked (1.12 has no EditBox:HasFocus()) and
