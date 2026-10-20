@@ -194,8 +194,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     Btn(T["Move Frames"], 100, "Every frame gets a box you can drag. Boxes snap to each other and to the grid. "
       .. "Alt-click two boxes to give the second the first one's size; right-click a box for its options.", function()
       if pfUI.unlock then
-        pfUI.unlock.fromGUI = true
-        g:Hide()
+        -- layout mode closes this window and opens it again when done
         pfUI.unlock:Show()
       end
     end)

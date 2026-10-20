@@ -280,17 +280,9 @@ pfUI:RegisterModule("firstrun", "vanilla:tbc", function ()
   pfUI.firstrun.SetRaidLayout = function(role)
     C.position = C.position or {}
     if role == "HEALER" then
-      local width = 0
-      local raid = pfUI.uf and pfUI.uf.raid and pfUI.uf.raid[1]
-      if raid then
-        local _, _, cols = string.find(raid.config.raidlayout or "5x8", "(%d+)x")
-        local padding = tonumber(raid.config.raidpadding or 0) * GetPerfectPixel()
-        local _, border = GetBorderSize("unitframes")
-        cols = tonumber(cols) or 5
-        width = cols * (raid:GetWidth() + 2*border + padding) - padding
-      end
-      -- pfRaidCluster is 120 wide and the raid frames grow right from its left edge
-      C.position["pfRaidCluster"] = { anchor = "BOTTOM", xpos = round(60 - width / 2), ypos = 180 }
+      -- pfRaidCluster is as big as the whole raid grid (octo: one box), so
+      -- centring it centres the raid frames
+      C.position["pfRaidCluster"] = { anchor = "BOTTOM", xpos = 0, ypos = 180 }
     else
       C.position["pfRaidCluster"] = nil
     end

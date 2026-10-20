@@ -42,12 +42,16 @@ pfUI:RegisterModule("raid", "vanilla:tbc", function ()
     local _, _, x, y = string.find(layout,"(.+)x(.+)")
     x, y = tonumber(x), tonumber(y)
 
+    -- octo: the raid frames sit in a grid inside pfRaidCluster, which is the
+    -- one box layout mode shows for them (user, 20 Oct 2026: "the raid frame
+    -- is one big window not lots of multiple ones"). Frames moved one by one
+    -- before go back into the grid.
     if fill == "VERTICAL" then
       for r=1, x do for g=1, y do
         if pfUI.uf.raid[i] then
           pfUI.uf.raid[i]:ClearAllPoints()
           pfUI.uf.raid[i]:SetPoint("BOTTOMLEFT", (r-1)*(padding+width), (g-1)*(padding+height))
-          UpdateMovable(pfUI.uf.raid[i], true)
+          RemoveMovable(pfUI.uf.raid[i])
         end
         i = i + 1
       end end
@@ -56,11 +60,13 @@ pfUI:RegisterModule("raid", "vanilla:tbc", function ()
         if pfUI.uf.raid[i] then
           pfUI.uf.raid[i]:ClearAllPoints()
           pfUI.uf.raid[i]:SetPoint("BOTTOMLEFT", (r-1)*(padding+width), (g-1)*(padding+height))
-          UpdateMovable(pfUI.uf.raid[i], true)
+          RemoveMovable(pfUI.uf.raid[i])
         end
         i = i + 1
       end end
     end
+    cluster:SetWidth(math.max(10, x * (padding + width) - padding))
+    cluster:SetHeight(math.max(10, y * (padding + height) - padding))
   end
 
   pfUI.uf.raid:UpdateConfig()

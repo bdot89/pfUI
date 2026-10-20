@@ -303,6 +303,42 @@ if U and U.bar then
   U:Show()
 
   ok(pfTestOne.drag and pfTestOne.drag:IsShown(), "movers get a drag box")
+  ok(pfTestOne.drag.text.text == "Test One", "box labels read as words (" .. tostring(pfTestOne.drag.text.text) .. ")")
+
+  -- octo: left-click = nudge box, Alt-click two boxes = same size
+  Mock.Run(pfTestOne.drag, "OnClick", "LeftButton")
+  ok(U.dock:IsShown() and U.dock.parent == pfTestOne.drag, "left-click opens the nudge box")
+  Mock.Run(pfTestOne.drag, "OnClick", "LeftButton")
+  ok(not U.dock:IsShown(), "left-click again closes it")
+  pfTestOne:SetWidth(240) pfTestOne:SetHeight(30) pfTestOne:SetScale(1)
+  pfTestTwo:SetWidth(120) pfTestTwo:SetHeight(30) pfTestTwo:SetScale(1)
+  Mock.alt = true
+  Mock.Run(pfTestOne.drag, "OnClick", "LeftButton")
+  Mock.Run(pfTestTwo.drag, "OnClick", "LeftButton")
+  Mock.alt = nil
+  local sc = pfUI_config.position.pfTestTwo and pfUI_config.position.pfTestTwo.scale
+  ok(sc == 2, "Alt-click: the second box is scaled to the first one's width (" .. tostring(sc) .. ")")
+  -- a unit frame and a castbar: the width goes into the castbar's setting
+  local pl = CreateFrame("Frame", "pfPlayer", UIParent)
+  local cb = CreateFrame("Frame", "pfPlayerCastbar", UIParent)
+  pl:SetWidth(230) pl:SetHeight(46) cb:SetWidth(180) cb:SetHeight(16)
+  pfUI.movables = { pfPlayer = pl, pfPlayerCastbar = cb }
+  U:Hide() U:Show()
+  local oldw = pfUI_config.castbar.player.width
+  Mock.alt = true
+  Mock.Run(pl.drag, "OnClick", "LeftButton")
+  Mock.Run(cb.drag, "OnClick", "LeftButton")
+  Mock.alt = nil
+  ok(pfUI_config.castbar.player.width == "230" and cb:GetWidth() == 230, "Alt-click: player castbar gets the player frame's width (" .. tostring(pfUI_config.castbar.player.width) .. ")")
+  pfUI_config.castbar.player.width = oldw
+  -- right-click: the frame's options in the options window
+  Mock.Run(pl.drag, "OnClick", "RightButton")
+  local O = pfUI.octoui and pfUI.octoui.Options
+  ok(pfUI.gui:IsShown() and O and O.current and string.find(O.current, "Player"), "right-click opens the frame's options (" .. tostring(O and O.current) .. ")")
+  pfUI.gui:Hide()
+  _G.pfPlayer, _G.pfPlayerCastbar = nil, nil
+  pfUI.movables = { pfTestOne = pfTestOne, pfTestTwo = pfTestTwo }
+  U:Show()
   U.bar.done:GetScript("OnClick")()
   ok(not U:IsShown(), "Done leaves layout mode")
   ok(not pfUI.gui:IsShown(), "options window stays closed after /moveui")
@@ -1069,7 +1105,7 @@ do
     -- Combat Text first, with OctoBG's six pages
     local ct = O.octo[1]
     ok(ct and ct[1] == "Combat Text" and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
-    ok(O.current == "o:ctgeneral", "the window opens on combat text's Basics: " .. tostring(O.current))
+    ok(O.first == "o:ctgeneral", "the window first opens on combat text's Basics: " .. tostring(O.first))
     for _, pg in ipairs(ct and ct[2] or {}) do
       local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
       ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))

@@ -5,7 +5,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   local clusters = {
     -- Name            Shift  Ctrl
     { "pfCombo",          5       },
-    { "pfRaid",           40,   5 },
+    -- (octo: the raid frames are one box, pfRaidCluster)
     { "pfGroup",          4       },
     { "pfLootRollFrame",  4       },
   }
@@ -35,6 +35,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     -- groupframes
     ["Raid%d"]        = { T["Group Frames"], T["Raid"] },
     ["Raid%d%d"]      = { T["Group Frames"], T["Raid"] },
+    ["RaidCluster"]   = { T["Group Frames"], T["Raid"] },
+
+    -- octo: meters and combat text (an Octo page key opens that page)
+    ["Meter%d"]       = { T["Meters"], nil },
+    ["CombatText%a+"] = { "ctareas", nil },
     ["Group%d"]       = { T["Group Frames"], T["Group"] },
     ["Party%dTarget"] = { T["Group Frames"], T["Group-Target"] },
     ["PartyPet%d"]    = { T["Group Frames"], T["Group-Pet"] },
@@ -126,10 +131,43 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return frames
   end
 
+  -- octo: ElvUI-style boxes (user, 20 Oct 2026: "how the UI boxes are
+  -- clearer"): see-through dark fill, a blue edge and a blue label; white
+  -- edge under the mouse, bright when picked, gold for the Alt-click size
+  -- source. d.backdrop comes from CreateBackdrop.
+  local PAINT = {
+    normal = { .02, .04, .06, .55,  .2, .7, 1, .9,     .55, .82, 1 },
+    hover  = { .05, .12, .18, .75,  1, 1, 1, 1,        1, 1, 1 },
+    picked = { .08, .22, .32, .75,  .35, .8, 1, 1,     1, 1, 1 },
+    source = { .22, .17, .02, .7,   1, .82, 0, 1,      1, .9, .4 },
+  }
+  local matchFrom   -- the box Alt-clicked first: its size goes to the next one
+  local function Paint(d, mode)
+    if not d then return end
+    if not d.backdrop then CreateBackdrop(d, nil, nil, .8) end
+    if d == matchFrom and mode ~= "hover" then mode = "source" end
+    local p = PAINT[mode] or PAINT.normal
+    d.backdrop:SetBackdropColor(p[1], p[2], p[3], p[4])
+    d.backdrop:SetBackdropBorderColor(p[5], p[6], p[7], p[8])
+    if d.text then d.text:SetTextColor(p[9], p[10], p[11], 1) end
+  end
+
+  -- "pfPlayerCastbar" -> "Player Castbar", "pfRaidCluster" -> "Raid Frames"
+  local NICE = { RaidCluster = "Raid Frames", Meter1 = "Meter 1", Meter2 = "Meter 2", UITracking = "Tracking",
+                 ChatInputBox = "Chat Input", CombatTextIncoming = "Combat Text: Incoming",
+                 CombatTextOutgoing = "Combat Text: Outgoing", CombatTextHealing = "Combat Text: Healing",
+                 CombatTextNotes = "Combat Text: Notes", CombatTextExtra = "Combat Text: Extra" }
+  local function NiceLabel(label)
+    if NICE[label] then return NICE[label] end
+    local s = string.gsub(label, "(%l)(%u)", "%1 %2")
+    s = string.gsub(s, "(%a)(%d)", "%1 %2")
+    return s
+  end
+
   local function DraggerOnUpdate()
     this.text:SetAlpha(this.text:GetAlpha() -0.05)
     if this.text:GetAlpha() < 0.1 then
-      this.text:SetText(strsub(this:GetParent():GetName(),3))
+      this.text:SetText(NiceLabel(strsub(this:GetParent():GetName(),3)))
       this.text:SetAlpha(1)
       this:SetScript("OnUpdate", function() return end)
     end
@@ -471,14 +509,14 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   local function SetDockToFrame(frame)
     if pfUI.unlock.dock.parent then
       -- reset previous border color
-      CreateBackdrop(pfUI.unlock.dock.parent, nil, nil, .8)
+      Paint(pfUI.unlock.dock.parent, "normal")
     end
 
     -- add the new frame
     pfUI.unlock.dock.parent = frame
 
     if frame then
-      pfUI.unlock.dock.parent.backdrop:SetBackdropBorderColor(GetAccentColor())
+      Paint(pfUI.unlock.dock.parent, "picked")
       pfUI.unlock.dock:Show()
       UpdateDockValues()
     else
@@ -523,7 +561,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
         s = UIScale(f)
       end
       table.insert(drag.boxes, { frame = f, s = s, l = l, r = r, b = b, t = t, il = il, ir = ir, ib = ib, it = it })
-      f.drag.backdrop:SetBackdropBorderColor(GetAccentColor())
+      Paint(f.drag, "picked")
     end
     Add(frame)
     for _, f in pairs(pfUI.unlock.selection) do
@@ -562,23 +600,104 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     for _, box in ipairs(drag.boxes) do
       local f = box.frame
       local x, y = AnchorOffsets(anchor, box.il + dx, box.ir + dx, box.ib + dy, box.it + dy, box.s)
-      CreateBackdrop(f.drag, nil, nil, .8)
+      Paint(f.drag, "normal")
       f:ClearAllPoints()
       f:SetPoint(anchor, UIParent, anchor, x, y)
       SavePosition(f)
       if f.OnMove then f:OnMove() end
     end
     drag.boxes = nil
+    this.justDragged = true
 
-    this.backdrop:SetBackdropBorderColor(1,1,1,1)
+    Paint(this, "hover")
     UpdateDockValues()
   end
 
+  -- octo: Alt-click two boxes - the second gets the first one's size (user,
+  -- 20 Oct 2026). Frames whose size is a setting get the setting (it stays
+  -- after a reload): unit frames and castbars (width; height too between two
+  -- of the same kind), the meter windows. Anything else is scaled to the
+  -- same width.
+  local SIZES = {
+    pfPlayer = { "unitframes", "player" }, pfTarget = { "unitframes", "target" },
+    pfTargetTarget = { "unitframes", "ttarget" }, pfTargetTargetTarget = { "unitframes", "tttarget" },
+    pfPet = { "unitframes", "pet" }, pfPetTarget = { "unitframes", "ptarget" }, pfFocus = { "unitframes", "focus" },
+    pfPlayerCastbar = { "castbar", "player" }, pfTargetCastbar = { "castbar", "target" }, pfFocusCastbar = { "castbar", "focus" },
+  }
+
+  local function ScreenSize(f)
+    local s = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    return (f:GetWidth() or 0) * s, (f:GetHeight() or 0) * s, s
+  end
+
+  local function MatchSize(from, to)
+    local fw, fh = ScreenSize(from)
+    local _, _, ts = ScreenSize(to)
+    if fw <= 0 or ts <= 0 then return end
+    local w, h = round(fw / ts), round(fh / ts)
+    local fk, tk = SIZES[from:GetName()], SIZES[to:GetName()]
+    local _, _, meter = string.find(to:GetName() or "", "^pfMeter(%d)$")
+    if tk then
+      local cfg = C[tk[1]][tk[2]]
+      cfg.width = tostring(w)
+      to:SetWidth(w)
+      if fk and fk[1] == tk[1] then
+        -- the same kind: the bars' heights too
+        local src = C[fk[1]][fk[2]]
+        cfg.height = src.height
+        if src.pheight then cfg.pheight = src.pheight end
+        if tk[1] == "castbar" and tonumber(cfg.height) and tonumber(cfg.height) > 0 then to:SetHeight(tonumber(cfg.height)) end
+      end
+      if to.UpdateFrameSize then to:UpdateFrameSize() end
+    elseif meter then
+      C.meters["width" .. meter], C.meters["height" .. meter] = tostring(w), tostring(h)
+      to:SetWidth(w)
+      to:SetHeight(h)
+      if to.OnMove then to:OnMove() end
+    else
+      local tw = (to:GetWidth() or 0) * to:GetScale()
+      if tw <= 0 then return end
+      SaveScale(to, round(to:GetScale() * (w * to:GetScale()) / tw, 2))
+    end
+    SavePosition(to)
+    if to.OnMove then to:OnMove() end
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " "
+      .. NiceLabel(from.drag.label) .. " (" .. w .. (tk and fk and fk[1] == tk[1] and "" or (" x " .. h)) .. ")")
+  end
+
   local function DraggerOnClick()
-    if arg1 == "RightButton" then
-      -- add dockframe to the dragger to show advanced options
+    -- the mouse-up that ends a drag is not a click
+    if arg1 == "LeftButton" and this.justDragged then this.justDragged = nil return end
+    if IsAltKeyDown() and arg1 == "LeftButton" then
+      -- first box: the size to copy; second box: gets it
+      if not matchFrom or matchFrom == this then
+        local was = matchFrom
+        matchFrom = (was ~= this) and this or nil
+        Paint(this, "hover")
+        if matchFrom then
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. T["Alt-click the box that should get the size of"] .. " " .. NiceLabel(this.label))
+        end
+      else
+        local from = matchFrom
+        matchFrom = nil
+        Paint(from, "normal")
+        MatchSize(from.frame, this.frame)
+        UpdateDockValues()
+      end
+      return
+    elseif arg1 == "LeftButton" then
+      -- ElvUI: left-click = the nudge box (arrows, X / Y, anchor)
       if pfUI.unlock.dock.parent == this and pfUI.unlock.dock:IsShown() then
         SetDockToFrame(nil)
+      else
+        SetDockToFrame(this)
+      end
+      return
+    elseif arg1 == "RightButton" then
+      -- ElvUI: right-click = this frame's options
+      local cat, conf = GetConfigTable(this.label)
+      if cat then
+        OpenConfigDialog(cat, conf)
       else
         SetDockToFrame(this)
       end
@@ -598,13 +717,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
   local function DraggerOnEnter()
     if pfUI.unlock.dock.parent ~= this then
-      this.backdrop:SetBackdropBorderColor(1,1,1,1)
+      Paint(this, "hover")
     end
   end
 
   local function DraggerOnLeave()
     if pfUI.unlock.dock.parent ~= this then
-      CreateBackdrop(this, nil, nil, .8)
+      Paint(this, "normal")
     end
   end
 
@@ -613,7 +732,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local label = string.sub(fname, 1, 2) == "pf" and strsub(fname,3) or fname
 
     local d = CreateFrame("Button", fname .. "Drag", f)
-    d:RegisterForClicks("MiddleButtonUp", "RightButtonUp")
+    d:RegisterForClicks("LeftButtonUp", "MiddleButtonUp", "RightButtonUp")
     d:RegisterForDrag("LeftButton")
     d:SetAllPoints(f)
     d:SetAlpha(1)
@@ -632,20 +751,24 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     d.fname = fname
     d.label = label
 
+    label = NiceLabel(label)
     if d:GetHeight() > (2 * d:GetWidth()) then
       label = strvertical(label)
     end
 
     d.text:SetText(label)
+    d.text:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE")
 
     d:SetScript("OnMouseWheel", DraggerOnMouseWheel)
     d:SetScript("OnDragStart", DraggerOnDragStart)
     d:SetScript("OnDragStop", DraggerOnDragStop)
     d:SetScript("OnClick", DraggerOnClick)
+    d:SetScript("OnMouseDown", function() this.justDragged = nil end)
     d:SetScript("OnEnter", DraggerOnEnter)
     d:SetScript("OnLeave", DraggerOnLeave)
 
     CreateBackdrop(d, nil, nil, .8)
+    Paint(d, "normal")
     return d
   end
 
@@ -705,7 +828,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       if frame.hideLater == true then frame:Hide() end
       frame:StopMovingOrSizing()
       frame:SetMovable(false)
-      frame.drag:Hide()
+      if frame.drag then frame.drag:Hide() end
       UpdateMovable(frame)
     end
 
@@ -779,9 +902,23 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
   function bar:ShowHelp()
     local a = rgbhex(GetAccentColor())
-    local txt = string.gsub(T["Unlock Mode allows you to move, scale and reset frames:\n\n|cff33ffcc[Left Click]|r Drag Frame\n|cff33ffcc[Middle Click]|r Reset Frame\n|cff33ffcc[Right Click]|r Option Box\n\nHold |cff33ffcc[Shift]|r to select all frames of the same kind\nHold |cff33ffcc[Ctrl]|r to select all frames of the same group\n\n|cff33ffcc[Scroll]|r to change the scale of a frame\n\n|cff33ffcc[Click]|r on an empty area or press |cff33ffcc[Esc]|r to exit\n"], "|cff33ffcc", a)
-    txt = txt .. a .. T["[Alt]"] .. "|r " .. T["while dragging: no snapping"] .. "\n"
-    txt = txt .. a .. T["[Shift]"] .. "|r " .. T["on the arrows: move 10 pixels"] .. "\n"
+    -- octo: ElvUI's clicks (left = nudge box, right = the frame's options)
+    -- and Alt-click to give one box another one's size
+    local function L(key, text) return a .. key .. "|r " .. text .. "\n" end
+    local txt = T["Layout mode: move, size and reset frames."] .. "\n\n"
+      .. L(T["[Drag]"], T["move the frame - it snaps to other frames and the grid"])
+      .. L(T["[Left-click]"], T["nudge box: arrows, X / Y, anchor"])
+      .. L(T["[Right-click]"], T["open this frame's options"])
+      .. L(T["[Alt-click] two boxes"], T["the second gets the first one's size"])
+      .. L(T["[Middle-click]"], T["back to its default place"])
+      .. L(T["[Mouse wheel]"], T["scale"])
+      .. "\n"
+      .. L(T["[Shift]"], T["select all frames of the same kind"])
+      .. L(T["[Ctrl]"], T["select all frames of the same group"])
+      .. L(T["[Alt] while dragging"], T["no snapping"])
+      .. L(T["[Shift] on the arrows"], T["move 10 pixels"])
+      .. "\n"
+      .. L(T["[Esc]"], T["or a click on an empty spot: done"])
     CreateInfoBox(txt, 15, pfUI.unlock, 210)
   end
   bar.help = BarButton("?", 18, function() bar:ShowHelp() end)
