@@ -32,7 +32,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   local COL = {}
   local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost", "c_taking",
-    "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "castbg", "targetcolor" }
+    "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "castbg", "targetcolor",
+    "namecolor", "levelcolor", "hptextcolor", "casttextcolor", "bordercolor", "skincolor" }
   local function ReadColors()
     for _, k in ipairs(COLORS) do
       local r, g, b, a = GetStringColor(S[k] or "1,1,1,1")
@@ -360,6 +361,14 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       cb.text:SetTextColor(1, 1, 1, 1)
     end
     o.cend.text:SetFont(font, tsize, "OUTLINE")
+    -- pfUI recolours name / level only when the game's colour changes: make it
+    -- do so again (a colour of yours switched off goes back to pfUI's)
+    plate.cache.namecolor, plate.cache.levelcolor = nil, nil
+    -- text colours (pfUI's white unless picked)
+    local tc, cc = COL.hptextcolor, COL.casttextcolor
+    h.text:SetTextColor(tc[1], tc[2], tc[3], tc[4])
+    cb.spell:SetTextColor(cc[1], cc[2], cc[3], cc[4])
+    cb.text:SetTextColor(cc[1], cc[2], cc[3], cc[4])
     o.cend.text:SetJustifyH(S.castlayout == "plater" and "LEFT" or "CENTER")
     o.spark:SetHeight(ch * 2.4)
 
@@ -413,7 +422,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         f:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", off, -off)
         f:SetBackdrop({ edgeFile = sk.edge, edgeSize = sk.size, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
         local c = sk.color
-        if sk.accent and GetAccentColor then
+        if S.skincustom == "1" then
+          c = { COL.skincolor[1], COL.skincolor[2], COL.skincolor[3], COL.skincolor[4] }
+        elseif sk.accent and GetAccentColor then
           local ar, ag, ab = GetAccentColor()
           c = { ar, ag, ab, sk.color[4] }
         end
@@ -491,6 +502,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if col then
       h:SetStatusBarColor(col[1], col[2], col[3], col[4])
       plate.cache.r, plate.cache.g, plate.cache.b = col[1], col[2], col[3]
+    end
+
+    -- your own border colour on the bars (pfUI's target / combat state colours otherwise)
+    if S.bordercustom == "1" then
+      local bc = COL.bordercolor
+      if h.backdrop then h.backdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4]) end
+      if plate.castbar.backdrop then plate.castbar.backdrop:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4]) end
     end
 
     -- execute marker
@@ -669,6 +687,15 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
 
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
+    -- name / level colours picked by you (pfUI recolours them as units change)
+    if S.namecustom == "1" then
+      local c = COL.namecolor
+      plate.name:SetTextColor(c[1], c[2], c[3], c[4])
+    end
+    if S.levelcustom == "1" then
+      local c = COL.levelcolor
+      plate.level:SetTextColor(c[1], c[2], c[3], c[4])
+    end
     -- the test leaves friendly plates alone (quest givers casting Fireball confused)
     local enemy = o.kind == "enemynpc" or o.kind == "enemyplayer"
     if (pv and pv.cast) or (not pv and enemy and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
@@ -730,13 +757,49 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   local SAMPLES = {
     { name = "Defias Pillager", level = "17", hp = 80, color = { 1, 0, 0 }, target = true, class = "elite", state = "aggro",
       cast = true, auras = "all", caption = "your target, casting" },
-    { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true, auras = "few", ghost = true },
+    { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true, auras = "few", ghost = true,
+      raidmark = true, far = true },
     { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", quest = "objective", caption = "execute range, quest mob" },
-    { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player" },
+    { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player", guild = "Octo Raiders", hover = true },
   }
   local STATEWORDS = { aggro = "on you", pulling = "you are pulling it", safe = "on someone else",
     losing = "someone is pulling it", offtank = "on another tank", lost = "loose on someone else",
     taking = "you are taking it from a tank" }
+
+  -- What pfUI only shows for a real target / mouse-over / guild, acted out on
+  -- the samples so every setting can be seen: combo points rolling 0-5 on the
+  -- target, a skull raid mark, a guild name, the mouse-over light, target zoom.
+  function P.Show(plate, pv)
+    local d = pv.data
+    local now = GetTime()
+    if pv.target then
+      local n = math.mod(math.floor(now / .7), 6)
+      for i = 1, 5 do
+        if C.nameplates.cpdisplay == "1" and i <= n then plate.combopoints[i]:Show() else plate.combopoints[i]:Hide() end
+      end
+      local w, h = tonumber(C.nameplates.width) or 120, tonumber(C.nameplates.heighthealth) or 8
+      if C.nameplates.targetzoom == "1" then
+        local z = (tonumber(C.nameplates.targetzoomval) or .4) + 1
+        w, h = w * z, h * z * .9
+      end
+      plate.health:SetWidth(w)
+      plate.health:SetHeight(h)
+    end
+    if d.raidmark then
+      plate.raidicon:SetTexCoord(.75, 1, .25, .5)
+      plate.raidicon:Show()
+    end
+    if d.guild then
+      if C.nameplates.showguildname == "1" then
+        plate.guild:SetText(d.guild)
+        plate.guild:SetTextColor(0, .9, 0, 1)
+        plate.guild:Show()
+      else
+        plate.guild:Hide()
+      end
+    end
+    if d.hover then plate.cache.mouseover = math.mod(math.floor(now / 2), 2) == 0 or nil end
+  end
 
   local function SamplePlate(box, d)
     local game = CreateFrame("Button", nil, box)
@@ -770,13 +833,18 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, ghost = d.ghost,
       quest = d.quest, data = d }
     NP.OnCreate(game)
-    -- pfUI pins the bar to frame level 4: lift the whole sample above its box
-    -- (each frame one above its parent, as they stack on a real plate)
-    local function Raise(f, level)
-      f:SetFrameLevel(level)
-      for _, kid in ipairs({ f:GetChildren() }) do Raise(kid, level + 1) end
+    -- pfUI pins the bar to frame level 4: lift the whole sample above its box,
+    -- keeping pfUI's own order (the bar's dark backdrop stays under its fill)
+    local all = {}
+    local function Collect(f)
+      table.insert(all, { f, f:GetFrameLevel() })
+      for _, kid in ipairs({ f:GetChildren() }) do Collect(kid) end
     end
-    Raise(game, box:GetFrameLevel() + 1)
+    Collect(game)
+    local low
+    for _, e in ipairs(all) do if not low or e[2] < low then low = e[2] end end
+    local shift = box:GetFrameLevel() + 1 - (low or 0)
+    for _, e in ipairs(all) do e[1]:SetFrameLevel(e[2] + shift) end
     -- pfUI's own every-frame code needs the real target and casts: the sample
     -- runs its own instead
     game:SetScript("OnUpdate", function()
@@ -798,11 +866,20 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           local word = pv.data.caption or ("mob " .. (STATEWORDS[pv.state] or ""))
           if pv.data.cycle and S.threat ~= "1" then word = "threat colours are off" end
           if pv.data.hp < 20 and not P.ExecutePct() then word = "low health (no execute range)" end
+          if pv.away then word = word .. ", out of range" end
           this.caption:SetText(word)
         end
       end
       plate:SetAlpha((pv.target or not pv.anyTarget) and 1 or (tonumber(C.nameplates.notargalpha) or 1))
+      P.Show(plate, pv)
       P.Tick(plate)
+      -- range fade: the thug walks out of range every other few seconds
+      if pv.data.far and S.range == "1" and math.mod(math.floor(GetTime() / 3), 2) == 1 then
+        plate:SetAlpha(plate:GetAlpha() * (tonumber(S.rangealpha) or .4))
+        pv.away = true
+      else
+        pv.away = nil
+      end
     end)
     return game
   end
@@ -813,7 +890,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     for i = 1, n do
       local game = SamplePlate(box, SAMPLES[i])
       -- room above for the aura rows and the big special icons
-      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -58)
+      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -92)
       game.preview.anyTarget = true
       game.caption = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       game.caption:SetPoint("BOTTOM", box, "BOTTOMLEFT", (box:GetWidth() or 640) * (i - .5) / n, 8)

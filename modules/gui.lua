@@ -546,6 +546,12 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
             text = text or value
 
             entry.text = text
+            -- octo: fonts in their own letters, textures as a strip (ui-widgets.lua)
+            if string.find(string.lower(value), "%.[to]tf$") then
+              entry.font = value
+            elseif string.find(value, "^Interface\\") then
+              entry.texture = pfUI.media[value]
+            end
             entry.func = function()
               if category[config] ~= value then
                 category[config] = value

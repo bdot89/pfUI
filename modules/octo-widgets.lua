@@ -448,13 +448,17 @@ function W.Page(parent)
 end
 
 -- Anchors a region on a new line of container c, x from its left edge.
+-- (octo) extra room between every row of the options (user, 22 Oct 2026:
+-- "add spacing to options")
+local SPACE = 5
+
 local function Put(c, region, x, gap)
   x = x or 0
   region:ClearAllPoints()
   if c.last then
-    region:SetPoint("TOPLEFT", c.last, "BOTTOMLEFT", x - c.lastX, -(gap or 4))
+    region:SetPoint("TOPLEFT", c.last, "BOTTOMLEFT", x - c.lastX, -((gap or 4) + SPACE))
   else
-    region:SetPoint("TOPLEFT", c.parent, "TOPLEFT", c.x0 + x, -(c.y0 + (gap or 4)))
+    region:SetPoint("TOPLEFT", c.parent, "TOPLEFT", c.x0 + x, -(c.y0 + (gap or 4) + SPACE))
   end
   c.last, c.lastX, c.half = region, x, nil
   return region
@@ -988,6 +992,15 @@ function W.Menu(anchor, options, width, onPick)
     t:SetWidth(width - 20)
     t:SetJustifyH("LEFT")
     if o.font then t:SetFont(o.font, 13, "") end
+    -- (octo) a texture shows as a strip behind its name
+    if o.texture then
+      local s = e:CreateTexture(nil, "BORDER")
+      s:SetTexture(o.texture)
+      s:SetVertexColor(.25, .55, .9, .9)
+      s:SetPoint("TOPLEFT", e, "TOPLEFT", 1, -2)
+      s:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", -1, 2)
+      t:SetFont(W.UIFont(), 11, "OUTLINE")
+    end
     if o.group then t:SetTextColor(C.accent[1], C.accent[2], C.accent[3]) end
     t:SetText(o.label)
     if o.key ~= nil then
@@ -1036,13 +1049,25 @@ function W.MiniDrop(parent, width, options, get, set, menuWidth)
     if not open then menu:Show() end
   end
   btn:SetScript("OnClick", Toggle)
+  -- (octo) the picked texture shows in the box too
+  local sample = f:CreateTexture(nil, "BORDER")
+  sample:SetPoint("TOPLEFT", f, "TOPLEFT", 2, -2)
+  sample:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 2)
+  sample:SetVertexColor(.25, .55, .9, .9)
+  sample:Hide()
   local function Refresh()
     local k = get()
+    sample:Hide()
     for i = 1, table.getn(options) do
       local o = options[i]
       if o.key == k then
         W.Font(text, 11, C.text[1], C.text[2], C.text[3])
         if o.font then text:SetFont(o.font, 12, "") end
+        if o.texture then
+          sample:SetTexture(o.texture)
+          sample:Show()
+          text:SetFont(W.UIFont(), 11, "OUTLINE")
+        end
         text:SetText(o.label)
         return
       end

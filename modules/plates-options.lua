@@ -69,11 +69,13 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     local out = {}
     for _, b in ipairs(BARS) do table.insert(out, b) end
     for _, b in ipairs(DD("uf_bartexture")) do table.insert(out, b) end
+    -- each shows as a strip of itself in the menu
+    for _, b in ipairs(out) do b.texture = pfUI.media[b.key] end
     return out
   end
   local function Fonts()
-    local out = { { key = "", label = "pfUI's font" } }
-    for _, f in ipairs(W.Fonts()) do table.insert(out, { key = f.key, label = f.label }) end
+    local out = { { key = "", label = "pfUI's font", font = pfUI.font_default } }
+    for _, f in ipairs(W.Fonts()) do table.insert(out, { key = f.key, label = f.label, font = f.key }) end
     return out
   end
 
@@ -94,7 +96,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     W.Card(p, "Preview", { tip = "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
-    P.AttachPreview(W.Box(p, h or 172))
+    P.AttachPreview(W.Box(p, h or 212))
     W.Live(p, function()
       if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
       return "Test on real nameplates puts pretend threat colours and casts on every plate you can see for a minute."
@@ -215,6 +217,17 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Health text", "Numbers on the health bar.", N, "showhp")
     Drop(p, "Health text place", nil, DD("textalign"), N, "hptextpos")
     Drop(p, "Health text shows", nil, DD("hpformat"), N, "hptextformat")
+    W.Card(p, "Colours", { tip = "Click a swatch for the colour wheel. Tick the box beside a colour to use it instead of pfUI's." })
+    Chk(p, "My own name colour", "Off: white, orange in a fight, class colours as set on Threat and colours.", S, "namecustom")
+    Color(p, "Name", nil, S, "namecolor")
+    Chk(p, "My own level colour", "Off: the game's difficulty colour.", S, "levelcustom")
+    Color(p, "Level", nil, S, "levelcolor")
+    Chk(p, "My own border colour", "Off: pfUI's black, or its target / combat state colours.", S, "bordercustom")
+    Color(p, "Border", "The thin border round the health and cast bars.", S, "bordercolor")
+    Chk(p, "My own skin colour", "Off: each border skin's own colour (black, accent, gold...).", S, "skincustom")
+    Color(p, "Skin", "The border skin's edge (shadow, thick, accent, neon, gold).", S, "skincolor")
+    Color(p, "Health text", nil, S, "hptextcolor")
+    Color(p, "Cast bar text", "The spell name and time.", S, "casttextcolor")
     W.Card(p, "Size by kind", { tip = "% of the width and height above; plates grow and shrink smoothly." })
     Sld(p, "Enemy NPCs", nil, 40, 160, 5, S, "size_enemynpc", Pct)
     Sld(p, "Enemy players", nil, 40, 160, 5, S, "size_enemyplayer", Pct)

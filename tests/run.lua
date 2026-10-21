@@ -1672,6 +1672,21 @@ do
       ok(so and (so.casting or so.cend:IsShown()), "sample target casts")
       local thug = samples[2].nameplate.octo
       ok(thug and thug.state ~= nil and samples[2].caption.text and string.find(samples[2].caption.text, "^mob "), "sample mob shows a threat state (" .. tostring(samples[2].caption.text) .. ")")
+      local fp = first.nameplate
+      ok(fp.health.backdrop and fp.health.backdrop:GetFrameLevel() < fp.health:GetFrameLevel()
+        and fp.health:GetFrameLevel() > box:GetFrameLevel(),
+        "sample bar: above its box, its dark backdrop still under the fill")
+      pfUI_config.nameplates.cpdisplay = "1"
+      local seen = {}
+      for i = 1, 12 do
+        Mock.now = Mock.now + .35
+        Mock.Run(first, "OnUpdate", .35)
+        local n = 0
+        for c = 1, 5 do if fp.combopoints[c]:IsShown() then n = n + 1 end end
+        seen[n] = true
+      end
+      ok(seen[0] and seen[3] and seen[5], "combo points roll on the sample target")
+      pfUI_config.nameplates.cpdisplay = "0"
       S.skin = "thick"
       P.Refresh()
       ok(so.skinH:IsShown(), "a setting change redraws the samples")
@@ -1701,6 +1716,17 @@ do
         ok(rok, "page " .. pg[1] .. " refreshes: " .. tostring(rerr))
       end
     end
+    -- menus show textures and fonts
+    local textured, fonted = 0, 0
+    for _, m in ipairs(pfUI.octoui.W.menus) do
+      for _, e in ipairs({ m:GetChildren() }) do
+        for _, r in ipairs(e._kids or {}) do
+          if r.kind == "Texture" and r.texture and string.find(r.texture, "plates\\bar%-") then textured = textured + 1 end
+          if r.kind == "FontString" and r.font and string.find(string.lower(r.font[1] or ""), "%.ttf$") then fonted = fonted + 1 end
+        end
+      end
+    end
+    ok(textured >= 5 and fonted >= 5, "menus picture the textures and fonts (" .. textured .. " / " .. fonted .. ")")
     local old = 0
     for k in pairs(O.legacy) do if string.find(k, "^l:Nameplates") then old = old + 1 end end
     ok(old == 0, "pfUI's own Nameplates page is gone from the list")

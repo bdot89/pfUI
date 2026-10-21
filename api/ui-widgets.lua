@@ -319,11 +319,27 @@ do -- dropdown
         frame.hover:SetTexture(.4,.4,.4,.4)
         frame.hover:Hide()
 
+        -- octo: a strip of the texture behind its name (bar texture menus)
+        frame.sample = frame:CreateTexture(nil, "BORDER")
+        frame.sample:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -2)
+        frame.sample:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 2)
+        frame.sample:Hide()
+
         table.insert(self.menuframe.elements, frame)
       end
 
       frame.id = id
       frame.text:SetText(self.menu[id].text)
+      -- octo: textures and fonts show themselves in the menu
+      local m = self.menu[id]
+      if m.texture then
+        frame.sample:SetTexture(m.texture)
+        frame.sample:SetVertexColor(.25, .55, .9, .9)
+        frame.sample:Show()
+      else
+        frame.sample:Hide()
+      end
+      frame.text:SetFont(m.font or pfUI.font_default, pfUI_config.global.font_size + (m.font and 1 or -1), "OUTLINE")
 
       frame:SetScript("OnShow",  ListEntryOnShow)
       frame:SetScript("OnClick", ListEntryOnClick)
