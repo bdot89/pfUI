@@ -238,3 +238,13 @@ see "Roadmap" below.
      bindings button went; "Unbound" is now "Lists" (show / hide the panel). Not verified in game.
    - Not verified in game: the whole window, Roboto in it, disc slider thumbs on pfUI's pages,
      menus of pfUI dropdowns (parented to pfUI.gui) over the new panels, OnSizeChanged on sliders.
+10. Plater-style nameplates (user 20 Oct: "our own version of this name plate addon ... with all
+   features and art work"). Spec and phases: docs\plates-spec.md. Plater is All Rights Reserved:
+   no code or texture of it is copied; the user's Plater v661 zip was read for setting names only.
+   PHASE 1 DONE 21 Oct (not seen in game): modules/plates.lua wraps pfUI.nameplates (OnConfigChange
+   / OnDataChanged / OnUpdate / UpdateConfig; nameplates.lua untouched), parts in `plate.octo`.
+   Settings C.plates. Art: tools\MakePlateArt.ps1 -> img\plates (bars, arrow, chevron, corner,
+   underglow, spark, star, skull, tick). modules/plates-options.lua = Octo section "Nameplates"
+   (7 pages, all of pfUI's nameplate settings too); `O.replaced[name]` hides pfUI's own category
+   from the topic list and Find. Plater look applied once at first load. Next: phase 2 auras.
+   tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).

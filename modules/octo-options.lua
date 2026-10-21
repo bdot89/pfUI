@@ -26,6 +26,9 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   B.Options = O
   O.pages, O.BUILD = O.pages or {}, O.BUILD or {}
   O.octo = O.octo or {}   -- { { name, { { key, label }, ... } }, ... } in order
+  -- pfUI categories an Octo section replaces (name -> true): hidden from the
+  -- topic list and from Find (plates-options.lua replaces "Nameplates")
+  O.replaced = O.replaced or {}
 
   local WIDTH, HEIGHT, NAV_W, NAV_ROW = 980, 660, 196, 20
   local SEARCH = "[" .. T["Search"] .. "]"
@@ -395,7 +398,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     local out = {}
     for _, cat in ipairs(g.frames.order or {}) do
       local name = cat.text and cat.text:GetText()
-      if name and name ~= SEARCH then
+      if name and name ~= SEARCH and not O.replaced[name] then
         local entry = { name = name, cat = cat, pages = {} }
         for _, child in ipairs(cat.children or {}) do
           table.insert(entry.pages, { name = child.text:GetText(), btn = child })
@@ -741,7 +744,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         local cat, page = obj[n], (n > 1) and obj[1] or nil
         local cname = cat and cat.text and cat.text:GetText()
         local pname = page and page.text and page.text:GetText()
-        if cname then
+        if cname and not O.replaced[cname] then
           local key = "l:" .. cname .. (pname and ("/" .. pname) or "")
           table.insert(out, { legacy = true, label = cap, where = cname .. (pname and (" > " .. pname) or ""),
                               key = key, region = obj[-1] })

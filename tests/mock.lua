@@ -155,11 +155,13 @@ function methods:SetTexCoord(a, b, c, d, e, f, g, h)
   assert(type(a) == "number" and type(d) == "number", "SetTexCoord needs numbers")
   assert(e == nil or type(h) == "number", "SetTexCoord takes 4 or 8 numbers")
 end
+-- the client takes numeric strings too (pfUI passes GetStringColor's "0.7")
+local function Num(v) return type(v) == "number" or (type(v) == "string" and tonumber(v) ~= nil) end
 function methods:SetVertexColor(r, g, b, a)
-  assert(type(r) == "number" and type(g) == "number" and type(b) == "number", "SetVertexColor needs numbers")
+  assert(Num(r) and Num(g) and Num(b), "SetVertexColor needs numbers")
 end
 function methods:SetTextColor(r, g, b, a)
-  assert(type(r) == "number" and type(g) == "number" and type(b) == "number", "SetTextColor needs numbers")
+  assert(Num(r) and Num(g) and Num(b), "SetTextColor needs numbers")
   self.color = { r, g, b, a }
 end
 function methods:SetChecked(v) self.checked = v and 1 or nil end

@@ -1,0 +1,667 @@
+pfUI:RegisterModule("plates", "vanilla:tbc", function ()
+  -- pfUI Octo nameplates: Plater's ideas on pfUI's own nameplates
+  -- (docs\plates-spec.md). User, 20 Oct 2026: "implement our own version of
+  -- this name plate addon into our PFUI with all features and art work".
+  -- Plater is All Rights Reserved, so this is written fresh and the art is
+  -- our own (img\plates, drawn by tools\MakePlateArt.ps1).
+  --   look     bar texture, background, fonts and text sizes
+  --   size     per kind (enemy NPC / player, friendly NPC / player), smaller
+  --            out of combat, bigger target - eased, by the overlay's scale
+  --   threat   aggro colours that flip for tanks, "pulling" from the server's
+  --            threat list (your target only), off-tank, aggro glow
+  --   target   arrows / chevrons / corners / light under the bar, mouse-over
+  --            highlight
+  --   execute  bar colour and a marker at N % (warriors and paladins)
+  --   cast bar Plater's layout, colours for cast / channel / done / stopped,
+  --            spark, "Interrupted by NAME", fade out
+  --   range    plates fade beyond N yards or out of sight (UnitXP)
+  --   marks    elite / rare / boss icon by the name
+  -- Settings: C.plates (strings). Options: Nameplates (plates-options.lua).
+  -- nameplates.lua stays as upstream: its functions are wrapped here (they are
+  -- looked up on pfUI.nameplates at each call, and no plate exists yet).
+  local NP = pfUI.nameplates
+  if not NP then return end
+  local S = C.plates
+  local P = {}
+  pfUI.plates = P
+
+  local function Art(name) return pfUI.media["img:plates\\" .. name] end
+  P.ART = Art
+
+  -- ---------------------------------------------------------------- settings
+
+  local COL = {}
+  local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost",
+    "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "targetcolor" }
+  local function ReadColors()
+    for _, k in ipairs(COLORS) do
+      local r, g, b, a = GetStringColor(S[k] or "1,1,1,1")
+      COL[k] = { tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1 }
+    end
+  end
+  P.COL = COL
+
+  -- other tanks: pfUI's raid tank roles and its off-tank names
+  local offtanks = {}
+  local function ReadTanks()
+    offtanks = {}
+    for _, v in pairs({ strsplit("#", C.nameplates.combatofftanks or "") }) do
+      if v and v ~= "" then offtanks[string.lower(v)] = true end
+    end
+  end
+  function P.IsTank(name)
+    if not name then return end
+    if offtanks[string.lower(name)] then return true end
+    local raid = pfUI.uf and pfUI.uf.raid
+    return raid and raid.tankrole and raid.tankrole[name] and true or nil
+  end
+
+  -- ---------------------------------------------------------------- role, threat, execute
+
+  local role, roleAt = "dps", 0
+  -- "tank" in Defensive Stance, bear form or with Righteous Fury (or marked a
+  -- tank in pfUI's raid frames), else "dps"; or the role picked in the options
+  function P.Role()
+    if S.role == "tank" or S.role == "dps" then return S.role end
+    if GetTime() < roleAt then return role end
+    roleAt = GetTime() + 1
+    role = "dps"
+    local _, class = UnitClass("player")
+    if class == "WARRIOR" or class == "DRUID" then
+      for i = 1, (GetNumShapeshiftForms() or 0) do
+        local icon, _, active = GetShapeshiftFormInfo(i)
+        if active and icon and (string.find(icon, "DefensiveStance") or string.find(icon, "BearForm")) then role = "tank" end
+      end
+    elseif class == "PALADIN" then
+      for i = 1, 32 do
+        local tex = UnitBuff("player", i)
+        if not tex then break end
+        if string.find(tex, "SealOfFury") then role = "tank" end
+      end
+    end
+    if P.IsTank(UnitName("player")) then role = "tank" end
+    return role
+  end
+
+  -- the server's threat list for your target, while fresh
+  local function ServerThreat()
+    local TH = pfUI.meters and pfUI.meters.threat
+    if not TH or not TH.list or GetTime() - (TH.at or 0) > 2 then return end
+    return TH.list
+  end
+
+  -- What a mob is doing about you (nil = not fighting you, or not a mob).
+  -- unit: the plate's GUID (SuperWoW) or "target"; istarget: it is your target
+  -- (only then the server's threat list is about it).
+  --   damage / healer: aggro (on you), pulling (you are near the tank), safe
+  --   tank:            aggro (on you), losing (someone is near you),
+  --                    offtank (on another tank), lost (on someone else)
+  function P.ThreatState(unit, istarget)
+    if not unit or not UnitExists(unit) or UnitIsPlayer(unit) then return end
+    if not UnitAffectingCombat("player") or not UnitAffectingCombat(unit) then return end
+    if not UnitCanAttack("player", unit) then return end
+    local tu = unit .. "target"
+    local onme = UnitIsUnit(tu, "player")
+    local tname = UnitName(tu)
+    local me = UnitName("player")
+    local pull = tonumber(S.pullat) or 90
+    local list = istarget and ServerThreat()
+    if P.Role() == "tank" then
+      if onme then
+        for _, e in ipairs(list or {}) do
+          if e.name ~= me and (e.perc or 0) >= pull then return "losing" end
+        end
+        return "aggro"
+      end
+      if not tname then return end
+      if P.IsTank(tname) then return "offtank" end
+      return "lost"
+    end
+    if onme then return "aggro" end
+    for _, e in ipairs(list or {}) do
+      if e.name == me and not e.tank and (e.perc or 0) >= pull then return "pulling" end
+    end
+    if tname then return "safe" end
+  end
+
+  local THREATCOL = {
+    dps = { aggro = "c_aggro", pulling = "c_pulling", safe = "c_safe" },
+    tank = { aggro = "c_tankaggro", losing = "c_losing", offtank = "c_offtank", lost = "c_lost" },
+  }
+  -- the bar colour of a threat state, nil = keep the normal colour
+  function P.ThreatColor(state)
+    local key = state and THREATCOL[P.Role()][state]
+    if not key or (key == "c_safe" and S.safenormal == "1") then return end
+    return COL[key]
+  end
+  -- the states that light the aggro glow: a mob on a damage dealer, or off a tank
+  function P.Alarming(state)
+    if P.Role() == "tank" then return state == "lost" end
+    return state == "aggro"
+  end
+
+  -- execute range in %, nil = off (auto: warriors and paladins)
+  function P.ExecutePct()
+    if S.execute == "off" then return end
+    if S.execute == "auto" then
+      local _, class = UnitClass("player")
+      if class ~= "WARRIOR" and class ~= "PALADIN" then return end
+    end
+    local v = tonumber(S.executepct) or 20
+    if v <= 0 then return end
+    return v
+  end
+
+  -- enemynpc / enemyplayer / friendlynpc / friendlyplayer, from the game's bar
+  -- colour (blue = friendly player, green = friendly NPC) and pfUI's cache
+  function P.Kind(plate)
+    local r, g, b = plate.original.healthbar:GetStatusBarColor()
+    local player = plate.cache and plate.cache.player == "PLAYER"
+    r, g, b = r or 1, g or 0, b or 0
+    if r < .2 and g < .2 and b > .9 then return "friendlyplayer" end
+    if r < .2 and g > .9 and b < .2 then return player and "friendlyplayer" or "friendlynpc" end
+    return player and "enemyplayer" or "enemynpc"
+  end
+
+  -- the plate's unit: its GUID with SuperWoW, else "target" for your target
+  local function UnitOf(plate)
+    if superwow_active and plate.parent and plate.parent.GetName then
+      local guid = plate.parent:GetName(1)
+      if guid and guid ~= "" then return guid end
+    end
+    if plate.istarget then return "target" end
+  end
+
+  -- ---------------------------------------------------------------- interrupts
+
+  -- victim's name -> { by = kicker, spell = spell, at = time }
+  local kicks = {}
+  P.kicks = kicks
+  function P.ParseInterrupt(msg)
+    if type(msg) ~= "string" then return end
+    local victim, spell, by
+    if SPELLINTERRUPTSELFOTHER then
+      victim, spell = cmatch(msg, SPELLINTERRUPTSELFOTHER)
+      if victim then by = T["You"] end
+    end
+    if not victim and SPELLINTERRUPTOTHEROTHER then
+      by, victim, spell = cmatch(msg, SPELLINTERRUPTOTHEROTHER)
+    end
+    if not victim or not by then return end
+    kicks[victim] = { by = by, spell = spell, at = GetTime() }
+    return victim, by, spell
+  end
+
+  local log = CreateFrame("Frame")
+  for _, e in ipairs({ "CHAT_MSG_SPELL_SELF_DAMAGE", "CHAT_MSG_SPELL_PARTY_DAMAGE", "CHAT_MSG_SPELL_PET_DAMAGE",
+      "CHAT_MSG_SPELL_FRIENDLYPLAYER_DAMAGE", "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE",
+      "CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE" }) do
+    log:RegisterEvent(e)
+  end
+  log:SetScript("OnEvent", function()
+    if S.enable == "1" then P.ParseInterrupt(arg1) end
+  end)
+
+  -- ---------------------------------------------------------------- plate parts
+
+  local function Build(plate)
+    local o = {}
+    plate.octo = o
+    local h, cb = plate.health, plate.castbar
+
+    o.hl = h:CreateTexture(nil, "OVERLAY")
+    o.hl:SetAllPoints(h)
+    o.hl:SetBlendMode("ADD")
+    o.hl:SetVertexColor(1, 1, 1, .22)
+    o.hl:Hide()
+
+    o.tick = h:CreateTexture(nil, "OVERLAY")
+    o.tick:SetTexture(Art("tick"))
+    o.tick:SetWidth(4)
+    o.tick:Hide()
+
+    o.left = h:CreateTexture(nil, "OVERLAY")
+    o.right = h:CreateTexture(nil, "OVERLAY")
+    o.corners = {}
+    for i = 1, 4 do
+      o.corners[i] = h:CreateTexture(nil, "OVERLAY")
+      o.corners[i]:SetTexture(Art("corner"))
+      o.corners[i]:Hide()
+    end
+    o.under = plate:CreateTexture(nil, "BACKGROUND")
+    o.under:SetTexture(Art("underglow"))
+    o.under:SetBlendMode("ADD")
+    o.under:Hide()
+    o.left:Hide()
+    o.right:Hide()
+
+    o.glow = CreateFrame("Frame", nil, h)
+    o.glow:SetPoint("TOPLEFT", h, "TOPLEFT", -7, 7)
+    o.glow:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 7, -7)
+    o.glow:SetBackdrop({ edgeFile = pfUI.media["img:glow"], edgeSize = 8,
+                         insets = { left = 0, right = 0, top = 0, bottom = 0 } })
+    o.glow:Hide()
+
+    o.mark = plate:CreateTexture(nil, "OVERLAY")
+    o.mark:Hide()
+
+    o.spark = cb:CreateTexture(nil, "OVERLAY")
+    o.spark:SetTexture(Art("spark"))
+    o.spark:SetBlendMode("ADD")
+    o.spark:SetWidth(10)
+    o.spark:Hide()
+
+    -- the cast bar's last look after it ends (pfUI hides its bar at once)
+    o.cend = CreateFrame("StatusBar", nil, h)
+    o.cend:SetAllPoints(cb)
+    o.cend:SetMinMaxValues(0, 1)
+    o.cend:SetValue(1)
+    o.cend.text = o.cend:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    o.cend.text:SetPoint("LEFT", o.cend, "LEFT", 3, 0)
+    o.cend.text:SetPoint("RIGHT", o.cend, "RIGHT", -3, 0)
+    o.cend.text:SetTextColor(1, 1, 1, 1)
+    o.cend:Hide()
+    return o
+  end
+
+  local function Vis(region, on) if on then region:Show() else region:Hide() end end
+
+  local function Font()
+    local font = C.nameplates.use_unitfonts == "1" and pfUI.font_unit or pfUI.font_default
+    local size = C.nameplates.use_unitfonts == "1" and C.global.font_unit_size or C.global.font_size
+    if S.font and S.font ~= "" then font = S.font end
+    return font, tonumber(size) or 12
+  end
+
+  -- everything that only changes with the settings
+  function P.Configure(plate)
+    if not plate or not plate.health then return end
+    local o = plate.octo or Build(plate)
+    if S.enable ~= "1" then
+      P.Off(plate)
+      return
+    end
+    local _, border = GetBorderSize("nameplates")
+    border = tonumber(border) or 1
+    local font, fsize = Font()
+    local style = C.nameplates.name.fontstyle
+    local namesize = tonumber(S.namesize) or 0
+    if namesize <= 0 then namesize = fsize end
+    local hpsize = tonumber(S.hpsize) or 0
+    if hpsize <= 0 then hpsize = fsize - 2 end
+    local h, cb = plate.health, plate.castbar
+
+    -- look
+    plate.name:SetFont(font, namesize, style)
+    plate.level:SetFont(font, namesize, style)
+    plate.guild:SetFont(font, fsize, style)
+    h.text:SetFont(font, hpsize, "OUTLINE")
+    local tex = (S.bartexture and S.bartexture ~= "") and pfUI.media[S.bartexture] or pfUI.media[C.nameplates.healthtexture]
+    h:SetStatusBarTexture(tex)
+    cb:SetStatusBarTexture(tex)
+    o.cend:SetStatusBarTexture(tex)
+    o.hl:SetTexture(tex)
+    local bg = COL.bgcolor
+    if h.backdrop then h.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
+    if cb.backdrop then cb.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
+    if not o.cend.backdrop then CreateBackdrop(o.cend, border) end
+    if o.cend.backdrop then o.cend.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
+
+    -- cast bar: Plater's layout (icon to the left, name left, time right)
+    local ch = tonumber(S.castheight) or 12
+    local tsize = math.max(8, math.min(fsize, ch + 1))
+    if S.castlayout == "plater" then
+      cb:SetHeight(ch)
+      cb.icon:ClearAllPoints()
+      cb.icon:SetPoint("TOPRIGHT", cb, "TOPLEFT", -border * 3, 0)
+      cb.icon:SetWidth(ch)
+      cb.icon:SetHeight(ch)
+      cb.spell:ClearAllPoints()
+      cb.spell:SetPoint("LEFT", cb, "LEFT", 3, 0)
+      cb.spell:SetPoint("RIGHT", cb, "RIGHT", -30, 0)
+      cb.spell:SetJustifyH("LEFT")
+      cb.spell:SetFont(font, tsize, "OUTLINE")
+      cb.text:ClearAllPoints()
+      cb.text:SetPoint("RIGHT", cb, "RIGHT", -2, 0)
+      cb.text:SetJustifyH("RIGHT")
+      cb.text:SetFont(font, tsize, "OUTLINE")
+      cb.text:SetTextColor(1, 1, 1, 1)
+    end
+    o.cend.text:SetFont(font, tsize, "OUTLINE")
+    o.cend.text:SetJustifyH(S.castlayout == "plater" and "LEFT" or "CENTER")
+    o.spark:SetHeight(ch * 2.4)
+
+    -- target indicators
+    local hh = tonumber(C.nameplates.heighthealth) or 8
+    local r, g, b, a = COL.targetcolor[1], COL.targetcolor[2], COL.targetcolor[3], COL.targetcolor[4]
+    if S.targetaccent == "1" and GetAccentColor then r, g, b = GetAccentColor() end
+    local isz = math.max(12, hh * 2)
+    local arrow = S.indicator == "chevrons" and Art("chevron") or Art("arrow")
+    o.left:SetTexture(arrow)
+    o.right:SetTexture(arrow)
+    o.left:SetTexCoord(0, 1, 0, 1)
+    o.right:SetTexCoord(1, 0, 0, 1)
+    for _, t in ipairs({ o.left, o.right }) do
+      t:SetWidth(isz)
+      t:SetHeight(isz)
+      t:SetVertexColor(r, g, b, a)
+    end
+    o.left:ClearAllPoints()
+    o.left:SetPoint("RIGHT", plate.level, "LEFT", -1, 0)
+    o.right:ClearAllPoints()
+    o.right:SetPoint("LEFT", h, "RIGHT", 3, 0)
+    local csz = math.max(6, hh)
+    local CORNERS = {
+      { "TOPLEFT", -3, 3, 0, 1, 0, 1 }, { "TOPRIGHT", 3, 3, 1, 0, 0, 1 },
+      { "BOTTOMLEFT", -3, -3, 0, 1, 1, 0 }, { "BOTTOMRIGHT", 3, -3, 1, 0, 1, 0 },
+    }
+    for i = 1, 4 do
+      local c, d = o.corners[i], CORNERS[i]
+      c:ClearAllPoints()
+      c:SetPoint(d[1], h, d[1], d[2], d[3])
+      c:SetTexCoord(d[4], d[5], d[6], d[7])
+      c:SetWidth(csz)
+      c:SetHeight(csz)
+      c:SetVertexColor(r, g, b, a)
+    end
+    o.under:ClearAllPoints()
+    o.under:SetPoint("CENTER", h, "CENTER", 0, -hh * .2)
+    o.under:SetWidth((tonumber(C.nameplates.width) or 120) * 1.5)
+    o.under:SetHeight(hh * 5)
+    o.under:SetVertexColor(r, g, b, a * .9)
+
+    o.mark:SetWidth(namesize + 2)
+    o.mark:SetHeight(namesize + 2)
+    o.mark:ClearAllPoints()
+    o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2, 0)
+
+    o.scale = nil
+    P.Update(plate)
+  end
+
+  -- module switched off: our parts go, pfUI's own look stays (its config ran)
+  function P.Off(plate)
+    local o = plate.octo
+    if not o then return end
+    for _, region in ipairs({ o.hl, o.tick, o.left, o.right, o.under, o.glow, o.mark, o.spark, o.cend }) do region:Hide() end
+    for i = 1, 4 do o.corners[i]:Hide() end
+    if o.scale then
+      plate:SetScale(UIParent:GetScale())
+      o.scale, o.applied = nil, nil
+    end
+  end
+
+  local MARKS = {
+    elite = { "star", 1, .8, .25 }, rareelite = { "star", .85, .9, 1 }, rare = { "star", .7, .75, .85 },
+    worldboss = { "skull", 1, .9, .9 }, boss = { "skull", 1, .9, .9 },
+  }
+
+  -- everything that changes with the unit (runs after pfUI's own update)
+  function P.Update(plate)
+    local o = plate and plate.octo
+    if not o or S.enable ~= "1" or not plate:IsVisible() then return end
+    local h = plate.health
+    local unit = UnitOf(plate)
+    local istarget = plate.istarget
+    o.unit = unit
+    o.kind = P.Kind(plate)
+    local enemy = o.kind == "enemynpc" or o.kind == "enemyplayer"
+    local shown = h:IsShown()
+
+    -- bar colour: execute, then threat, else pfUI's
+    local hp = h:GetValue() or 0
+    local _, maxhp = h:GetMinMaxValues()
+    maxhp = maxhp or 0
+    local pct = maxhp > 0 and hp / maxhp * 100 or 100
+    local ex = enemy and P.ExecutePct()
+    local col
+    if ex and pct > 0 and pct <= ex then col = COL.executecolor end
+    local state = (S.threat == "1" and enemy) and P.ThreatState(unit, istarget) or nil
+    o.state = state
+    if not col then col = P.ThreatColor(state) end
+    if col then
+      h:SetStatusBarColor(col[1], col[2], col[3], col[4])
+      plate.cache.r, plate.cache.g, plate.cache.b = col[1], col[2], col[3]
+    end
+
+    -- execute marker
+    if ex and S.executemark == "1" and pct > ex and shown and C.nameplates.verticalhealth ~= "1" then
+      o.tick:ClearAllPoints()
+      o.tick:SetPoint("CENTER", h, "LEFT", h:GetWidth() * ex / 100, 0)
+      o.tick:SetHeight(h:GetHeight() + 2)
+      o.tick:Show()
+    else
+      o.tick:Hide()
+    end
+
+    -- aggro glow
+    if S.aggroglow == "1" and shown and P.Alarming(state) then
+      local c = P.ThreatColor(state) or COL.c_aggro
+      o.glow:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+      o.glow:Show()
+    else
+      o.glow:Hide()
+    end
+
+    -- target indicator
+    local ind = istarget and shown and S.indicator or "none"
+    Vis(o.left, ind == "arrows" or ind == "chevrons")
+    Vis(o.right, ind == "arrows" or ind == "chevrons")
+    for i = 1, 4 do Vis(o.corners[i], ind == "corners") end
+    Vis(o.under, ind == "underglow")
+
+    -- elite / rare / boss mark
+    local mark
+    if S.eliteicon == "1" and plate.name:IsShown() then
+      local cls = unit and UnitClassification and UnitClassification(unit)
+      if not cls or cls == "normal" then
+        local _, _, elite = GetUnitData(plate.original.name:GetText(), true)
+        cls = elite
+      end
+      if plate.original.levelicon and plate.original.levelicon:IsShown() then cls = "worldboss" end
+      mark = cls and MARKS[cls]
+    end
+    if mark then
+      o.mark:SetTexture(Art(mark[1]))
+      o.mark:SetVertexColor(mark[2], mark[3], mark[4], 1)
+      o.mark:Show()
+    else
+      o.mark:Hide()
+    end
+  end
+
+  -- ---------------------------------------------------------------- every frame
+
+  function P.CastEnd(plate, o, done, now)
+    if S.castend ~= "1" then return end
+    local unit = o.unit
+    -- still casting: the bar was hidden for another reason (target-only bars)
+    if unit and ((UnitCastingInfo and UnitCastingInfo(unit)) or (UnitChannelInfo and UnitChannelInfo(unit))) then return end
+    local c = done and COL.c_done or COL.c_stopped
+    o.cend:SetStatusBarColor(c[1], c[2], c[3], c[4])
+    o.cend:SetValue(1)
+    o.cendAt, o.cendDone, o.kicked = now, done, nil
+    o.victim = plate.original.name:GetText()
+    o.cend.text:SetText(done and "" or T["Interrupted"])
+    if not done then P.Kicker(o) end
+    o.cend:SetAlpha(1)
+    o.cend:Show()
+  end
+
+  -- "Interrupted by NAME" once the combat log names who did it
+  function P.Kicker(o)
+    local k = o.victim and kicks[o.victim]
+    if k and o.cendAt and math.abs(k.at - o.cendAt) < 1 then
+      o.kicked = true
+      if S.kicker == "1" then o.cend.text:SetText(string.format(T["Interrupted by %s"], k.by)) end
+    end
+  end
+
+  function P.TickCast(plate, o, now)
+    local cb = plate.castbar
+    if cb:IsShown() then
+      local _, max = cb:GetMinMaxValues()
+      local v = cb:GetValue() or 0
+      max = max or 0
+      -- a new cast: its name and whether it is channelled
+      if not o.casting or max ~= o.castmax then
+        o.casting, o.castmax, o.channel, o.castname = true, max, nil, nil
+        local unit = o.unit
+        local name = plate.original.name:GetText()
+        local spell
+        for _, who in ipairs({ unit or false, name or false }) do
+          if who and not spell then
+            spell = UnitCastingInfo and UnitCastingInfo(who)
+            if not spell and UnitChannelInfo then
+              spell = UnitChannelInfo(who)
+              if spell then o.channel = true end
+            end
+          end
+        end
+        o.castname = spell
+      end
+      o.castv = v
+      local c = o.channel and COL.c_channel or COL.c_cast
+      cb:SetStatusBarColor(c[1], c[2], c[3], c[4])
+      if S.castlayout == "plater" and o.castname then cb.spell:SetText(o.castname) end
+      if S.spark == "1" and max > 0 then
+        o.spark:ClearAllPoints()
+        o.spark:SetPoint("CENTER", cb, "LEFT", cb:GetWidth() * math.min(1, math.max(0, v / max)), 0)
+        o.spark:Show()
+      else
+        o.spark:Hide()
+      end
+      o.cend:Hide()
+    elseif o.casting then
+      -- it ended: done when it reached its end, else stopped
+      o.casting = nil
+      o.spark:Hide()
+      local done
+      if o.channel then done = (o.castv or 1) <= .3 else done = (o.castv or 0) >= (o.castmax or 0) - .3 end
+      P.CastEnd(plate, o, done, now)
+    end
+
+    if o.cend:IsShown() then
+      if not o.cendDone and not o.kicked then P.Kicker(o) end
+      local left = 1 - (now - (o.cendAt or 0)) / (o.cendDone and .35 or 1.2)
+      if left <= 0 then o.cend:Hide() else o.cend:SetAlpha(math.min(1, left * 1.5)) end
+    end
+  end
+
+  function P.Tick(plate)
+    local o = plate and plate.octo
+    if not o or S.enable ~= "1" then return end
+    local now = GetTime()
+    local dt = now - (o.last or now)
+    o.last = now
+    local istarget = plate.istarget
+
+    -- size: kind, out of combat, target - eased
+    local want = (tonumber(S["size_" .. (o.kind or "enemynpc")]) or 100) / 100
+    if not UnitAffectingCombat("player") then want = want * (tonumber(S.size_ooc) or 100) / 100 end
+    if istarget then want = want * (tonumber(S.size_target) or 100) / 100 end
+    if not o.scale then o.scale = want end
+    if o.scale ~= want then
+      o.scale = o.scale + (want - o.scale) * math.min(1, dt * 12)
+      if math.abs(want - o.scale) < .005 then o.scale = want end
+    end
+    if o.applied ~= o.scale then
+      plate:SetScale(UIParent:GetScale() * o.scale)
+      o.applied = o.scale
+    end
+
+    -- range / line of sight: fade (after pfUI's non-target alpha)
+    if S.range == "1" and UnitXP and o.unit and o.unit ~= "target" then
+      if now >= (o.rangeAt or 0) then
+        o.rangeAt = now + .2
+        local ok, d = pcall(UnitXP, "distanceBetween", "player", o.unit)
+        o.far = (ok and type(d) == "number" and d > (tonumber(S.rangeyards) or 40)) or nil
+        o.unseen = nil
+        if S.los == "1" then
+          local ok2, seen = pcall(UnitXP, "inSight", "player", o.unit)
+          o.unseen = (ok2 and seen == false) or nil
+        end
+      end
+      if (o.far or o.unseen) and not istarget then
+        plate:SetAlpha(plate:GetAlpha() * (tonumber(S.rangealpha) or .4))
+      end
+    end
+
+    Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
+    P.TickCast(plate, o, now)
+  end
+
+  -- ---------------------------------------------------------------- wrap pfUI's nameplates
+
+  local OnConfigChange = NP.OnConfigChange
+  NP.OnConfigChange = function(frame)
+    OnConfigChange(frame)
+    P.Configure(frame and frame.nameplate)
+  end
+
+  local OnDataChanged = NP.OnDataChanged
+  NP.OnDataChanged = function(self, plate)
+    OnDataChanged(self, plate)
+    if plate and not plate.octo then return end
+    P.Update(plate)
+  end
+
+  local OnUpdate = NP.OnUpdate
+  NP.OnUpdate = function(frame)
+    OnUpdate(frame)
+    local parent = frame or this
+    if parent then P.Tick(parent.nameplate) end
+  end
+
+  local UpdateConfig = NP.UpdateConfig
+  NP.UpdateConfig = function(a1, a2)
+    ReadColors()
+    ReadTanks()
+    UpdateConfig(a1, a2)
+  end
+
+  -- settings changed on our pages
+  function P.Refresh()
+    NP.UpdateConfig()
+  end
+
+  -- one-click looks: { key, label, { plates keys }, { nameplates keys } }
+  local PRESETS = {
+    { "plater", "Plater look", {
+        enable = "1", bartexture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-soft", indicator = "arrows",
+        castlayout = "plater", castheight = "12", size_target = "110", size_ooc = "90",
+        size_friendlynpc = "80", size_friendlyplayer = "80", threat = "1", aggroglow = "1", spark = "1", castend = "1" },
+      { width = "130", heighthealth = "12", heightcast = "12", showhp = "1", hptextpos = "CENTER", hptextformat = "percent",
+        targetglow = "0", targetzoom = "0" } },
+    { "slim", "Slim", {
+        enable = "1", bartexture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-flat", indicator = "corners",
+        castlayout = "plater", castheight = "8", size_target = "105", size_ooc = "90" },
+      { width = "110", heighthealth = "6", heightcast = "8", showhp = "0", targetglow = "0", targetzoom = "0" } },
+    { "pfui", "pfUI look", {
+        bartexture = "Interface\\AddOns\\pfUI\\img\\bar", indicator = "none", castlayout = "pfui", castheight = "8",
+        size_target = "100", size_ooc = "100", size_enemynpc = "100", size_enemyplayer = "100",
+        size_friendlynpc = "100", size_friendlyplayer = "100", aggroglow = "0" },
+      { width = "120", heighthealth = "8", heightcast = "8", showhp = "0", hptextpos = "RIGHT", hptextformat = "curmaxs",
+        targetglow = "1" } },
+  }
+  P.PRESETS = PRESETS
+
+  function P.ApplyPreset(key)
+    for _, p in ipairs(PRESETS) do
+      if p[1] == key then
+        for k, v in pairs(p[3]) do S[k] = v end
+        for k, v in pairs(p[4]) do C.nameplates[k] = v end
+      end
+    end
+    P.Refresh()
+  end
+
+  ReadColors()
+  ReadTanks()
+
+  -- once: Plater's look (the user asked for Plater's nameplates)
+  if S.firstlook ~= "1" then
+    S.firstlook = "1"
+    P.ApplyPreset("plater")
+  end
+end)

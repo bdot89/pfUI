@@ -1,0 +1,331 @@
+pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
+  -- pfUI Octo :: the Nameplates section in OctoBG's look. Every setting of
+  -- pfUI's own Nameplates page (that page is hidden from the topic list and
+  -- Find) plus the Plater-style ones of plates.lua: General, Look and size,
+  -- Threat and colours, Target, Cast bar, Debuffs, Range and execute.
+  local P = pfUI.plates
+  local OU = pfUI.octoui
+  local W = OU and OU.W
+  local O = OU and OU.Options
+  if not P or not W or not O or not O.AddPage then return end
+  local BUILD = {}
+  local PfChk, PfSld = O.PfChk, O.PfSld
+
+  local function S() return C.plates end
+  local function N() return C.nameplates end
+  local function ND() return C.nameplates.debuffs end
+  local function NN() return C.nameplates.name end
+  local function NH() return C.nameplates.health end
+  local function U() P.Refresh() end
+  local function Pct(v) return math.floor(v + 0.5) .. "%" end
+  local function Px(v) return v .. " px" end
+  local function Yd(v) return v .. " yd" end
+  local function Alpha(v) return math.floor(v * 100 + 0.5) .. "%" end
+
+  -- a pfUI-style string setting as a dropdown / colour / text field
+  local function Drop(p, label, desc, options, group, key)
+    return W.Dropdown(p, label, desc, options, function() return group()[key] end, function(v)
+      group()[key] = v
+      U()
+    end)
+  end
+  local function Color(p, label, desc, group, key)
+    return W.Color(p, label, desc, function()
+      local r, g, b, a = GetStringColor(group()[key] or "1,1,1,1")
+      return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+    end, function(r, g, b, a)
+      group()[key] = string.format("%.2f,%.2f,%.2f,%.2f", r, g, b, a or 1)
+      U()
+    end)
+  end
+  local function Edit(p, label, desc, group, key)
+    return W.Edit(p, label, desc, function() return group()[key] end, function(v)
+      group()[key] = v or ""
+      U()
+    end, 300)
+  end
+  local function Chk(p, label, desc, group, key) return PfChk(p, label, desc, group, key, U) end
+  local function Sld(p, label, desc, min, max, step, group, key, fmt) return PfSld(p, label, desc, min, max, step, group, key, U, fmt) end
+
+  -- pfUI's "key:label" dropdown lists as Octo options
+  local function PfList(list)
+    local out = {}
+    for _, e in ipairs(list or {}) do
+      local _, _, k, l = string.find(e, "^(.-):(.*)$")
+      if k then table.insert(out, { key = k, label = l }) end
+    end
+    return out
+  end
+  local function DD(name) return PfList(pfUI.gui and pfUI.gui.dropdowns and pfUI.gui.dropdowns[name]) end
+
+  local BARS = {
+    { key = "Interface\\AddOns\\pfUI\\img\\plates\\bar-soft", label = "Octo soft" },
+    { key = "Interface\\AddOns\\pfUI\\img\\plates\\bar-flat", label = "Octo flat" },
+    { key = "Interface\\AddOns\\pfUI\\img\\plates\\bar-gloss", label = "Octo gloss" },
+    { key = "Interface\\AddOns\\pfUI\\img\\plates\\bar-glass", label = "Octo glass" },
+    { key = "Interface\\AddOns\\pfUI\\img\\plates\\bar-split", label = "Octo split" },
+  }
+  local function Bars()
+    local out = {}
+    for _, b in ipairs(BARS) do table.insert(out, b) end
+    for _, b in ipairs(DD("uf_bartexture")) do table.insert(out, b) end
+    return out
+  end
+  local function Fonts()
+    local out = { { key = "", label = "pfUI's font" } }
+    for _, f in ipairs(W.Fonts()) do table.insert(out, { key = f.key, label = f.label }) end
+    return out
+  end
+
+  local function Count()
+    local n = 0
+    local kids = { WorldFrame:GetChildren() }
+    for _, f in ipairs(kids) do
+      if f.nameplate and f:IsVisible() then n = n + 1 end
+    end
+    return n
+  end
+
+  local ROLE = { auto = "Automatic", tank = "Tank", dps = "Damage / healer" }
+
+  -- ---------------------------------------------------------------- general
+
+  BUILD.npgeneral = function(p)
+    W.Heading(p, "Nameplates", {
+      on = { function() return C.plates.enable == "1" end, function(v) C.plates.enable = v and "1" or "0"; U() end,
+             "Plater-style nameplates on or off. Off: pfUI's own nameplates as they were." },
+      about = "Plater's ideas on pfUI's nameplates: aggro colours that flip for tanks, sizes per kind of unit, "
+        .. "target arrows, a Plater cast bar that says who interrupted, execute range, plates that fade out of "
+        .. "range. The art is pfUI Octo's own." })
+    W.Live(p, function()
+      local s = {}
+      local n = Count()
+      table.insert(s, n .. " nameplate" .. ((n == 1) and "" or "s") .. " on screen" .. ((n == 0) and " - V shows enemy plates, Shift-V friendly" or ""))
+      table.insert(s, "role: " .. (P.Role() == "tank" and "tank" or "damage / healer"))
+      table.insert(s, superwow_active and "SuperWoW |cff55ff55found|r" or "SuperWoW |cffff5555missing|r (no threat colours on other plates)")
+      table.insert(s, UnitXP and "UnitXP |cff55ff55found|r" or "UnitXP |cffff5555missing|r (no range fade)")
+      return table.concat(s, "    ")
+    end)
+    local looks = {}
+    for _, pr in ipairs(P.PRESETS) do
+      local key = pr[1]
+      table.insert(looks, { pr[2], function() P.ApplyPreset(key); W.Refresh(p) end, 120,
+        "Sets the bars, text, sizes and target marker in one go. Colours and lists stay as they are." })
+    end
+    W.Buttons(p, looks)
+    W.Card(p, "Show")
+    Chk(p, "Enemies", "Nameplates on hostile units (the V key).", N, "showhostile")
+    Chk(p, "Friends", "Nameplates on friendly units (Shift-V).", N, "showfriendly")
+    Chk(p, "Totems as icons", "A totem shows its icon instead of a bar.", N, "totemicons")
+    Chk(p, "Guild names", "The guild under a player's name.", N, "showguildname")
+    Chk(p, "Combo points", "Your combo points under the target's plate.", N, "cpdisplay")
+    Chk(p, "Elite, rare and boss marks", "A star (gold elite, silver rare) or a skull (boss) by the name.", S, "eliteicon")
+    W.Card(p, "Name only (no bar) on", { tip = "These show just their name and level." })
+    Chk(p, "Enemy NPCs", nil, N, "enemynpc")
+    Chk(p, "Enemy players", nil, N, "enemyplayer")
+    Chk(p, "Neutral NPCs", nil, N, "neutralnpc")
+    Chk(p, "Friendly NPCs", nil, N, "friendlynpc")
+    Chk(p, "Friendly players", nil, N, "friendlyplayer")
+    Chk(p, "Critters", nil, N, "critters")
+    Chk(p, "Totems", nil, N, "totems")
+    Chk(p, "Still a bar when hurt", "A unit that has lost health keeps its bar.", N, "fullhealth")
+    Chk(p, "Still a bar on the target", nil, N, "target")
+    if pfUI.client <= 11200 then
+      W.Card(p, "Clicks", { folded = true })
+      Chk(p, "Click through", "Plates ignore the mouse.", N, "clickthrough")
+      Chk(p, "Overlap", "Plates may sit on top of each other instead of spreading out.", N, "overlap")
+      Chk(p, "Right-click turns the camera", "Hold right-click on a plate to turn; a quick click targets and attacks.", N, "rightclick")
+      Sld(p, "Quick click under", "How short a right-click must be to count as a click.", 0.1, 1, 0.05, N, "clickthreshold", function(v) return v .. " s" end)
+      Sld(p, "Raise plates by", "Moves every plate up (or down) from where the game puts it.", -50, 50, 1, N, "vertical_offset", Px)
+    end
+  end
+
+  -- ---------------------------------------------------------------- look and size
+
+  BUILD.nplook = function(p)
+    W.Heading(p, "Look and size", { about = "Bar texture, background, letters and how big each kind of plate is." })
+    W.Card(p, "Bar")
+    Drop(p, "Texture", "The fill of the health and cast bars. The Octo ones are pfUI Octo's own art.", Bars(), S, "bartexture")
+    Color(p, "Background", "Behind the bars (the empty part).", S, "bgcolor")
+    Sld(p, "Width", nil, 60, 250, 1, N, "width", Px)
+    Sld(p, "Health height", nil, 2, 30, 1, N, "heighthealth", Px)
+    Sld(p, "Gap under the name", "Space between the name and the bar.", -10, 10, 1, NH, "offset", Px)
+    Chk(p, "Upright bar", "The health bar fills from the bottom up.", N, "verticalhealth")
+    W.Card(p, "Text")
+    Drop(p, "Font", "The letters of names and numbers on plates.", Fonts(), S, "font")
+    Drop(p, "Outline", nil, DD("fontstyle"), NN, "fontstyle")
+    Sld(p, "Name size", "0 = pfUI's font size.", 0, 24, 1, S, "namesize", function(v) return v == 0 and "pfUI's" or (v .. " px") end)
+    Sld(p, "Health text size", "0 = a bit smaller than the name.", 0, 24, 1, S, "hpsize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Chk(p, "Unit frame font", "Use pfUI's unit frame font when no font is picked above.", N, "use_unitfonts")
+    Chk(p, "Health text", "Numbers on the health bar.", N, "showhp")
+    Drop(p, "Health text place", nil, DD("textalign"), N, "hptextpos")
+    Drop(p, "Health text shows", nil, DD("hpformat"), N, "hptextformat")
+    W.Card(p, "Size by kind", { tip = "% of the width and height above; plates grow and shrink smoothly." })
+    Sld(p, "Enemy NPCs", nil, 40, 160, 5, S, "size_enemynpc", Pct)
+    Sld(p, "Enemy players", nil, 40, 160, 5, S, "size_enemyplayer", Pct)
+    Sld(p, "Friendly NPCs", nil, 40, 160, 5, S, "size_friendlynpc", Pct)
+    Sld(p, "Friendly players", nil, 40, 160, 5, S, "size_friendlyplayer", Pct)
+    Sld(p, "Out of combat", "Plates shrink to this while you are not fighting.", 40, 120, 5, S, "size_ooc", Pct)
+    W.Card(p, "Raid mark", { folded = true })
+    Drop(p, "Place", nil, DD("positions"), N, "raidiconpos")
+    Sld(p, "Size", nil, 8, 48, 1, N, "raidiconsize", Px)
+    Sld(p, "Left / right", nil, -60, 60, 1, N, "raidiconoffx", Px)
+    Sld(p, "Up / down", nil, -60, 60, 1, N, "raidiconoffy", Px)
+  end
+
+  -- ---------------------------------------------------------------- threat
+
+  BUILD.npthreat = function(p)
+    W.Heading(p, "Threat and colours", {
+      on = { function() return C.plates.threat == "1" end, function(v) C.plates.threat = v and "1" or "0"; U() end,
+             "Aggro colours on the bars of mobs fighting you." },
+      about = "Damage and healers: red = the mob is on you, orange = you are about to pull it off the tank (your "
+        .. "target, from the server's threat numbers), purple = it is on someone else. Tanks: blue = it is on you, orange = someone is about to "
+        .. "pull it, purple = another tank has it, red = it is loose on someone else. Needs SuperWoW for plates "
+        .. "other than your target." })
+    W.Live(p, function() return "You count as: " .. (P.Role() == "tank" and "|cff55aaffTank|r" or "|cffff7755Damage / healer|r") end)
+    W.Card(p, "Role")
+    W.Dropdown(p, "Role", "Automatic: tank in Defensive Stance, bear form, with Righteous Fury or marked a tank in pfUI's raid frames.",
+      { { key = "auto", label = ROLE.auto }, { key = "tank", label = ROLE.tank }, { key = "dps", label = ROLE.dps } },
+      function() return C.plates.role end, function(v) C.plates.role = v; U() end)
+    Sld(p, "Pulling at", "% of the tank's threat that counts as about to pull.", 50, 130, 5, S, "pullat", Pct)
+    Chk(p, "Aggro glow", "A glow around the plate when a mob is on you (or, for tanks, loose on someone else).", S, "aggroglow")
+    W.Card(p, "Damage and healer colours")
+    Color(p, "On you", nil, S, "c_aggro")
+    Color(p, "Pulling", nil, S, "c_pulling")
+    Color(p, "On someone else", nil, S, "c_safe")
+    Chk(p, "Keep the normal colour", "On someone else: no colour of its own.", S, "safenormal")
+    W.Card(p, "Tank colours")
+    Color(p, "On you", nil, S, "c_tankaggro")
+    Color(p, "Losing it", nil, S, "c_losing")
+    Color(p, "On another tank", nil, S, "c_offtank")
+    Color(p, "Lost", nil, S, "c_lost")
+    Edit(p, "Other tanks", "Names separated by #. pfUI's raid frame tank marks count too.", N, "combatofftanks")
+    W.Card(p, "Class and name colours")
+    Chk(p, "Class colours on enemies", nil, N, "enemyclassc")
+    Chk(p, "Class colours on friends", nil, N, "friendclassc")
+    Chk(p, "Class coloured friend names", nil, N, "friendclassnamec")
+    Chk(p, "Orange name in a fight", "The name turns orange while the unit fights.", N, "namefightcolor")
+    W.Card(p, "Border colours", { folded = true, tip = "pfUI's own colours on the bar's border." })
+    Chk(p, "Friendly players blue", nil, N, "outfriendly")
+    Chk(p, "Friendly NPCs green", nil, N, "outfriendlynpc")
+    Chk(p, "Neutral yellow", nil, N, "outneutral")
+    Chk(p, "Enemies red", nil, N, "outenemy")
+    Chk(p, "Combat state on the border", "SuperWoW: the border shows who the mob attacks (colours below).", N, "outcombatstate")
+    Chk(p, "Combat state on the bar", "pfUI's own bar colours by combat state (threat colours above win).", N, "barcombatstate")
+    Chk(p, "Attacking you", nil, N, "ccombatthreat")
+    Chk(p, "Attacking an off-tank", nil, N, "ccombatofftank")
+    Chk(p, "Attacking others", nil, N, "ccombatnothreat")
+    Chk(p, "Attacking no one", nil, N, "ccombatstun")
+    Chk(p, "Casting", nil, N, "ccombatcasting")
+    Color(p, "Attacking you", nil, N, "combatthreat")
+    Color(p, "Attacking an off-tank", nil, N, "combatofftank")
+    Color(p, "Attacking others", nil, N, "combatnothreat")
+    Color(p, "Attacking no one", nil, N, "combatstun")
+    Color(p, "Casting", nil, N, "combatcasting")
+  end
+
+  -- ---------------------------------------------------------------- target
+
+  BUILD.nptarget = function(p)
+    W.Heading(p, "Target", { about = "How your target's plate stands out." })
+    W.Card(p, "Target")
+    W.Dropdown(p, "Marker", "Beside or around your target's bar.",
+      { { key = "arrows", label = "Arrows" }, { key = "chevrons", label = "Double arrows" }, { key = "corners", label = "Corners" },
+        { key = "underglow", label = "Light under the bar" }, { key = "none", label = "None" } },
+      function() return C.plates.indicator end, function(v) C.plates.indicator = v; U() end)
+    Chk(p, "Accent colour", "The marker in pfUI Octo's accent colour.", S, "targetaccent")
+    Color(p, "Marker colour", "When the accent colour is off.", S, "targetcolor")
+    Sld(p, "Target size", "Your target's plate grows to this.", 80, 160, 5, S, "size_target", Pct)
+    Sld(p, "Other plates", "How see-through the plates that are not your target are.", 0.1, 1, 0.05, N, "notargalpha", Alpha)
+    Chk(p, "Mouse-over highlight", "The bar lights up under the mouse.", S, "mouseover")
+    W.Card(p, "More target effects", { folded = true })
+    Chk(p, "Glow", "pfUI's soft glow behind the target.", N, "targetglow")
+    Color(p, "Glow colour", nil, N, "glowcolor")
+    Chk(p, "Border", "A coloured border on the target's bar.", N, "targethighlight")
+    Color(p, "Border colour", nil, N, "highlightcolor")
+    Chk(p, "Zoom", "pfUI's zoom: the target's bar gets wider and taller.", N, "targetzoom")
+    Sld(p, "Zoom by", nil, 0.05, 1, 0.05, N, "targetzoomval", Alpha)
+  end
+
+  -- ---------------------------------------------------------------- cast bar
+
+  BUILD.npcast = function(p)
+    W.Heading(p, "Cast bar", {
+      on = { function() return C.nameplates.showcastbar == "1" end, function(v) C.nameplates.showcastbar = v and "1" or "0"; U() end,
+             "Cast bars under nameplates." },
+      about = "What a unit is casting, under its plate. When a cast ends it flashes green (done) or red (stopped), "
+        .. "with who interrupted it when the combat log says." })
+    W.Card(p, "Bar")
+    W.Dropdown(p, "Layout", "Plater: the icon left of the bar, the spell's name in the bar, the time on the right. pfUI: as pfUI had it.",
+      { { key = "plater", label = "Plater" }, { key = "pfui", label = "pfUI" } },
+      function() return C.plates.castlayout end, function(v) C.plates.castlayout = v; U() end)
+    W.Slider(p, "Height", nil, 4, 24, 1, function() return tonumber(C.plates.castheight) end, function(v)
+      C.plates.castheight = tostring(v)
+      C.nameplates.heightcast = tostring(v)
+      U()
+    end, Px)
+    Chk(p, "Only your target", "Other units' casts are not shown.", N, "targetcastbar")
+    Chk(p, "Spell name (pfUI layout)", "The Plater layout always shows it.", N, "spellname")
+    Chk(p, "Spark", "A bright edge where the bar fills.", S, "spark")
+    Chk(p, "Flash when it ends", "Green when the cast went off, red when it was stopped.", S, "castend")
+    Chk(p, "Who interrupted", "\"Interrupted by NAME\" on the red flash.", S, "kicker")
+    W.Card(p, "Colours")
+    Color(p, "Casting", nil, S, "c_cast")
+    Color(p, "Channelling", nil, S, "c_channel")
+    Color(p, "Done", nil, S, "c_done")
+    Color(p, "Stopped", nil, S, "c_stopped")
+  end
+
+  -- ---------------------------------------------------------------- debuffs
+
+  BUILD.npauras = function(p)
+    W.Heading(p, "Debuffs", {
+      on = { function() return C.nameplates.showdebuffs == "1" end, function(v) C.nameplates.showdebuffs = v and "1" or "0"; U() end,
+             "Debuff icons on nameplates." },
+      about = "Debuff icons on plates. With SuperWoW every plate knows its debuffs; without it only your target "
+        .. "and mouse-over do (estimated debuffs keep them a while)." })
+    W.Card(p, "Icons")
+    W.Dropdown(p, "Place", nil, { { key = "TOP", label = "Above" }, { key = "BOTTOM", label = "Below" } },
+      function() return C.nameplates.debuffs.position end, function(v) C.nameplates.debuffs.position = v; U() end)
+    Sld(p, "Size", nil, 8, 40, 1, N, "debuffsize", Px)
+    Sld(p, "Gap", "Space between the bar and the icons.", 0, 20, 1, N, "debuffoffset", Px)
+    Chk(p, "Stacks", "The stack count on the icon.", ND, "showstacks")
+    Chk(p, "Only yours", "Only the debuffs you put on.", N, "selfdebuff")
+    Chk(p, "Estimate", "Remember debuffs seen on a unit for plates that cannot read them.", N, "guessdebuffs")
+    W.Card(p, "Filter")
+    W.Dropdown(p, "Filter", nil,
+      { { key = "none", label = "Show all" }, { key = "blacklist", label = "Hide the black list" }, { key = "whitelist", label = "Only the white list" } },
+      function() return C.nameplates.debuffs.filter end, function(v) C.nameplates.debuffs.filter = v; U() end)
+    Edit(p, "Black list", "Debuff names separated by #.", ND, "blacklist")
+    Edit(p, "White list", "Debuff names separated by #.", ND, "whitelist")
+  end
+
+  -- ---------------------------------------------------------------- range and execute
+
+  BUILD.nprange = function(p)
+    W.Heading(p, "Range and execute", { about = "Plates fade when the unit is far away or out of sight (needs UnitXP), "
+      .. "and change colour when a mob is low enough to execute." })
+    W.Card(p, "Range", { on = { function() return C.plates.range == "1" end, function(v) C.plates.range = v and "1" or "0"; U() end,
+      "Fade plates of far units." } })
+    Sld(p, "Further than", nil, 5, 100, 1, S, "rangeyards", Yd)
+    Sld(p, "Fade to", nil, 0.05, 1, 0.05, S, "rangealpha", Alpha)
+    Chk(p, "Out of sight too", "Also fade units behind walls.", S, "los")
+    W.Card(p, "Execute")
+    W.Dropdown(p, "Execute range", "Automatic: on for warriors (Execute) and paladins (Hammer of Wrath).",
+      { { key = "auto", label = "Automatic" }, { key = "on", label = "Always" }, { key = "off", label = "Off" } },
+      function() return C.plates.execute end, function(v) C.plates.execute = v; U() end)
+    Sld(p, "Under", nil, 5, 50, 1, S, "executepct", Pct)
+    Color(p, "Colour", "The bar's colour once the mob is in execute range.", S, "executecolor")
+    Chk(p, "Marker", "A line on the bar where execute range starts.", S, "executemark")
+  end
+
+  O.replaced[T["Nameplates"]] = true
+  O:AddPage("Nameplates", "npgeneral", "General", BUILD.npgeneral)
+  O:AddPage("Nameplates", "nplook", "Look and size", BUILD.nplook)
+  O:AddPage("Nameplates", "npthreat", "Threat and colours", BUILD.npthreat)
+  O:AddPage("Nameplates", "nptarget", "Target", BUILD.nptarget)
+  O:AddPage("Nameplates", "npcast", "Cast bar", BUILD.npcast)
+  O:AddPage("Nameplates", "npauras", "Debuffs", BUILD.npauras)
+  O:AddPage("Nameplates", "nprange", "Range and execute", BUILD.nprange)
+end)

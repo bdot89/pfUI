@@ -51,6 +51,8 @@
   <Include file="..\modules\buff.lua"/>
   <Include file="..\modules\buffwatch.lua"/>
   <Include file="..\modules\nameplates.lua"/>
+  <Include file="..\modules\plates.lua"/>
+  <Include file="..\modules\plates-options.lua"/>
   <Include file="..\modules\loot.lua"/>
   <Include file="..\modules\roll.lua"/>
   <Include file="..\modules\infight.lua"/>

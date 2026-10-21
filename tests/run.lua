@@ -83,7 +83,8 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds" }
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
+  "nameplates", "plates", "plates-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1196,6 +1197,247 @@ do
     O.quickFind:SetText("")
     ok(not O.searching, "clearing Find goes back to the page")
     pfUI_config.sct.enabled = wasOn
+    pfUI.gui:Hide()
+  end
+end
+
+-- ---------------------------------------------------------------- nameplates (Plater)
+
+do
+  local P, NP = pfUI.plates, pfUI.nameplates
+  local S = pfUI_config.plates
+  ok(P and NP and S, "Plater-style nameplates loaded")
+  if P and NP and S then
+    -- the first load gave Plater's look once; the presets switch looks
+    ok(S.firstlook == "1" and pfUI_config.nameplates.heighthealth == "12" and S.castlayout == "plater", "first load: Plater's look")
+    P.ApplyPreset("pfui")
+    ok(pfUI_config.nameplates.heighthealth == "8" and S.indicator == "none" and S.castlayout == "pfui", "pfUI look preset")
+    P.ApplyPreset("plater")
+    ok(pfUI_config.nameplates.width == "130" and S.indicator == "arrows", "Plater look preset")
+
+    -- our own art is there
+    for _, n in ipairs({ "bar-soft", "bar-flat", "bar-gloss", "bar-glass", "bar-split", "arrow", "chevron", "corner",
+                         "underglow", "spark", "star", "skull", "tick" }) do
+      local h = io.open(DIR .. "/img/plates/" .. n .. ".tga", "rb")
+      ok(h, "plate art " .. n)
+      if h then h:close() end
+    end
+
+    -- a mob and who it attacks (GUID.."target")
+    local MOB = "0xF13000ABCD000001"
+    local saved = { UnitName = UnitName, UnitIsUnit = UnitIsUnit, UnitExists = UnitExists, superwow = superwow_active }
+    local mobTarget = "player"
+    Mock.Enemy(MOB, "Gnoll Shaman", "WARRIOR", 50, 0, { npc = true, combat = true })
+    Mock.units.player = { combat = true }
+    UnitName = function(u)
+      if u == MOB .. "target" then return mobTarget == "player" and "Tester" or mobTarget end
+      return saved.UnitName(u)
+    end
+    UnitIsUnit = function(a, b)
+      if a == MOB .. "target" and b == "player" then return mobTarget == "player" end
+      return a == b
+    end
+    UnitExists = function(u)
+      if u == MOB .. "target" then return 1 end
+      return saved.UnitExists(u)
+    end
+    superwow_active = true
+
+    -- threat states for damage dealers
+    S.role = "dps"
+    ok(P.ThreatState(MOB) == "aggro", "on you: aggro (" .. tostring(P.ThreatState(MOB)) .. ")")
+    mobTarget = "Bob"
+    ok(P.ThreatState(MOB) == "safe", "on someone else: safe")
+    ok(P.ThreatColor("safe") == P.COL.c_safe, "safe has its own colour by default (red would look like aggro)")
+    S.safenormal = "1"
+    ok(P.ThreatColor("safe") == nil, "or keeps the normal colour")
+    S.safenormal = "0"
+    local TH = pfUI.meters and pfUI.meters.threat
+    if TH then
+      TH.list, TH.at = { { name = "Bob", tank = true, perc = 100 }, { name = "Tester", perc = 95 } }, GetTime()
+      ok(P.ThreatState(MOB, true) == "pulling", "near the tank on your target: pulling")
+      ok(P.ThreatState(MOB, false) == "safe", "the threat list is only about your target")
+    end
+    Mock.units.player.combat = false
+    ok(P.ThreatState(MOB) == nil, "you out of combat: no threat colour")
+    Mock.units.player.combat = true
+
+    -- tanks
+    S.role = "tank"
+    mobTarget = "player"
+    ok(P.ThreatState(MOB) == "aggro", "tank: on you")
+    if TH then
+      TH.list, TH.at = { { name = "Tester", tank = true, perc = 100 }, { name = "Rogue", perc = 96 } }, GetTime()
+      ok(P.ThreatState(MOB, true) == "losing", "tank: someone near you = losing")
+      TH.list = nil
+    end
+    pfUI_config.nameplates.combatofftanks = "Bob#Alice"
+    NP.UpdateConfig()
+    mobTarget = "Bob"
+    ok(P.ThreatState(MOB) == "offtank", "tank: on another tank")
+    mobTarget = "Mage"
+    ok(P.ThreatState(MOB) == "lost", "tank: loose on someone else")
+    ok(P.Alarming("lost") and not P.Alarming("offtank"), "tank: the glow is for lost mobs")
+    pfUI_config.nameplates.combatofftanks = ""
+
+    -- automatic role from the stance
+    S.role = "auto"
+    local forms = GetShapeshiftFormInfo
+    GetNumShapeshiftForms = function() return 3 end
+    GetShapeshiftFormInfo = function(i)
+      if i == 2 then return "Interface\\Icons\\Ability_Warrior_DefensiveStance", "Defensive Stance", 1 end
+      return "Interface\\Icons\\Ability_Warrior_OffensiveStance", "Battle Stance", nil
+    end
+    Mock.now = Mock.now + 2
+    ok(P.Role() == "tank", "warrior in Defensive Stance counts as a tank")
+    GetShapeshiftFormInfo = function(i) return "Interface\\Icons\\Ability_Warrior_OffensiveStance", "Battle Stance", i == 1 and 1 or nil end
+    Mock.now = Mock.now + 2
+    ok(P.Role() == "dps", "Battle Stance: damage")
+    GetShapeshiftFormInfo = forms
+    S.role = "dps"
+
+    -- execute range
+    ok(P.ExecutePct() == 20, "warriors get execute range (" .. tostring(P.ExecutePct()) .. ")")
+    S.execute = "off"
+    ok(P.ExecutePct() == nil, "execute range off")
+    S.execute = "auto"
+
+    -- who interrupted
+    local v, by = P.ParseInterrupt("Bob interrupts Gnoll Shaman's Healing Wave.")
+    ok(v == "Gnoll Shaman" and by == "Bob", "interrupt line: who and whom (" .. tostring(by) .. " -> " .. tostring(v) .. ")")
+    v, by = P.ParseInterrupt("You interrupt Gnoll Shaman's Lightning Bolt.")
+    ok(v == "Gnoll Shaman" and by == "You", "your own interrupt")
+    ok(P.ParseInterrupt("Bob hits Gnoll Shaman for 50.") == nil, "other lines are not interrupts")
+
+    -- a whole plate: the game's frame, pfUI's overlay, our parts
+    local game = Mock.Plate(MOB)
+    local hb = CreateFrame("StatusBar", nil, game)
+    CreateFrame("StatusBar", nil, game)
+    hb.GetStatusBarColor = function() return 1, 0, 0 end
+    hb:SetMinMaxValues(0, 100)
+    hb.value = 80
+    local regions = {}
+    for _, k in ipairs(pfUI.env.NAMEPLATE_OBJECTORDER) do
+      local r
+      if k == "name" or k == "level" then r = game:CreateFontString(nil, "OVERLAY") else r = game:CreateTexture(nil, "OVERLAY") end
+      r.GetObjectType = function() return (k == "name" or k == "level") and "FontString" or "Texture" end
+      r.GetTextColor = function() return 1, 1, 1 end
+      if k == "levelicon" then r.shown = false end
+      regions[table.getn(regions) + 1] = r
+      if k == "name" then r.text = "Gnoll Shaman" end
+      if k == "level" then r.text = "60" end
+    end
+    game.GetRegions = function() return unpack(regions) end
+    -- the client's cooldown animation script (debuff icons use it)
+    if type(CooldownFrame_OnUpdateModel) ~= "function" then CooldownFrame_OnUpdateModel = function() end end
+    local good, err = xpcall(function() NP.OnCreate(game) end, debug.traceback)
+    ok(good, "pfUI makes its overlay on a game plate: " .. tostring(err))
+    local plate = game.nameplate
+    local o = plate and plate.octo
+    ok(o ~= nil, "our parts are built on it")
+    if o then
+      ok(o.hl.texture and string.find(o.hl.texture, "plates\\bar%-soft"), "Octo soft bar texture (" .. tostring(o.hl.texture) .. ")")
+      -- the mob on you, damage role: red bar and the aggro glow
+      mobTarget = "player"
+      hb.value = 80
+      P.Update(plate)
+      ok(o.state == "aggro" and plate.cache.r == P.COL.c_aggro[1], "aggro colour on the bar")
+      ok(o.glow:IsShown(), "aggro glow")
+      ok(o.tick:IsShown(), "execute marker above 20%")
+      -- low health: execute colour wins
+      plate.health:SetMinMaxValues(0, 100)
+      plate.health.value = 15
+      P.Update(plate)
+      ok(plate.cache.r == P.COL.executecolor[1] and not o.tick:IsShown(), "execute colour under 20%")
+      plate.health.value = 80
+      -- your target: arrows and a bigger plate
+      plate.istarget = true
+      P.Update(plate)
+      ok(o.left:IsShown() and o.right:IsShown(), "target arrows")
+      S.indicator = "corners"
+      P.Update(plate)
+      ok(o.corners[1]:IsShown() and not o.left:IsShown(), "target corners")
+      S.indicator = "arrows"
+      o.scale = nil
+      P.Tick(plate)
+      ok(math.abs(o.scale - 1.1) < .001, "target in combat: 110% (" .. tostring(o.scale) .. ")")
+      plate.istarget = nil
+      Mock.units.player.combat = false
+      Mock.now = Mock.now + .05
+      P.Tick(plate)
+      ok(o.scale < 1.1 and o.scale > .9, "eases toward the out-of-combat size (" .. tostring(o.scale) .. ")")
+      Mock.now = Mock.now + 2
+      P.Tick(plate)
+      Mock.now = Mock.now + 2
+      P.Tick(plate)
+      ok(math.abs(o.scale - .9) < .01, "out of combat: 90% (" .. tostring(o.scale) .. ")")
+      Mock.units.player.combat = true
+      -- range: 50 yd away fades
+      plate.alpha = 1
+      o.rangeAt = 0
+      P.Tick(plate)
+      ok(o.far and math.abs(plate.alpha - .4) < .001, "50 yd away: faded to 40% (" .. tostring(plate.alpha) .. ")")
+      -- cast bar: a stopped cast flashes red and says who did it
+      local cb = plate.castbar
+      cb:SetMinMaxValues(0, 2)
+      cb.value = .8
+      cb:Show()
+      P.TickCast(plate, o, GetTime())
+      ok(o.casting and o.spark:IsShown(), "casting: spark shown")
+      cb:Hide()
+      P.TickCast(plate, o, GetTime())
+      ok(o.cend:IsShown() and not o.cendDone and o.cend.text.text == "Interrupted", "stopped: red flash")
+      P.ParseInterrupt("Bob interrupts Gnoll Shaman's Healing Wave.")
+      P.TickCast(plate, o, GetTime() + .1)
+      ok(o.cend.text.text == "Interrupted by Bob", "then names the kicker (" .. tostring(o.cend.text.text) .. ")")
+      P.TickCast(plate, o, GetTime() + 2)
+      ok(not o.cend:IsShown(), "the flash fades away")
+      cb.value = 1.9
+      cb:Show()
+      P.TickCast(plate, o, GetTime())
+      cb:Hide()
+      P.TickCast(plate, o, GetTime())
+      ok(o.cend:IsShown() and o.cendDone, "a cast that went off flashes green")
+      -- switched off: our parts go
+      S.enable = "0"
+      P.Configure(plate)
+      ok(not o.glow:IsShown() and not o.left:IsShown() and not o.cend:IsShown(), "switched off: nothing of ours shows")
+      S.enable = "1"
+      P.Configure(plate)
+    end
+
+    UnitName, UnitIsUnit, UnitExists, superwow_active = saved.UnitName, saved.UnitIsUnit, saved.UnitExists, saved.superwow
+    Mock.units.player = nil
+    Mock.units[MOB] = nil
+  end
+
+  -- the Nameplates section replaces pfUI's own page
+  local O = pfUI.octoui and pfUI.octoui.Options
+  if O and O.frame then
+    pfUI.gui:Show()
+    local sec
+    for _, s in ipairs(O.octo) do if s[1] == "Nameplates" then sec = s end end
+    ok(sec and table.getn(sec[2]) == 7, "Nameplates section with its seven pages")
+    for _, pg in ipairs(sec and sec[2] or {}) do
+      local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
+      ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
+      local p = O.pages[pg[1]]
+      if p then
+        local rok, rerr = pcall(function() pfUI.octoui.W.Refresh(p) end)
+        ok(rok, "page " .. pg[1] .. " refreshes: " .. tostring(rerr))
+      end
+    end
+    local old = 0
+    for k in pairs(O.legacy) do if string.find(k, "^l:Nameplates") then old = old + 1 end end
+    ok(old == 0, "pfUI's own Nameplates page is gone from the list")
+    O.quickFind:SetText("debuff")
+    local octo, legacy = 0, 0
+    for _, e in ipairs(O.results or {}) do
+      if e.legacy and string.find(e.where, "^Nameplates") then legacy = legacy + 1 end
+      if not e.legacy and e.page and string.sub(e.page.key or "", 1, 2) == "np" then octo = octo + 1 end
+    end
+    ok(octo > 0 and legacy == 0, "Find: nameplate settings on the new pages only (" .. octo .. " / " .. legacy .. ")")
+    O.quickFind:SetText("")
     pfUI.gui:Hide()
   end
 end

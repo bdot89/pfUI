@@ -1,0 +1,129 @@
+# pfUI Octo nameplates: design spec (Plater for 1.12)
+
+Written 21 Oct 2026. User (20 Oct): "https://www.curseforge.com/wow/addons/plater-nameplates - I want
+to implement our own version of this name plate addon into our PFUI with all features and art work".
+Target: 1.12.1 build 5875 (OctoWoW), Lua 5.0, pfUI `octo` branch.
+
+## 0. Licence: why nothing of Plater is copied
+
+Plater (Tercio / Team Details!) is **All Rights Reserved** on CurseForge ("All Rights Reserved unless
+otherwise explicitly stated", project licence tab, read 21 Oct 2026). Its GitHub repo
+(Tercioo/Plater-Nameplates) has no licence file (`"license": null` from the GitHub API). So, as with
+TWThreat, **no Plater code and no Plater texture is copied**. Its features are rebuilt from scratch on
+pfUI's nameplates, and the artwork is our own, drawn by `tools\MakePlateArt.ps1` (same approach as
+the minimap masks), plus the game's own textures. Plater's fonts are not needed: pfUI Octo already
+ships Expressway and the Octo fonts (Roboto, Fira...).
+
+Reference: the user gave Plater v661 (`Downloads\Plater-v661.zip`, 21 Oct 2026). Only its setting
+names and default colours were read, as a feature checklist (Plater_DefaultSettings.lua: about 80
+aura settings, 37 extra-indicator, 45 cast / cast bar, 18 indicator, 13 range, 12 auto-toggle, 15
+boss mod). Its DPS colours agree with ours: aggro red, `noaggro` / `notontank` blue-purple
+(.5, .5, 1), pulling yellow-orange; tanks also get `pulling_from_tank` (a tank taking it from another
+tank) - phase 3.
+
+## 1. Plater's features, mapped to this client
+
+Plater's options tabs (from its long-standing public feature set: General, Threat & Aggro, Target,
+Cast Bar, Level & Strata, Personal Bar, Buff Settings / Tracking / Special, Ghost Auras, Enemy NPC,
+Enemy Player, Friendly NPC, Friendly Player, Colors, Npc Colors & Names, Cast Colors & Names,
+Scripting, Modding, Profiles, Auto, Animations, Search). The CurseForge description only adds: 500+
+settings, aggro colours that flip for tanks, smaller plates out of combat, quest colouring, Lua
+scripts and mods with their own options, wago.io updates.
+
+Data on this client: SuperWoW (installed) gives each plate's GUID (`plate:GetName(1)`) and lets every
+`Unit*` call take that GUID (health, target of the mob, buffs, debuffs; pfUI's libcast fills
+`UnitCastingInfo(guid)` from SuperWoW's cast events). UnitXP_SP3 (installed) gives
+`UnitXP("distanceBetween", "player", guid)` (yards) and `UnitXP("inSight", "player", guid)` (boolean) -
+both used on GUIDs by Cursive here. ClassicAPI gives `C_UnitAuras.GetUnitAuras(unit)` with expiry
+times. Server threat for the current target: pfUI Octo's `pfUI.meters.threat.list` (TWT protocol).
+
+| Plater feature | Here | Phase |
+|---|---|---|
+| Bar textures, background, border, fonts | available | 1 |
+| Sizes per unit kind (enemy NPC / enemy player / friendly NPC / friendly player) | available | 1 |
+| Smaller out of combat, bigger target, smooth resize | available (frame scale) | 1 |
+| Aggro colours, flipped for tanks; "pulling aggro" colour; off-tank colour | available: mob's target via GUID; pulling only on your target (server threat) | 1 |
+| Aggro glow around the plate | available | 1 |
+| Target indicator styles, target glow, mouseover highlight, non-target alpha | available | 1 |
+| Health text formats, health % | available (pfUI) | 1 |
+| Execute range (colour + marker below N %) | available | 1 |
+| Cast bar: colours for cast / channel / done / interrupted, spark, icon, name, timer, fade | available | 1 |
+| "Interrupted by NAME" on the cast bar | available (combat log "X interrupts Y's Z") | 1 |
+| Range alpha (out of range plates fade), line of sight | available with UnitXP | 1 |
+| Elite / rare / boss icons | available | 1 |
+| One "Nameplates" options section in OctoBG's look (replaces pfUI's page) | available | 1 |
+| Buff and debuff rows: size, rows, growth, timers, stacks, borders by type | available (SuperWoW auras on GUID) | 2 |
+| Automatic tracking: your debuffs, CC, enemy important buffs, dispellable buffs | available; durations from libdebuff / ClassicAPI | 2 |
+| Special auras (big icons for chosen spells), manual lists | available | 2 |
+| Ghost auras (your missing debuffs shown faded on combat targets) | available | 2 |
+| NPC colours and renames | available by name; NPC id from GUID unverified | 3 |
+| Cast colours and renames per spell | available | 3 |
+| Quest units (colour + icon) | partial: tooltip scan of quest objectives | 3 |
+| Class / pet / totem icons, friendly "name only" mode, big actor title | available | 3 |
+| Auto tab (friendly plates on in dungeons, off in cities, enemy plates in combat) | available (ShowNameplates / ShowFriendNameplates) | 3 |
+| Personal bar and resources under your character | partial: no own nameplate on 1.12; a fixed frame instead | 3 |
+| Animations (shake / pop on big hits) | available (combat log + frame offsets) | 4 |
+| Scripts and mods with their own options | available (sandboxed Lua per plate event) | 4 |
+| Profiles, import / export | pfUI's profile strings already carry C.plates | 1 |
+| wago.io / WeakAuras-Companion updates | impossible (no web access in 1.12) | - |
+| Absorb / heal prediction bars, interruptible-shield on cast bar, spec icons | impossible (no data on 1.12) | - |
+| Boss mod timers on plates | skipped (no BigWigs plate API here) | - |
+
+## 2. Architecture
+
+- `modules/plates.lua`, module "plates", loaded right after "nameplates". It wraps
+  `pfUI.nameplates` (OnCreate / OnConfigChange / OnDataChanged / OnUpdate are looked up on the
+  table each call, so wrapping them before the first plate exists covers every plate). pfUI's file
+  stays as upstream. Our parts live in `nameplate.octo` (indicators, glow, spark, icons).
+- Settings `C.plates` (pfUI strings, "1" / "0"), defaults in api/config.lua, so profile strings
+  carry them. pfUI's own `C.nameplates` keys keep working and are shown on our pages.
+- `modules/plates-options.lua`: the "Nameplates" section in OctoBG's look (O:AddPage), with every
+  pfUI nameplate setting plus ours; pfUI's own "Nameplates" category is hidden from the topic list
+  (`O.replaced`), as combat text's was.
+- Art: `tools\MakePlateArt.ps1` -> `img\plates\*.tga` (white, tinted in game).
+
+## 3. Phase 1 (this release)
+
+Art (all 32-bit TGA, white + alpha, drawn with 4 x 4 samples):
+`bar-flat, bar-soft, bar-gloss, bar-glass, bar-split` (256 x 32 bar fills), `arrow` (64, points
+right; mirrored by tex coords), `chevron` (double arrow, 64), `corner` (32, an L; turned for the four
+corners), `underglow` (256 x 64 soft light under the bar), `spark` (32 x 64), `star` (32, elite /
+rare), `skull` (32, boss), `tick` (8 x 32, execute marker).
+
+Behaviour:
+- Look: bar texture (ours + pfUI's list), background colour and alpha, border colour, name font and
+  size, health text font size.
+- Size: per kind (enemy NPC, enemy player, friendly NPC, friendly player) as % of pfUI's width /
+  height, out-of-combat %, target %; done with the overlay's scale and eased over 0.15 s.
+- Threat: role auto (warrior in Defensive Stance, druid in bear form, paladin with Righteous Fury)
+  / tank / damage. States, from the mob's target (GUID.."target") and, for your target, the server's
+  threat list:
+  - damage / healer: `aggro` (attacking you, red), `pulling` (you are at >= N % of the tank,
+    orange), `safe` (attacking someone else: blue-purple, or the normal colour - pfUI's normal
+    enemy colour is red, which would look like aggro);
+  - tank: `aggro` (attacking you, blue-green), `losing` (someone else >= N % of you, orange),
+    `offtank` (attacking another tank, purple), `lost` (attacking a non-tank, red);
+  - only while you and the mob are in combat. Tanks = pfUI's raid tank roles + its off-tank list.
+  - aggro glow (pfUI's img:glow edge) on `aggro` (damage) / `lost` (tank), optional.
+- Target: indicator none / arrows / chevrons / corners / underglow, colour (accent by default),
+  mouseover highlight on the bar.
+- Execute: auto (warrior, paladin) / on / off at N % (20): bar colour and a marker on the bar.
+- Cast bar, Plater layout (icon left of the bar, spell name left, time right, spark, fade out) or
+  pfUI's layout. Colours: cast, channel, finished, interrupted. "Interrupted by NAME" for 1 s from
+  SPELLINTERRUPTSELFOTHER / SPELLINTERRUPTOTHEROTHER lines, matched to the plate by name.
+- Range: plates of units further than N yards (UnitXP) fade to an alpha; units out of line of sight
+  fade too (option). Checked every 0.2 s per plate. Without UnitXP: off.
+- Elite / rare / boss icon left of the name.
+- Looks: "Plater look" (130 x 12 bars, health % in the middle, arrows, Plater cast bar), "Slim" and
+  "pfUI look" buttons (`pfUI.plates.ApplyPreset`); the Plater look is applied once on first load
+  (`C.plates.firstlook`). `docs\plates-preview.png` is a drawing of it from the real textures.
+
+Not verified in game (all of phase 1): every look, the scale easing with pfUI's click area, the
+threat states, UnitXP on plate GUIDs, the interrupt lines' wording on this server.
+
+## 4. Later phases
+
+2. Auras (Plater's Buff Settings / Tracking / Special, Ghost Auras).
+3. Lists and indicators (NPC colours, cast colours, quest units, class / pet icons, name-only friends,
+   Auto tab, personal bar).
+4. Animations, scripts / mods, nameplate-only presets.
