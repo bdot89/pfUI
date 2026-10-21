@@ -247,4 +247,14 @@ see "Roadmap" below.
    underglow, spark, star, skull, tick). modules/plates-options.lua = Octo section "Nameplates"
    (7 pages, all of pfUI's nameplate settings too); `O.replaced[name]` hides pfUI's own category
    from the topic list and Find. Plater look applied once at first load. Next: phase 2 auras.
+   Seen in game 21 Oct, then: looks switched plates off (pfUI's UpdateConfig re-applies
+   showhostile; the V key does not change it) - P.Refresh now skips SetGameVariables, only the
+   Show tick boxes call it (P.ApplyShow). 8 looks (Plater, Slim, ElvUI, Big and bold, Neon,
+   Classic, PvP, pfUI) incl. border skins (C.plates.skin: pfui shadow thick accent neon gold),
+   the matching one lit (P.CurrentLook). Preview card (OctoBG's "Icons on nameplates" box) on
+   most pages: P.AttachPreview runs pfUI's real OnCreate on 4 fake game plates (`game.preview`
+   overrides state / target / combat / mark; own OnUpdate, levels raised above the box);
+   "Test on real nameplates" = P.Test(60): pretend threat states + casts on every plate.
+   SuperWoW check = P.SuperWoW() (SUPERWOW_VERSION): pfUI's superwow_active is only set at the
+   first cast event. Mock: frame level kept in `_level` (pfUI plates have a .level text).
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).

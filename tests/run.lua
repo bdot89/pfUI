@@ -70,6 +70,8 @@ function CreateFrame(kind, name, parent, template)
   if template == "OptionsSliderTemplate" then f:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal") end
   return f
 end
+-- the client's cooldown animation script (nameplate debuff icons use it)
+function CooldownFrame_OnUpdateModel() end
 function UIDropDownMenu_SetWidth() end
 function UIDropDownMenu_SetButtonWidth() end
 function UIDropDownMenu_JustifyText() end
@@ -1328,8 +1330,6 @@ do
       if k == "level" then r.text = "60" end
     end
     game.GetRegions = function() return unpack(regions) end
-    -- the client's cooldown animation script (debuff icons use it)
-    if type(CooldownFrame_OnUpdateModel) ~= "function" then CooldownFrame_OnUpdateModel = function() end end
     local good, err = xpcall(function() NP.OnCreate(game) end, debug.traceback)
     ok(good, "pfUI makes its overlay on a game plate: " .. tostring(err))
     local plate = game.nameplate
@@ -1404,7 +1404,73 @@ do
       ok(not o.glow:IsShown() and not o.left:IsShown() and not o.cend:IsShown(), "switched off: nothing of ours shows")
       S.enable = "1"
       P.Configure(plate)
+      -- border skins
+      S.skin = "shadow"
+      P.Configure(plate)
+      ok(o.skinH:IsShown() and o.skinC:IsShown(), "shadow skin around the bars")
+      S.skin = "pfui"
+      P.Configure(plate)
+      ok(not o.skinH:IsShown(), "pfUI skin: only pfUI's own border")
+      -- test mode: pretend threat states and casts on real plates
+      P.Test(60)
+      ok(P.Testing(), "test mode on")
+      local seen = {}
+      for i = 1, 6 do
+        Mock.now = Mock.now + 3
+        P.Update(plate)
+        if o.state then seen[o.state] = true end
+      end
+      ok(seen.aggro and seen.pulling and seen.safe, "test mode cycles the threat colours")
+      Mock.now = Mock.now + .5
+      P.Tick(plate)
+      P.Test(0)
+      ok(not P.Testing(), "test stops")
     end
+
+    -- looks: picking one must not switch plates off (pfUI re-applied "show
+    -- on enemies" from the config, which the V key does not change)
+    local hid = 0
+    local hide, hidef = HideNameplates, HideFriendNameplates
+    HideNameplates = function() hid = hid + 1 end
+    HideFriendNameplates = function() hid = hid + 1 end
+    pfUI_config.nameplates.showhostile = "0"
+    P.ApplyPreset("neon")
+    ok(hid == 0, "a look leaves the plates on screen alone (" .. hid .. " hide calls)")
+    pfUI_config.nameplates.showhostile = "1"
+    HideNameplates, HideFriendNameplates = hide, hidef
+    ok(P.CurrentLook() == "neon" and S.skin == "neon", "the picked look is known (" .. tostring(P.CurrentLook()) .. ")")
+    S.indicator = "corners"
+    ok(P.CurrentLook() == nil, "a changed setting = your own mix")
+    for _, pr in ipairs(P.PRESETS) do
+      P.ApplyPreset(pr[1])
+      ok(P.CurrentLook() == pr[1], "look " .. pr[1] .. " applies and is lit")
+    end
+    P.ApplyPreset("plater")
+
+    -- the preview: four sample plates drawn by the real code
+    local box = CreateFrame("Frame", nil, UIParent)
+    box:SetWidth(640)
+    box:SetHeight(118)
+    local pgood, samples = pcall(P.AttachPreview, box)
+    ok(pgood and type(samples) == "table" and table.getn(samples) == 4, "preview builds four sample plates: " .. tostring(pgood and "" or samples))
+    if pgood and type(samples) == "table" then
+      local first = samples[1]
+      for i = 1, 30 do
+        Mock.now = Mock.now + .1
+        for _, s in ipairs(samples) do Mock.Run(s, "OnUpdate", .1) end
+      end
+      local so = first.nameplate and first.nameplate.octo
+      ok(so and so.left:IsShown(), "sample target shows its arrows")
+      ok(so and (so.casting or so.cend:IsShown()), "sample target casts")
+      local thug = samples[2].nameplate.octo
+      ok(thug and thug.state ~= nil and samples[2].caption.text and string.find(samples[2].caption.text, "^mob "), "sample mob shows a threat state (" .. tostring(samples[2].caption.text) .. ")")
+      S.skin = "thick"
+      P.Refresh()
+      ok(so.skinH:IsShown(), "a setting change redraws the samples")
+      S.skin = "pfui"
+      P.Refresh()
+    end
+    ok(P.SuperWoW(), "SuperWoW seen from its version (before any cast event)")
 
     UnitName, UnitIsUnit, UnitExists, superwow_active = saved.UnitName, saved.UnitIsUnit, saved.UnitExists, saved.superwow
     Mock.units.player = nil

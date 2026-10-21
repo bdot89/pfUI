@@ -88,6 +88,60 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   local ROLE = { auto = "Automatic", tank = "Tank", dps = "Damage / healer" }
 
+  -- Sample nameplates drawn with every setting as it is now (OctoBG's
+  -- "Icons on nameplates" box), and the test on the real ones.
+  local function Preview(p, h)
+    W.Card(p, "Preview", { tip = "Sample plates drawn by the real nameplate code with your settings: your target "
+      .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
+      .. "a friendly player. Changes show here at once." })
+    P.AttachPreview(W.Box(p, h or 118))
+    W.Live(p, function()
+      if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
+      return "Test on real nameplates puts pretend threat colours and casts on every plate you can see for a minute."
+    end)
+    W.Buttons(p, {
+      { "Test on real nameplates", function() P.Test(60) end, 180,
+        "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city." },
+      { "Stop test", function() P.Test(0) end, 90, "Ends the test." },
+    })
+  end
+
+  -- the looks, four to a row; the picked one is lit (none = your own mix)
+  local function Looks(p)
+    local btns = {}
+    local rows = {}
+    local n = table.getn(P.PRESETS)
+    for r = 1, math.ceil(n / 4) do rows[r] = W.Row(p, 24, 0, 6) end
+    local mix = W.Live(p, function()
+      local _, label = P.CurrentLook()
+      return label and ("Look: |cffffffff" .. label .. "|r") or "Look: |cffffffffyour own mix|r (a setting was changed after picking a look)"
+    end)
+    local function Paint()
+      local cur = P.CurrentLook()
+      for _, b in ipairs(btns) do W.Pick(b, b.key == cur) end
+    end
+    for i, pr in ipairs(P.PRESETS) do
+      local b = W.Button(rows[math.floor((i - 1) / 4) + 1], pr[2], 160, 22)
+      b:SetPoint("LEFT", b:GetParent(), "LEFT", math.mod(i - 1, 4) * 166, 0)
+      b.key = pr[1]
+      b:SetScript("OnClick", function()
+        P.ApplyPreset(this.key)
+        Paint()
+        W.Refresh(p)
+      end)
+      W.Tip(b, pr[2], "Sets the bar texture, border, size, text and target marker. Colours, lists and on / off switches stay as they are.")
+      btns[i] = b
+    end
+    -- other pages change settings too: keep the lit button right
+    rows[1]:SetScript("OnUpdate", function()
+      if (this.tick or 0) > GetTime() then return end
+      this.tick = GetTime() + .5
+      Paint()
+    end)
+    Paint()
+    return mix
+  end
+
   -- ---------------------------------------------------------------- general
 
   BUILD.npgeneral = function(p)
@@ -102,20 +156,16 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       local n = Count()
       table.insert(s, n .. " nameplate" .. ((n == 1) and "" or "s") .. " on screen" .. ((n == 0) and " - V shows enemy plates, Shift-V friendly" or ""))
       table.insert(s, "role: " .. (P.Role() == "tank" and "tank" or "damage / healer"))
-      table.insert(s, superwow_active and "SuperWoW |cff55ff55found|r" or "SuperWoW |cffff5555missing|r (no threat colours on other plates)")
+      table.insert(s, P.SuperWoW() and "SuperWoW |cff55ff55found|r" or "SuperWoW |cffff5555missing|r (no threat colours on other plates)")
       table.insert(s, UnitXP and "UnitXP |cff55ff55found|r" or "UnitXP |cffff5555missing|r (no range fade)")
       return table.concat(s, "    ")
     end)
-    local looks = {}
-    for _, pr in ipairs(P.PRESETS) do
-      local key = pr[1]
-      table.insert(looks, { pr[2], function() P.ApplyPreset(key); W.Refresh(p) end, 120,
-        "Sets the bars, text, sizes and target marker in one go. Colours and lists stay as they are." })
-    end
-    W.Buttons(p, looks)
+    W.Card(p, "Looks", { tip = "Ready-made styles: bar texture, border skin, sizes, text and target marker in one click." })
+    Looks(p)
+    Preview(p)
     W.Card(p, "Show")
-    Chk(p, "Enemies", "Nameplates on hostile units (the V key).", N, "showhostile")
-    Chk(p, "Friends", "Nameplates on friendly units (Shift-V).", N, "showfriendly")
+    PfChk(p, "Enemies", "Nameplates on hostile units at login (V turns them on and off in game).", N, "showhostile", P.ApplyShow)
+    PfChk(p, "Friends", "Nameplates on friendly units at login (Shift-V in game).", N, "showfriendly", P.ApplyShow)
     Chk(p, "Totems as icons", "A totem shows its icon instead of a bar.", N, "totemicons")
     Chk(p, "Guild names", "The guild under a player's name.", N, "showguildname")
     Chk(p, "Combo points", "Your combo points under the target's plate.", N, "cpdisplay")
@@ -143,9 +193,14 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- look and size
 
   BUILD.nplook = function(p)
-    W.Heading(p, "Look and size", { about = "Bar texture, background, letters and how big each kind of plate is." })
+    W.Heading(p, "Look and size", { about = "Bar texture, border skin, background, letters and how big each kind of plate is." })
+    Preview(p)
     W.Card(p, "Bar")
     Drop(p, "Texture", "The fill of the health and cast bars. The Octo ones are pfUI Octo's own art.", Bars(), S, "bartexture")
+    Drop(p, "Border skin", "The edge around the health and cast bars.", {
+      { key = "pfui", label = "Thin black (pfUI)" }, { key = "shadow", label = "Soft shadow" }, { key = "thick", label = "Thick black" },
+      { key = "accent", label = "Accent line" }, { key = "neon", label = "Neon glow (accent)" }, { key = "gold", label = "Gold line" },
+    }, S, "skin")
     Color(p, "Background", "Behind the bars (the empty part).", S, "bgcolor")
     Sld(p, "Width", nil, 60, 250, 1, N, "width", Px)
     Sld(p, "Health height", nil, 2, 30, 1, N, "heighthealth", Px)
@@ -184,6 +239,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
         .. "pull it, purple = another tank has it, red = it is loose on someone else. Needs SuperWoW for plates "
         .. "other than your target." })
     W.Live(p, function() return "You count as: " .. (P.Role() == "tank" and "|cff55aaffTank|r" or "|cffff7755Damage / healer|r") end)
+    Preview(p)
     W.Card(p, "Role")
     W.Dropdown(p, "Role", "Automatic: tank in Defensive Stance, bear form, with Righteous Fury or marked a tank in pfUI's raid frames.",
       { { key = "auto", label = ROLE.auto }, { key = "tank", label = ROLE.tank }, { key = "dps", label = ROLE.dps } },
@@ -229,6 +285,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   BUILD.nptarget = function(p)
     W.Heading(p, "Target", { about = "How your target's plate stands out." })
+    Preview(p)
     W.Card(p, "Target")
     W.Dropdown(p, "Marker", "Beside or around your target's bar.",
       { { key = "arrows", label = "Arrows" }, { key = "chevrons", label = "Double arrows" }, { key = "corners", label = "Corners" },
@@ -256,6 +313,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
              "Cast bars under nameplates." },
       about = "What a unit is casting, under its plate. When a cast ends it flashes green (done) or red (stopped), "
         .. "with who interrupted it when the combat log says." })
+    Preview(p)
     W.Card(p, "Bar")
     W.Dropdown(p, "Layout", "Plater: the icon left of the bar, the spell's name in the bar, the time on the right. pfUI: as pfUI had it.",
       { { key = "plater", label = "Plater" }, { key = "pfui", label = "pfUI" } },
@@ -306,6 +364,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   BUILD.nprange = function(p)
     W.Heading(p, "Range and execute", { about = "Plates fade when the unit is far away or out of sight (needs UnitXP), "
       .. "and change colour when a mob is low enough to execute." })
+    Preview(p)
     W.Card(p, "Range", { on = { function() return C.plates.range == "1" end, function(v) C.plates.range = v and "1" or "0"; U() end,
       "Fade plates of far units." } })
     Sld(p, "Further than", nil, 5, 100, 1, S, "rangeyards", Yd)

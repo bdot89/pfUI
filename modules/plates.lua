@@ -163,9 +163,16 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     return player and "enemyplayer" or "enemynpc"
   end
 
+  -- SuperWoW is there (pfUI's own superwow_active only turns on after the
+  -- first cast event it sees, so it reads "missing" until someone casts)
+  function P.SuperWoW()
+    return (superwow_active or SUPERWOW_VERSION) and true or nil
+  end
+
   -- the plate's unit: its GUID with SuperWoW, else "target" for your target
   local function UnitOf(plate)
-    if superwow_active and plate.parent and plate.parent.GetName then
+    if plate.parent and plate.parent.preview then return end
+    if P.SuperWoW() and plate.parent and plate.parent.GetName then
       local guid = plate.parent:GetName(1)
       if guid and guid ~= "" then return guid end
     end
@@ -242,6 +249,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
                          insets = { left = 0, right = 0, top = 0, bottom = 0 } })
     o.glow:Hide()
 
+    -- border skins around the health and cast bars
+    o.skinH = CreateFrame("Frame", nil, h)
+    o.skinC = CreateFrame("Frame", nil, cb)
+    o.skinH:Hide()
+    o.skinC:Hide()
+
     o.mark = plate:CreateTexture(nil, "OVERLAY")
     o.mark:Hide()
 
@@ -265,6 +278,18 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   end
 
   local function Vis(region, on) if on then region:Show() else region:Hide() end end
+
+  -- border skins: an edge around each bar, outside pfUI's own 1 px border
+  -- (pfui = only that border)
+  local WHITE = "Interface\\Buttons\\WHITE8X8"
+  local SKINS = {
+    shadow = { edge = pfUI.media["img:glow2"], size = 6, off = 4, color = { 0, 0, 0, .9 } },
+    thick = { edge = WHITE, size = 2, off = 2, color = { 0, 0, 0, 1 } },
+    accent = { edge = WHITE, size = 1, off = 1, color = { 1, 1, 1, 1 }, accent = true },
+    neon = { edge = pfUI.media["img:glow"], size = 6, off = 5, color = { 1, 1, 1, .8 }, accent = true },
+    gold = { edge = WHITE, size = 1, off = 1, color = { .85, .68, .3, 1 } },
+  }
+  P.SKINS = SKINS
 
   local function Font()
     local font = C.nameplates.use_unitfonts == "1" and pfUI.font_unit or pfUI.font_default
@@ -370,6 +395,28 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.under:SetHeight(hh * 5)
     o.under:SetVertexColor(r, g, b, a * .9)
 
+    -- border skin
+    local sk = SKINS[S.skin or "pfui"]
+    for _, pair in ipairs({ { o.skinH, h }, { o.skinC, cb } }) do
+      local f, bar = pair[1], pair[2]
+      if sk then
+        local off = sk.off + border
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", bar, "TOPLEFT", -off, off)
+        f:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", off, -off)
+        f:SetBackdrop({ edgeFile = sk.edge, edgeSize = sk.size, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
+        local c = sk.color
+        if sk.accent and GetAccentColor then
+          local ar, ag, ab = GetAccentColor()
+          c = { ar, ag, ab, sk.color[4] }
+        end
+        f:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
+        f:Show()
+      else
+        f:Hide()
+      end
+    end
+
     o.mark:SetWidth(namesize + 2)
     o.mark:SetHeight(namesize + 2)
     o.mark:ClearAllPoints()
@@ -383,7 +430,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   function P.Off(plate)
     local o = plate.octo
     if not o then return end
-    for _, region in ipairs({ o.hl, o.tick, o.left, o.right, o.under, o.glow, o.mark, o.spark, o.cend }) do region:Hide() end
+    for _, region in ipairs({ o.hl, o.tick, o.left, o.right, o.under, o.glow, o.mark, o.spark, o.cend, o.skinH, o.skinC }) do region:Hide() end
     for i = 1, 4 do o.corners[i]:Hide() end
     if o.scale then
       plate:SetScale(UIParent:GetScale())
@@ -417,6 +464,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local col
     if ex and pct > 0 and pct <= ex then col = COL.executecolor end
     local state = (S.threat == "1" and enemy) and P.ThreatState(unit, istarget) or nil
+    local pv = plate.parent and plate.parent.preview
+    if pv then
+      state = S.threat == "1" and pv.state or nil
+    elseif P.Testing() and enemy and S.threat == "1" then
+      state = P.TestState(o)
+    end
     o.state = state
     if not col then col = P.ThreatColor(state) end
     if col then
@@ -459,6 +512,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         cls = elite
       end
       if plate.original.levelicon and plate.original.levelicon:IsShown() then cls = "worldboss" end
+      if pv then cls = pv.class end
       mark = cls and MARKS[cls]
     end
     if mark then
@@ -555,10 +609,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local dt = now - (o.last or now)
     o.last = now
     local istarget = plate.istarget
+    local pv = plate.parent and plate.parent.preview
+    local fighting = UnitAffectingCombat("player")
+    if pv then fighting = pv.combat end
 
     -- size: kind, out of combat, target - eased
     local want = (tonumber(S["size_" .. (o.kind or "enemynpc")]) or 100) / 100
-    if not UnitAffectingCombat("player") then want = want * (tonumber(S.size_ooc) or 100) / 100 end
+    if not fighting then want = want * (tonumber(S.size_ooc) or 100) / 100 end
     if istarget then want = want * (tonumber(S.size_target) or 100) / 100 end
     if not o.scale then o.scale = want end
     if o.scale ~= want then
@@ -566,7 +623,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       if math.abs(want - o.scale) < .005 then o.scale = want end
     end
     if o.applied ~= o.scale then
-      plate:SetScale(UIParent:GetScale() * o.scale)
+      -- a preview plate sits in the options window, already at the UI's scale
+      plate:SetScale((pv and 1 or UIParent:GetScale()) * o.scale)
       o.applied = o.scale
     end
 
@@ -588,7 +646,149 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
 
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
+    if (pv and pv.cast) or (not pv and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
     P.TickCast(plate, o, now)
+  end
+
+  -- ---------------------------------------------------------------- test mode and preview
+
+  -- "Test on real nameplates": for a while every plate on screen gets
+  -- pretend threat states and casts (one in two is interrupted by "Bob")
+  P.testUntil = 0
+  function P.Testing() return GetTime() < (P.testUntil or 0) end
+  function P.Test(seconds)
+    P.testUntil = (seconds and seconds > 0) and (GetTime() + seconds) or 0
+  end
+
+  local TESTSTATES = { dps = { "aggro", "pulling", "safe" }, tank = { "aggro", "losing", "offtank", "lost" } }
+  P.TESTSTATES = TESTSTATES
+  local testCount = 0
+  function P.TestState(o)
+    if not o.testi then testCount = testCount + 1 o.testi = testCount end
+    local list = TESTSTATES[P.Role()]
+    return list[math.mod(math.floor(GetTime() / 3) + o.testi, table.getn(list)) + 1]
+  end
+
+  -- a pretend cast: 2.5 s, every other one stopped at 1.5 s by Bob
+  local FAKE = { "Fireball", "Interface\\Icons\\Spell_Fire_FlameBolt" }
+  function P.FakeCast(plate, o, now)
+    if not o.testi then testCount = testCount + 1 o.testi = testCount end
+    local cb = plate.castbar
+    local t = now + o.testi * 1.3
+    local k = math.floor(t / 4)
+    t = t - k * 4
+    local kicked = math.mod(k, 2) == 1
+    if t < 2.5 and not (kicked and t >= 1.5) then
+      cb:SetMinMaxValues(0, 2.5)
+      cb:SetValue(t)
+      cb.text:SetText(string.format("%.1f", 2.5 - t))
+      cb.spell:SetText(FAKE[1])
+      cb.icon.tex:SetTexture(FAKE[2])
+      cb.icon.tex:SetTexCoord(.1, .9, .1, .9)
+      cb:Show()
+      o.castname = FAKE[1]
+    else
+      if kicked and o.casting then
+        local victim = plate.original.name:GetText()
+        if victim then kicks[victim] = { by = "Bob", spell = FAKE[1], at = now } end
+      end
+      cb:Hide()
+    end
+  end
+
+  P.previews = {}
+
+  -- Sample plates in an options box, drawn by pfUI's real nameplate code and
+  -- ours: your target casting, a mob going through the threat colours, one in
+  -- execute range and a friendly player. They follow every setting at once.
+  local SAMPLES = {
+    { name = "Defias Pillager", level = "17", hp = 80, color = { 1, 0, 0 }, target = true, class = "elite", state = "aggro",
+      cast = true, caption = "your target, casting" },
+    { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true },
+    { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", caption = "execute range" },
+    { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player" },
+  }
+  local STATEWORDS = { aggro = "on you", pulling = "you are pulling it", safe = "on someone else",
+    losing = "someone is pulling it", offtank = "on another tank", lost = "loose on someone else" }
+
+  local function SamplePlate(box, d)
+    local game = CreateFrame("Button", nil, box)
+    game:SetWidth(150)
+    game:SetHeight(60)
+    local hb = CreateFrame("StatusBar", nil, game)
+    CreateFrame("StatusBar", nil, game)
+    hb:SetMinMaxValues(0, 100)
+    hb:SetValue(d.hp)
+    hb:SetStatusBarColor(d.color[1], d.color[2], d.color[3], 1)
+    local regions, ordered = {}, {}
+    for _, k in ipairs(NAMEPLATE_OBJECTORDER) do
+      local r
+      if k == "name" or k == "level" then
+        r = game:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      else
+        r = game:CreateTexture(nil, "OVERLAY")
+      end
+      regions[k] = r
+      table.insert(ordered, r)
+    end
+    -- in the game's order, as a real plate gives them
+    game.GetRegions = function() return unpack(ordered) end
+    regions.name:SetText(d.name)
+    regions.level:SetText(d.level)
+    regions.name:SetTextColor(1, 1, 1)
+    regions.level:SetTextColor(.7, .7, .3)
+    regions.levelicon:Hide()
+    regions.raidicon:Hide()
+    regions.glow:Hide()
+    game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, data = d }
+    NP.OnCreate(game)
+    -- pfUI pins the bar to frame level 4: lift the whole sample above its box
+    -- (each frame one above its parent, as they stack on a real plate)
+    local function Raise(f, level)
+      f:SetFrameLevel(level)
+      for _, kid in ipairs({ f:GetChildren() }) do Raise(kid, level + 1) end
+    end
+    Raise(game, box:GetFrameLevel() + 1)
+    -- pfUI's own every-frame code needs the real target and casts: the sample
+    -- runs its own instead
+    game:SetScript("OnUpdate", function()
+      local plate = this.nameplate
+      local pv = this.preview
+      if pv.data.cycle then
+        local list = TESTSTATES[P.Role()]
+        pv.state = list[math.mod(math.floor(GetTime() / 2.5), table.getn(list)) + 1]
+      end
+      plate.istarget = pv.target
+      if (this.tick or 0) < GetTime() then
+        this.tick = GetTime() + .2
+        NP:OnDataChanged(plate)
+        if this.caption then
+          local word = pv.data.caption or ("mob " .. (STATEWORDS[pv.state] or ""))
+          if pv.data.cycle and S.threat ~= "1" then word = "threat colours are off" end
+          if pv.data.hp < 20 and not P.ExecutePct() then word = "low health (no execute range)" end
+          this.caption:SetText(word)
+        end
+      end
+      plate:SetAlpha((pv.target or not pv.anyTarget) and 1 or (tonumber(C.nameplates.notargalpha) or 1))
+      P.Tick(plate)
+    end)
+    return game
+  end
+
+  function P.AttachPreview(box)
+    local list = {}
+    local n = table.getn(SAMPLES)
+    for i = 1, n do
+      local game = SamplePlate(box, SAMPLES[i])
+      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -14)
+      game.preview.anyTarget = true
+      game.caption = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      game.caption:SetPoint("BOTTOM", box, "BOTTOMLEFT", (box:GetWidth() or 640) * (i - .5) / n, 8)
+      game.caption:SetTextColor(.6, .6, .6)
+      table.insert(list, game)
+      table.insert(P.previews, game)
+    end
+    return list
   end
 
   -- ---------------------------------------------------------------- wrap pfUI's nameplates
@@ -620,28 +820,62 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     UpdateConfig(a1, a2)
   end
 
-  -- settings changed on our pages
+  -- Settings changed on our pages. pfUI's UpdateConfig also re-applies "show
+  -- on enemies / friends", which switched plates the V key had turned on off
+  -- (user, 21 Oct): only the Show tick boxes do that (P.ApplyShow).
   function P.Refresh()
+    local SetGameVariables = NP.SetGameVariables
+    NP.SetGameVariables = function() end
     NP.UpdateConfig()
+    NP.SetGameVariables = SetGameVariables
+    for _, game in ipairs(P.previews) do NP.OnConfigChange(game) end
+  end
+  function P.ApplyShow()
+    NP.UpdateConfig()
+    for _, game in ipairs(P.previews) do NP.OnConfigChange(game) end
   end
 
-  -- one-click looks: { key, label, { plates keys }, { nameplates keys } }
+  -- One-click looks ("skins"): { key, label, { plates keys }, { nameplates keys } }.
+  -- Each sets bars, border skin, text, sizes and target marker; colours stay.
+  local OCTO = "Interface\\AddOns\\pfUI\\img\\plates\\"
   local PRESETS = {
-    { "plater", "Plater look", {
-        enable = "1", bartexture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-soft", indicator = "arrows",
-        castlayout = "plater", castheight = "12", size_target = "110", size_ooc = "90",
-        size_friendlynpc = "80", size_friendlyplayer = "80", threat = "1", aggroglow = "1", spark = "1", castend = "1" },
-      { width = "130", heighthealth = "12", heightcast = "12", showhp = "1", hptextpos = "CENTER", hptextformat = "percent",
+    { "plater", "Plater", {
+        bartexture = OCTO .. "bar-soft", skin = "pfui", indicator = "arrows", castlayout = "plater", castheight = "12",
+        size_target = "110", size_ooc = "90", size_enemyplayer = "100", size_friendlynpc = "80", size_friendlyplayer = "80" },
+      { width = "130", heighthealth = "12", showhp = "1", hptextpos = "CENTER", hptextformat = "percent",
         targetglow = "0", targetzoom = "0" } },
     { "slim", "Slim", {
-        enable = "1", bartexture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-flat", indicator = "corners",
-        castlayout = "plater", castheight = "8", size_target = "105", size_ooc = "90" },
-      { width = "110", heighthealth = "6", heightcast = "8", showhp = "0", targetglow = "0", targetzoom = "0" } },
-    { "pfui", "pfUI look", {
-        bartexture = "Interface\\AddOns\\pfUI\\img\\bar", indicator = "none", castlayout = "pfui", castheight = "8",
-        size_target = "100", size_ooc = "100", size_enemynpc = "100", size_enemyplayer = "100",
-        size_friendlynpc = "100", size_friendlyplayer = "100", aggroglow = "0" },
-      { width = "120", heighthealth = "8", heightcast = "8", showhp = "0", hptextpos = "RIGHT", hptextformat = "curmaxs",
+        bartexture = OCTO .. "bar-flat", skin = "pfui", indicator = "corners", castlayout = "plater", castheight = "8",
+        size_target = "105", size_ooc = "90", size_enemyplayer = "100", size_friendlynpc = "80", size_friendlyplayer = "80" },
+      { width = "110", heighthealth = "6", showhp = "0", targetglow = "0", targetzoom = "0" } },
+    { "elvui", "ElvUI", {
+        bartexture = "Interface\\AddOns\\pfUI\\img\\bar_elvui", skin = "shadow", indicator = "corners", castlayout = "plater",
+        castheight = "10", size_target = "105", size_ooc = "100", size_enemyplayer = "100", size_friendlynpc = "80", size_friendlyplayer = "80" },
+      { width = "125", heighthealth = "10", showhp = "1", hptextpos = "RIGHT", hptextformat = "percent",
+        targetglow = "0", targetzoom = "0" } },
+    { "big", "Big and bold", {
+        bartexture = OCTO .. "bar-gloss", skin = "thick", indicator = "arrows", castlayout = "plater", castheight = "14",
+        size_target = "115", size_ooc = "90", size_enemyplayer = "100", size_friendlynpc = "75", size_friendlyplayer = "75" },
+      { width = "150", heighthealth = "16", showhp = "1", hptextpos = "CENTER", hptextformat = "curperc",
+        targetglow = "0", targetzoom = "0" } },
+    { "neon", "Neon", {
+        bartexture = OCTO .. "bar-glass", skin = "neon", indicator = "underglow", castlayout = "plater", castheight = "10",
+        size_target = "110", size_ooc = "90", size_enemyplayer = "100", size_friendlynpc = "80", size_friendlyplayer = "80" },
+      { width = "130", heighthealth = "10", showhp = "1", hptextpos = "CENTER", hptextformat = "percent",
+        targetglow = "0", targetzoom = "0" } },
+    { "classic", "Classic", {
+        bartexture = "Interface\\TargetingFrame\\UI-StatusBar", skin = "gold", indicator = "chevrons", castlayout = "plater",
+        castheight = "10", size_target = "110", size_ooc = "100", size_enemyplayer = "100", size_friendlynpc = "85", size_friendlyplayer = "85" },
+      { width = "120", heighthealth = "10", showhp = "0", targetglow = "0", targetzoom = "0" } },
+    { "pvp", "PvP", {
+        bartexture = OCTO .. "bar-split", skin = "accent", indicator = "chevrons", castlayout = "plater", castheight = "12",
+        size_target = "115", size_ooc = "100", size_enemyplayer = "115", size_friendlynpc = "70", size_friendlyplayer = "75" },
+      { width = "135", heighthealth = "12", showhp = "1", hptextpos = "RIGHT", hptextformat = "percent",
+        enemyclassc = "1", targetglow = "0", targetzoom = "0" } },
+    { "pfui", "pfUI", {
+        bartexture = "Interface\\AddOns\\pfUI\\img\\bar", skin = "pfui", indicator = "none", castlayout = "pfui", castheight = "8",
+        size_target = "100", size_ooc = "100", size_enemyplayer = "100", size_friendlynpc = "100", size_friendlyplayer = "100" },
+      { width = "120", heighthealth = "8", showhp = "0", hptextpos = "RIGHT", hptextformat = "curmaxs",
         targetglow = "1" } },
   }
   P.PRESETS = PRESETS
@@ -651,9 +885,20 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       if p[1] == key then
         for k, v in pairs(p[3]) do S[k] = v end
         for k, v in pairs(p[4]) do C.nameplates[k] = v end
+        C.nameplates.heightcast = p[3].castheight
       end
     end
     P.Refresh()
+  end
+
+  -- the look whose settings are all still as it set them (nil = your own mix)
+  function P.CurrentLook()
+    for _, p in ipairs(PRESETS) do
+      local same = true
+      for k, v in pairs(p[3]) do if S[k] ~= v then same = false end end
+      for k, v in pairs(p[4]) do if C.nameplates[k] ~= v then same = false end end
+      if same then return p[1], p[2] end
+    end
   end
 
   ReadColors()

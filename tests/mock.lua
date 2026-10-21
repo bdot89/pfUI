@@ -49,7 +49,7 @@ end
 
 local function New(kind, name, parent)
   local w = setmetatable({ kind = kind, name = name, _parent = parent, shown = true, scripts = {}, events = {},
-                           _kids = {}, w = 0, h = 0, level = 1, alpha = 1 }, meta)
+                           _kids = {}, w = 0, h = 0, _level = 1, alpha = 1 }, meta)
   if name then _G[name] = w end
   if parent then table.insert(parent._kids, w) end
   if kind ~= "Texture" and kind ~= "FontString" then table.insert(Mock.frames, w) end
@@ -124,8 +124,8 @@ function methods:GetScript(s) return self.scripts[s] end
 function methods:RegisterEvent(e) self.events[e] = true end
 function methods:UnregisterEvent(e) self.events[e] = nil end
 function methods:UnregisterAllEvents() self.events = {} end
-function methods:GetFrameLevel() return self.level end
-function methods:SetFrameLevel(l) self.level = l end
+function methods:GetFrameLevel() return self._level end
+function methods:SetFrameLevel(l) self._level = l end
 function methods:GetEffectiveScale() return 1 end
 function methods:GetScale() return 1 end
 function methods:SetAlpha(a) self.alpha = a end
@@ -175,6 +175,8 @@ function methods:SetValue(v)
   Run(self, "OnValueChanged")
 end
 function methods:GetValue() return self.value or 0 end
+function methods:SetStatusBarColor(r, g, b, a) self.barColor = { r, g, b, a } end
+function methods:GetStatusBarColor() local c = self.barColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] end
 function methods:StartMoving() end
 function methods:StopMovingOrSizing() end
 function methods:IsObjectType(t) return self.kind == t end
