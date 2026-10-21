@@ -33,7 +33,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   local COL = {}
   local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost", "c_taking",
     "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "castbg", "targetcolor",
-    "namecolor", "levelcolor", "hptextcolor", "casttextcolor", "bordercolor", "skincolor" }
+    "namecolor", "levelcolor", "hptextcolor", "casttextcolor", "bordercolor", "skincolor", "cpcustom" }
   local function ReadColors()
     for _, k in ipairs(COLORS) do
       local r, g, b, a = GetStringColor(S[k] or "1,1,1,1")
@@ -454,10 +454,118 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     for i = 1, 4 do o.corners[i]:Hide() end
     if P.Auras then P.Auras.Off(o) end
     if P.Lists then P.Lists.Off(o) end
+    if o.cp then for i = 1, 5 do o.cp[i]:Hide() end end
     if o.scale then
       plate:SetScale(UIParent:GetScale())
       o.scale, o.applied = nil, nil
     end
+  end
+
+  -- ---------------------------------------------------------------- combo points
+
+  -- Our own combo points (user, 22 Oct 2026: pfUI's tiny squares are
+  -- "pathetic"): orbs, gems, squares or segments of a bar, empty slots
+  -- shown as rings, coloured by count / class / one colour, a glow at 5.
+  local CPSTYLE = { orbs = "cp-orb", gems = "cp-gem", squares = "cp-square" }
+  P.CPSTYLE = CPSTYLE
+  local CPGRAD = { { 1, .95, .3 }, { 1, .8, .2 }, { 1, .6, .1 }, { 1, .4, .1 }, { 1, .2, .1 } }
+
+  function P.ComboColor(i)
+    if S.cpcolor == "class" then
+      local _, class = UnitClass("player")
+      local c = class and RAID_CLASS_COLORS[class]
+      if c then return c.r, c.g, c.b end
+    elseif S.cpcolor == "custom" then
+      return COL.cpcustom[1], COL.cpcustom[2], COL.cpcustom[3]
+    end
+    local c = CPGRAD[i] or CPGRAD[5]
+    return c[1], c[2], c[3]
+  end
+
+  local function ComboBuild(plate, o)
+    o.cp = {}
+    for i = 1, 5 do
+      local f = CreateFrame("Frame", nil, plate)
+      f:SetFrameLevel(plate.health:GetFrameLevel() + 3)
+      f.glow = f:CreateTexture(nil, "BACKGROUND")
+      f.glow:SetTexture(Art("cp-glow"))
+      f.glow:SetBlendMode("ADD")
+      f.glow:SetPoint("CENTER", f, "CENTER", 0, 0)
+      f.tex = f:CreateTexture(nil, "ARTWORK")
+      f.tex:SetAllPoints(f)
+      f:Hide()
+      o.cp[i] = f
+    end
+  end
+
+  -- n points (nil = none); shown under the cast bar or the health bar
+  function P.Combo(plate, o, n)
+    if not o.cp then ComboBuild(plate, o) end
+    local style = S.cpstyle or "orbs"
+    local on = C.nameplates.cpdisplay == "1" and style ~= "pfui" and S.enable == "1" and n and n > 0
+    o.cpn = on and n or 0
+    -- ours replace pfUI's little squares
+    if style ~= "pfui" and plate.combopoints then
+      for i = 1, 5 do plate.combopoints[i]:Hide() end
+    end
+    if not on then
+      for i = 1, 5 do o.cp[i]:Hide() end
+      return
+    end
+    local size, gap = tonumber(S.cpsize) or 12, tonumber(S.cpgap) or 3
+    local h, cb = plate.health, plate.castbar
+    local below = cb:IsShown() and cb or h
+    local seg = style == "segments"
+    local w = seg and ((h:GetWidth() - gap * 4) / 5) or size
+    local ht = seg and math.max(3, math.floor(size / 3)) or size
+    for i = 1, 5 do
+      local f = o.cp[i]
+      local lit = i <= n
+      f:SetWidth(w)
+      f:SetHeight(ht)
+      f:ClearAllPoints()
+      local x = (i - 3) * (w + gap)
+      if S.cpplace == "above" then
+        f:SetPoint("BOTTOM", plate.name, "TOP", x, 2)
+      elseif S.cpplace == "inside" then
+        f:SetPoint("CENTER", h, "BOTTOM", x, 0)
+      else
+        f:SetPoint("TOP", below, "BOTTOM", x, -3)
+      end
+      if seg then
+        f.tex:SetTexture(pfUI.media[S.bartexture ~= "" and S.bartexture or C.nameplates.healthtexture])
+      else
+        f.tex:SetTexture(Art(lit and CPSTYLE[style] or "cp-ring"))
+      end
+      local r, g, b = P.ComboColor(i)
+      if lit then
+        f.tex:SetVertexColor(r, g, b, 1)
+      else
+        f.tex:SetVertexColor(.5, .5, .5, seg and .35 or .6)
+      end
+      f.glow:SetWidth(w * 2.4)
+      f.glow:SetHeight(ht * 2.4)
+      f.glow:SetVertexColor(r, g, b, 1)
+      f.glow:Hide()
+      if lit or S.cpempty == "1" then f:Show() else f:Hide() end
+    end
+  end
+
+  -- at 5 points the glows pulse
+  function P.ComboTick(o, now)
+    if not o.cp or (o.cpn or 0) < 5 or S.cpglow ~= "1" then
+      if o.cp and o.cpglowing then
+        for i = 1, 5 do o.cp[i].glow:Hide() end
+        o.cpglowing = nil
+      end
+      return
+    end
+    local a = .45 + .4 * math.sin(now * 6)
+    for i = 1, 5 do
+      o.cp[i].glow:SetAlpha(a)
+      o.cp[i].glow:Show()
+    end
+    o.cpglowing = true
   end
 
   local MARKS = {
@@ -556,6 +664,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     else
       o.mark:Hide()
     end
+
+    -- combo points: yours on your target (the preview and the test act them out)
+    local cp
+    if pv then cp = pv.cp
+    elseif P.Testing() and enemy then cp = math.mod(math.floor(GetTime() / .7), 6)
+    elseif istarget and GetComboPoints then cp = GetComboPoints("target") end
+    P.Combo(plate, o, cp)
 
     if P.Lists then P.Lists.Update(plate, o, unit, enemy) end
     if P.Auras then P.Auras.Update(plate, o, unit, enemy) end
@@ -701,6 +816,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if (pv and pv.cast) or (not pv and enemy and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
     P.TickCast(plate, o, now)
     if P.Auras then P.Auras.Tick(plate, o, now) end
+    P.ComboTick(o, now)
   end
 
   -- ---------------------------------------------------------------- test mode and preview
@@ -774,8 +890,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local now = GetTime()
     if pv.target then
       local n = math.mod(math.floor(now / .7), 6)
-      for i = 1, 5 do
-        if C.nameplates.cpdisplay == "1" and i <= n then plate.combopoints[i]:Show() else plate.combopoints[i]:Hide() end
+      pv.cp = n
+      if S.cpstyle == "pfui" then
+        for i = 1, 5 do
+          if C.nameplates.cpdisplay == "1" and i <= n then plate.combopoints[i]:Show() else plate.combopoints[i]:Hide() end
+        end
+      elseif plate.octo then
+        P.Combo(plate, plate.octo, n)
       end
       local w, h = tonumber(C.nameplates.width) or 120, tonumber(C.nameplates.heighthealth) or 8
       if C.nameplates.targetzoom == "1" then

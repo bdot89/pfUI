@@ -448,12 +448,14 @@ function W.Page(parent)
 end
 
 -- Anchors a region on a new line of container c, x from its left edge.
--- (octo) extra room between every row of the options (user, 22 Oct 2026:
--- "add spacing to options")
-local SPACE = 5
+-- (octo) extra room between every row of the options: the Spacing slider in
+-- the window's top bar (user, 22 Oct 2026), per account; pages are rebuilt
+-- when it moves (O:RebuildPages)
+local SPACE = 2
 
 local function Put(c, region, x, gap)
   x = x or 0
+  SPACE = tonumber(B.Store().space) or 2
   region:ClearAllPoints()
   if c.last then
     region:SetPoint("TOPLEFT", c.last, "BOTTOMLEFT", x - c.lastX, -((gap or 4) + SPACE))

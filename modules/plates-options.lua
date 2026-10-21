@@ -228,6 +228,20 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Color(p, "Skin", "The border skin's edge (shadow, thick, accent, neon, gold).", S, "skincolor")
     Color(p, "Health text", nil, S, "hptextcolor")
     Color(p, "Cast bar text", "The spell name and time.", S, "casttextcolor")
+    W.Card(p, "Combo points", { on = { function() return C.nameplates.cpdisplay == "1" end,
+      function(v) C.nameplates.cpdisplay = v and "1" or "0"; U() end, "Your combo points on your target's plate." } })
+    W.Dropdown(p, "Style", nil, { { key = "orbs", label = "Orbs" }, { key = "gems", label = "Gems" },
+      { key = "squares", label = "Squares" }, { key = "segments", label = "Bar segments" }, { key = "pfui", label = "pfUI's small squares" } },
+      function() return C.plates.cpstyle end, function(v) C.plates.cpstyle = v; U() end)
+    W.Dropdown(p, "Place", nil, { { key = "below", label = "Under the bars" }, { key = "above", label = "Above the name" },
+      { key = "inside", label = "On the health bar" } }, function() return C.plates.cpplace end, function(v) C.plates.cpplace = v; U() end)
+    Sld(p, "Size", nil, 6, 30, 1, S, "cpsize", Px)
+    Sld(p, "Gap", nil, 0, 12, 1, S, "cpgap", Px)
+    W.Dropdown(p, "Colour", nil, { { key = "gradient", label = "Yellow to red by count" }, { key = "class", label = "Class colour" },
+      { key = "custom", label = "One colour" } }, function() return C.plates.cpcolor end, function(v) C.plates.cpcolor = v; U() end)
+    Color(p, "One colour", nil, S, "cpcustom")
+    Chk(p, "Empty slots", "Show the points you do not have yet, dimmed.", S, "cpempty")
+    Chk(p, "Glow at 5", "The points pulse when you have all five.", S, "cpglow")
     W.Card(p, "Size by kind", { tip = "% of the width and height above; plates grow and shrink smoothly." })
     Sld(p, "Enemy NPCs", nil, 40, 160, 5, S, "size_enemynpc", Pct)
     Sld(p, "Enemy players", nil, 40, 160, 5, S, "size_enemyplayer", Pct)
@@ -298,7 +312,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- target
 
   BUILD.nptarget = function(p)
-    W.Heading(p, "Target", { about = "How your target's plate stands out." })
+    W.Heading(p, "Target, range and execute", { about = "How your target's plate stands out, plates that fade when far "
+      .. "away or out of sight (needs UnitXP), and the colour of a mob low enough to execute." })
     Preview(p)
     W.Card(p, "Target")
     W.Dropdown(p, "Marker", "Beside or around your target's bar.",
@@ -468,15 +483,14 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     end)
   end
 
-  BUILD.npcolors = function(p)
-    W.Heading(p, "Colours and names", { about = "Give an NPC its own bar colour or a shorter name, and a spell its own cast "
-      .. "bar colour or name - Plater's NPC Colors and Cast Colors. Threat colours win over NPC colours while you fight, "
-      .. "unless you tick the box below." })
-    Preview(p)
-    W.Card(p, "NPCs")
+  -- Plater's NPC Colors (on Threat and colours) and Cast Colors (on Cast bar)
+  local function NpcCards(p)
+    W.Card(p, "NPC colours and names", { tip = "An NPC's own bar colour or a shorter name. Threat colours win while you fight, unless ticked below." })
     ListEditor(p, "npclist", "NPC name", function() return UnitName("target") end, "Takes your target's name.")
     Chk(p, "NPC colour wins over threat", nil, S, "npcoverthreat")
-    W.Card(p, "Spells")
+  end
+  local function SpellCards(p)
+    W.Card(p, "Spell colours and names", { tip = "A spell's own cast bar colour or a new name for it." })
     ListEditor(p, "castlist", "Spell name", function()
       return UnitCastingInfo and UnitCastingInfo("target") or (UnitChannelInfo and UnitChannelInfo("target"))
     end, "Takes the spell your target is casting right now.")
@@ -516,10 +530,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- range and execute
 
-  BUILD.nprange = function(p)
-    W.Heading(p, "Range and execute", { about = "Plates fade when the unit is far away or out of sight (needs UnitXP), "
-      .. "and change colour when a mob is low enough to execute." })
-    Preview(p)
+  local function RangeCards(p)
     W.Card(p, "Range", { on = { function() return C.plates.range == "1" end, function(v) C.plates.range = v and "1" or "0"; U() end,
       "Fade plates of far units." } })
     Sld(p, "Further than", nil, 5, 100, 1, S, "rangeyards", Yd)
@@ -534,14 +545,19 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Marker", "A line on the bar where execute range starts.", S, "executemark")
   end
 
+  -- seven pages, most used first (user, 22 Oct 2026: "group up some things
+  -- into the same menus and reorder them in order of importance")
+  local threat, target, cast = BUILD.npthreat, BUILD.nptarget, BUILD.npcast
+  BUILD.npthreat = function(p) threat(p) NpcCards(p) end
+  BUILD.nptarget = function(p) target(p) RangeCards(p) end
+  BUILD.npcast = function(p) cast(p) SpellCards(p) end
+
   O.replaced[T["Nameplates"]] = true
   O:AddPage("Nameplates", "npgeneral", "General", BUILD.npgeneral)
   O:AddPage("Nameplates", "nplook", "Look and size", BUILD.nplook)
   O:AddPage("Nameplates", "npthreat", "Threat and colours", BUILD.npthreat)
-  O:AddPage("Nameplates", "nptarget", "Target", BUILD.nptarget)
+  O:AddPage("Nameplates", "nptarget", "Target, range and execute", BUILD.nptarget)
   O:AddPage("Nameplates", "npcast", "Cast bar", BUILD.npcast)
   O:AddPage("Nameplates", "npauras", "Auras", BUILD.npauras)
-  O:AddPage("Nameplates", "nprange", "Range and execute", BUILD.nprange)
-  O:AddPage("Nameplates", "npcolors", "Colours and names", BUILD.npcolors)
   O:AddPage("Nameplates", "npquest", "Quests, icons and auto", BUILD.npquest)
 end)

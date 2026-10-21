@@ -156,6 +156,50 @@ public static class Art {
         else if (Ask(u, v, 0.05)) { lum = 0; a = 0.9; }
         else a = 0;
         return;
+      // combo points: a lit orb, a cut gem, a bevelled square, an empty ring, a soft glow
+      case "cp-orb": {
+        double r = Math.Sqrt((u - .5) * (u - .5) + (v - .5) * (v - .5));
+        if (r <= .40) {
+          double hl = Math.Max(0, 1 - Math.Sqrt((u - .38) * (u - .38) + (v - .64) * (v - .64)) / .30);
+          lum = Math.Min(1, .45 + .35 * (1 - r / .40) + .55 * hl * hl); a = 1;
+        } else if (r <= .47) { lum = 0; a = .9; }
+        else a = 0;
+        return;
+      }
+      case "cp-gem": {
+        double d = Math.Abs(u - .5) + Math.Abs(v - .5);
+        if (d <= .40) {
+          bool top = v >= .5, left = u < .5;
+          lum = top ? (left ? 1.0 : .82) : (left ? .7 : .55);
+          if (d <= .16) lum = Math.Min(1, lum + .15);
+          a = 1;
+        } else if (d <= .47) { lum = 0; a = .9; }
+        else a = 0;
+        return;
+      }
+      case "cp-square": {
+        double au = Math.Abs(u - .5), av = Math.Abs(v - .5);
+        double m = Math.Max(au, av);
+        if (m <= .36) {
+          lum = .78;
+          if (m > .28) lum = (v > .5 || u < .5) ? 1.0 : .5;
+          a = 1;
+        } else if (m <= .43) { lum = 0; a = .9; }
+        else a = 0;
+        return;
+      }
+      case "cp-ring": {
+        double r = Math.Sqrt((u - .5) * (u - .5) + (v - .5) * (v - .5));
+        if (r <= .40 && r >= .30) { lum = .9; a = 1; }
+        else if (r <= .47 && r >= .24) { lum = 0; a = .8; }
+        else a = 0;
+        return;
+      }
+      case "cp-glow": {
+        double r = Math.Sqrt((u - .5) * (u - .5) + (v - .5) * (v - .5));
+        a = Math.Exp(-r * r * 18);
+        return;
+      }
       case "pet": {
         bool pad = Circle(u, v, 0.5, 0.36, 0.2);
         bool toes = Circle(u, v, 0.22, 0.62, 0.09) || Circle(u, v, 0.4, 0.76, 0.09) || Circle(u, v, 0.6, 0.76, 0.09) || Circle(u, v, 0.78, 0.62, 0.09);
@@ -203,7 +247,8 @@ $list = @(
   @("bar-flat", 256, 32), @("bar-soft", 256, 32), @("bar-gloss", 256, 32), @("bar-glass", 256, 32), @("bar-split", 256, 32),
   @("arrow", 64, 64), @("chevron", 64, 64), @("corner", 32, 32), @("underglow", 256, 64), @("spark", 32, 64),
   @("star", 32, 32), @("skull", 32, 32), @("tick", 8, 32),
-  @("quest-objective", 32, 32), @("quest-start", 32, 32), @("quest-end", 32, 32), @("pet", 32, 32)
+  @("quest-objective", 32, 32), @("quest-start", 32, 32), @("quest-end", 32, 32), @("pet", 32, 32),
+  @("cp-orb", 32, 32), @("cp-gem", 32, 32), @("cp-square", 32, 32), @("cp-ring", 32, 32), @("cp-glow", 32, 32)
 )
 foreach ($t in $list) {
   [Art]::Write((Join-Path $OutDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])

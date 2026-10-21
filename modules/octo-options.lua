@@ -29,6 +29,22 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   -- pfUI categories an Octo section replaces (name -> true): hidden from the
   -- topic list and from Find (plates-options.lua replaces "Nameplates")
   O.replaced = O.replaced or {}
+  -- the topic list, most used first: { section title, { sources... } };
+  -- a source is an Octo section or a pfUI category, by name
+  O.NAV = {
+    { "Settings", { "Settings" } },
+    { "Unit Frames", { "Unit Frames", "Castbar" } },
+    { "Action Bars", { "Actionbar" } },
+    { "Nameplates", { "Nameplates" } },
+    { "Combat Text", { "Combat Text" } },
+    { "Meters", { "Meters" } },
+    { "Chat & Panels", { "Chat", "Panel", "XP Bar" } },
+    { "Minimap & Buffs", { "Minimap", "Buffs" } },
+    { "Bags & Loot", { "Bags & Bank", "Loot" } },
+    { "Tooltip", { "Tooltip" } },
+    { "Add-ons", { "Thirdparty", "Components" } },
+    { "About", { "About" } },
+  }
 
   local WIDTH, HEIGHT, NAV_W, NAV_ROW = 980, 660, 196, 20
   local SEARCH = "[" .. T["Search"] .. "]"
@@ -242,7 +258,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     local bl = W.Font(bar:CreateFontString(nil, "OVERLAY"), 12, K.text[1], K.text[2], K.text[3])
     bl:SetPoint("LEFT", bar, "LEFT", x + 10, 0)
     bl:SetText("Background")
-    local s = W.SliderBar(bar, 90, "pfOctoQuickAlpha")
+    local s = W.SliderBar(bar, 70, "pfOctoQuickAlpha")
     s:SetPoint("LEFT", bl, "RIGHT", 10, 0)
     s:SetMinMaxValues(0.3, 1)
     s:SetValueStep(0.05)
@@ -257,6 +273,32 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end)
     QuickTip(s, "Background", "How solid this window's background is: lower to see the game through it.")
     self.quickAlpha, self.quickAlphaText = s, sv
+
+    -- room between the rows of the Octo pages
+    local spl = W.Font(bar:CreateFontString(nil, "OVERLAY"), 12, K.text[1], K.text[2], K.text[3])
+    spl:SetPoint("LEFT", sv, "RIGHT", 14, 0)
+    spl:SetText("Spacing")
+    local sp = W.SliderBar(bar, 70, "pfOctoQuickSpace")
+    sp:SetPoint("LEFT", spl, "RIGHT", 10, 0)
+    sp:SetMinMaxValues(0, 12)
+    sp:SetValueStep(1)
+    local spv = W.Font(bar:CreateFontString(nil, "OVERLAY"), 11, K.accent[1], K.accent[2], K.accent[3])
+    spv:SetPoint("LEFT", sp, "RIGHT", 8, 0)
+    sp:SetScript("OnValueChanged", function()
+      if this.loading then return end
+      B.Store().space = math.floor(this:GetValue() + 0.5)
+      spv:SetText(B.Store().space .. " px")
+      W.SliderPaint(this)
+      -- rebuild once the slider rests
+      this.at = GetTime() + .3
+      this:SetScript("OnUpdate", function()
+        if GetTime() < this.at then return end
+        this:SetScript("OnUpdate", nil)
+        O:RebuildPages()
+      end)
+    end)
+    QuickTip(sp, "Spacing", "Room between the rows of settings: less to fit more on a page, more to spread them out.")
+    self.quickSpace, self.quickSpaceText = sp, spv
 
     -- find a setting
     local find = W.EditBox(bar, 190, "pfOctoQuickFind")
@@ -292,6 +334,14 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     self.quickAlpha.loading = nil
     W.SliderPaint(self.quickAlpha)
     self.quickAlphaText:SetText(math.floor(a * 100 + 0.5) .. "%")
+    if self.quickSpace then
+      local sp = tonumber(B.Store().space) or 2
+      self.quickSpace.loading = true
+      self.quickSpace:SetValue(sp)
+      self.quickSpace.loading = nil
+      W.SliderPaint(self.quickSpace)
+      self.quickSpaceText:SetText(sp .. " px")
+    end
   end
 
   -- The window's and its panels' backgrounds follow the Background slider.
@@ -357,6 +407,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     chat = "INV_Scroll_03", nameplates = "Ability_Hunter_SniperShot", meters = "Ability_Marksmanship",
     thirdparty = "INV_Gizmo_01", components = "Trade_Engineering", about = "INV_Misc_QuestionMark",
     skins = "INV_Misc_Orb_01", threat = "Ability_Warrior_DefensiveStance",
+    actionbars = "Ability_DualWield", chatpanels = "INV_Scroll_03", minimapbuffs = "INV_Misc_Map_01",
+    bagsloot = "INV_Misc_Bag_08", addons = "INV_Gizmo_01",
   }
   function O.IconFor(name)
     local k = string.gsub(string.lower(name or ""), "[^%a]", "")
@@ -433,37 +485,54 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       self.groupOf[key] = grp
     end
 
+    -- every source (an Octo section or a pfUI category) by name
+    local sources, order = {}, {}
     for _, sec in ipairs(self.octo) do
-      local grp = Group(sec[1])
-      for _, pg in ipairs(sec[2]) do Topic(grp, "o:" .. pg[1], pg[2]) end
-      grp.header:SetScript("OnClick", function()
-        O.openGroup = (O.openGroup ~= this.group) and this.group or nil
-        O:LayoutNav()
-      end)
+      sources[sec[1]] = { octo = sec }
+      table.insert(order, sec[1])
     end
-
     for _, e in ipairs(LegacyList()) do
       -- pfUI's own children are hidden away; gui.lua keeps driving them
       e.cat:SetParent(hidden)
-      if table.getn(e.pages) > 0 then
-        local grp = Group(e.name)
-        for _, pg in ipairs(e.pages) do
-          pg.btn:SetParent(hidden)
-          local key = "l:" .. e.name .. "/" .. pg.name
-          self.legacy[key] = { cat = e.cat, page = pg.btn }
-          Topic(grp, key, pg.name)
+      for _, pg in ipairs(e.pages) do pg.btn:SetParent(hidden) end
+      sources[e.name] = { legacy = e }
+      table.insert(order, e.name)
+    end
+
+    -- the sections in O.NAV's order (user, 22 Oct 2026: "reorder them in order
+    -- of importance", grouped); anything not named there follows in its own order
+    local plan, used = {}, {}
+    for _, n in ipairs(O.NAV) do
+      local list = {}
+      for _, src in ipairs(n[2]) do
+        local name = T[src] or src
+        if sources[name] and not used[name] then table.insert(list, name) used[name] = true end
+      end
+      if table.getn(list) > 0 then table.insert(plan, { T[n[1]] or n[1], list }) end
+    end
+    for _, name in ipairs(order) do
+      if not used[name] then table.insert(plan, { name, { name } }) end
+    end
+
+    local function Opener(grp)
+      grp.header:SetScript("OnClick", function()
+        O.openGroup = (O.openGroup ~= this.group) and this.group or nil
+        -- opening a section shows its first page, as OctoBG's did once picked
+        if O.openGroup == this.group and this.group.buttons[1] then
+          O:Select(this.group.buttons[1].key)
+        else
+          O:LayoutNav()
         end
-        grp.header:SetScript("OnClick", function()
-          O.openGroup = (O.openGroup ~= this.group) and this.group or nil
-          -- opening a section shows its first page, as OctoBG's did once picked
-          if O.openGroup == this.group and this.group.buttons[1] then
-            O:Select(this.group.buttons[1].key)
-          else
-            O:LayoutNav()
-          end
-        end)
-      else
-        local grp = Group(e.name, true)
+      end)
+    end
+
+    for _, sec in ipairs(plan) do
+      local title, list = sec[1], sec[2]
+      local only = sources[list[1]]
+      if table.getn(list) == 1 and only.legacy and table.getn(only.legacy.pages) == 0 then
+        -- one pfUI category without pages: the header is the topic
+        local e = only.legacy
+        local grp = Group(title, true)
         local key = "l:" .. e.name
         self.legacy[key] = { cat = e.cat }
         self.nav[key] = grp.header
@@ -471,6 +540,29 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         grp.single = key
         grp.header.key = key
         grp.header:SetScript("OnClick", function() O:Select(this.key) end)
+      else
+        local grp = Group(title)
+        local merged = table.getn(list) > 1
+        for _, name in ipairs(list) do
+          local s = sources[name]
+          if s.octo then
+            for _, pg in ipairs(s.octo[2]) do Topic(grp, "o:" .. pg[1], pg[2]) end
+          else
+            local e = s.legacy
+            if table.getn(e.pages) == 0 then
+              local key = "l:" .. e.name
+              self.legacy[key] = { cat = e.cat }
+              Topic(grp, key, e.name)
+            end
+            for _, pg in ipairs(e.pages) do
+              local key = "l:" .. e.name .. "/" .. pg.name
+              self.legacy[key] = { cat = e.cat, page = pg.btn }
+              -- pages of several categories in one section say whose they are
+              Topic(grp, key, merged and (e.name .. ": " .. pg.name) or pg.name)
+            end
+          end
+        end
+        Opener(grp)
       end
     end
     self.navCount = self:CountLegacy()
@@ -553,6 +645,22 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     for _, cat in ipairs(g.frames.order or {}) do
       if cat ~= except and cat.area then cat.area:Hide() end
     end
+  end
+
+  -- Builds every Octo page again (the Spacing slider): the old ones are
+  -- hidden and dropped, Find forgets their settings, previews start afresh.
+  function O:RebuildPages()
+    for _, p in pairs(self.pages) do p.frame:Hide() end
+    self.pages = {}
+    for i = table.getn(W.index), 1, -1 do
+      if W.index[i].page then table.remove(W.index, i) end
+    end
+    self.allBuilt = nil
+    if pfUI.plates and pfUI.plates.previews then
+      for _, s in ipairs(pfUI.plates.previews) do s:Hide() end
+      pfUI.plates.previews = {}
+    end
+    if self.current and string.sub(self.current, 1, 2) == "o:" then self:Select(self.current) end
   end
 
   function O:Page(key)
@@ -647,6 +755,9 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       else
         for _, b in ipairs(grp.buttons) do
           local _, _, kc, kp = string.find(b.key or "", "^l:(.-)/(.*)$")
+          -- a category without pages inside a merged section ("l:Castbar")
+          local _, _, whole = string.find(b.key or "", "^l:([^/]+)$")
+          if whole and Norm(whole) == nc and not catFirst then catFirst = b.key end
           if kc then
             local sameCat = Norm(kc) == nc
             if sameCat and np and Norm(kp) == np then return b.key end

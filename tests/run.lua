@@ -1681,11 +1681,16 @@ do
       for i = 1, 12 do
         Mock.now = Mock.now + .35
         Mock.Run(first, "OnUpdate", .35)
-        local n = 0
-        for c = 1, 5 do if fp.combopoints[c]:IsShown() then n = n + 1 end end
+        local n, pf = 0, 0
+        for c = 1, 5 do
+          local f = fp.octo.cp and fp.octo.cp[c]
+          if f and f:IsShown() and string.find(f.tex.texture or "", "cp%-orb") then n = n + 1 end
+          if fp.combopoints[c]:IsShown() then pf = pf + 1 end
+        end
         seen[n] = true
+        if pf > 0 then seen.pfui = true end
       end
-      ok(seen[0] and seen[3] and seen[5], "combo points roll on the sample target")
+      ok(seen[0] and seen[3] and seen[5] and not seen.pfui, "our orbs roll on the sample target (pfUI's squares stay hidden)")
       pfUI_config.nameplates.cpdisplay = "0"
       S.skin = "thick"
       P.Refresh()
@@ -1706,7 +1711,26 @@ do
     pfUI.gui:Show()
     local sec
     for _, s in ipairs(O.octo) do if s[1] == "Nameplates" then sec = s end end
-    ok(sec and table.getn(sec[2]) == 9, "Nameplates section with its nine pages")
+    ok(sec and table.getn(sec[2]) == 7, "Nameplates section with its seven pages")
+    -- the topic list: most used first, small categories grouped
+    local heads = {}
+    for _, grp in ipairs(O.groups) do table.insert(heads, grp.header.text.text) end
+    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Nameplates" and heads[table.getn(heads)] == "About",
+      "topic list in order of importance (" .. table.concat(heads, ", ") .. ")")
+    local castTopic
+    for _, grp in ipairs(O.groups) do
+      if grp.header.text.text == "Unit Frames" then
+        for _, b in ipairs(grp.buttons) do if b.key == "l:Castbar" then castTopic = true end end
+      end
+    end
+    ok(castTopic, "Castbar is a topic under Unit Frames")
+    -- the spacing slider rebuilds the pages
+    pfUI_cache.octoui.space = 8
+    O:Select("o:nplook")
+    O:RebuildPages()
+    ok(O.pages.nplook and O.pages.nplook.frame:IsShown(), "pages rebuilt at a new spacing")
+    pfUI_cache.octoui.space = nil
+    O:RebuildPages()
     for _, pg in ipairs(sec and sec[2] or {}) do
       local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
       ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
