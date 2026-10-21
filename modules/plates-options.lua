@@ -94,7 +94,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     W.Card(p, "Preview", { tip = "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
-    P.AttachPreview(W.Box(p, h or 118))
+    P.AttachPreview(W.Box(p, h or 172))
     W.Live(p, function()
       if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
       return "Test on real nameplates puts pretend threat colours and casts on every plate you can see for a minute."
@@ -337,13 +337,60 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- debuffs
 
+  local function ListEdit(p, label, desc, key)
+    return W.Edit(p, label, desc, function() return C.plates[key] end, function(v)
+      C.plates[key] = v or ""
+      U()
+    end, 420)
+  end
+
   BUILD.npauras = function(p)
-    W.Heading(p, "Debuffs", {
-      on = { function() return C.nameplates.showdebuffs == "1" end, function(v) C.nameplates.showdebuffs = v and "1" or "0"; U() end,
-             "Debuff icons on nameplates." },
-      about = "Debuff icons on plates. With SuperWoW every plate knows its debuffs; without it only your target "
-        .. "and mouse-over do (estimated debuffs keep them a while)." })
+    W.Heading(p, "Auras", {
+      on = { function() return C.plates.auras == "1" end, function(v) C.plates.auras = v and "1" or "0"; U() end,
+             "Plater-style buff and debuff icons. Off: pfUI's own debuff row (Old debuff row below)." },
+      about = "Icons above the name: your debuffs and crowd control on the mob, then its important buffs (gold edge), "
+        .. "with timers and stacks. Edges show the debuff type: blue Magic, purple Curse, brown Disease, green Poison. "
+        .. "Special auras are big icons on top; ghost auras are your own debuffs missing from a mob you fight, faded. "
+        .. "With SuperWoW every plate knows its auras; without it only your target does. Timers are known for your own "
+        .. "debuffs (and others' when ClassicAPI tells)." })
+    Preview(p)
+    W.Card(p, "What shows")
+    W.Dropdown(p, "Debuffs", nil, { { key = "mine_cc", label = "Yours and crowd control" }, { key = "mine", label = "Only yours" },
+      { key = "all", label = "All" } }, function() return C.plates.debuffshow end, function(v) C.plates.debuffshow = v; U() end)
+    W.Dropdown(p, "Enemy buffs", nil, { { key = "important", label = "Important ones" }, { key = "all", label = "All" },
+      { key = "none", label = "None" } }, function() return C.plates.buffshow end, function(v) C.plates.buffshow = v; U() end)
+    W.Dropdown(p, "Filter", "Applies to debuffs.",
+      { { key = "none", label = "No list" }, { key = "blacklist", label = "Hide the black list" }, { key = "whitelist", label = "Only the white list" } },
+      function() return C.nameplates.debuffs.filter end, function(v) C.nameplates.debuffs.filter = v; U() end)
+    Edit(p, "Black list", "Debuff names separated by #.", ND, "blacklist")
+    Edit(p, "White list", "Debuff names separated by #.", ND, "whitelist")
     W.Card(p, "Icons")
+    Sld(p, "Width", nil, 10, 40, 1, S, "aurawidth", Px)
+    Sld(p, "Height", nil, 10, 40, 1, S, "auraheight", Px)
+    Sld(p, "Per row", nil, 1, 12, 1, S, "auraperrow")
+    Sld(p, "Rows", nil, 1, 3, 1, S, "aurarows")
+    W.Dropdown(p, "Grow", nil, { { key = "center", label = "From the middle" }, { key = "right", label = "To the right" },
+      { key = "left", label = "To the left" } }, function() return C.plates.auragrow end, function(v) C.plates.auragrow = v; U() end)
+    Sld(p, "Above the name by", nil, -10, 30, 1, S, "auraoffset", Px)
+    Chk(p, "Timers", "Time left on the icon (red under 3 s).", S, "auratimer")
+    Chk(p, "Stacks", nil, S, "aurastacks")
+    Chk(p, "Edges by debuff type", nil, S, "auraborder")
+    W.Card(p, "Special auras", { on = { function() return C.plates.specialon == "1" end, function(v) C.plates.specialon = v and "1" or "0"; U() end,
+      "Big icons for the spells listed." } })
+    Sld(p, "Size", nil, 16, 48, 1, S, "specialsize", Px)
+    ListEdit(p, "Spells", "Names separated by #. Shown big, on top, edged in the accent colour.", "specialauras")
+    W.Card(p, "Ghost auras", { on = { function() return C.plates.ghoston == "1" end, function(v) C.plates.ghoston = v and "1" or "0"; U() end,
+      "Your own debuffs that are missing from a mob you are fighting, shown faded." } })
+    ListEdit(p, "Spells", "Your debuffs to keep up, separated by #. Their icons come from your spellbook.", "ghostauras")
+    Sld(p, "Faded to", nil, 0.1, 1, 0.05, S, "ghostalpha", Alpha)
+    W.Buttons(p, { { "Fill with my class's usual", function()
+      local _, class = UnitClass("player")
+      C.plates.ghostauras = P.Auras and P.Auras.GHOSTS[class or ""] or ""
+      U()
+      W.Refresh(p)
+    end, 200, "Warlock: Corruption, Curse of Agony, Immolate; priest: Shadow Word: Pain; and so on." } })
+    W.Card(p, "Old debuff row", { folded = true, tip = "pfUI's own debuff icons, used while Auras is off." })
+    Chk(p, "Show it", nil, N, "showdebuffs")
     W.Dropdown(p, "Place", nil, { { key = "TOP", label = "Above" }, { key = "BOTTOM", label = "Below" } },
       function() return C.nameplates.debuffs.position end, function(v) C.nameplates.debuffs.position = v; U() end)
     Sld(p, "Size", nil, 8, 40, 1, N, "debuffsize", Px)
@@ -351,12 +398,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Stacks", "The stack count on the icon.", ND, "showstacks")
     Chk(p, "Only yours", "Only the debuffs you put on.", N, "selfdebuff")
     Chk(p, "Estimate", "Remember debuffs seen on a unit for plates that cannot read them.", N, "guessdebuffs")
-    W.Card(p, "Filter")
-    W.Dropdown(p, "Filter", nil,
-      { { key = "none", label = "Show all" }, { key = "blacklist", label = "Hide the black list" }, { key = "whitelist", label = "Only the white list" } },
-      function() return C.nameplates.debuffs.filter end, function(v) C.nameplates.debuffs.filter = v; U() end)
-    Edit(p, "Black list", "Debuff names separated by #.", ND, "blacklist")
-    Edit(p, "White list", "Debuff names separated by #.", ND, "whitelist")
   end
 
   -- ---------------------------------------------------------------- range and execute
@@ -385,6 +426,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   O:AddPage("Nameplates", "npthreat", "Threat and colours", BUILD.npthreat)
   O:AddPage("Nameplates", "nptarget", "Target", BUILD.nptarget)
   O:AddPage("Nameplates", "npcast", "Cast bar", BUILD.npcast)
-  O:AddPage("Nameplates", "npauras", "Debuffs", BUILD.npauras)
+  O:AddPage("Nameplates", "npauras", "Auras", BUILD.npauras)
   O:AddPage("Nameplates", "nprange", "Range and execute", BUILD.nprange)
 end)

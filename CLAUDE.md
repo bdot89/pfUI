@@ -257,4 +257,9 @@ see "Roadmap" below.
    "Test on real nameplates" = P.Test(60): pretend threat states + casts on every plate.
    SuperWoW check = P.SuperWoW() (SUPERWOW_VERSION): pfUI's superwow_active is only set at the
    first cast event. Mock: frame level kept in `_level` (pfUI plates have a .level text).
+   Seen in game 21 Oct: preview and looks work. PHASE 2 auras DONE 21 Oct (not seen in game):
+   modules/plates-auras.lua, see docs\plates-spec.md section 4; options page "Auras" (was
+   Debuffs). Mock gained UnitBuff / UnitDebuff (Mock.units[guid].buffs / .debuffs) and
+   Get/SetStatusBarColor; run.lua stubs GetDifficultyColor. Note: the map style test leaves a
+   global UnitName that only knows party1 - later tests must answer GUIDs themselves.
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).

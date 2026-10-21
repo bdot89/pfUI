@@ -423,6 +423,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2, 0)
 
     o.scale = nil
+    if P.Auras then P.Auras.Configure(plate, o) end
     P.Update(plate)
   end
 
@@ -432,6 +433,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if not o then return end
     for _, region in ipairs({ o.hl, o.tick, o.left, o.right, o.under, o.glow, o.mark, o.spark, o.cend, o.skinH, o.skinC }) do region:Hide() end
     for i = 1, 4 do o.corners[i]:Hide() end
+    if P.Auras then P.Auras.Off(o) end
     if o.scale then
       plate:SetScale(UIParent:GetScale())
       o.scale, o.applied = nil, nil
@@ -522,6 +524,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     else
       o.mark:Hide()
     end
+
+    if P.Auras then P.Auras.Update(plate, o, unit, enemy) end
   end
 
   -- ---------------------------------------------------------------- every frame
@@ -648,6 +652,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
     if (pv and pv.cast) or (not pv and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
     P.TickCast(plate, o, now)
+    if P.Auras then P.Auras.Tick(plate, o, now) end
   end
 
   -- ---------------------------------------------------------------- test mode and preview
@@ -703,8 +708,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   -- execute range and a friendly player. They follow every setting at once.
   local SAMPLES = {
     { name = "Defias Pillager", level = "17", hp = 80, color = { 1, 0, 0 }, target = true, class = "elite", state = "aggro",
-      cast = true, caption = "your target, casting" },
-    { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true },
+      cast = true, auras = "all", caption = "your target, casting" },
+    { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true, auras = "few", ghost = true },
     { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", caption = "execute range" },
     { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player" },
   }
@@ -740,7 +745,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     regions.levelicon:Hide()
     regions.raidicon:Hide()
     regions.glow:Hide()
-    game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, data = d }
+    game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, ghost = d.ghost, data = d }
     NP.OnCreate(game)
     -- pfUI pins the bar to frame level 4: lift the whole sample above its box
     -- (each frame one above its parent, as they stack on a real plate)
@@ -761,6 +766,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       plate.istarget = pv.target
       if (this.tick or 0) < GetTime() then
         this.tick = GetTime() + .2
+        if pv.data.auras and P.Auras then
+          local all = P.Auras.TestAuras()
+          pv.auras = (pv.data.auras == "few") and { all[1] } or all
+        end
         NP:OnDataChanged(plate)
         if this.caption then
           local word = pv.data.caption or ("mob " .. (STATEWORDS[pv.state] or ""))
@@ -780,7 +789,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local n = table.getn(SAMPLES)
     for i = 1, n do
       local game = SamplePlate(box, SAMPLES[i])
-      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -14)
+      -- room above for the aura rows and the big special icons
+      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -58)
       game.preview.anyTarget = true
       game.caption = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       game.caption:SetPoint("BOTTOM", box, "BOTTOMLEFT", (box:GetWidth() or 640) * (i - .5) / n, 8)
@@ -801,7 +811,16 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   local OnDataChanged = NP.OnDataChanged
   NP.OnDataChanged = function(self, plate)
-    OnDataChanged(self, plate)
+    -- our aura rows replace pfUI's debuff row: it skips its own (and its
+    -- scan) while they are on; the setting is put back even on an error
+    if S.enable == "1" and S.auras == "1" and C.nameplates.showdebuffs == "1" then
+      C.nameplates.showdebuffs = "0"
+      local good, err = pcall(OnDataChanged, self, plate)
+      C.nameplates.showdebuffs = "1"
+      if not good then error(err) end
+    else
+      OnDataChanged(self, plate)
+    end
     if plate and not plate.octo then return end
     P.Update(plate)
   end

@@ -121,9 +121,28 @@ Behaviour:
 Not verified in game (all of phase 1): every look, the scale easing with pfUI's click area, the
 threat states, UnitXP on plate GUIDs, the interrupt lines' wording on this server.
 
-## 4. Later phases
+## 4. Phase 2: auras (done 21 Oct 2026, not seen in game)
 
-2. Auras (Plater's Buff Settings / Tracking / Special, Ghost Auras).
+`modules/plates-auras.lua` (`pfUI.plates.Auras`), hooked from plates.lua (Configure / Update /
+Tick / Off). While `C.plates.auras` is on, pfUI's own debuff row is skipped (showdebuffs is set to
+"0" only for the length of pfUI's OnDataChanged, put back even on an error).
+- Data: SuperWoW `UnitDebuff(guid, i)` -> texture, stacks, type, spell id; `UnitBuff(guid, i)` ->
+  texture, stacks, spell id; names by `SpellInfo(id)`, else pfUI libdebuff's tooltip scan (only when
+  a slot changes, `o.acache`). Your own debuffs' timers and "mine" from libdebuff.objects (no scan).
+  ClassicAPI `C_UnitAuras.GetUnitAuras(unit, "HARMFUL" / "HELPFUL")` end times and sourceGUID when
+  it returns them - field names assumed retail-like, NOT verified.
+- Row above the name: debuffs (yours / yours + crowd control (default) / all, pfUI's black / white
+  list), then enemy buffs (important (default) / all / none); order yours, CC, other debuffs,
+  important buffs. Icons 20 x 16 (cropped), rows of N, 1-3 rows, grow middle / left / right; timer
+  (minutes, whole seconds, tenths under 3 s in red), stacks, edge by debuff type, important buffs gold.
+- Special auras: names list -> big icons (28) on top, accent edge (default: main CC and immunities).
+- Ghost auras: your listed debuffs missing on a mob fighting you, desaturated, icons from your
+  spellbook; a button fills the list with your class's usual ones. Off by default.
+- Preview: the target sample shows pretend auras, the threat sample one of yours plus ghosts;
+  "Test on real nameplates" puts pretend auras on every plate too.
+
+## 5. Later phases
+
 3. Lists and indicators (NPC colours, cast colours, quest units, class / pet icons, name-only friends,
    Auto tab, personal bar).
 4. Animations, scripts / mods, nameplate-only presets.

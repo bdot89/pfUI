@@ -399,6 +399,17 @@ function UnitHealthMax(u) return 100 end
 function UnitIsDeadOrGhost(u) local e = E(u) return e and e.hp == 0 end
 function UnitIsGhost(u) return false end
 function UnitIsUnit(a, b) return a == b end
+-- auras: Mock.units[guid].buffs / .debuffs = { { texture, stacks, dtype, spellId }, ... }
+function UnitBuff(u, i)
+  local e = E(u)
+  local a = e and e.buffs and e.buffs[i]
+  if a then return a[1], a[2], a[4] end
+end
+function UnitDebuff(u, i)
+  local e = E(u)
+  local a = e and e.debuffs and e.debuffs[i]
+  if a then return a[1], a[2], a[3], a[4] end
+end
 function GetUnitField(g, key)
   local e = Mock.units[g]
   if not e then return nil end

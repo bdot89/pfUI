@@ -72,6 +72,8 @@ function CreateFrame(kind, name, parent, template)
 end
 -- the client's cooldown animation script (nameplate debuff icons use it)
 function CooldownFrame_OnUpdateModel() end
+-- the client's level colour (unit frames with level colours)
+function GetDifficultyColor() return { r = 1, g = .82, b = 0 } end
 function UIDropDownMenu_SetWidth() end
 function UIDropDownMenu_SetButtonWidth() end
 function UIDropDownMenu_JustifyText() end
@@ -1233,6 +1235,8 @@ do
     Mock.units.player = { combat = true }
     UnitName = function(u)
       if u == MOB .. "target" then return mobTarget == "player" and "Tester" or mobTarget end
+      -- (the map style test leaves a UnitName that knows only party1)
+      if Mock.units[u] and Mock.units[u].name then return Mock.units[u].name end
       return saved.UnitName(u)
     end
     UnitIsUnit = function(a, b)
@@ -1425,6 +1429,98 @@ do
       P.Tick(plate)
       P.Test(0)
       ok(not P.Testing(), "test stops")
+    end
+
+    -- phase 2: auras
+    local A = P.Auras
+    ok(A ~= nil, "plate auras loaded")
+    if A then
+      local list = {
+        { name = "Shadow Word: Pain", kind = "debuff", dtype = "Magic" },
+        { name = "Corruption", kind = "debuff", mine = true },
+        { name = "Hammer of Justice", kind = "debuff", cc = true },
+        { name = "Arcane Intellect", kind = "buff" },
+        { name = "Evasion", kind = "buff", important = true },
+        { name = "Polymorph", kind = "debuff", cc = true },
+      }
+      local specials = S.specialauras
+      S.specialauras = "Polymorph"
+      A.ReadLists()
+      local row, big = A.Pick(list, true)
+      ok(table.getn(row) == 3 and row[1].name == "Corruption" and row[2].name == "Hammer of Justice" and row[3].name == "Evasion",
+        "row: yours, then crowd control, then important buffs (" .. table.getn(row) .. ")")
+      ok(table.getn(big) == 1 and big[1].name == "Polymorph", "special auras go big")
+      S.debuffshow = "all"
+      row = A.Pick(list, true)
+      ok(table.getn(row) == 4, "all debuffs (" .. table.getn(row) .. ")")
+      S.debuffshow = "mine_cc"
+      row = A.Pick(list, false)
+      ok(table.getn(row) == 2, "no enemy buffs on a friend")
+      pfUI_config.nameplates.debuffs.filter = "blacklist"
+      pfUI_config.nameplates.debuffs.blacklist = "Corruption"
+      A.ReadLists()
+      row = A.Pick(list, true)
+      ok(row[1].name == "Hammer of Justice", "black list hides a debuff")
+      pfUI_config.nameplates.debuffs.filter, pfUI_config.nameplates.debuffs.blacklist = "none", ""
+      S.specialauras = specials
+      A.ReadLists()
+
+      -- reading a GUID's auras: SuperWoW ids -> names, own timers from libdebuff
+      local savedD, savedB, savedSI = UnitDebuff, UnitBuff, SpellInfo
+      UnitDebuff = function(u, i)
+        if i == 1 then return "Interface\\Icons\\Spell_Shadow_AbominationExplosion", 1, "Magic", 172 end
+        if i == 2 then return "Interface\\Icons\\Spell_Holy_SealOfMight", 1, nil, 853 end
+      end
+      UnitBuff = function(u, i) if i == 1 then return "Interface\\Icons\\Spell_Frost_Frost", 1, 11958 end end
+      SpellInfo = function(id)
+        local names = { [172] = "Corruption", [853] = "Hammer of Justice", [11958] = "Ice Block" }
+        return names[id], "", ""
+      end
+      local lib = pfUI.api.libdebuff
+      lib.objects = lib.objects or {}
+      lib.objects["Gnoll Shaman"] = { [60] = { Corruption = { duration = 18, start = GetTime() - 3, caster = "player" } } }
+      local ao = {}
+      local read = A.Read(ao, MOB)
+      ok(table.getn(read) == 3 and read[1].name == "Corruption" and read[1].mine and read[1].ends and math.abs(read[1].ends - GetTime() - 15) < .01,
+        "reads your Corruption with 15 s left (" .. table.getn(read) .. " auras, " .. tostring(read[1] and read[1].name) .. ", mine "
+        .. tostring(read[1] and read[1].mine) .. ", ends " .. tostring(read[1] and read[1].ends and read[1].ends - GetTime()) .. ")")
+      ok(read[2].cc and read[3].kind == "buff" and read[3].important, "crowd control and an important buff recognised")
+      UnitDebuff, UnitBuff, SpellInfo = savedD, savedB, savedSI
+      lib.objects["Gnoll Shaman"] = nil
+
+      -- ghost auras: your spells missing from the mob
+      S.ghostauras = "Execute#Revenge"
+      A.ReadLists()
+      local ghosts = A.Ghosts({ { name = "Execute", kind = "debuff" } })
+      ok(table.getn(ghosts) == 1 and ghosts[1].name == "revenge" and ghosts[1].icon, "ghost: the missing one, with its spellbook icon")
+      S.ghostauras = ""
+      A.ReadLists()
+
+      -- timers
+      ok(A.Timer(125) == "3m" and A.Timer(42.4) == "42" and A.Timer(2.34) == "2.3", "timer text")
+
+      -- on the plate: test auras show, pfUI's own row is skipped and its setting kept
+      if o then
+        pfUI_config.nameplates.showdebuffs = "1"
+        P.Test(30)
+        NP:OnDataChanged(plate)
+        ok(pfUI_config.nameplates.showdebuffs == "1", "pfUI's debuff setting is left as it was")
+        local shown = 0
+        for _, f in ipairs(o.aicons or {}) do if f:IsShown() then shown = shown + 1 end end
+        local bigs = 0
+        for _, f in ipairs(o.bicons or {}) do if f:IsShown() then bigs = bigs + 1 end end
+        ok(shown >= 3, "aura icons on the plate (" .. shown .. ")")
+        ok(bigs >= 1, "special icons on the plate (" .. bigs .. ")")
+        P.Tick(plate)
+        ok(o.aicons[1].timer.text and o.aicons[1].timer.text ~= "", "icons count down (" .. tostring(o.aicons[1].timer.text) .. ")")
+        S.auras = "0"
+        P.Update(plate)
+        local still = 0
+        for _, f in ipairs(o.aicons) do if f:IsShown() then still = still + 1 end end
+        ok(still == 0, "auras off: icons gone")
+        S.auras = "1"
+        P.Test(0)
+      end
     end
 
     -- looks: picking one must not switch plates off (pfUI re-applied "show
