@@ -53,6 +53,7 @@
   <Include file="..\modules\nameplates.lua"/>
   <Include file="..\modules\plates.lua"/>
   <Include file="..\modules\plates-auras.lua"/>
+  <Include file="..\modules\plates-lists.lua"/>
   <Include file="..\modules\plates-options.lua"/>
   <Include file="..\modules\loot.lua"/>
   <Include file="..\modules\roll.lua"/>

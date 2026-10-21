@@ -10,6 +10,7 @@ param([string]$OutDir = (Join-Path $PSScriptRoot "..\img\plates"))
 #   star       32 x 32  elite / rare mark, dark outline
 #   skull      32 x 32  boss mark, dark outline
 #   tick        8 x 32  execute marker on the bar
+#   quest-objective / quest-start / quest-end / pet  32 x 32  marks by the name
 # White (grey shading) + alpha, tinted in game. Uncompressed 32-bit TGA,
 # bottom-left origin, 4 x 4 samples per pixel. Same output every run.
 #   powershell -ExecutionPolicy Bypass -File tools\MakePlateArt.ps1
@@ -58,6 +59,23 @@ public static class Art {
     bool nose = Poly(new double[] { 0.5, 0.45, 0.45, 0.36, 0.55, 0.36 }, x, y);
     bool teeth = y >= 0.14 && y <= 0.27 && (Math.Abs(x - 0.42) < 0.018 || Math.Abs(x - 0.5) < 0.018 || Math.Abs(x - 0.58) < 0.018);
     return eye || nose || teeth;
+  }
+
+  // an exclamation mark between y0 and y1 (v up) around x = cx; grow = outline
+  static bool Bang(double x, double y, double cx, double y0, double y1, double grow = 0) {
+    double h = y1 - y0, w = 0.07 + grow;
+    bool stem = Math.Abs(x - cx) <= w && y >= y0 + h * 0.32 - grow && y <= y1 + grow;
+    bool dot = Circle(x, y, cx, y0 + h * 0.1, h * 0.1 + grow);
+    return stem || dot;
+  }
+  // a question mark: a ring arc, a short stem and a dot
+  static bool Ask(double x, double y, double grow) {
+    double r = Math.Sqrt((x - 0.5) * (x - 0.5) + (y - 0.66) * (y - 0.66));
+    double ang = Math.Atan2(y - 0.66, x - 0.5) * 180 / Math.PI;
+    bool arc = r >= 0.13 - grow && r <= 0.27 + grow && (ang >= -50 || ang >= 150 || ang <= -170);
+    bool stem = Math.Abs(x - 0.5) <= 0.07 + grow && y >= 0.3 - grow && y <= 0.5;
+    bool dot = Circle(x, y, 0.5, 0.14, 0.08 + grow);
+    return arc || stem || dot;
   }
 
   // one sample: u, v in 0..1 (v up); lum 0..1 (shading), a 0..1 (cover)
@@ -119,6 +137,35 @@ public static class Art {
         a = 1;
         lum = Math.Abs(u - 0.5) < 0.2 ? 1.0 : 0.0;
         return;
+      // quest marks: a diamond with "!" (objective), "!" (quest to take), "?" (quest to hand in)
+      case "quest-objective": {
+        double d = Math.Abs(u - 0.5) + Math.Abs(v - 0.5);
+        bool mark = Bang(u, v, 0.5, 0.2, 0.62);
+        if (d <= 0.40) { lum = mark ? 0.0 : 0.8 + 0.2 * v; a = 1; }
+        else if (d <= 0.47) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      }
+      case "quest-start":
+        if (Bang(u, v, 0.5, 0.08, 0.92)) { lum = 0.85 + 0.15 * v; a = 1; }
+        else if (Bang(u, v, 0.5, 0.04, 0.96, 0.06)) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      case "quest-end":
+        if (Ask(u, v, 0)) { lum = 0.85 + 0.15 * v; a = 1; }
+        else if (Ask(u, v, 0.05)) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      case "pet": {
+        bool pad = Circle(u, v, 0.5, 0.36, 0.2);
+        bool toes = Circle(u, v, 0.22, 0.62, 0.09) || Circle(u, v, 0.4, 0.76, 0.09) || Circle(u, v, 0.6, 0.76, 0.09) || Circle(u, v, 0.78, 0.62, 0.09);
+        bool edge = Circle(u, v, 0.5, 0.36, 0.25) || Circle(u, v, 0.22, 0.62, 0.135) || Circle(u, v, 0.4, 0.76, 0.135)
+          || Circle(u, v, 0.6, 0.76, 0.135) || Circle(u, v, 0.78, 0.62, 0.135);
+        if (pad || toes) { lum = 0.85 + 0.15 * v; a = 1; }
+        else if (edge) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      }
     }
   }
 
@@ -155,7 +202,8 @@ $OutDir = (Resolve-Path $OutDir).Path
 $list = @(
   @("bar-flat", 256, 32), @("bar-soft", 256, 32), @("bar-gloss", 256, 32), @("bar-glass", 256, 32), @("bar-split", 256, 32),
   @("arrow", 64, 64), @("chevron", 64, 64), @("corner", 32, 32), @("underglow", 256, 64), @("spark", 32, 64),
-  @("star", 32, 32), @("skull", 32, 32), @("tick", 8, 32)
+  @("star", 32, 32), @("skull", 32, 32), @("tick", 8, 32),
+  @("quest-objective", 32, 32), @("quest-start", 32, 32), @("quest-end", 32, 32), @("pet", 32, 32)
 )
 foreach ($t in $list) {
   [Art]::Write((Join-Path $OutDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])

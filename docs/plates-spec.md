@@ -141,7 +141,28 @@ Tick / Off). While `C.plates.auras` is on, pfUI's own debuff row is skipped (sho
 - Preview: the target sample shows pretend auras, the threat sample one of yours plus ghosts;
   "Test on real nameplates" puts pretend auras on every plate too.
 
-## 5. Later phases
+## 5. Phase 3: lists, quests, icons, auto (done 21 Oct 2026, not seen in game)
+
+`modules/plates-lists.lua` (`pfUI.plates.Lists`), hooked from plates.lua.
+- NPC colours and names (`C.plates.npclist`) and cast colours and spell names (`castlist`): strings
+  "Name|r,g,b|New name#..." so profile strings carry them. Bar colour order: execute, threat, NPC
+  colour (wins over threat with `npcoverthreat`), quest colour (`questbar`), pfUI's own.
+  Options page "Colours and names": an editor per list (name, colour, new name, Use my target /
+  No colour / Save / Remove) and the list below it.
+- Quest marks right of the name: pfQuest's `pfMap.tooltips[name][quest][map].QTYPE`
+  (UNIT_OBJECTIVE / _ITEMREQ / ITEM_OBJECTIVE_LOOT = objective diamond, NPC_START = "!",
+  NPC_END = "?"); without pfQuest, quest log lines "X slain: a/b" not done (QUEST_MONSTERS_KILLED,
+  checked in every patch's GlobalStrings.lua).
+- Class icon on enemy (default) / friendly players (pfUI's img:classicons), paw on pets
+  (UnitPlayerControlled, not a player).
+- Auto: enemy plates in / out of combat, friendly plates in cities (list by zone name) / dungeons
+  and raids (IsInInstance party / raid) / open world: Leave, On, Off. Runs after pfUI's own
+  PLAYER_ENTERING_WORLD show / hide, on zone change and combat start / end.
+- Tank state `taking` (Plater's pulling_from_tank): the mob is on another tank and you are at the
+  pull %, colour `c_taking`.
+- Art: quest-objective, quest-start, quest-end, pet (tools\MakePlateArt.ps1).
+
+## 6. Later phases
 
 3. Lists and indicators (NPC colours, cast colours, quest units, class / pet icons, name-only friends,
    Auto tab, personal bar).

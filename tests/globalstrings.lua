@@ -98,6 +98,7 @@ SPELLCASTOTHERSTART = "%s begins to cast %s.";
 SPELLINTERRUPTOTHEROTHER = "%s interrupts %s's %s.";
 SPELLINTERRUPTOTHERSELF = "%s interrupts your %s.";
 SPELLINTERRUPTSELFOTHER = "You interrupt %s's %s.";
+QUEST_MONSTERS_KILLED = "%s slain: %d/%d";
 SPELLLOGCRITOTHEROTHER = "%s's %s crits %s for %d.";
 SPELLLOGCRITOTHERSELF = "%s's %s crits you for %d.";
 SPELLLOGCRITSCHOOLOTHEROTHER = "%s's %s crits %s for %d %s damage.";

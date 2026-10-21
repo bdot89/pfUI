@@ -31,7 +31,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- settings
 
   local COL = {}
-  local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost",
+  local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost", "c_taking",
     "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "targetcolor" }
   local function ReadColors()
     for _, k in ipairs(COLORS) do
@@ -114,7 +114,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         return "aggro"
       end
       if not tname then return end
-      if P.IsTank(tname) then return "offtank" end
+      if P.IsTank(tname) then
+        -- you are about to take it from the other tank (Plater's pulling_from_tank)
+        for _, e in ipairs(list or {}) do
+          if e.name == me and (e.perc or 0) >= pull then return "taking" end
+        end
+        return "offtank"
+      end
       return "lost"
     end
     if onme then return "aggro" end
@@ -126,7 +132,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   local THREATCOL = {
     dps = { aggro = "c_aggro", pulling = "c_pulling", safe = "c_safe" },
-    tank = { aggro = "c_tankaggro", losing = "c_losing", offtank = "c_offtank", lost = "c_lost" },
+    tank = { aggro = "c_tankaggro", losing = "c_losing", offtank = "c_offtank", lost = "c_lost", taking = "c_taking" },
   }
   -- the bar colour of a threat state, nil = keep the normal colour
   function P.ThreatColor(state)
@@ -423,6 +429,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2, 0)
 
     o.scale = nil
+    if P.Lists then P.Lists.Configure(plate, o) end
     if P.Auras then P.Auras.Configure(plate, o) end
     P.Update(plate)
   end
@@ -434,6 +441,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     for _, region in ipairs({ o.hl, o.tick, o.left, o.right, o.under, o.glow, o.mark, o.spark, o.cend, o.skinH, o.skinC }) do region:Hide() end
     for i = 1, 4 do o.corners[i]:Hide() end
     if P.Auras then P.Auras.Off(o) end
+    if P.Lists then P.Lists.Off(o) end
     if o.scale then
       plate:SetScale(UIParent:GetScale())
       o.scale, o.applied = nil, nil
@@ -473,7 +481,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       state = P.TestState(o)
     end
     o.state = state
-    if not col then col = P.ThreatColor(state) end
+    if P.Lists then o.quest = P.Lists.QuestFor(plate) end
+    if not col then
+      col = P.ThreatColor(state)
+      -- NPC colours (threat wins unless set otherwise), then quest units
+      if P.Lists then col = P.Lists.QuestColor(o, P.Lists.BarColor(plate, state, col)) end
+    end
     if col then
       h:SetStatusBarColor(col[1], col[2], col[3], col[4])
       plate.cache.r, plate.cache.g, plate.cache.b = col[1], col[2], col[3]
@@ -525,6 +538,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       o.mark:Hide()
     end
 
+    if P.Lists then P.Lists.Update(plate, o, unit, enemy) end
     if P.Auras then P.Auras.Update(plate, o, unit, enemy) end
   end
 
@@ -577,11 +591,15 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           end
         end
         o.castname = spell
+        -- cast colours and new names (phase 3)
+        local ce = P.Lists and P.Lists.CastEntry(spell or cb.spell:GetText())
+        o.castcol, o.castrename = ce and ce.color, ce and ce.rename
       end
       o.castv = v
-      local c = o.channel and COL.c_channel or COL.c_cast
-      cb:SetStatusBarColor(c[1], c[2], c[3], c[4])
-      if S.castlayout == "plater" and o.castname then cb.spell:SetText(o.castname) end
+      local c = o.castcol or (o.channel and COL.c_channel or COL.c_cast)
+      cb:SetStatusBarColor(c[1], c[2], c[3], c[4] or 1)
+      if o.castrename then cb.spell:SetText(o.castrename)
+      elseif S.castlayout == "plater" and o.castname then cb.spell:SetText(o.castname) end
       if S.spark == "1" and max > 0 then
         o.spark:ClearAllPoints()
         o.spark:SetPoint("CENTER", cb, "LEFT", cb:GetWidth() * math.min(1, math.max(0, v / max)), 0)
@@ -665,7 +683,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     P.testUntil = (seconds and seconds > 0) and (GetTime() + seconds) or 0
   end
 
-  local TESTSTATES = { dps = { "aggro", "pulling", "safe" }, tank = { "aggro", "losing", "offtank", "lost" } }
+  local TESTSTATES = { dps = { "aggro", "pulling", "safe" }, tank = { "aggro", "losing", "offtank", "taking", "lost" } }
   P.TESTSTATES = TESTSTATES
   local testCount = 0
   function P.TestState(o)
@@ -710,11 +728,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     { name = "Defias Pillager", level = "17", hp = 80, color = { 1, 0, 0 }, target = true, class = "elite", state = "aggro",
       cast = true, auras = "all", caption = "your target, casting" },
     { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true, auras = "few", ghost = true },
-    { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", caption = "execute range" },
+    { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", quest = "objective", caption = "execute range, quest mob" },
     { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player" },
   }
   local STATEWORDS = { aggro = "on you", pulling = "you are pulling it", safe = "on someone else",
-    losing = "someone is pulling it", offtank = "on another tank", lost = "loose on someone else" }
+    losing = "someone is pulling it", offtank = "on another tank", lost = "loose on someone else",
+    taking = "you are taking it from a tank" }
 
   local function SamplePlate(box, d)
     local game = CreateFrame("Button", nil, box)
@@ -745,7 +764,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     regions.levelicon:Hide()
     regions.raidicon:Hide()
     regions.glow:Hide()
-    game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, ghost = d.ghost, data = d }
+    game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, ghost = d.ghost,
+      quest = d.quest, data = d }
     NP.OnCreate(game)
     -- pfUI pins the bar to frame level 4: lift the whole sample above its box
     -- (each frame one above its parent, as they stack on a real plate)

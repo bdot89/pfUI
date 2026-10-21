@@ -1523,6 +1523,98 @@ do
       end
     end
 
+    -- phase 3: lists, quests, icons, auto
+    local L = P.Lists
+    ok(L ~= nil, "plate lists loaded")
+    if L then
+      local parsed = L.Parse("Defias Pillager|1.00,0.00,0.00|Pillager#Fireball||Big fire#Gnoll Shaman|0.20,0.40,1.00|")
+      ok(parsed["defias pillager"].color[1] == 1 and parsed["defias pillager"].rename == "Pillager", "list: colour and new name")
+      ok(parsed["fireball"].color == nil and parsed["fireball"].rename == "Big fire", "list: new name only")
+      ok(L.Parse(L.Serialize(parsed))["gnoll shaman"].color[3] == 1, "list survives a round trip")
+      S.npclist = ""
+      L.Put("npclist", "Gnoll Shaman", { 0, 1, 0 }, "Shaman")
+      ok(L.Npc("gnoll shaman") and L.Npc("Gnoll Shaman").rename == "Shaman", "Put adds an NPC")
+      -- colour order on the plate: execute > threat > NPC > quest
+      if o then
+        mobTarget = "Bob"
+        S.role = "dps"
+        plate.health.value = 80
+        P.Update(plate)
+        ok(plate.cache.r == P.COL.c_safe[1], "threat colour wins over the NPC colour")
+        ok(plate.name.text == "Shaman", "the NPC's new name shows (" .. tostring(plate.name.text) .. ")")
+        S.npcoverthreat = "1"
+        P.Update(plate)
+        ok(plate.cache.r == 0 and plate.cache.g == 1, "or the NPC colour wins when set")
+        S.npcoverthreat = "0"
+        L.Remove("npclist", "Gnoll Shaman")
+        ok(S.npclist == "", "Remove takes it off")
+        -- cast colour by spell
+        S.castlist = "Fireball|0.10,0.20,0.30|Big fire"
+        L.Read()
+        local cb = plate.castbar
+        o.casting = nil
+        cb:SetMinMaxValues(0, 3)
+        cb.value = .5
+        cb.spell.text = "Fireball"
+        cb:Show()
+        P.TickCast(plate, o, GetTime())
+        local c = cb.barColor or {}
+        ok(math.abs((c[1] or 0) - .1) < .001 and cb.spell.text == "Big fire", "cast colour and new spell name")
+        cb:Hide()
+        P.TickCast(plate, o, GetTime())
+        S.castlist = ""
+        L.Read()
+        -- quest marks from pfQuest's map data
+        pfMap = { tooltips = { ["Gnoll Shaman"] = { ["The Gnolls"] = { [40] = { QTYPE = "UNIT_OBJECTIVE" } } },
+                               ["Marshal Dughan"] = { ["A Quest"] = { [40] = { QTYPE = "NPC_END" } } } } }
+        ok(L.Quest("Gnoll Shaman") == "objective" and L.Quest("Marshal Dughan") == "end" and L.Quest("Nobody") == nil, "pfQuest: objective / hand in")
+        P.Update(plate)
+        ok(o.qmark:IsShown() and string.find(o.qmark.texture or "", "quest%-objective"), "quest mark on the plate")
+        S.questbar = "1"
+        mobTarget = nil
+        Mock.units[MOB].combat = false
+        P.Update(plate)
+        ok(plate.cache.r == 1 and math.abs(plate.cache.g - .82) < .01, "quest mob coloured when out of a fight")
+        Mock.units[MOB].combat = true
+        S.questbar = "0"
+        pfMap = nil
+        mobTarget = "player"
+      end
+      -- the quest log fallback
+      local qfn = { GetNumQuestLogEntries, GetNumQuestLeaderBoards, GetQuestLogLeaderBoard }
+      GetNumQuestLogEntries = function() return 1 end
+      GetNumQuestLeaderBoards = function() return 2 end
+      GetQuestLogLeaderBoard = function(i)
+        if i == 1 then return "Defias Pillager slain: 3/10", "monster", nil end
+        return "Red Bandana: 2/6", "item", nil
+      end
+      L.ReadQuestLog()
+      ok(L.Quest("Defias Pillager") == "objective" and L.Quest("Red Bandana") == nil, "quest log: mobs to kill (" .. L.SLAIN .. ")")
+      GetNumQuestLogEntries, GetNumQuestLeaderBoards, GetQuestLogLeaderBoard = qfn[1], qfn[2], qfn[3]
+      L.ReadQuestLog()
+      -- auto toggles
+      local calls = {}
+      local saveAuto = { ShowNameplates, HideNameplates, ShowFriendNameplates, HideFriendNameplates, GetRealZoneText }
+      ShowNameplates = function() table.insert(calls, "enemy on") end
+      HideNameplates = function() table.insert(calls, "enemy off") end
+      ShowFriendNameplates = function() table.insert(calls, "friend on") end
+      HideFriendNameplates = function() table.insert(calls, "friend off") end
+      GetRealZoneText = function() return "Orgrimmar" end
+      S.autofriend_city, S.autoenemy_combat, S.autoenemy_ooc = "hide", "show", "hide"
+      ok(L.Place() == "city", "Orgrimmar is a city")
+      L.Auto(true)
+      ok(calls[1] == "friend off" and calls[2] == "enemy on", "auto: friends off in a city, enemies on in combat")
+      calls = {}
+      L.Auto(false)
+      ok(calls[2] == "enemy off", "auto: enemies off out of combat")
+      S.autofriend_city, S.autoenemy_combat, S.autoenemy_ooc = "keep", "keep", "keep"
+      calls = {}
+      L.Auto(true)
+      ok(table.getn(calls) == 0, "auto: Leave changes nothing")
+      ShowNameplates, HideNameplates, ShowFriendNameplates, HideFriendNameplates, GetRealZoneText =
+        saveAuto[1], saveAuto[2], saveAuto[3], saveAuto[4], saveAuto[5]
+    end
+
     -- looks: picking one must not switch plates off (pfUI re-applied "show
     -- on enemies" from the config, which the V key does not change)
     local hid = 0
@@ -1579,7 +1671,7 @@ do
     pfUI.gui:Show()
     local sec
     for _, s in ipairs(O.octo) do if s[1] == "Nameplates" then sec = s end end
-    ok(sec and table.getn(sec[2]) == 7, "Nameplates section with its seven pages")
+    ok(sec and table.getn(sec[2]) == 9, "Nameplates section with its nine pages")
     for _, pg in ipairs(sec and sec[2] or {}) do
       local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
       ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))

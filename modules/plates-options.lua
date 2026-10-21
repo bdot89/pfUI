@@ -256,6 +256,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Color(p, "Losing it", nil, S, "c_losing")
     Color(p, "On another tank", nil, S, "c_offtank")
     Color(p, "Lost", nil, S, "c_lost")
+    Color(p, "Taking it from a tank", "On another tank, and you are near its threat (your target).", S, "c_taking")
     Edit(p, "Other tanks", "Names separated by #. pfUI's raid frame tank marks count too.", N, "combatofftanks")
     W.Card(p, "Class and name colours")
     Chk(p, "Class colours on enemies", nil, N, "enemyclassc")
@@ -400,6 +401,105 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Estimate", "Remember debuffs seen on a unit for plates that cannot read them.", N, "guessdebuffs")
   end
 
+  -- ---------------------------------------------------------------- colours and names
+
+  local function Hex(c)
+    if not c then return "" end
+    return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255))
+  end
+
+  -- An editor for one list (NPCs or spells): name, colour, new name, then
+  -- Save / Remove, and the list below. Typing a name already listed loads it.
+  local function ListEditor(p, key, what, fromTarget, targetTip)
+    local ed = { name = "", color = nil, rename = "" }
+    local L = P.Lists
+    local function Load(name)
+      ed.name = name or ""
+      local e = L.Parse(C.plates[key])[string.lower(ed.name)]
+      ed.color = e and e.color
+      ed.rename = e and e.rename or ""
+    end
+    W.Edit(p, what, "Type the name and press Enter (an entry already listed is loaded).", function() return ed.name end,
+      function(v) Load(v) W.Refresh(p) end, 300)
+    W.Color(p, "Colour", "The bar colour for this name. No colour = only the new name.", function()
+      local c = ed.color or { 1, 1, 1 }
+      return c[1], c[2], c[3], 1
+    end, function(r, g, b) ed.color = { r, g, b } end)
+    W.Edit(p, "Show as", "A new name to show instead (empty = keep).", function() return ed.rename end, function(v) ed.rename = v or "" end, 300)
+    W.Buttons(p, {
+      { "Use my target", function() Load(fromTarget() or "") end, 130, targetTip },
+      { "No colour", function() ed.color = nil end, 100, "Keeps the normal colour; only the new name is used." },
+      { "Save", function()
+        L.Put(key, ed.name, ed.color, ed.rename)
+        P.Refresh()
+      end, 90, "Adds or changes this entry." },
+      { "Remove", function()
+        L.Remove(key, ed.name)
+        Load("")
+        P.Refresh()
+      end, 90, "Takes this name off the list." },
+    })
+    W.Live(p, function()
+      local list = L.Parse(C.plates[key])
+      local keys = {}
+      for k in pairs(list) do table.insert(keys, k) end
+      table.sort(keys)
+      if table.getn(keys) == 0 then return "|cff999999Nothing listed yet.|r" end
+      local lines = {}
+      for _, k in ipairs(keys) do
+        local e = list[k]
+        table.insert(lines, (e.color and (Hex(e.color) .. "####|r ") or "") .. e.name .. (e.rename and ("  ->  " .. e.rename) or ""))
+      end
+      return table.concat(lines, "\n")
+    end)
+  end
+
+  BUILD.npcolors = function(p)
+    W.Heading(p, "Colours and names", { about = "Give an NPC its own bar colour or a shorter name, and a spell its own cast "
+      .. "bar colour or name - Plater's NPC Colors and Cast Colors. Threat colours win over NPC colours while you fight, "
+      .. "unless you tick the box below." })
+    Preview(p)
+    W.Card(p, "NPCs")
+    ListEditor(p, "npclist", "NPC name", function() return UnitName("target") end, "Takes your target's name.")
+    Chk(p, "NPC colour wins over threat", nil, S, "npcoverthreat")
+    W.Card(p, "Spells")
+    ListEditor(p, "castlist", "Spell name", function()
+      return UnitCastingInfo and UnitCastingInfo("target") or (UnitChannelInfo and UnitChannelInfo("target"))
+    end, "Takes the spell your target is casting right now.")
+  end
+
+  BUILD.npquest = function(p)
+    W.Heading(p, "Quests, icons and auto", { about = "Marks for quest units (from pfQuest when it is on, else your quest "
+      .. "log), class icons on players and paws on pets, and nameplates that switch on and off by themselves." })
+    Preview(p)
+    W.Card(p, "Quests")
+    W.Live(p, function()
+      return (pfMap and pfMap.tooltips) and "pfQuest |cff55ff55found|r: kill and loot objectives, quests to take (!) and hand in (?)"
+        or "pfQuest |cffff5555not on|r: only mobs to kill from your quest log"
+    end)
+    Chk(p, "Quest marks", "A mark right of the name: diamond = for your quest, ! = has a quest for you, ? = hand one in.", S, "questmark")
+    Chk(p, "Colour quest mobs", "Quest mobs' bars in the colour below (threat and NPC colours win).", S, "questbar")
+    Color(p, "Quest colour", nil, S, "questcolor")
+    W.Card(p, "Icons")
+    Chk(p, "Class icon on enemy players", nil, S, "classicon_enemy")
+    Chk(p, "Class icon on friendly players", nil, S, "classicon_friend")
+    Chk(p, "Paw on pets", nil, S, "peticon")
+    Chk(p, "Elite, rare and boss marks", nil, S, "eliteicon")
+    W.Card(p, "Auto", { tip = "Nameplates switch themselves on or off. Leave = as you set them with V / Shift-V." })
+    local ACT = { { key = "keep", label = "Leave" }, { key = "show", label = "On" }, { key = "hide", label = "Off" } }
+    local function A(label, k, list)
+      W.Dropdown(p, label, nil, list or ACT, function() return C.plates[k] end, function(v)
+        C.plates[k] = v
+        if P.Lists then P.Lists.Auto(UnitAffectingCombat("player")) end
+      end)
+    end
+    A("Enemies in combat", "autoenemy_combat", { { key = "keep", label = "Leave" }, { key = "show", label = "On" } })
+    A("Enemies out of combat", "autoenemy_ooc")
+    A("Friends in cities", "autofriend_city")
+    A("Friends in dungeons and raids", "autofriend_instance")
+    A("Friends in the open world", "autofriend_world")
+  end
+
   -- ---------------------------------------------------------------- range and execute
 
   BUILD.nprange = function(p)
@@ -428,4 +528,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   O:AddPage("Nameplates", "npcast", "Cast bar", BUILD.npcast)
   O:AddPage("Nameplates", "npauras", "Auras", BUILD.npauras)
   O:AddPage("Nameplates", "nprange", "Range and execute", BUILD.nprange)
+  O:AddPage("Nameplates", "npcolors", "Colours and names", BUILD.npcolors)
+  O:AddPage("Nameplates", "npquest", "Quests, icons and auto", BUILD.npquest)
 end)

@@ -262,4 +262,8 @@ see "Roadmap" below.
    Debuffs). Mock gained UnitBuff / UnitDebuff (Mock.units[guid].buffs / .debuffs) and
    Get/SetStatusBarColor; run.lua stubs GetDifficultyColor. Note: the map style test leaves a
    global UnitName that only knows party1 - later tests must answer GUIDs themselves.
+   Seen in game 21 Oct: auras work. PHASE 3 DONE 21 Oct (not seen in game): modules/plates-lists.lua
+   (NPC / cast colours and names, quest marks from pfQuest or the quest log, class / pet icons,
+   auto toggles, tank "taking"), pages "Colours and names" and "Quests, icons and auto" (9 pages
+   now). Spec section 5. tests\globalstrings.lua gained QUEST_MONSTERS_KILLED. Next: phase 4.
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).
