@@ -74,6 +74,9 @@ end
 function CooldownFrame_OnUpdateModel() end
 -- the client's level colour (unit frames with level colours)
 function GetDifficultyColor() return { r = 1, g = .82, b = 0 } end
+-- the client's debuff type colours (unit frame debuff borders)
+DebuffTypeColor = { none = { r = .8, g = 0, b = 0 }, Magic = { r = .2, g = .6, b = 1 }, Curse = { r = .6, g = 0, b = 1 },
+  Disease = { r = .6, g = .4, b = 0 }, Poison = { r = 0, g = .6, b = 0 } }
 function UIDropDownMenu_SetWidth() end
 function UIDropDownMenu_SetButtonWidth() end
 function UIDropDownMenu_JustifyText() end
@@ -1128,7 +1131,8 @@ do
     ok(cards >= 3, "Basics has its cards: " .. cards)
     -- pfUI's pages: a section per category, shown in the page panel
     local lkey
-    for k in pairs(O.legacy) do if string.find(k, "^l:" .. "Unit Frames" .. "/") then lkey = lkey or k end end
+    -- a fixed page with number fields (pairs order changes as the code grows)
+    if O.legacy["l:Unit Frames/Player"] then lkey = "l:Unit Frames/Player" end
     ok(lkey ~= nil, "pfUI's Unit Frames pages are in the topic list")
     if lkey then
       O:Select(lkey)
@@ -1519,7 +1523,23 @@ do
         for _, f in ipairs(o.aicons) do if f:IsShown() then still = still + 1 end end
         ok(still == 0, "auras off: icons gone")
         S.auras = "1"
+        local sp = o.aicons[1].stacks.point
+        ok(sp and sp[1] == "TOPRIGHT", "stacks sit in the top right corner, clear of the timer")
+        ok(S.specialsize == "32" and S.auraver == "2", "special icons 32 px (old 28 moved up once)")
+        -- friendly plates get no pretend casts or auras
+        local hbc = hb.GetStatusBarColor
+        hb.GetStatusBarColor = function() return 0, 0, 1 end
+        plate.castbar:Hide()
+        o.casting = nil
+        P.Update(plate)
+        for i = 1, 5 do Mock.now = Mock.now + .3 P.Tick(plate) end
+        local fshown = 0
+        for _, f in ipairs(o.aicons) do if f:IsShown() then fshown = fshown + 1 end end
+        ok(o.kind == "friendlyplayer" and fshown == 0 and not plate.castbar:IsShown(), "the test leaves friendly plates alone")
+        hb.GetStatusBarColor = hbc
+        P.Update(plate)
         P.Test(0)
+        ok(P.COL.castbg and P.COL.castbg[1] > P.COL.bgcolor[1], "cast bar background lighter than the health bar's")
       end
     end
 

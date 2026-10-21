@@ -334,6 +334,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Color(p, "Channelling", nil, S, "c_channel")
     Color(p, "Done", nil, S, "c_done")
     Color(p, "Stopped", nil, S, "c_stopped")
+    Color(p, "Background", "The empty part of the cast bar (lighter than the health bar's, so a new cast shows).", S, "castbg")
   end
 
   -- ---------------------------------------------------------------- debuffs

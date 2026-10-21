@@ -223,8 +223,9 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     f.tex:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
     f.timer = f:CreateFontString(nil, "OVERLAY")
     f.timer:SetPoint("CENTER", f, "CENTER", 0, 0)
+    -- stacks in the top right corner, clear of the timer in the middle
     f.stacks = f:CreateFontString(nil, "OVERLAY")
-    f.stacks:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, 0)
+    f.stacks:SetPoint("TOPRIGHT", f, "TOPRIGHT", 2, 3)
     f:Hide()
     return f
   end
@@ -233,7 +234,7 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     local font = (S.font and S.font ~= "") and S.font or pfUI.font_unit
     f.timer:SetFont(font, math.max(7, size), "OUTLINE")
     f.stacks:SetFont(font, math.max(6, size - 2), "OUTLINE")
-    f.stacks:SetTextColor(1, 1, 1)
+    f.stacks:SetTextColor(.6, .85, 1)
   end
 
   -- crop the square icon to the frame's shape (wider than tall: cut top / bottom)
@@ -323,7 +324,7 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     local list
     if pv and pv.auras then
       list = pv.auras
-    elseif P.Testing() and not pv then
+    elseif P.Testing() and not pv and enemy then
       list = A.TestAuras()
     elseif unit and UnitExists(unit) then
       list = A.Read(o, unit)
@@ -402,6 +403,12 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
       { name = "Ice Block", icon = "Interface\\Icons\\Spell_Frost_Frost", kind = "buff", important = true, ends = now + 10 - math.mod(t, 10) },
       { name = "Power Word: Shield", icon = "Interface\\Icons\\Spell_Holy_PowerWordShield", kind = "buff", important = true, ends = now + 30 - t },
     }
+  end
+
+  -- once: the special icons' old default (28) grows to the new one (32)
+  if S.auraver ~= "2" then
+    if S.specialsize == "28" then S.specialsize = "32" end
+    S.auraver = "2"
   end
 
   A.ReadLists()

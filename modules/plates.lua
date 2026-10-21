@@ -32,7 +32,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   local COL = {}
   local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost", "c_taking",
-    "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "targetcolor" }
+    "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "castbg", "targetcolor" }
   local function ReadColors()
     for _, k in ipairs(COLORS) do
       local r, g, b, a = GetStringColor(S[k] or "1,1,1,1")
@@ -332,11 +332,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     cb:SetStatusBarTexture(tex)
     o.cend:SetStatusBarTexture(tex)
     o.hl:SetTexture(tex)
-    local bg = COL.bgcolor
+    local bg, cbg = COL.bgcolor, COL.castbg
     if h.backdrop then h.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
-    if cb.backdrop then cb.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
+    -- the cast bar's empty part is lighter: a cast just started still shows
+    if cb.backdrop then cb.backdrop:SetBackdropColor(cbg[1], cbg[2], cbg[3], cbg[4]) end
     if not o.cend.backdrop then CreateBackdrop(o.cend, border) end
-    if o.cend.backdrop then o.cend.backdrop:SetBackdropColor(bg[1], bg[2], bg[3], bg[4]) end
+    if o.cend.backdrop then o.cend.backdrop:SetBackdropColor(cbg[1], cbg[2], cbg[3], cbg[4]) end
 
     -- cast bar: Plater's layout (icon to the left, name left, time right)
     local ch = tonumber(S.castheight) or 12
@@ -668,7 +669,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
 
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
-    if (pv and pv.cast) or (not pv and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
+    -- the test leaves friendly plates alone (quest givers casting Fireball confused)
+    local enemy = o.kind == "enemynpc" or o.kind == "enemyplayer"
+    if (pv and pv.cast) or (not pv and enemy and P.Testing() and S.enable == "1") then P.FakeCast(plate, o, now) end
     P.TickCast(plate, o, now)
     if P.Auras then P.Auras.Tick(plate, o, now) end
   end
