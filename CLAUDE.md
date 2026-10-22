@@ -355,3 +355,13 @@ see "Roadmap" below.
    UpdateConfig). The preview sets its bars to part health (85% / 45% every 3 s) and 60% power, so
    texture, the empty part's colour, the shade and the fading bar show; the fading bar reads the
    bar's own value (bar.val / max) instead of UnitHealth.
+   Mouse in the unit frame preview (user: frames too small, "zoom and drag ... an alt scroll",
+   "nothing is movable"): Alt + wheel zooms (M.Zoom, .35 - 4x), dragging empty space (M.pan, a
+   button under the spots) or a part without a place of its own moves the view, double-click /
+   "Fit view" in the corner fits again (M.FitView; also on tab change). While the view is set by
+   hand (M.manual) auto-fit stops and a frame whose parts leave the box hides (alpha 0, spots
+   hidden). Draggable parts: UF.DRAG (raid mark, PvP flag, power bar, the six texts: x / y offset
+   keys with pfUI's pixel factors - left / right texts move 2 px per unit, right one inwards; power
+   y in perfect pixels); dragging updates the preview (M.Reconfigure, .04 s) and the real frame on
+   release; right-click puts back. Cast bars page: drag name / timer (CB.DRAG), right-click back.
+   A two-line help strip under each preview lists every control.

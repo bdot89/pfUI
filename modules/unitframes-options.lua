@@ -167,12 +167,144 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     cap:SetTextColor(.6, .6, .6)
     M.cap = cap
 
+    -- ------------------------------------------------ the view
+    -- (user, 22 Oct 2026: "could we have mouse controls ... zoom and drag
+    -- ... an alt scroll"): Alt + wheel zooms, dragging empty space (or a
+    -- part that has no place of its own) moves the view, a double-click
+    -- fits it again. While zoomed in, frames that do not fit wholly in the
+    -- box are hidden, so nothing shows outside it.
+    M.manual = nil
+    local function Zoom(step)
+      local z1 = M.zoom
+      local z2 = math.max(.35, math.min(4, z1 * (step > 0 and 1.15 or 1 / 1.15)))
+      M.manual = true
+      M.dx, M.dy = M.dx * z1 / z2, M.dy * z1 / z2
+      M.zoom = z2
+      stage:SetScale(z2)
+      stage:ClearAllPoints()
+      stage:SetPoint("CENTER", box, "CENTER", M.dx, M.dy)
+    end
+    M.Zoom = Zoom
+    function M.FitView()
+      M.manual = nil
+      if M.sets[UF.cur] then for _, f in ipairs(M.sets[UF.cur].frames) do f.octoOut = nil end end
+    end
+    -- start moving the view from the cursor (the frame running it gets an OnUpdate)
+    local function PanStart(fr)
+      local cx, cy = GetCursorPosition()
+      fr.pan = { cx, cy, M.dx, M.dy }
+    end
+    local function PanMove(fr)
+      local p = fr.pan
+      if not p then return end
+      local cx, cy = GetCursorPosition()
+      local k = stage:GetEffectiveScale() or 1
+      local dx, dy = (cx - p[1]) / k, (cy - p[2]) / k
+      if not fr.moved and math.abs(dx) + math.abs(dy) < 3 / k then return end
+      fr.moved = true
+      M.manual = true
+      M.dx, M.dy = p[3] + dx, p[4] + dy
+      stage:ClearAllPoints()
+      stage:SetPoint("CENTER", box, "CENTER", M.dx, M.dy)
+    end
+    local function Wheel(fr)
+      if IsAltKeyDown() then
+        Zoom(arg1 or 0)
+      elseif pfUI.plates and pfUI.plates.PassWheel then
+        pfUI.plates.PassWheel(fr)
+      end
+    end
+    M.Wheel = Wheel
+
+    -- empty space of the box: moves the view, double-click fits it
+    local pan = CreateFrame("Button", nil, holder)
+    pan:SetAllPoints(box)
+    pan:SetFrameLevel(2)
+    pan:RegisterForClicks("LeftButtonUp")
+    pan:SetScript("OnMouseDown", function()
+      this.moved = nil
+      PanStart(this)
+      this:SetScript("OnUpdate", function() PanMove(this) end)
+    end)
+    pan:SetScript("OnMouseUp", function()
+      this.pan = nil
+      this:SetScript("OnUpdate", nil)
+    end)
+    pan:SetScript("OnDoubleClick", function() M.FitView() end)
+    pan:EnableMouseWheel(true)
+    pan:SetScript("OnMouseWheel", function() Wheel(this) end)
+    M.pan = pan
+
+    -- "Fit" in the box's corner
+    local fitb = CreateFrame("Button", nil, holder)
+    fitb:SetFrameLevel(40)
+    fitb:SetWidth(54)
+    fitb:SetHeight(16)
+    fitb:SetPoint("TOPRIGHT", box, "TOPRIGHT", -6, -4)
+    fitb.text = fitb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fitb.text:SetAllPoints(fitb)
+    fitb:SetScript("OnClick", function() M.FitView() end)
+    fitb:SetScript("OnEnter", function() this.text:SetTextColor(1, 1, 1) end)
+    fitb:SetScript("OnLeave", function() this.text:SetTextColor(.6, .6, .6) end)
+    fitb.text:SetTextColor(.6, .6, .6)
+    M.fitb = fitb
+
+    -- ------------------------------------------------ parts you can move
+    -- drag = { x key, y key, x factor, y factor, put-back x, put-back y }:
+    -- a pixel on screen is that many units of the setting (pfUI moves the
+    -- left / right texts two pixels per unit, and the right one inwards)
+    local pp = GetPerfectPixel and GetPerfectPixel() or 1
+    UF.DRAG = {
+      raidIcon = { "raidiconoffx", "raidiconoffy", 1, 1, "0", "20" },
+      pvpIcon = { "pvpiconoffx", "pvpiconoffy", 1, 1, "0", "0" },
+      power = { "poffx", "poffy", 1, 1 / pp, "0", "0" },
+      hpLeftText = { "txthpleftoffx", "txthpleftoffy", .5, 1, "0", "0" },
+      hpCenterText = { "txthpcenteroffx", "txthpcenteroffy", 1, 1, "0", "0" },
+      hpRightText = { "txthprightoffx", "txthprightoffy", -.5, 1, "0", "0" },
+      powerLeftText = { "txtpowerleftoffx", "txtpowerleftoffy", .5, 1, "0", "0" },
+      powerCenterText = { "txtpowercenteroffx", "txtpowercenteroffy", 1, 1, "0", "0" },
+      powerRightText = { "txtpowerrightoffx", "txtpowerrightoffy", -.5, 1, "0", "0" },
+    }
+
+    local function DragStart(h)
+      local cfg = U()
+      local d = h.drag
+      local cx, cy = GetCursorPosition()
+      h.down = { cx, cy, tonumber(cfg[d[1]]) or 0, tonumber(cfg[d[2]]) or 0 }
+      h.moved = nil
+    end
+    local function DragMove(h)
+      local s = h.down
+      if not s then return end
+      local cx, cy = GetCursorPosition()
+      local k = (h.f and h.f:GetEffectiveScale()) or stage:GetEffectiveScale() or 1
+      local dx, dy = (cx - s[1]) / k, (cy - s[2]) / k
+      if not h.moved and math.abs(dx) + math.abs(dy) < 3 then return end
+      h.moved = true
+      M.dragging = true
+      local d, cfg = h.drag, U()
+      local nx = tostring(math.floor(s[3] + dx * d[3] + .5))
+      local ny = tostring(math.floor(s[4] + dy * d[4] + .5))
+      if cfg[d[1]] == nx and cfg[d[2]] == ny then return end
+      cfg[d[1]], cfg[d[2]] = nx, ny
+      -- (the preview follows the mouse; the real frame on letting go)
+      if (h.next or 0) < GetTime() then
+        h.next = GetTime() + .04
+        M.Reconfigure(UF.cur)
+      end
+    end
+    local function DragStop(h)
+      h.down = nil
+      M.dragging = nil
+      if h.moved then Up() end
+    end
+
     -- a clickable spot over a part
-    local function Hot(set, region, what, level)
+    local function Hot(set, region, what, level, f, drag)
       local h = CreateFrame("Button", nil, set)
       h:SetFrameLevel((set:GetFrameLevel() or 1) + (level or 30))
       if region then h:SetAllPoints(region) end
-      h.region, h.what = region, what
+      h.region, h.what, h.f, h.drag = region, what, f, drag
       h.hl = h:CreateTexture(nil, "OVERLAY")
       h.hl:SetAllPoints(h)
       h.hl:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -185,11 +317,44 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         GameTooltip:SetOwner(this, "ANCHOR_TOP")
         GameTooltip:AddLine(UF.HOTLABEL[this.what] or this.what)
         GameTooltip:AddLine("Click: its settings", 1, 1, 1)
+        if this.drag then
+          GameTooltip:AddLine("Drag: move it", 1, 1, 1)
+          GameTooltip:AddLine("Right-click: put it back", 1, 1, 1)
+        else
+          GameTooltip:AddLine("Drag: move the view", .7, .7, .7)
+        end
         if UF.SIZE[this.what] then GameTooltip:AddLine("Shift + mouse wheel: bigger / smaller", 1, 1, 1) end
+        GameTooltip:AddLine("Alt + mouse wheel: zoom", .7, .7, .7)
         GameTooltip:Show()
       end)
       h:SetScript("OnLeave", function() this.hl:Hide() GameTooltip:Hide() end)
-      h:SetScript("OnClick", function() UF.Open(this.what) end)
+      h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      h:SetScript("OnMouseDown", function()
+        if arg1 == "RightButton" then return end
+        this.moved = nil
+        if this.drag then DragStart(this) else PanStart(this) end
+        this:SetScript("OnUpdate", function()
+          if this.drag then DragMove(this) else PanMove(this) end
+        end)
+      end)
+      h:SetScript("OnMouseUp", function()
+        this:SetScript("OnUpdate", nil)
+        this.pan = nil
+        if this.drag then DragStop(this) end
+      end)
+      h:SetScript("OnClick", function()
+        if arg1 == "RightButton" then
+          if this.drag then
+            local cfg, d = U(), this.drag
+            cfg[d[1]], cfg[d[2]] = d[5], d[6]
+            Up()
+          end
+          return
+        end
+        -- a drag is not a click
+        if this.moved then this.moved = nil return end
+        if this.onclick then this.onclick() else UF.Open(this.what) end
+      end)
       h:EnableMouseWheel(true)
       h:SetScript("OnMouseWheel", function()
         local s = UF.SIZE[this.what]
@@ -198,13 +363,14 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
           local v = (tonumber(cfg[s[1]]) or 0) + (arg1 or 0)
           cfg[s[1]] = tostring(math.max(s[2], math.min(s[3], v)))
           Up()
-        elseif pfUI.plates and pfUI.plates.PassWheel then
-          pfUI.plates.PassWheel(this)
+        else
+          Wheel(this)
         end
       end)
       table.insert(set.hots, h)
       return h
     end
+    M.Hot = Hot
 
     -- a text's spot: as wide as its words, where they sit on the bar
     local function TextSpot(h, fs, just)
@@ -296,20 +462,24 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         f.octoPreview = true
         Tame(f)
         table.insert(set.frames, f)
-        Hot(set, f, "frame", 20)
-        Hot(set, f.hp, "hp", 22)
-        Hot(set, f.power, "power", 22)
-        Hot(set, f.portrait, "portrait", 23)
+        local D = UF.DRAG
+        Hot(set, f, "frame", 20, f)
+        Hot(set, f.hp, "hp", 22, f)
+        Hot(set, f.power, "power", 22, f, D.power)
+        Hot(set, f.portrait, "portrait", 23, f)
         for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
-          for _, b in pairs(list[1] or {}) do Hot(set, b, list[2], 26) end
+          for _, b in pairs(list[1] or {}) do b.octoHot = Hot(set, b, list[2], 26, f) end
         end
-        for _, ic in ipairs({ f.raidIcon, f.pvpIcon, f.leaderIcon, f.lootIcon, f.happinessIcon, f.restIcon }) do Hot(set, ic, "icons", 28) end
-        Hot(set, f.combat, "glow", 28)
-        for _, r in ipairs({ f.octoClass, f.octoElite, f.octoEliteText, f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29) end
-        if f.octoSkin then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19) end
-        for _, t in ipairs({ { f.hpLeftText, "hptext", "LEFT" }, { f.hpCenterText, "hptext", "CENTER" }, { f.hpRightText, "hptext", "RIGHT" },
-            { f.powerLeftText, "powertext", "LEFT" }, { f.powerCenterText, "powertext", "CENTER" }, { f.powerRightText, "powertext", "RIGHT" } }) do
-          local h = Hot(set, nil, t[2], 30)
+        Hot(set, f.raidIcon, "icons", 28, f, D.raidIcon)
+        Hot(set, f.pvpIcon, "icons", 28, f, D.pvpIcon)
+        for _, ic in ipairs({ f.leaderIcon, f.lootIcon, f.happinessIcon, f.restIcon }) do Hot(set, ic, "icons", 28, f) end
+        Hot(set, f.combat, "glow", 28, f)
+        for _, r in ipairs({ f.octoClass, f.octoElite, f.octoEliteText, f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29, f) end
+        if f.octoSkin then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
+        for _, t in ipairs({ { f.hpLeftText, "hptext", "LEFT", "hpLeftText" }, { f.hpCenterText, "hptext", "CENTER", "hpCenterText" },
+            { f.hpRightText, "hptext", "RIGHT", "hpRightText" }, { f.powerLeftText, "powertext", "LEFT", "powerLeftText" },
+            { f.powerCenterText, "powertext", "CENTER", "powerCenterText" }, { f.powerRightText, "powertext", "RIGHT", "powerRightText" } }) do
+          local h = Hot(set, nil, t[2], 30, f, D[t[4]])
           table.insert(set.texts, { h, t[1], t[3] })
         end
       end
@@ -325,8 +495,8 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         cb.text:SetPoint("LEFT", cb, "LEFT", 3, 0)
         cb.key = key
         set.castbar = cb
-        local h = Hot(set, cb, "castbar", 24)
-        h:SetScript("OnClick", function() O:Open("ufcastbar", key) end)
+        local h = Hot(set, cb, "castbar", 24, f)
+        h.onclick = function() O:Open("ufcastbar", key) end
         f.octoPrevCast = cb
       end
       M.sets[key] = set
@@ -389,10 +559,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
             -- (buffs made by this update need their spots)
             for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
               for _, b in pairs(list[1] or {}) do
-                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26) end
+                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26, f) end
               end
             end
-            if f.octoSkin and not f.octoSkin.octoHot then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19) end
+            if f.octoSkin and not f.octoSkin.octoHot then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
           end
         end
       end
@@ -452,20 +622,63 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         end
       end
       for _, t in ipairs(set.texts) do TextSpot(t[1], t[2], t[3]) end
-      local l, r, t, b
-      for _, h in ipairs(set.hots) do
-        if h:IsVisible() and (not h.region or h.region:IsVisible()) and h:GetLeft() then
-          local k = h:GetEffectiveScale() or 1
-          l = math.min(l or h:GetLeft() * k, h:GetLeft() * k)
-          r = math.max(r or h:GetRight() * k, h:GetRight() * k)
-          t = math.max(t or h:GetTop() * k, h:GetTop() * k)
-          b = math.min(b or h:GetBottom() * k, h:GetBottom() * k)
-        end
-      end
       local bk = box:GetEffectiveScale() or 1
       local bl, bt = box:GetLeft(), box:GetTop()
-      if not (l and bl and bt) then return end
+      if not (bl and bt) then return end
       local BW, BH = (box:GetWidth() or 600) * bk, (box:GetHeight() or 150) * bk
+      -- each frame's extent, from its parts' spots
+      local ext = {}
+      local l, r, t, b
+      for _, h in ipairs(set.hots) do
+        if h:IsShown() and (not h.region or h.region:IsVisible()) and h:GetLeft() then
+          local k = h:GetEffectiveScale() or 1
+          local hl, hr, ht, hb = h:GetLeft() * k, h:GetRight() * k, h:GetTop() * k, h:GetBottom() * k
+          l, r = math.min(l or hl, hl), math.max(r or hr, hr)
+          t, b = math.max(t or ht, ht), math.min(b or hb, hb)
+          local e = h.f and (ext[h.f] or {})
+          if e then
+            e[1], e[2] = math.min(e[1] or hl, hl), math.max(e[2] or hr, hr)
+            e[3], e[4] = math.max(e[3] or ht, ht), math.min(e[4] or hb, hb)
+            ext[h.f] = e
+          end
+        end
+      end
+      if not l then return end
+      fitb.text:SetText(M.manual and "Fit view" or "")
+      -- zoomed or moved by hand: the view stays; a frame that does not fit
+      -- wholly in the box hides (nothing shows outside it)
+      if M.manual then
+        local L, R, T, B = bl * bk + 2, bl * bk + BW - 2, bt * bk - 2, bt * bk - BH + 2
+        for _, f in ipairs(set.frames) do
+          local e = ext[f]
+          local out = e and (e[1] < L or e[2] > R or e[3] > T or e[4] < B) or (not e and f.octoOut)
+          out = out and true or nil
+          if out ~= f.octoOut then
+            f.octoOut = out
+            f:SetAlpha(out and 0 or 1)
+            if f.octoPrevCast then f.octoPrevCast:SetAlpha(out and 0 or 1) end
+            for _, h in ipairs(set.hots) do
+              if h.f == f then h.octoHidden = out end
+            end
+          end
+          -- (a refresh may give it its opacity back)
+          if f.octoOut and f:GetAlpha() > 0 then f:SetAlpha(0) end
+        end
+        for _, h in ipairs(set.hots) do
+          if h.octoHidden and h:IsShown() then h:Hide() end
+        end
+        return
+      end
+      for _, f in ipairs(set.frames) do
+        if f.octoOut then
+          f.octoOut = nil
+          f:SetAlpha(1)
+          if f.octoPrevCast then f.octoPrevCast:SetAlpha(1) end
+          for _, h in ipairs(set.hots) do if h.f == f then h.octoHidden = nil end end
+        end
+      end
+      -- (while a part is dragged the view holds still)
+      if M.dragging then return end
       local availW, availH = BW - 40 * bk, BH - 34 * bk
       local needW, needH = math.max(1, r - l), math.max(1, t - b)
       local zoom = M.zoom * math.min(availW / needW, availH / needH)
@@ -492,6 +705,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       local set = M.sets[UF.cur]
       local cb = set and set.castbar
       if not cb or not cb:IsShown() then return end
+      if set.frames[1].octoOut then cb:SetAlpha(0) return end
       local t = math.mod(now, 3)
       cb:SetValue(math.min(100, t / 2.5 * 100))
       cb:SetAlpha(t < 2.5 and 1 or math.max(0, 1 - (t - 2.5) / .5))
@@ -515,8 +729,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
 
   local function Preview(p)
     W.Pin(p, "Preview", "The chosen frame, built by pfUI from its settings. Pick a frame with the tabs. Click any part of it "
-      .. "for its settings; hold Shift and scroll the mouse wheel over a bar, the buffs or a mark to make it bigger or "
-      .. "smaller. Click this bar to fold it away.", function(p)
+      .. "for its settings; drag a text, the raid mark, the PvP flag or the power bar to move it (right-click puts it back); "
+      .. "hold Shift and scroll over a bar, the buffs or a mark to resize it. Hold Alt and scroll to zoom, drag empty "
+      .. "space to move the view, double-click to fit it again. Click this bar to fold it away.", function(p)
       -- the frames as tabs, two rows of six
       local rows = { W.Row(p, 24, 0, 4), W.Row(p, 24, 0, 6) }
       local tabs = {}
@@ -526,7 +741,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         b.key = u[1]
         b:SetScript("OnClick", function()
           UF.cur = this.key
-          if UF.mini then UF.mini.Refresh() end
+          if UF.mini then
+            UF.mini.FitView()
+            UF.mini.Refresh()
+          end
           O:Refresh()
         end)
         tabs[n] = b
@@ -566,19 +784,26 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
           x = x + 128
         end
       end
-      local band = W.Row(p, 20, 0, 3)
+      -- every mouse control, spelled out (user: "add how to do this so
+      -- people know on the screens")
+      local band = W.Row(p, 36, 0, 3)
       local bg = band:CreateTexture(nil, "BACKGROUND")
       bg:SetAllPoints(band)
       bg:SetTexture("Interface\\Buttons\\WHITE8X8")
       local ar, ag, ab = .2, .55, .9
       if GetAccentColor then ar, ag, ab = GetAccentColor() end
       bg:SetVertexColor(ar, ag, ab, .22)
+      local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       local how = band:CreateFontString(nil, "OVERLAY")
       how:SetFont(W.UIFont(), 11, "OUTLINE")
-      how:SetPoint("LEFT", band, "LEFT", 12, 0)
-      local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
-      how:SetText(k .. "Tabs|r  pick a frame     " .. k .. "Click|r a part  its settings     " .. k .. "Shift + wheel|r  size     "
-        .. k .. "Move frames|r  move them")
+      how:SetPoint("TOPLEFT", band, "TOPLEFT", 12, -4)
+      how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r a text, mark or the power bar  move it     "
+        .. k .. "Right-click|r it  put it back     " .. k .. "Shift + wheel|r  size")
+      local how2 = band:CreateFontString(nil, "OVERLAY")
+      how2:SetFont(W.UIFont(), 11, "OUTLINE")
+      how2:SetPoint("TOPLEFT", band, "TOPLEFT", 12, -19)
+      how2:SetText(k .. "Alt + wheel|r  zoom     " .. k .. "Drag|r empty space  move the view     " .. k .. "Double-click|r  fit the view     "
+        .. k .. "Move frames|r  move them on screen")
     end)
   end
 

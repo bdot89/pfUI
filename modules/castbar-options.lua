@@ -100,6 +100,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- preview
 
   CB.GO = { bar = "Bar", name = "Text", timer = "Text", icon = "Icon and lag", lag = "Icon and lag", fill = "All cast bars" }
+  CB.DRAG = { name = { "txtleftoffx", "txtleftoffy" }, timer = { "txtrightoffx", "txtrightoffy" } }
   CB.HOTLABEL = { bar = "The bar: size", name = "Spell name and rank", timer = "Timer", icon = "Spell icon", lag = "Lag",
     fill = "The fill: casting / channeling colour and texture" }
 
@@ -171,10 +172,55 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
         GameTooltip:AddLine(CB.HOTLABEL[this.what] or this.what)
         GameTooltip:AddLine("Click: its settings", 1, 1, 1)
         if this.what == "bar" then GameTooltip:AddLine("Shift + mouse wheel: taller / shorter", 1, 1, 1) end
+        if CB.DRAG[this.what] then
+          GameTooltip:AddLine("Drag: move it", 1, 1, 1)
+          GameTooltip:AddLine("Right-click: put it back", 1, 1, 1)
+        end
         GameTooltip:Show()
       end)
       h:SetScript("OnLeave", function() this.hl:Hide() GameTooltip:Hide() end)
-      h:SetScript("OnClick", function() CB.Open(this.what) end)
+      -- the name and timer can be dragged (their offsets); right-click puts them back
+      local drag = CB.DRAG[what]
+      h:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      if drag then
+        h:SetScript("OnMouseDown", function()
+          if arg1 == "RightButton" then return end
+          local s = S()
+          local cx, cy = GetCursorPosition()
+          this.down = { cx, cy, tonumber(s[drag[1]]) or 0, tonumber(s[drag[2]]) or 0 }
+          this.moved = nil
+          this:SetScript("OnUpdate", function()
+            local d = this.down
+            if not d then return end
+            local x, y = GetCursorPosition()
+            local k = cb:GetEffectiveScale() or 1
+            local dx, dy = (x - d[1]) / k, (y - d[2]) / k
+            if not this.moved and math.abs(dx) + math.abs(dy) < 3 then return end
+            this.moved = true
+            local st = S()
+            st[drag[1]] = tostring(math.floor(d[3] + dx + .5))
+            st[drag[2]] = tostring(math.floor(d[4] + dy + .5))
+            M.Refresh()
+          end)
+        end)
+        h:SetScript("OnMouseUp", function()
+          this.down = nil
+          this:SetScript("OnUpdate", nil)
+          if this.moved then Up() end
+        end)
+      end
+      h:SetScript("OnClick", function()
+        if arg1 == "RightButton" then
+          local d = CB.DRAG[this.what]
+          if d then
+            S()[d[1]], S()[d[2]] = "0", "0"
+            Up()
+          end
+          return
+        end
+        if this.moved then this.moved = nil return end
+        CB.Open(this.what)
+      end)
       h:EnableMouseWheel(true)
       h:SetScript("OnMouseWheel", function()
         if IsShiftKeyDown() and this.what == "bar" then
@@ -347,8 +393,8 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
       how:SetFont(W.UIFont(), 11, "OUTLINE")
       how:SetPoint("LEFT", band, "LEFT", 12, 0)
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
-      how:SetText(k .. "Tabs|r  pick a cast bar     " .. k .. "Click|r a part  its settings     " .. k .. "Shift + wheel|r  height     "
-        .. k .. "Move frames|r  move it")
+      how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r the name or timer  move it     " .. k .. "Right-click|r  put back     "
+        .. k .. "Shift + wheel|r  height     " .. k .. "Move frames|r  move it")
     end)
   end
 

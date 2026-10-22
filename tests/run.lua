@@ -1508,6 +1508,48 @@ do
     M.Refresh()
     ok(M.sets.raid and table.getn(M.sets.raid.frames) == 10 and M.sets.raid:IsShown() and not M.sets.player:IsShown(),
       "the Raid tab shows ten raid frames instead")
+    -- view controls: Alt + wheel zooms, dragging empty space moves the view,
+    -- double-click fits it again
+    UF.cur = "player"
+    M.FitView()
+    M.Refresh()
+    local z0 = M.zoom
+    Mock.alt = true
+    _G.arg1 = 1
+    Mock.Run(M.pan, "OnMouseWheel", 1)
+    Mock.alt = nil
+    ok(M.manual and M.zoom > z0, "Alt + wheel zooms in (" .. z0 .. " -> " .. M.zoom .. ")")
+    local dx0 = M.dx
+    Mock.cx, Mock.cy = 100, 100
+    _G.arg1 = "LeftButton"
+    Mock.Run(M.pan, "OnMouseDown", "LeftButton")
+    Mock.cx = 160
+    Mock.Run(M.pan, "OnUpdate", .05)
+    Mock.Run(M.pan, "OnMouseUp", "LeftButton")
+    ok(M.dx ~= dx0, "dragging empty space moves the view")
+    Mock.Run(M.pan, "OnDoubleClick", "LeftButton")
+    ok(not M.manual, "a double-click fits the view again")
+    -- a part with a place of its own can be dragged; right-click puts it back
+    local raidHot
+    for _, h in ipairs(M.sets.player.hots) do if h.drag == UF.DRAG.raidIcon then raidHot = h end end
+    ok(raidHot, "the raid mark can be dragged")
+    if raidHot then
+      local pc = pfUI_config.unitframes.player
+      local x0 = pc.raidiconoffx
+      Mock.cx, Mock.cy = 100, 100
+      _G.this, _G.arg1 = raidHot, "LeftButton"
+      Mock.Run(raidHot, "OnMouseDown", "LeftButton")
+      Mock.cx = 140
+      Mock.Run(raidHot, "OnUpdate", .05)
+      Mock.Run(raidHot, "OnMouseUp", "LeftButton")
+      ok(pc.raidiconoffx ~= x0, "dragging the raid mark moves it (" .. tostring(x0) .. " -> " .. tostring(pc.raidiconoffx) .. ")")
+      Mock.Run(raidHot, "OnClick", "LeftButton")
+      ok(O.current == "o:ufframes", "the drag was not taken as a click")
+      _G.arg1 = "RightButton"
+      Mock.Run(raidHot, "OnClick", "RightButton")
+      ok(pc.raidiconoffx == "0" and pc.raidiconoffy == "20", "right-click puts it back")
+    end
+    Mock.cx, Mock.cy = nil, nil
     -- the preview shows part health, so textures and shades can be seen
     local rf = M.sets.raid.frames[1]
     local function Frac(bar) return (bar.val - (bar.min or 0)) / (bar.max - (bar.min or 0)) end
@@ -1564,6 +1606,20 @@ do
       Mock.shift = nil
       ok(tonumber(sc.height) and tonumber(sc.height) > 0, "Shift + wheel sets a height (" .. tostring(sc.height) .. ")")
       sc.height, sc.showicon, sc.showlag = h0, "0", "0"
+      -- the spell name can be dragged; right-click puts it back
+      local nh = CB.mini.hots.name
+      local lx0 = sc.txtleftoffx
+      Mock.cx, Mock.cy = 100, 100
+      _G.this, _G.arg1 = nh, "LeftButton"
+      Mock.Run(nh, "OnMouseDown", "LeftButton")
+      Mock.cx = 130
+      Mock.Run(nh, "OnUpdate", .05)
+      Mock.Run(nh, "OnMouseUp", "LeftButton")
+      ok(sc.txtleftoffx ~= lx0, "dragging the spell name moves it (" .. tostring(sc.txtleftoffx) .. ")")
+      _G.arg1 = "RightButton"
+      Mock.Run(nh, "OnClick", "RightButton")
+      ok(sc.txtleftoffx == "0" and sc.txtleftoffy == "0", "right-click puts the name back")
+      Mock.cx, Mock.cy = nil, nil
       -- tabs
       O.tabs.ufcastbar("target")
       ok(CB.cur == "target", "a cast bar's box opens its tab")
