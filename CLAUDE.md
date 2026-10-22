@@ -325,3 +325,18 @@ see "Roadmap" below.
    tab. Mock: ManaBarColor / UnitReactionColor (run.lua), Get/SetFrameStrata with inheritance.
    Not verified in game: the preview frames' look, RefreshUnit on a frame whose label was
    changed by hand, libpredict walking pfUI.uf.frames (the previews are in it).
+   Same day, TPerl's features (user's "TPerl 1.2.45 Retail v4.zip"; TPerl is GPL-3, pfUI MIT:
+   only its option list was read, no code or art used): modules/unitframes-octo.lua
+   (`pfUI.ufExtras`) wraps pfUI.uf.UpdateConfig (and every existing frame's copy) and
+   pfUI.uf.RefreshUnit. Per frame C.unitframes[unit].o_*: border skin (UO.SKINS), shade behind
+   the bars (gradient), fading bar (ghost texture behind the fill), combat flash (UNIT_COMBAT),
+   target highlight, debuff highlight (DebuffTypeColor, UO.CURES), class icon / class picture
+   portrait (img:classicons + CLASS_ICON_TCOORDS), elite / rare / boss crest or word, AFK /
+   offline / dead / ghost / feigning marks; player buffs flash < 30 s; pet happiness only when
+   unhappy / flashing; C.unitframes.o_targetsound. 12 more bar textures appended to
+   pfUI.gui.dropdowns.uf_bartexture (every texture menu). Art: MakePlateArt.ps1 -> img\bars
+   (bar-smooth/bevel/steel/cloud/diagonal/pill/minimal, uf-elite, uf-rare, uf-afk, uf-offline).
+   Options: Frames cards "Border and background", "Class and status" + additions; preview
+   Test buttons (hit / heal flash, debuff colour, dead, offline). Not on 1.12 or skipped: role
+   icons, ready check, summons, absorbs, own-caster auras, stealable glow, talents, sorting.
+   Unverified: UnitIsAFK / UnitIsFeignDeath on this client (guarded), UNIT_COMBAT args.

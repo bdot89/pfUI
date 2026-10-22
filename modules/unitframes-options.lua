@@ -104,9 +104,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   UF.GO = {
     frame = "Frame", hp = "Health bar", power = "Power bar", portrait = "Portrait",
     hptext = "Health text", powertext = "Power text", buffs = "Buffs", debuffs = "Debuffs",
-    icons = "Icons", glow = "Glow and indicators",
+    icons = "Icons", glow = "Glow and indicators", class = "Class and status", border = "Border and background",
   }
   UF.HOTLABEL = {
+    class = "Class icon, badge or status", border = "Border and background",
     frame = "The frame", hp = "Health bar", power = "Power bar", portrait = "Portrait",
     hptext = "Health text", powertext = "Power text", buffs = "Buffs", debuffs = "Debuffs",
     icons = "Icon", glow = "Glow and indicators",
@@ -247,6 +248,12 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         if SetRaidTargetIconTexture then SetRaidTargetIconTexture(f.raidIcon.texture, 8) end
         f.raidIcon:Show()
       end
+      -- the extras (unitframes-octo.lua): an elite badge to look at
+      local X = pfUI.ufExtras
+      if X and f.octoElite then
+        f.octoForceElite = (cfg.o_elite and cfg.o_elite ~= "none") and "elite" or nil
+        X.Update(f)
+      end
       if cfg.leadericon == "1" and f.leaderIcon then f.leaderIcon:Show() end
       if cfg.looticon == "1" and f.lootIcon then f.lootIcon:Show() end
       if cfg.showPVP == "1" and f.pvpIcon then f.pvpIcon:Show() end
@@ -298,6 +305,8 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         end
         for _, ic in ipairs({ f.raidIcon, f.pvpIcon, f.leaderIcon, f.lootIcon, f.happinessIcon, f.restIcon }) do Hot(set, ic, "icons", 28) end
         Hot(set, f.combat, "glow", 28)
+        for _, r in ipairs({ f.octoClass, f.octoElite, f.octoEliteText, f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29) end
+        if f.octoSkin then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19) end
         for _, t in ipairs({ { f.hpLeftText, "hptext", "LEFT" }, { f.hpCenterText, "hptext", "CENTER" }, { f.hpRightText, "hptext", "RIGHT" },
             { f.powerLeftText, "powertext", "LEFT" }, { f.powerCenterText, "powertext", "CENTER" }, { f.powerRightText, "powertext", "RIGHT" } }) do
           local h = Hot(set, nil, t[2], 30)
@@ -344,6 +353,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
                 if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26) end
               end
             end
+            if f.octoSkin and not f.octoSkin.octoHot then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19) end
           end
         end
       end
@@ -458,6 +468,36 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         for _, b in ipairs(tabs) do W.Pick(b, b.key == UF.cur) end
         mini.Refresh()
       end })
+      -- test buttons: what only happens in a fight, played on the preview
+      local X = pfUI.ufExtras
+      if X then
+        local trow = W.Row(p, 24, 0, 3)
+        local TESTS = {
+          { "Hit flash", "A red flash round the frame when it takes a hit (Border and background: Combat flash).",
+            function(f) X.Flash(f, false) end },
+          { "Heal flash", "A green flash when it is healed.", function(f) X.Flash(f, true) end },
+          { "Debuff colour", "The frame in a debuff's colour for 3 seconds (Border and background: Debuff highlight).",
+            function(f)
+              f.octoForceDebuff = GetTime() + 3
+              local mode = f.config.o_debuffhl
+              X.ShowDebuff(f, "Magic", (mode and mode ~= "none") and mode or "both")
+            end },
+          { "Dead", "How a dead unit shows for 3 seconds (Class and status).", function(f) f.octoForceStatus = { nil, "Dead", GetTime() + 3 } X.Update(f) end },
+          { "Offline", "How an offline unit shows for 3 seconds.", function(f) f.octoForceStatus = { "uf-offline", nil, GetTime() + 3 } X.Update(f) end },
+        }
+        local x = 0
+        for _, tt in ipairs(TESTS) do
+          local bt = W.Button(trow, "Test: " .. tt[1], 124, 22)
+          bt:SetPoint("LEFT", trow, "LEFT", x, 0)
+          bt.run = tt[3]
+          bt:SetScript("OnClick", function()
+            local set = mini.sets[UF.cur]
+            for _, f in ipairs(set and set.frames or {}) do this.run(f) end
+          end)
+          W.Tip(bt, "Test: " .. tt[1], tt[2])
+          x = x + 128
+        end
+      end
       local band = W.Row(p, 20, 0, 3)
       local bg = band:CreateTexture(nil, "BACKGROUND")
       bg:SetAllPoints(band)
@@ -486,6 +526,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     end)
     Drop(p, "Layout", "Needs a reload.", DD("uf_layout"), G, "layout", Reload)
     Drop(p, "Health bar speed", "How fast bars slide to a new value.", DD("uf_animationspeed"), G, "animation_speed", UF.ApplyAll)
+    Chk(p, "Target sounds", "A sound as you pick an enemy, a friend or nothing.", G, "o_targetsound", function() end)
     W.Card(p, "Text", { tip = "The font of every unit frame (a frame can use its own on Frames > Health text)." })
     Drop(p, "Font", nil, DD("fonts", "font"), function() return C.global end, "font_unit", Reload)
     Sld(p, "Size", nil, 6, 24, 1, function() return C.global end, "font_unit_size", Px, Reload)
@@ -553,6 +594,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Upright bar", "Fills from the bottom up.", U, "verticalbar")
     Color(p, "Incoming heals", nil, U, "healcolor")
     Drop(p, "Incoming heals past full", nil, DD("uf_overheal"), U, "overhealperc")
+    Chk(p, "Fading bar", "The health just lost stays a moment and fades away.", U, "o_fade")
+    Sld(p, "Fade time", nil, .1, 3, .1, U, "o_fadetime", Sec)
+    Color(p, "Fading part", nil, U, "o_fadecolor")
 
     W.Card(p, "Health text", { tip = "Three texts on the health bar, and the font of this frame." })
     Drop(p, "Left", nil, DD("uf_texts"), U, "txthpleft")
@@ -605,6 +649,8 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Per row", nil, 1, 32, 1, U, "buffperrow")
     Chk(p, "Time left as text", "Also on debuffs.", U, "cooldown_text")
     Chk(p, "Time left as a sweep", "Also on debuffs.", U, "cooldown_anim")
+    Chk(p, "Flash in the last 30 seconds (player)", "Your own buffs pulse before they run out.",
+      function() return C.unitframes.player end, "o_flashexpire", function() UF.Apply("player") end)
 
     W.Card(p, "Debuffs")
     Drop(p, "Where", nil, DD("uf_buff_position"), U, "debuffs")
@@ -628,6 +674,33 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Loot master", nil, U, "looticon")
     Drop(p, "Pet happiness (pet frame)", nil, DD("uf_happiness"), function() return C.unitframes.pet end, "happinessicon", function() UF.Apply("pet") end)
     Sld(p, "Pet happiness size", nil, 6, 32, 1, function() return C.unitframes.pet end, "happinesssize", Px, function() UF.Apply("pet") end)
+    Chk(p, "Pet happiness only when unhappy", nil, function() return C.unitframes.pet end, "o_happysad", function() UF.Apply("pet") end)
+    Chk(p, "Unhappy pet flashes", nil, function() return C.unitframes.pet end, "o_happyflash", function() UF.Apply("pet") end)
+
+    local X = pfUI.ufExtras
+    local function L(src)
+      local out = {}
+      for _, s in ipairs(src or {}) do table.insert(out, { key = s.key, label = s.label, texture = s.tex and (X.ART .. s.tex) or nil }) end
+      return out
+    end
+    W.Card(p, "Border and background", { tip = "A border round the whole frame, a shade behind the bars, and flashes and highlights on it." })
+    Drop(p, "Border", nil, L(X and X.SKINS), U, "o_skin")
+    Drop(p, "Shade behind the bars", nil, L(X and X.GRADIENTS), U, "o_grad")
+    Color(p, "Shade from", nil, U, "o_gradstart")
+    Color(p, "Shade to", nil, U, "o_gradend")
+    Chk(p, "Combat flash", "Red round the frame on a hit, green on a heal.", U, "o_flash")
+    Chk(p, "Highlight your target", "A line round this frame while its unit is your target (party, raid, pet).", U, "o_selhl")
+    Drop(p, "Debuff highlight", "The frame in the colour of its debuff (magic blue, curse purple, poison green, disease brown).",
+      L(X and X.HIGHLIGHTS), U, "o_debuffhl")
+    Chk(p, "Only what you can cure", nil, U, "o_curable")
+
+    W.Card(p, "Class and status", { tip = "Class icon, class picture, the elite / rare / boss badge, and AFK, offline and dead marks." })
+    Drop(p, "Class icon", "Players only.", L(X and X.CLASSICON), U, "o_classicon")
+    Sld(p, "Class icon size", nil, 8, 40, 1, U, "o_classsize", Px)
+    Chk(p, "Class picture as portrait", "Players show their class icon in place of the portrait.", U, "o_classport")
+    Drop(p, "Elite, rare and boss", nil, L(X and X.ELITE), U, "o_elite")
+    Drop(p, "Badge at", nil, L(X and X.CORNERS), U, "o_elitepos")
+    Chk(p, "AFK, offline and dead marks", nil, U, "o_status")
 
     W.Card(p, "Glow and indicators", { tip = "A glow round the frame and a small square for aggro and combat; combat text on the frame." })
     Chk(p, "Glow with aggro", nil, U, "glowaggro")

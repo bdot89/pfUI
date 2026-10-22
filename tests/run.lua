@@ -79,6 +79,16 @@ function GetDifficultyColor() return { r = 1, g = .82, b = 0 } end
 -- the client's colour tables (FrameXML)
 ManaBarColor = { [0] = { r = 0, g = 0, b = 1 }, [1] = { r = 1, g = 0, b = 0 }, [2] = { r = 1, g = .5, b = .25 },
   [3] = { r = 1, g = 1, b = 0 }, [4] = { r = 0, g = 1, b = 1 } }
+-- (1.12 has no class icon table: pfUI's env/tables.lua makes one, unless
+-- the mock's ALL_CAPS stand-in is there first)
+CLASS_ICON_TCOORDS = { WARRIOR = { 0, .25, 0, .25 }, MAGE = { .25, .49609375, 0, .25 }, ROGUE = { .49609375, .7421875, 0, .25 },
+  DRUID = { .7421875, .98828125, 0, .25 }, HUNTER = { 0, .25, .25, .5 }, SHAMAN = { .25, .49609375, .25, .5 },
+  PRIEST = { .49609375, .7421875, .25, .5 }, WARLOCK = { .7421875, .98828125, .25, .5 }, PALADIN = { 0, .25, .5, .75 } }
+-- unit state the unit frame extras read
+function UnitIsConnected(u) return 1 end
+function UnitIsDead(u) return UnitIsDeadOrGhost(u) end
+function UnitIsFriend(a, u) return not UnitIsEnemy(a, u) end
+function UnitClassification(u) local e = Mock.units[u] return e and e.classification or "normal" end
 UnitReactionColor = {}
 for i = 1, 8 do UnitReactionColor[i] = { r = i < 4 and 1 or 0, g = i > 3 and 1 or 0, b = 0 } end
 -- the client's debuff type colours (unit frame debuff borders)
@@ -99,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options" }
+  "unitframes-options", "unitframes-octo" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1340,6 +1350,80 @@ do
       ok(not b.octoEq:IsShown(), "and only the tint in pfUI's style")
       b.equipped:Hide()
     end
+  end
+end
+
+-- ---------------------------------------------------------------- unit frame extras (TPerl's ideas)
+
+do
+  local X = pfUI.ufExtras
+  local f = pfUI.uf and pfUI.uf.player
+  ok(X and f and f.octoClass and f.octoFlash and f.octoSkin, "unit frame extras built on the player frame")
+  if X and f then
+    local c = pfUI_config.unitframes.player
+    -- border skin and the shade behind the bars
+    c.o_skin, c.o_grad = "gold", "VERTICAL"
+    f:UpdateConfig()
+    ok(f.octoSkin:IsShown() and f.hp.bar.octoGrad and f.hp.bar.octoGrad:IsShown(), "border skin and bar shade")
+    c.o_skin, c.o_grad = "pfui", "none"
+    f:UpdateConfig()
+    ok(not f.octoSkin:IsShown() and not f.hp.bar.octoGrad:IsShown(), "and off again")
+    -- combat flash
+    X.Flash(f, false)
+    ok(f.octoFlash:IsShown(), "a hit flashes the frame")
+    Mock.now = Mock.now + 1
+    _G.this = X.watch
+    Mock.Run(X.watch, "OnUpdate", .1)
+    ok(not f.octoFlash:IsShown(), "the flash fades out")
+    -- debuff highlight in the debuff's colour
+    c.o_debuffhl, c.o_curable = "both", "0"
+    Mock.units.player = { faction = Mock.faction, debuffs = { { "Interface\\Icons\\Spell_Shadow_ShadowWordPain", 1, "Magic" } } }
+    X.Update(f)
+    ok(f.octoDebuff:IsShown() and f.octoDebuffBg:IsShown(), "a magic debuff colours the border and background")
+    Mock.units.player = nil
+    X.Update(f)
+    ok(not f.octoDebuff:IsShown(), "gone with the debuff")
+    c.o_debuffhl = "none"
+    -- elite / rare badge, status words
+    c.o_elite = "graphic"
+    f.octoForceElite = "rare"
+    X.Update(f)
+    ok(f.octoElite:IsShown() and string.find(f.octoElite.texture or "", "uf%-rare"), "rare badge")
+    c.o_elite = "text"
+    f.octoForceElite = "worldboss"
+    X.Update(f)
+    ok(f.octoEliteText:IsShown() and f.octoEliteText:GetText() == "Boss", "boss as a word")
+    f.octoForceElite, c.o_elite = nil, "none"
+    f.octoForceStatus = { nil, "Dead", Mock.now + 3 }
+    X.Update(f)
+    ok(f.octoStatusText:IsShown() and f.octoStatusText:GetText() == "Dead", "dead mark")
+    f.octoForceStatus = nil
+    X.Update(f)
+    -- class icon
+    c.o_classicon = "TOPLEFT"
+    f:UpdateConfig()
+    ok(f.octoClass:IsShown(), "class icon on a player")
+    c.o_classicon = "none"
+    -- fading bar: the lost health stays and shrinks away
+    c.o_fade = "1"
+    f:UpdateConfig()
+    Mock.playerHp = 100
+    Mock.Run(X.watch, "OnUpdate", .1)
+    Mock.playerHp = 40
+    Mock.now = Mock.now + .05
+    Mock.Run(X.watch, "OnUpdate", .05)
+    ok(f.octoGhost:IsShown() and f.octoGhostFrac > .4, "the lost health shows a moment (" .. tostring(f.octoGhostFrac) .. ")")
+    for i = 1, 40 do
+      Mock.now = Mock.now + .05
+      Mock.Run(X.watch, "OnUpdate", .05)
+    end
+    ok(not f.octoGhost:IsShown(), "and fades away")
+    Mock.playerHp, c.o_fade = nil, "0"
+    f:UpdateConfig()
+    -- more bar textures in every texture menu
+    local found = 0
+    for _, e in ipairs(pfUI.gui.dropdowns.uf_bartexture) do if string.find(e, ":Octo ") then found = found + 1 end end
+    ok(found == table.getn(X.BARS), "our bar textures in the texture menus (" .. found .. ")")
   end
 end
 

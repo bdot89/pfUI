@@ -15,6 +15,8 @@ param([string]$OutDir = (Join-Path $PSScriptRoot "..\img\plates"))
 #   btn-inner / gloss / corners  64 x 64  hover and press looks
 #   btn-grad / stripes / dots    64 x 64  empty slot fills
 #   btn-ring  64 x 64  proc burst      btn-edge  64 x 16  cooldown edge
+#   bar-smooth / bevel / steel / cloud / diagonal / pill / minimal  256 x 32  more bar fills
+#   uf-elite / uf-rare  64 x 32  unit frame badges   uf-afk / uf-offline  32 x 32  status marks
 # White (grey shading) + alpha, tinted in game. Uncompressed 32-bit TGA,
 # bottom-left origin, 4 x 4 samples per pixel. Same output every run.
 #   powershell -ExecutionPolicy Bypass -File tools\MakePlateArt.ps1
@@ -84,6 +86,30 @@ public static class Art {
     bool stem = Math.Abs(x - 0.5) <= 0.07 + grow && y >= 0.3 - grow && y <= 0.5;
     bool dot = Circle(x, y, 0.5, 0.14, 0.08 + grow);
     return arc || stem || dot;
+  }
+
+  // repeatable noise (same output every run)
+  static double Noise(double x, double seed) {
+    double s = Math.Sin(x * 12.9898 + seed * 78.233) * 43758.5453;
+    return s - Math.Floor(s) - 0.5;
+  }
+  static double Smooth(double x, double y, double seed) {
+    double xi = Math.Floor(x), yi = Math.Floor(y), xf = x - xi, yf = y - yi;
+    Func<double, double, double> h = (a, b) => Noise(a * 57 + b * 131, seed);
+    double sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf);
+    double top = h(xi, yi) * (1 - sx) + h(xi + 1, yi) * sx;
+    double bot = h(xi, yi + 1) * (1 - sx) + h(xi + 1, yi + 1) * sx;
+    return (top * (1 - sy) + bot * sy) * 2;
+  }
+  // a "Z" in the box x0..x1, y0..y1 (v up), stroke w
+  static bool ZigZag(double u, double v, double x0, double x1, double y0, double y1, double w) {
+    if (u < x0 - w || u > x1 + w || v < y0 - w || v > y1 + w) return false;
+    bool top = Math.Abs(v - y1) < w && u >= x0 - w && u <= x1 + w;
+    bool bot = Math.Abs(v - y0) < w && u >= x0 - w && u <= x1 + w;
+    double t = (v - y0) / (y1 - y0);
+    double xd = x0 + t * (x1 - x0);
+    bool diag = Math.Abs(u - xd) < w * 1.3 && v >= y0 && v <= y1;
+    return top || bot || diag;
   }
 
   // one sample: u, v in 0..1 (v up); lum 0..1 (shading), a 0..1 (cover)
@@ -262,6 +288,79 @@ public static class Art {
       case "btn-edge":
         a = Math.Exp(-Math.Pow((v - 0.5) / 0.2, 2));
         return;
+      // more bar fills (unit frames, castbar, xp... every texture menu)
+      case "bar-smooth":
+        lum = 0.72 + 0.28 * Math.Sin(v * Math.PI);
+        return;
+      case "bar-bevel":
+        lum = v > 1 - 2 * ph ? 1.0 : (v < 2 * ph ? 0.5 : 0.78 + 0.1 * v);
+        return;
+      case "bar-steel": {
+        double n = Noise(Math.Floor(v * 32), 7) * 0.08 + Noise(Math.Floor(u * 256) * 0.05 + Math.Floor(v * 32), 3) * 0.05;
+        lum = 0.74 + 0.16 * v + n;
+        return;
+      }
+      case "bar-cloud": {
+        double n = Smooth(u * 9, v * 3, 11) * 0.6 + Smooth(u * 23, v * 7, 5) * 0.4;
+        lum = 0.8 + 0.1 * n + 0.08 * v;
+        return;
+      }
+      case "bar-diagonal":
+        lum = ((u * 256 + v * 32) / 10.0 % 1.0) < 0.5 ? 0.92 : 0.78;
+        lum += 0.08 * (v - 0.5);
+        return;
+      case "bar-pill": {
+        double d = Math.Abs(v - 0.5) * 2;
+        lum = 0.95 - 0.35 * d * d;
+        if (v > 0.6 && v < 0.75) lum = Math.Min(1, lum + 0.08);
+        return;
+      }
+      case "bar-minimal":
+        lum = v > 1 - ph ? 1.0 : 0.85;
+        return;
+      // unit frame badges and status marks
+      case "uf-elite": case "uf-rare": {
+        // a crest: two swept wings round a diamond
+        double x = u, y = v;
+        bool diamond = Math.Abs(x - 0.5) * 2.2 + Math.Abs(y - 0.5) * 1.6 <= 0.62;
+        bool wingL = Poly(new double[] { 0.42, 0.62, 0.05, 0.92, 0.12, 0.62, 0.0, 0.5, 0.14, 0.38, 0.04, 0.12, 0.42, 0.36 }, x, y);
+        bool wingR = Poly(new double[] { 0.58, 0.62, 0.95, 0.92, 0.88, 0.62, 1.0, 0.5, 0.86, 0.38, 0.96, 0.12, 0.58, 0.36 }, x, y);
+        bool inner = Math.Abs(x - 0.5) * 2.2 + Math.Abs(y - 0.5) * 1.6 <= 0.34;
+        if (diamond) { lum = inner ? 1.0 : 0.72 + 0.28 * y; a = 1; }
+        else if (wingL || wingR) { lum = 0.6 + 0.4 * y; a = 1; }
+        else {
+          bool edge = Math.Abs(x - 0.5) * 2.2 + Math.Abs(y - 0.5) * 1.6 <= 0.72
+            || Poly(new double[] { 0.42, 0.68, 0.0, 1.0, 0.06, 0.62, -0.06, 0.5, 0.08, 0.38, -0.02, 0.04, 0.42, 0.3 }, x, y)
+            || Poly(new double[] { 0.58, 0.68, 1.0, 1.0, 0.94, 0.62, 1.06, 0.5, 0.92, 0.38, 1.02, 0.04, 0.58, 0.3 }, x, y);
+          if (edge) { lum = 0; a = 0.85; } else a = 0;
+        }
+        return;
+      }
+      case "uf-afk": {
+        // "Zz": two zigzags
+        bool z1 = ZigZag(u, v, 0.12, 0.5, 0.55, 0.92, 0.07);
+        bool z2 = ZigZag(u, v, 0.55, 0.85, 0.12, 0.45, 0.06);
+        bool o1 = ZigZag(u, v, 0.12, 0.5, 0.55, 0.92, 0.12);
+        bool o2 = ZigZag(u, v, 0.55, 0.85, 0.12, 0.45, 0.11);
+        if (z1 || z2) { lum = 0.85 + 0.15 * v; a = 1; }
+        else if (o1 || o2) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      }
+      case "uf-offline": {
+        // a plug pulled out: body, two prongs, a slash
+        bool body = u >= 0.3 && u <= 0.7 && v >= 0.3 && v <= 0.62;
+        bool prong = (Math.Abs(u - 0.4) < 0.045 || Math.Abs(u - 0.6) < 0.045) && v > 0.62 && v < 0.85;
+        bool cable = Math.Abs(u - 0.5) < 0.06 && v < 0.3 && v > 0.08;
+        bool slash = Math.Abs((u - 0.5) - (v - 0.5)) < 0.06 && Math.Abs(u - 0.5) < 0.42;
+        bool rim = (u >= 0.25 && u <= 0.75 && v >= 0.25 && v <= 0.67) || ((Math.Abs(u - 0.4) < 0.09 || Math.Abs(u - 0.6) < 0.09) && v > 0.6 && v < 0.9)
+          || (Math.Abs(u - 0.5) < 0.11 && v < 0.32 && v > 0.03) || (Math.Abs((u - 0.5) - (v - 0.5)) < 0.11 && Math.Abs(u - 0.5) < 0.46);
+        if (slash) { lum = 0.95; a = 1; }
+        else if (body || prong || cable) { lum = 0.75 + 0.2 * v; a = 1; }
+        else if (rim) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      }
       case "pet": {
         bool pad = Circle(u, v, 0.5, 0.36, 0.2);
         bool toes = Circle(u, v, 0.22, 0.62, 0.09) || Circle(u, v, 0.4, 0.76, 0.09) || Circle(u, v, 0.6, 0.76, 0.09) || Circle(u, v, 0.78, 0.62, 0.09);
@@ -324,7 +423,10 @@ $BarDir = Join-Path (Split-Path $OutDir -Parent) "bars"
 if (-not (Test-Path $BarDir)) { New-Item -ItemType Directory -Force $BarDir | Out-Null }
 $bars = @(
   @("btn-inner", 64, 64), @("btn-gloss", 64, 64), @("btn-corners", 64, 64), @("btn-grad", 64, 64),
-  @("btn-stripes", 64, 64), @("btn-dots", 64, 64), @("btn-ring", 64, 64), @("btn-edge", 64, 16)
+  @("btn-stripes", 64, 64), @("btn-dots", 64, 64), @("btn-ring", 64, 64), @("btn-edge", 64, 16),
+  @("bar-smooth", 256, 32), @("bar-bevel", 256, 32), @("bar-steel", 256, 32), @("bar-cloud", 256, 32),
+  @("bar-diagonal", 256, 32), @("bar-pill", 256, 32), @("bar-minimal", 256, 32),
+  @("uf-elite", 64, 32), @("uf-rare", 64, 32), @("uf-afk", 32, 32), @("uf-offline", 32, 32)
 )
 foreach ($t in $bars) {
   [Art]::Write((Join-Path $BarDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])
