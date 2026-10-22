@@ -112,7 +112,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
-    local box = W.Box(p, h or 212)
+    local box = W.Box(p, h or 330)
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page
@@ -161,6 +161,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
         "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city." },
       { "Stop test", function() P.Test(0) end, 90, "Ends the test." },
     })
+    Chk(p, "Grid", "Grid lines in the preview, with a yellow middle line across and down each sample to line parts up.", S, "previewgrid")
   end
 
   -- the looks, four to a row; the picked one is lit (none = your own mix)

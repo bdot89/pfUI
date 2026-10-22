@@ -1776,6 +1776,13 @@ do
       S.markelite = "star"
       P.OnPreviewClick = was
       P.Limits = limits
+      -- the grid behind the samples, with its tick box
+      ok(box.grid and box.grid:IsShown() and table.getn(box.grid.lines) > 20, "preview grid with middle lines")
+      S.previewgrid = "0"
+      P.Refresh()
+      ok(not box.grid:IsShown(), "grid off")
+      S.previewgrid = "1"
+      P.Refresh()
       -- a sample sticking out of its column shrinks; with room it grows back
       local col, ext = P.Column, P.Extent
       P.Column = function() return 0, 100, 100, 0 end

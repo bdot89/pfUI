@@ -1310,18 +1310,67 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     return game
   end
 
+  -- the samples are shown this much bigger than in the game (they shrink
+  -- only when something does not fit their cell)
+  P.ZOOM = 1.35
+
+  -- Faint grid lines over the box, each sample's cell outlined, and a yellow
+  -- middle line across and down every cell to line plates up against
+  -- (user, 22 Oct 2026). C.plates.previewgrid.
+  local function Grid(box, cells)
+    local g = CreateFrame("Frame", nil, box)
+    g:SetAllPoints(box)
+    g.lines = {}
+    local function Line(x, y, w, h, r, gg, b, a)
+      local t = g:CreateTexture(nil, "BACKGROUND")
+      t:SetTexture("Interface\\Buttons\\WHITE8X8")
+      t:SetVertexColor(r, gg, b, a)
+      t:SetPoint("TOPLEFT", box, "TOPLEFT", x, -y)
+      t:SetWidth(w)
+      t:SetHeight(h)
+      table.insert(g.lines, t)
+    end
+    local W, H = box:GetWidth() or 640, box:GetHeight() or 320
+    for x = 20, W - 1, 20 do Line(x, 0, 1, H, 1, 1, 1, .05) end
+    for y = 20, H - 1, 20 do Line(0, y, W, 1, 1, 1, 1, .05) end
+    for _, c in ipairs(cells) do
+      Line(c[1], c[2], c[3], 1, 1, 1, 1, .14)
+      Line(c[1], c[2] + c[4] - 1, c[3], 1, 1, 1, 1, .14)
+      Line(c[1], c[2], 1, c[4], 1, 1, 1, .14)
+      Line(c[1] + c[3] - 1, c[2], 1, c[4], 1, 1, 1, .14)
+      Line(c[1] + 6, c[2] + c[4] / 2, c[3] - 12, 1, 1, .82, 0, .45)
+      Line(c[1] + c[3] / 2, c[2] + 6, 1, c[4] - 12, 1, .82, 0, .45)
+    end
+    function g.Apply()
+      if S.previewgrid == "0" then g:Hide() else g:Show() end
+    end
+    g.Apply()
+    return g
+  end
+
   function P.AttachPreview(box)
     local list = {}
     local n = table.getn(SAMPLES)
+    -- two by two: each sample gets half the box's width
+    local W, H = box:GetWidth() or 640, box:GetHeight() or 320
+    local cw, ch = W / 2, H / 2
+    local cells = {}
+    for i = 1, n do
+      local cx, cy = math.mod(i - 1, 2) * cw, math.floor((i - 1) / 2) * ch
+      cells[i] = { cx, cy, cw, ch }
+    end
+    box.grid = Grid(box, cells)
     for i = 1, n do
       local game = SamplePlate(box, SAMPLES[i])
-      -- room above for the aura rows and the big special icons
-      game.col, game.cols, game.fit = i, n, 1
-      game.at = { (box:GetWidth() or 640) * (i - .5) / n, -92 }
-      game:SetPoint("TOP", box, "TOPLEFT", game.at[1], game.at[2])
+      local c = cells[i]
+      game.cell, game.fit = c, P.ZOOM
+      -- the health bar on the cell's yellow middle line
+      game.at = { c[1] + c[3] / 2, -(c[2] + c[4] / 2) + 18 }
+      game:SetScale(P.ZOOM)
+      game:SetPoint("TOP", box, "TOPLEFT", game.at[1] / P.ZOOM, game.at[2] / P.ZOOM)
       game.preview.anyTarget = true
       game.caption = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-      game.caption:SetPoint("BOTTOM", box, "BOTTOMLEFT", (box:GetWidth() or 640) * (i - .5) / n, 8)
+      game.caption:SetPoint("BOTTOM", box, "TOPLEFT", c[1] + c[3] / 2, -(c[2] + c[4]) + 6)
       game.caption:SetTextColor(.6, .6, .6)
       table.insert(list, game)
       table.insert(P.previews, game)
@@ -1349,11 +1398,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   function P.Column(game)
     local box = game:GetParent()
     local k = box:GetEffectiveScale() or 1
-    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
-    if not (l and r and t and b) then return end
-    local w = (r - l) / (game.cols or 1)
+    local l, t = box:GetLeft(), box:GetTop()
+    local c = game.cell
+    if not (l and t and c) then return end
     local m = 6
-    return (l + w * ((game.col or 1) - 1) + m) * k, (l + w * (game.col or 1) - m) * k, (t - m) * k, (b + 22) * k
+    -- (the bottom keeps room for the caption)
+    return (l + c[1] + m) * k, (l + c[1] + c[3] - m) * k, (t - c[2] - m) * k, (t - c[2] - c[4] + 20) * k
   end
 
   -- All visible parts of a sample (or only those of one kind), screen units.
@@ -1378,11 +1428,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local cl, cr, ct, cb = P.Column(game)
     local ul, ur, ut, ub = P.Extent(game)
     if not cl or not ul then return end
-    local fit = game.fit or 1
+    local fit = game.fit or P.ZOOM
     if ul < cl or ur > cr or ut > ct or ub < cb then
       fit = math.max(.45, fit * .97)
-    elseif fit < 1 and ul - cl > 10 and cr - ur > 10 and ct - ut > 10 and ub - cb > 10 then
-      fit = math.min(1, fit * 1.01)
+    elseif fit < P.ZOOM and ul - cl > 10 and cr - ur > 10 and ct - ut > 10 and ub - cb > 10 then
+      fit = math.min(P.ZOOM, fit * 1.01)
     end
     if fit ~= game.fit then
       game.fit = fit
@@ -1439,7 +1489,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     NP.SetGameVariables = function() end
     NP.UpdateConfig()
     NP.SetGameVariables = SetGameVariables
-    for _, game in ipairs(P.previews) do NP.OnConfigChange(game) end
+    for _, game in ipairs(P.previews) do
+      NP.OnConfigChange(game)
+      local box = game:GetParent()
+      if box and box.grid then box.grid.Apply() end
+    end
   end
   function P.ApplyShow()
     NP.UpdateConfig()
