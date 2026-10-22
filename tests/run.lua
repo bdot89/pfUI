@@ -1692,6 +1692,30 @@ do
       end
       ok(seen[0] and seen[3] and seen[5] and not seen.pfui, "our orbs roll on the sample target (pfUI's squares stay hidden)")
       pfUI_config.nameplates.cpdisplay = "0"
+      -- every part is clickable; parts with a place can be dragged
+      local hot = fp.castbar.hots and fp.castbar.hots[first]
+      ok(hot and fp.name.hots and fp.level.hots and fp.health.hots, "cast bar, name, level and bar are clickable")
+      local opened
+      local was = P.OnPreviewClick
+      P.OnPreviewClick = function(w) opened = w end
+      fp.castbar:Show()
+      if hot then Mock.Run(hot, "OnClick") end
+      ok(opened == "cast", "a click on the cast bar opens the cast bar options")
+      if hot then
+        Mock.cx, Mock.cy = 100, 100
+        Mock.Run(hot, "OnMouseDown")
+        Mock.cx, Mock.cy = 120, 70
+        Mock.now = Mock.now + 1
+        Mock.Run(hot, "OnUpdate", .1)
+        Mock.Run(hot, "OnMouseUp")
+        opened = nil
+        Mock.Run(hot, "OnClick")
+        ok(S.castoffx == "20" and S.castoffy == "-30" and opened == nil, "dragging the cast bar moves it (" .. S.castoffx .. ", " .. S.castoffy .. "), not a click")
+        S.castoffx, S.castoffy = "0", "0"
+        Mock.cx, Mock.cy = nil, nil
+      end
+      P.OnPreviewClick = was
+      ok(fp.octo.cp and fp.octo.cp[1].hots, "combo points are clickable")
       S.skin = "thick"
       P.Refresh()
       ok(so.skinH:IsShown(), "a setting change redraws the samples")

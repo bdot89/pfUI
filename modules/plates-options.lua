@@ -93,7 +93,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- Sample nameplates drawn with every setting as it is now (OctoBG's
   -- "Icons on nameplates" box), and the test on the real ones.
   local function Preview(p, h)
-    W.Card(p, "Preview", { tip = "Sample plates drawn by the real nameplate code with your settings: your target "
+    W.Card(p, "Preview", { tip = "Click any part to open its settings; drag the cast bar, combo points, auras or raid mark to move them. "
+      .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
     P.AttachPreview(W.Box(p, h or 212))
@@ -102,6 +103,13 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       return "Test on real nameplates puts pretend threat colours and casts on every plate you can see for a minute."
     end)
     W.Buttons(p, {
+      { "Put parts back", function()
+        for _, k in ipairs({ "castoffx", "castoffy", "cpoffx", "cpoffy", "auraoffx", "specialoffx", "specialoffy" }) do C.plates[k] = "0" end
+        C.plates.auraoffset = "2"
+        C.nameplates.raidiconoffx, C.nameplates.raidiconoffy = "0", "-5"
+        U()
+        W.Refresh(p)
+      end, 120, "Everything you dragged goes back to its first place." },
       { "Test on real nameplates", function() P.Test(60) end, 180,
         "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city." },
       { "Stop test", function() P.Test(0) end, 90, "Ends the test." },
@@ -214,6 +222,9 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Sld(p, "Name size", "0 = pfUI's font size.", 0, 24, 1, S, "namesize", function(v) return v == 0 and "pfUI's" or (v .. " px") end)
     Sld(p, "Health text size", "0 = a bit smaller than the name.", 0, 24, 1, S, "hpsize", function(v) return v == 0 and "auto" or (v .. " px") end)
     Chk(p, "Unit frame font", "Use pfUI's unit frame font when no font is picked above.", N, "use_unitfonts")
+    Chk(p, "Show the name", nil, S, "nameshow")
+    Chk(p, "Show the level", nil, S, "levelshow")
+    Sld(p, "Elite mark size", "0 = as big as the name.", 0, 32, 1, S, "marksize", function(v) return v == 0 and "auto" or (v .. " px") end)
     Chk(p, "Health text", "Numbers on the health bar.", N, "showhp")
     Drop(p, "Health text place", nil, DD("textalign"), N, "hptextpos")
     Drop(p, "Health text shows", nil, DD("hpformat"), N, "hptextformat")
@@ -237,6 +248,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       { key = "inside", label = "On the health bar" } }, function() return C.plates.cpplace end, function(v) C.plates.cpplace = v; U() end)
     Sld(p, "Size", nil, 6, 30, 1, S, "cpsize", Px)
     Sld(p, "Gap", nil, 0, 12, 1, S, "cpgap", Px)
+    Sld(p, "Left / right", nil, -80, 80, 1, S, "cpoffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "cpoffy", Px)
     W.Dropdown(p, "Colour", nil, { { key = "gradient", label = "Yellow to red by count" }, { key = "class", label = "Class colour" },
       { key = "custom", label = "One colour" } }, function() return C.plates.cpcolor end, function(v) C.plates.cpcolor = v; U() end)
     Color(p, "One colour", nil, S, "cpcustom")
@@ -353,6 +366,13 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       U()
     end, Px)
     Chk(p, "Only your target", "Other units' casts are not shown.", N, "targetcastbar")
+    Chk(p, "Spell icon", nil, S, "casticon")
+    Sld(p, "Icon size", "0 = as tall as the bar.", 0, 40, 1, S, "casticonsize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Chk(p, "Time left", nil, S, "casttimer")
+    Chk(p, "Spell name", nil, S, "castname")
+    Sld(p, "Text size", "0 = fits the bar.", 0, 24, 1, S, "casttextsize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Sld(p, "Left / right", "Or drag the cast bar in the preview.", -100, 100, 1, S, "castoffx", Px)
+    Sld(p, "Up / down", "Minus = lower. Or drag the cast bar in the preview.", -80, 80, 1, S, "castoffy", Px)
     Chk(p, "Spell name (pfUI layout)", "The Plater layout always shows it.", N, "spellname")
     Chk(p, "Spark", "A bright edge where the bar fills.", S, "spark")
     Chk(p, "Flash when it ends", "Green when the cast went off, red when it was stopped.", S, "castend")
@@ -402,12 +422,20 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     W.Dropdown(p, "Grow", nil, { { key = "center", label = "From the middle" }, { key = "right", label = "To the right" },
       { key = "left", label = "To the left" } }, function() return C.plates.auragrow end, function(v) C.plates.auragrow = v; U() end)
     Sld(p, "Above the name by", nil, -10, 30, 1, S, "auraoffset", Px)
+    Sld(p, "Left / right", "Or drag the icons in the preview.", -100, 100, 1, S, "auraoffx", Px)
+    Sld(p, "Gap between icons", nil, 0, 12, 1, S, "auragap", Px)
+    Sld(p, "Gap between rows", nil, 0, 12, 1, S, "auragaprow", Px)
+    Sld(p, "Timer size", "0 = fits the icon.", 0, 24, 1, S, "auratimersize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Sld(p, "Stack size", "0 = fits the icon.", 0, 24, 1, S, "aurastacksize", function(v) return v == 0 and "auto" or (v .. " px") end)
     Chk(p, "Timers", "Time left on the icon (red under 3 s).", S, "auratimer")
     Chk(p, "Stacks", nil, S, "aurastacks")
     Chk(p, "Edges by debuff type", nil, S, "auraborder")
     W.Card(p, "Special auras", { on = { function() return C.plates.specialon == "1" end, function(v) C.plates.specialon = v and "1" or "0"; U() end,
       "Big icons for the spells listed." } })
     Sld(p, "Size", nil, 16, 48, 1, S, "specialsize", Px)
+    Sld(p, "Gap", "Between the big icons, and above the normal rows.", 0, 12, 1, S, "specialgap", Px)
+    Sld(p, "Left / right", "Or drag them in the preview.", -100, 100, 1, S, "specialoffx", Px)
+    Sld(p, "Up / down", nil, -60, 60, 1, S, "specialoffy", Px)
     ListEdit(p, "Spells", "Names separated by #. Shown big, on top, edged in the accent colour.", "specialauras")
     W.Card(p, "Ghost auras", { on = { function() return C.plates.ghoston == "1" end, function(v) C.plates.ghoston = v and "1" or "0"; U() end,
       "Your own debuffs that are missing from a mob you are fighting, shown faded." } })
@@ -551,6 +579,43 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   BUILD.npthreat = function(p) threat(p) NpcCards(p) end
   BUILD.nptarget = function(p) target(p) RangeCards(p) end
   BUILD.npcast = function(p) cast(p) SpellCards(p) end
+
+  -- A click on a part of a preview opens its page at its card (opened and
+  -- scrolled to, with a short glow).
+  local GO = {
+    name = { "nplook", "Text" }, guild = { "nplook", "Text" }, hptext = { "nplook", "Text" },
+    level = { "nplook", "Colours" }, health = { "nplook", "Bar" }, raid = { "nplook", "Raid mark" },
+    combo = { "nplook", "Combo points" }, threat = { "npthreat", "Damage and healer colours" },
+    target = { "nptarget", "Target" }, cast = { "npcast", "Bar" }, auras = { "npauras", "Icons" },
+    special = { "npauras", "Special auras" }, elite = { "npquest", "Icons" }, quest = { "npquest", "Quests" },
+    icons = { "npquest", "Icons" },
+  }
+  P.GO = GO
+  function P.OpenSection(key, title)
+    O:Select("o:" .. key)
+    local p = O.pages[key]
+    if not p then return end
+    for _, c in ipairs(p.cards) do
+      if c.title == title then
+        if not W.IsOpen(c) then W.SetOpen(c, true) end
+        p.after = function()
+          local top, at = p.body:GetTop(), c.card:GetTop()
+          if top and at then
+            local off = math.max(0, top - at - 10)
+            local sb = getglobal(p.frame:GetName() .. "ScrollBar")
+            if sb then sb:SetValue(off) else p.frame:SetVerticalScroll(off) end
+          end
+          W.Flash(c.card)
+        end
+        W.Measure(p)
+        return c
+      end
+    end
+  end
+  P.OnPreviewClick = function(what)
+    local t = GO[what]
+    if t then P.OpenSection(t[1], t[2]) end
+  end
 
   O.replaced[T["Nameplates"]] = true
   O:AddPage("Nameplates", "npgeneral", "General", BUILD.npgeneral)

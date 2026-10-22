@@ -230,10 +230,12 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     return f
   end
 
+  -- size: the automatic timer size (from the icon); the sliders win when set
   local function Fonts(f, size)
     local font = (S.font and S.font ~= "") and S.font or pfUI.font_unit
-    f.timer:SetFont(font, math.max(7, size), "OUTLINE")
-    f.stacks:SetFont(font, math.max(6, size - 2), "OUTLINE")
+    local ts, ss = tonumber(S.auratimersize) or 0, tonumber(S.aurastacksize) or 0
+    f.timer:SetFont(font, ts > 0 and ts or math.max(7, size), "OUTLINE")
+    f.stacks:SetFont(font, ss > 0 and ss or math.max(6, size - 2), "OUTLINE")
     f.stacks:SetTextColor(.6, .85, 1)
   end
 
@@ -253,13 +255,21 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     o.aicons, o.bicons = {}, {}
   end
 
-  local function Get(pool, parent, i)
-    if not pool[i] then pool[i] = Icon(parent) end
+  -- (a preview's icons can be clicked: they open the Auras page)
+  local function Get(pool, parent, i, what)
+    if not pool[i] then
+      pool[i] = Icon(parent)
+      local game = parent:GetParent() and parent:GetParent().parent
+      if game and game.preview then P.Hot(game, pool[i], what, 34) end
+    end
     return pool[i]
   end
 
   -- place n icons of w x h in rows of `per`, growing from the anchor
-  local function Layout(pool, n, w, h, per, grow, gap)
+  -- gap between icons, rowgap between rows (user, 22 Oct 2026: the auras need
+  -- a gap setting)
+  local function Layout(pool, n, w, h, per, grow, gap, rowgap)
+    rowgap = rowgap or gap
     for i = 1, n do
       local f = pool[i]
       local r = math.floor((i - 1) / per)
@@ -270,7 +280,7 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
       elseif grow == "right" then x = c * (w + gap)
       else x = (c - inRow / 2) * (w + gap) + gap / 2 end
       f:ClearAllPoints()
-      f:SetPoint("BOTTOMLEFT", f:GetParent(), "BOTTOM", x, r * (h + gap))
+      f:SetPoint("BOTTOMLEFT", f:GetParent(), "BOTTOM", x, r * (h + rowgap))
       f:SetWidth(w)
       f:SetHeight(h)
       Crop(f, w, h)
@@ -299,11 +309,12 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     A.ReadLists()
     local off = tonumber(S.auraoffset) or 2
     o.arow:ClearAllPoints()
-    o.arow:SetPoint("BOTTOM", plate.name, "TOP", 0, off)
+    o.arow:SetPoint("BOTTOM", plate.name, "TOP", tonumber(S.auraoffx) or 0, off)
     o.abig:ClearAllPoints()
     o.abig:SetPoint("BOTTOM", o.arow, "TOP", 0, 2)
     o.aw, o.ah = tonumber(S.aurawidth) or 20, tonumber(S.auraheight) or 16
     o.bs = tonumber(S.specialsize) or 28
+    o.agap, o.arowgap, o.bgap = tonumber(S.auragap) or 2, tonumber(S.auragaprow) or 2, tonumber(S.specialgap) or 3
     for _, f in ipairs(o.aicons) do Fonts(f, math.floor(o.ah * .6)) end
     for _, f in ipairs(o.bicons) do Fonts(f, math.floor(o.bs * .45)) end
     o.akey = nil
@@ -339,26 +350,27 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     local per, rows = tonumber(S.auraperrow) or 6, tonumber(S.aurarows) or 2
     local n = math.min(table.getn(row), per * rows)
     for i = 1, n do
-      local f = Get(o.aicons, o.arow, i)
+      local f = Get(o.aicons, o.arow, i, "auras")
       if not f.fonted then Fonts(f, math.floor(o.ah * .6)) f.fonted = true end
       Paint(f, row[i])
     end
     for i = n + 1, table.getn(o.aicons) do o.aicons[i]:Hide() end
-    Layout(o.aicons, n, o.aw, o.ah, per, S.auragrow or "center", 2)
+    Layout(o.aicons, n, o.aw, o.ah, per, S.auragrow or "center", o.agap or 2, o.arowgap)
     -- the special row sits on top of the normal rows that are in use
     local used = math.ceil(n / per)
     o.abig:ClearAllPoints()
-    o.abig:SetPoint("BOTTOM", o.arow, "TOP", 0, used * (o.ah + 2) + 2)
+    o.abig:SetPoint("BOTTOM", o.arow, "TOP", tonumber(S.specialoffx) or 0,
+      used * (o.ah + (o.arowgap or 2)) + (o.bgap or 3) + (tonumber(S.specialoffy) or 0))
     local m = (S.specialon == "1") and math.min(table.getn(big), 6) or 0
     for i = 1, m do
-      local f = Get(o.bicons, o.abig, i)
+      local f = Get(o.bicons, o.abig, i, "special")
       if not f.fonted then Fonts(f, math.floor(o.bs * .45)) f.fonted = true end
       Paint(f, big[i])
       local ac = { GetAccentColor() }
       f:SetBackdropBorderColor(ac[1] or 1, ac[2] or 1, ac[3] or 1, 1)
     end
     for i = m + 1, table.getn(o.bicons) do o.bicons[i]:Hide() end
-    Layout(o.bicons, m, o.bs, o.bs, 6, "center", 3)
+    Layout(o.bicons, m, o.bs, o.bs, 6, "center", o.bgap or 3)
     o.ashown = n + m
   end
 

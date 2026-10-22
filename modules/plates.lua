@@ -343,12 +343,20 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     -- cast bar: Plater's layout (icon to the left, name left, time right)
     local ch = tonumber(S.castheight) or 12
     local tsize = math.max(8, math.min(fsize, ch + 1))
+    if (tonumber(S.casttextsize) or 0) > 0 then tsize = tonumber(S.casttextsize) end
+    -- the cast bar's place: under the health bar, moved by your offsets
+    -- (dragged in the preview or set on Cast bar)
+    local cx, cy = tonumber(S.castoffx) or 0, tonumber(S.castoffy) or 0
+    cb:ClearAllPoints()
+    cb:SetPoint("TOPLEFT", h, "BOTTOMLEFT", cx, -border * 3 + cy)
+    cb:SetPoint("TOPRIGHT", h, "BOTTOMRIGHT", cx, -border * 3 + cy)
     if S.castlayout == "plater" then
       cb:SetHeight(ch)
       cb.icon:ClearAllPoints()
       cb.icon:SetPoint("TOPRIGHT", cb, "TOPLEFT", -border * 3, 0)
-      cb.icon:SetWidth(ch)
-      cb.icon:SetHeight(ch)
+      local isz = (tonumber(S.casticonsize) or 0) > 0 and tonumber(S.casticonsize) or ch
+      cb.icon:SetWidth(isz)
+      cb.icon:SetHeight(isz)
       cb.spell:ClearAllPoints()
       cb.spell:SetPoint("LEFT", cb, "LEFT", 3, 0)
       cb.spell:SetPoint("RIGHT", cb, "RIGHT", -30, 0)
@@ -435,8 +443,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       end
     end
 
-    o.mark:SetWidth(namesize + 2)
-    o.mark:SetHeight(namesize + 2)
+    -- parts you can switch off (they keep their place so the bar does not move)
+    cb.icon:SetAlpha(S.casticon == "0" and 0 or 1)
+    cb.text:SetAlpha(S.casttimer == "0" and 0 or 1)
+    cb.spell:SetAlpha(S.castname == "0" and 0 or 1)
+    local msz = (tonumber(S.marksize) or 0) > 0 and tonumber(S.marksize) or (namesize + 2)
+    o.mark:SetWidth(msz)
+    o.mark:SetHeight(msz)
     o.mark:ClearAllPoints()
     o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2, 0)
 
@@ -500,7 +513,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   -- n points (nil = none); shown under the cast bar or the health bar
   function P.Combo(plate, o, n)
-    if not o.cp then ComboBuild(plate, o) end
+    if not o.cp then
+      ComboBuild(plate, o)
+      for i = 1, 5 do P.Hot(plate.parent, o.cp[i], "combo", 34) end
+    end
     local style = S.cpstyle or "orbs"
     local on = C.nameplates.cpdisplay == "1" and style ~= "pfui" and S.enable == "1" and n and n > 0
     o.cpn = on and n or 0
@@ -524,13 +540,14 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       f:SetWidth(w)
       f:SetHeight(ht)
       f:ClearAllPoints()
-      local x = (i - 3) * (w + gap)
+      local x = (i - 3) * (w + gap) + (tonumber(S.cpoffx) or 0)
+      local y = tonumber(S.cpoffy) or 0
       if S.cpplace == "above" then
-        f:SetPoint("BOTTOM", plate.name, "TOP", x, 2)
+        f:SetPoint("BOTTOM", plate.name, "TOP", x, 2 + y)
       elseif S.cpplace == "inside" then
-        f:SetPoint("CENTER", h, "BOTTOM", x, 0)
+        f:SetPoint("CENTER", h, "BOTTOM", x, y)
       else
-        f:SetPoint("TOP", below, "BOTTOM", x, -3)
+        f:SetPoint("TOP", below, "BOTTOM", x, -3 + y)
       end
       if seg then
         f.tex:SetTexture(pfUI.media[S.bartexture ~= "" and S.bartexture or C.nameplates.healthtexture])
@@ -802,6 +819,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
 
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
+    -- name / level shown or not (see-through, so the bar under them stays put)
+    plate.name:SetAlpha(S.nameshow == "0" and 0 or 1)
+    plate.level:SetAlpha(S.levelshow == "0" and 0 or 1)
     -- name / level colours picked by you (pfUI recolours them as units change)
     if S.namecustom == "1" then
       local c = COL.namecolor
@@ -922,8 +942,97 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if d.hover then plate.cache.mouseover = math.mod(math.floor(now / 2), 2) == 0 or nil end
   end
 
+  -- Clickable parts of the samples (user, 22 Oct 2026: "EVERY PIECE can be
+  -- clicked on, this will take you straight to that menu of options"). A
+  -- see-through button over the part; P.OnPreviewClick(what) is set by the
+  -- options. Parts made later (combo points, aura icons) get theirs then.
+  P.HOTLABEL = { name = "Name and text", level = "Level", health = "Health bar", hptext = "Health text",
+    threat = "Threat colours", cast = "Cast bar", combo = "Combo points", auras = "Auras", special = "Special auras",
+    target = "Target marker", elite = "Elite, rare and boss marks", quest = "Quest marks", raid = "Raid mark",
+    icons = "Class and pet icons", guild = "Name and text" }
+  -- what can be dragged, and its x / y settings (pf = pfUI's own keys)
+  P.DRAG = {
+    cast = { "castoffx", "castoffy" }, combo = { "cpoffx", "cpoffy" },
+    auras = { "auraoffx", "auraoffset" }, special = { "specialoffx", "specialoffy" },
+    raid = { "raidiconoffx", "raidiconoffy", pf = true },
+  }
+  function P.Hot(game, region, what, level)
+    if not region or not game or not game.preview then return end
+    region.hots = region.hots or {}
+    if region.hots[game] then return end
+    local b = CreateFrame("Button", nil, game)
+    b:SetFrameLevel((game:GetFrameLevel() or 1) + (level or 30))
+    b:SetAllPoints(region)
+    b.region, b.what = region, what
+    b.hl = b:CreateTexture(nil, "OVERLAY")
+    b.hl:SetAllPoints(b)
+    b.hl:SetTexture("Interface\\Buttons\\WHITE8X8")
+    local ar, ag, ab = 1, 1, 1
+    if GetAccentColor then ar, ag, ab = GetAccentColor() end
+    b.hl:SetVertexColor(ar, ag, ab, .25)
+    b.hl:Hide()
+    b:SetScript("OnEnter", function()
+      if not this.region:IsVisible() then return end
+      this.hl:Show()
+      GameTooltip:SetOwner(this, "ANCHOR_TOP")
+      GameTooltip:AddLine(P.HOTLABEL[this.what] or this.what)
+      GameTooltip:AddLine(P.DRAG[this.what] and "Click: its options.  Drag: move it." or "Click to change it", 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function()
+      this.hl:Hide()
+      GameTooltip:Hide()
+    end)
+    b:SetScript("OnClick", function()
+      -- a drag is not a click
+      if this.dragged then this.dragged = nil return end
+      if this.region:IsVisible() and P.OnPreviewClick then P.OnPreviewClick(this.what) end
+    end)
+    -- (user, 22 Oct 2026: "you should be able to drag features") parts with a
+    -- place of their own move with the mouse; the setting follows
+    local drag = P.DRAG[what]
+    if drag then
+      b:SetScript("OnMouseDown", function()
+        local cx, cy = GetCursorPosition()
+        local t = drag.pf and C.nameplates or S
+        this.down = { cx, cy, tonumber(t[drag[1]]) or 0, tonumber(t[drag[2]]) or 0 }
+        this.dragged = nil
+        this:SetScript("OnUpdate", function()
+          local d = this.down
+          if not d then return end
+          local x, y = GetCursorPosition()
+          local s = this:GetEffectiveScale() or 1
+          local dx, dy = math.floor((x - d[1]) / s + .5), math.floor((y - d[2]) / s + .5)
+          if not this.dragged and math.abs(dx) + math.abs(dy) < 3 then return end
+          this.dragged = true
+          local t = drag.pf and C.nameplates or S
+          t[drag[1]] = tostring(d[3] + dx)
+          t[drag[2]] = tostring(d[4] + dy)
+          if (this.next or 0) < GetTime() then
+            this.next = GetTime() + .05
+            P.Refresh()
+          end
+        end)
+      end)
+      b:SetScript("OnMouseUp", function()
+        this.down = nil
+        this:SetScript("OnUpdate", nil)
+        if this.dragged then P.Refresh() end
+      end)
+    end
+    region.hots[game] = b
+    return b
+  end
+
   local function SamplePlate(box, d)
     local game = CreateFrame("Button", nil, box)
+    -- pfUI builds a plate on low frame levels (bar 4, its dark backdrop 3).
+    -- In the options window those sit under the window and the backdrop
+    -- covered the fill; a layer of its own above the window (menus and
+    -- tooltips stay on top) lets every part keep pfUI's own levels.
+    -- Children made later take this layer too.
+    game:SetFrameStrata("FULLSCREEN")
+    game:SetFrameLevel(1)
     game:SetWidth(150)
     game:SetHeight(60)
     local hb = CreateFrame("StatusBar", nil, game)
@@ -954,18 +1063,25 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     game.preview = { state = d.state, target = d.target, class = d.class, cast = d.cast, combat = true, ghost = d.ghost,
       quest = d.quest, data = d }
     NP.OnCreate(game)
-    -- pfUI pins the bar to frame level 4: lift the whole sample above its box,
-    -- keeping pfUI's own order (the bar's dark backdrop stays under its fill)
-    local all = {}
-    local function Collect(f)
-      table.insert(all, { f, f:GetFrameLevel() })
-      for _, kid in ipairs({ f:GetChildren() }) do Collect(kid) end
+    -- every part can be clicked to open its options
+    local pl = game.nameplate
+    local po = pl.octo
+    P.Hot(game, pl.health, d.cycle and "threat" or "health", 30)
+    P.Hot(game, pl.health.text, "hptext", 31)
+    P.Hot(game, pl.name, "name", 32)
+    P.Hot(game, pl.level, "level", 32)
+    P.Hot(game, pl.guild, "guild", 32)
+    P.Hot(game, pl.castbar, "cast", 30)
+    P.Hot(game, pl.raidicon, "raid", 33)
+    if po then
+      P.Hot(game, po.cend, "cast", 31)
+      P.Hot(game, po.left, "target", 33)
+      P.Hot(game, po.right, "target", 33)
+      for i = 1, 4 do P.Hot(game, po.corners[i], "target", 33) end
+      P.Hot(game, po.mark, "elite", 33)
+      if po.qmark then P.Hot(game, po.qmark, "quest", 33) end
+      if po.cicon then P.Hot(game, po.cicon, "icons", 33) end
     end
-    Collect(game)
-    local low
-    for _, e in ipairs(all) do if not low or e[2] < low then low = e[2] end end
-    local shift = box:GetFrameLevel() + 1 - (low or 0)
-    for _, e in ipairs(all) do e[1]:SetFrameLevel(e[2] + shift) end
     -- pfUI's own every-frame code needs the real target and casts: the sample
     -- runs its own instead
     game:SetScript("OnUpdate", function()
