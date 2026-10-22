@@ -469,10 +469,17 @@ pfUI:RegisterModule("unitframes-octo", "vanilla:tbc", function ()
         -- fading bar
         local gh = f.octoGhost
         if gh and c.o_fade == "1" then
-          local unit = Unit(f)
-          local max = unit and UnitHealthMax(unit) or 0
-          local frac = max > 0 and UnitHealth(unit) / max or 0
-          if c.invert_healthbar == "1" then frac = 1 - frac end
+          -- (the bar's own value: what it is heading to)
+          local bar = f.hp.bar
+          local frac = 0
+          if bar.max and bar.max > 0 and bar.val then
+            frac = (bar.val - (bar.min or 0)) / (bar.max - (bar.min or 0))
+          else
+            local unit = Unit(f)
+            local max = unit and UnitHealthMax(unit) or 0
+            frac = max > 0 and UnitHealth(unit) / max or 0
+            if c.invert_healthbar == "1" then frac = 1 - frac end
+          end
           local g = f.octoGhostFrac or frac
           if frac >= g then
             g = frac

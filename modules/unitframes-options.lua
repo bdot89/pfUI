@@ -412,6 +412,17 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         f:Show()
         -- (a unit that went away mid-update must not break the page)
         pcall(pfUI.uf.RefreshUnit, pfUI.uf, f, "all")
+        -- part health and power, so the bar texture, the empty part's colour
+        -- and shade show; health drops every few seconds (fading bar, flash)
+        local hp = math.mod(math.floor(GetTime() / 3), 2) == 0 and 85 or 45
+        if f.hp and f.hp.bar and f.hp.bar.SetMinMaxValues then
+          f.hp.bar:SetMinMaxValues(0, 100)
+          f.hp.bar:SetValue(hp)
+        end
+        if f.power and f.power.bar and f.power.bar.SetMinMaxValues then
+          f.power.bar:SetMinMaxValues(0, 100)
+          f.power.bar:SetValue(60)
+        end
         Samples(f, cfg)
       end
       Place(set, key)
@@ -557,28 +568,40 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- general
 
-  BUILD.ufgeneral = function(p)
-    W.Heading(p, "Unit frames", { about = "What every unit frame shares: text, portraits, colours and group options. "
-      .. "Each frame's own look is on Frames." })
-    W.Card(p, "Unit frames")
+  -- What every frame shares, on the Frames page with the preview (user, 22
+  -- Oct 2026: "these general options would be better placed under the
+  -- preview box ... being able to test the font would be helpful"). The
+  -- font changes the frames at once: pfUI keeps it in pfUI.font_unit.
+  local function GL() return C.global end
+  local function FontNow()
+    pfUI.font_unit = pfUI.media[C.global.font_unit] or pfUI.font_unit
+    UF.ApplyAll()
+  end
+  UF.FontNow = FontNow
+
+  local function SharedTop(p)
+    W.Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Health text." })
+    Drop(p, "Font", nil, DD("fonts", "font"), GL, "font_unit", FontNow)
+    Sld(p, "Size", nil, 6, 24, 1, GL, "font_unit_size", Px, UF.ApplyAll)
+    Drop(p, "Outline", nil, DD("fontstyle"), GL, "font_unit_style", UF.ApplyAll)
+    Chk(p, "Short numbers", "12.3k instead of 12345.", G, "abbrevnum", UF.ApplyAll)
+    Chk(p, "Short names", "Long names are cut.", G, "abbrevname", UF.ApplyAll)
+    Drop(p, "Health bar speed", "How fast bars slide to a new value.", DD("uf_animationspeed"), G, "animation_speed", UF.ApplyAll)
+  end
+
+  local function SharedBottom(p)
+    W.Card(p, "All frames: basics")
     W.Check(p, "Use pfUI's unit frames", "Off = the game's own frames (after a reload).", function() return G().disable ~= "1" end, function(v)
       G().disable = v and "0" or "1"
       Reload()
     end)
     Drop(p, "Layout", "Needs a reload.", DD("uf_layout"), G, "layout", Reload)
-    Drop(p, "Health bar speed", "How fast bars slide to a new value.", DD("uf_animationspeed"), G, "animation_speed", UF.ApplyAll)
     Chk(p, "Target sounds", "A sound as you pick an enemy, a friend or nothing.", G, "o_targetsound", function() end)
-    W.Card(p, "Text", { tip = "The font of every unit frame (a frame can use its own on Frames > Health text)." })
-    Drop(p, "Font", nil, DD("fonts", "font"), function() return C.global end, "font_unit", Reload)
-    Sld(p, "Size", nil, 6, 24, 1, function() return C.global end, "font_unit_size", Px, Reload)
-    Drop(p, "Outline", nil, DD("fontstyle"), function() return C.global end, "font_unit_style", Reload)
-    Chk(p, "Short numbers", "12.3k instead of 12345.", G, "abbrevnum", UF.ApplyAll)
-    Chk(p, "Short names", "Long names are cut.", G, "abbrevname", UF.ApplyAll)
-    W.Card(p, "Portraits")
+    W.Card(p, "All frames: portraits")
     Sld(p, "Portrait on the bar: opacity", "For portraits drawn on the health bar.", 0, 1, .05, G, "portraitalpha", Pct, UF.ApplyAll)
     Chk(p, "Always flat pictures", "2D pictures instead of 3D models.", G, "always2dportrait", UF.ApplyAll)
     Chk(p, "Flat picture when no model", nil, G, "portraittexture", UF.ApplyAll)
-    W.Card(p, "Colours", { tip = "For every frame, unless a frame has its own on Frames > Colours." })
+    W.Card(p, "All frames: colours", { tip = "For every frame, unless a frame has its own (its Colours card)." })
     Chk(p, "Soft (pastel) colours", nil, G, "pastel", UF.ApplyAll)
     Drop(p, "Health bar colour", nil, DD("uf_color"), G, "custom", UF.ApplyAll)
     Color(p, "Own health colour", nil, G, "customcolor", UF.ApplyAll)
@@ -592,7 +615,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Color(p, "Rage", nil, G, "ragecolor", UF.ApplyAll)
     Color(p, "Energy", nil, G, "energycolor", UF.ApplyAll)
     Color(p, "Focus", nil, G, "focuscolor", UF.ApplyAll)
-    W.Card(p, "Class extras")
+    W.Card(p, "All frames: class extras")
     Sld(p, "Combo point width", nil, 2, 30, 1, G, "combowidth", Px, Reload)
     Sld(p, "Combo point height", nil, 2, 30, 1, G, "comboheight", Px, Reload)
     Chk(p, "Energy ticks", "A spark on your power bar for the next energy tick.", function() return C.unitframes.player end, "energy", Reload)
@@ -602,7 +625,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Druid mana bar height", nil, 1, 10, 1, G, "druidmanaheight", Px, Reload)
     Chk(p, "Druid mana text", nil, G, "druidmanatext", Reload)
     Chk(p, "Read enemy buffs", "Shows enemies' buffs on their frames.", G, "buffdetect", Reload)
-    W.Card(p, "Party and raid")
+    W.Card(p, "All frames: party and raid")
     Chk(p, "Range check", "Fades members more than 40 yards away.", G, "rangecheck", Reload)
     Drop(p, "Range check every", nil, DD("uf_rangecheckinterval"), G, "rangechecki", Reload)
     Chk(p, "Raid frames for the party", nil, G, "raidforgroup", UF.ApplyAll)
@@ -615,9 +638,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- frames
 
   BUILD.ufframes = function(p)
-    W.Heading(p, "Frames", { about = "Pick a frame with the tabs: its preview shows at the top, its settings below, one card per "
-      .. "part. Click a part of the preview to jump to its card." })
+    W.Heading(p, "Unit frames", { about = "Pick a frame with the tabs: its preview shows at the top, its settings below, one card per "
+      .. "part. Click a part of the preview to jump to its card. The cards named \"All frames\" change every frame." })
     Preview(p)
+    SharedTop(p)
 
     W.Card(p, "Frame", { tip = "Whether the frame shows, its tooltip and how see-through it is." })
     Chk(p, "Show this frame", nil, U, "visible")
@@ -796,6 +820,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Group labels", nil, R, "raidgrouplabel", UR)
     Sld(p, "Labels: across", nil, -50, 50, 1, R, "grouplabelxoff", Px, UR)
     Sld(p, "Labels: up / down", nil, -50, 50, 1, R, "grouplabelyoff", Px, UR)
+
+    -- what all frames share, after this frame's own cards
+    SharedBottom(p)
   end
 
   -- ---------------------------------------------------------------- click casting
@@ -830,7 +857,6 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   end
 
   O.replaced[T["Unit Frames"]] = true
-  O:AddPage("Unit Frames", "ufgeneral", "General", BUILD.ufgeneral)
   O:AddPage("Unit Frames", "ufframes", "Frames", BUILD.ufframes)
   O:AddPage("Unit Frames", "ufclick", "Click casting", BUILD.ufclick)
 end)

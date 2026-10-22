@@ -348,3 +348,10 @@ see "Roadmap" below.
    size, texture and text points on pfUI's real cast bars live; on/off, fonts, hide_blizz need a
    reload (settingChanged). The Unit Frames preview shows a cast bar under player / target / focus
    that opens this page on its tab; layout mode's cast bar boxes do too (O.tabs.ufcastbar).
+   Then (user: general options under the preview, test the font, textures / shades showed
+   nothing): the General page is gone - its cards are on Frames as "All frames: ..." (text first,
+   right under the preview; basics, portraits, colours, class extras, party and raid at the end).
+   Font / size / outline apply live (UF.FontNow sets pfUI.font_unit, then every frame's
+   UpdateConfig). The preview sets its bars to part health (85% / 45% every 3 s) and 60% power, so
+   texture, the empty part's colour, the shade and the fading bar show; the fading bar reads the
+   bar's own value (bar.val / max) instead of UnitHealth.

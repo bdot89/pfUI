@@ -38,7 +38,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["GroupPet%d"]         = { "ufframes", "grouppet" },
 
     -- combopoints
-    ["Combo%d"]       = { "ufgeneral", nil },
+    ["Combo%d"]       = { "ufframes", nil },
 
     -- groupframes
     ["Raid%d"]        = { "ufframes", "raid" },

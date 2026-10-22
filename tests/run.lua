@@ -1407,9 +1407,11 @@ do
     -- fading bar: the lost health stays and shrinks away
     c.o_fade = "1"
     f:UpdateConfig()
-    Mock.playerHp = 100
+    -- (the bar's value, as pfUI sets it from the unit)
+    f.hp.bar:SetMinMaxValues(0, 100)
+    f.hp.bar:SetValue(100)
     Mock.Run(X.watch, "OnUpdate", .1)
-    Mock.playerHp = 40
+    f.hp.bar:SetValue(40)
     Mock.now = Mock.now + .05
     Mock.Run(X.watch, "OnUpdate", .05)
     ok(f.octoGhost:IsShown() and f.octoGhostFrac > .4, "the lost health shows a moment (" .. tostring(f.octoGhostFrac) .. ")")
@@ -1436,7 +1438,7 @@ do
   if UF and O then
     local sec
     for _, s in ipairs(O.octo) do if s[1] == "Unit Frames" then sec = s end end
-    ok(sec and table.getn(sec[2]) == 4, "Unit Frames: four pages (with Cast bars) instead of fifteen")
+    ok(sec and table.getn(sec[2]) == 3, "Unit Frames: three pages (Frames, Click casting, Cast bars) instead of fifteen")
     local old = 0
     for k in pairs(O.legacy) do if string.find(k, "^l:Unit Frames") then old = old + 1 end end
     ok(old == 0, "pfUI's own Unit Frames pages are gone from the list")
@@ -1500,6 +1502,24 @@ do
     M.Refresh()
     ok(M.sets.raid and table.getn(M.sets.raid.frames) == 10 and M.sets.raid:IsShown() and not M.sets.player:IsShown(),
       "the Raid tab shows ten raid frames instead")
+    -- the preview shows part health, so textures and shades can be seen
+    local rf = M.sets.raid.frames[1]
+    ok(rf.hp.bar.val and rf.hp.bar.val < 100 and rf.power.bar.val == 60, "the preview's bars are part full (" .. tostring(rf.hp.bar.val) .. ")")
+    -- the shared settings sit on the Frames page, the font under the preview
+    local fp = O.pages.ufframes
+    local titles = {}
+    for i, card in ipairs(fp and fp.cards or {}) do titles[i] = card.title end
+    ok(titles[1] == "All frames: text", "the font card comes first, under the preview (" .. tostring(titles[1]) .. ")")
+    local hasBottom
+    for _, t in ipairs(titles) do if t == "All frames: colours" then hasBottom = true end end
+    ok(hasBottom, "the other shared cards are on the Frames page too")
+    -- the font changes the frames at once
+    local was = pfUI_config.global.font_unit
+    pfUI_config.global.font_unit = "Interface\\AddOns\\pfUI\\fonts\\Myriad-Pro.ttf"
+    UF.FontNow()
+    ok(pfUI.font_unit == pfUI.media[pfUI_config.global.font_unit], "a new unit frame font applies without a reload")
+    pfUI_config.global.font_unit = was
+    UF.FontNow()
     UF.cur = "player"
     M.Refresh()
     -- the cast bar page: an animated sample, every part opens its card
