@@ -447,6 +447,86 @@ function W.Page(parent)
            parent = body, x0 = X, y0 = 0, width = W.WIDTH - 2 * X, lastX = 0 }
 end
 
+-- A pinned strip at the top of a page (user, 22 Oct 2026: "hard lock the
+-- preview window like a header and everything scrolls underneath"): it sits
+-- above the page's scrolling part, which starts below it. build(p) fills it
+-- with the usual widgets (they go into the strip while it runs). A title bar
+-- folds it away; folded or not is kept per page (B.Store().pins).
+function W.Pin(p, title, tip, build)
+  local sf = p.frame
+  local panel = sf:GetParent()
+  local pin = CreateFrame("Frame", nil, sf)
+  pin.octoPinned = true
+  pin:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -8)
+  pin:SetWidth(W.WIDTH)
+  pin:SetHeight(CARD_HEAD)
+  W.Flat(pin, C.card, 1, C.line)
+  local head = CreateFrame("Button", nil, pin)
+  head:SetPoint("TOPLEFT", pin, "TOPLEFT", 1, -1)
+  head:SetPoint("TOPRIGHT", pin, "TOPRIGHT", -1, -1)
+  head:SetHeight(CARD_HEAD - 2)
+  local bg = W.Fill(head, C.head, 1, "BACKGROUND")
+  bg:SetAllPoints(head)
+  Hover(head, 0.05)
+  local arrow = W.Arrow(head, 10, "down")
+  arrow:SetPoint("LEFT", head, "LEFT", 8, 0)
+  local t = W.Font(head:CreateFontString(nil, "OVERLAY"), 12, C.text[1], C.text[2], C.text[3])
+  t:SetPoint("LEFT", arrow, "RIGHT", 7, 0)
+  t:SetText(title)
+  local note = W.Font(head:CreateFontString(nil, "OVERLAY"), 10, C.dim[1], C.dim[2], C.dim[3])
+  note:SetPoint("RIGHT", head, "RIGHT", -10, 0)
+  note:SetText("stays here while the page scrolls")
+  W.Tip(head, title, tip)
+  local inner = CreateFrame("Frame", nil, pin)
+  inner:SetPoint("TOPLEFT", pin, "TOPLEFT", 10, -CARD_HEAD - 4)
+  inner:SetWidth(W.CW)
+  inner:SetHeight(1)
+  -- the widgets go into the strip while build runs
+  local c = { parent = inner, x0 = 0, y0 = 0, lastX = 0, width = W.CW }
+  local was = p.cur
+  p.cur = c
+  build(p)
+  p.cur = was
+  local key = p.key or title
+  local function Store() local s = B.Store() s.pins = s.pins or {} return s.pins end
+  local function Layout()
+    local open = not Store()[key]
+    local h = CARD_HEAD
+    if open then
+      inner:Show()
+      local top, bottom = inner:GetTop(), c.last and c.last:GetBottom()
+      local content = (top and bottom) and (top - bottom) or (pin.contentH or 200)
+      pin.contentH = content
+      h = CARD_HEAD + content + 14
+      W.Turn(arrow, "down")
+    else
+      inner:Hide()
+      W.Turn(arrow, "right")
+    end
+    pin:SetHeight(h)
+    -- the scrolling part starts under the strip
+    sf:ClearAllPoints()
+    sf:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -8 - h - 6)
+    sf:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -24, 8)
+  end
+  head:SetScript("OnClick", function()
+    Store()[key] = not Store()[key] or nil
+    Layout()
+  end)
+  -- measured once it is drawn (sizes come a frame late), and on every show
+  pin:SetScript("OnShow", function() this.measure = 2 end)
+  pin:SetScript("OnUpdate", function()
+    if not this.measure then return end
+    this.measure = this.measure - 1
+    if this.measure <= 0 then this.measure = nil end
+    Layout()
+  end)
+  pin.measure = 2
+  Layout()
+  p.pin = pin
+  return pin
+end
+
 -- Anchors a region on a new line of container c, x from its left edge.
 -- (octo) extra room between every row of the options: the Spacing slider in
 -- the window's top bar (user, 22 Oct 2026), per account; pages are rebuilt
@@ -1277,6 +1357,8 @@ end
 function W.Viewport(region)
   local f = region and region:GetParent()
   while f do
+    -- a pinned strip (W.Pin) does not scroll: nothing cuts it off
+    if f.octoPinned then return end
     if f.GetVerticalScrollRange and f.GetObjectType and f:GetObjectType() == "ScrollFrame" then return f end
     f = f:GetParent()
   end

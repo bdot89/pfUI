@@ -1935,6 +1935,13 @@ do
     end
     ok(octo > 0 and legacy == 0, "Find: nameplate settings on the new pages only (" .. octo .. " / " .. legacy .. ")")
     O.quickFind:SetText("")
+    -- the preview is pinned above the page's scrolling part, and can fold
+    O:Select("o:nplook")
+    local pl = O.pages.nplook
+    ok(pl and pl.pin and pl.pin.octoPinned and pl.pin:GetParent() == pl.frame, "the preview is pinned at the top of the page")
+    local top = pl.frame.points and pl.frame.points[1]
+    ok(top and top[1] == "TOPLEFT" and top[5] < -40, "the options scroll below it (" .. tostring(top and top[5]) .. ")")
+    ok(pfUI.octoui.W.Viewport(pl.pin) == nil, "nothing cuts the pinned strip off")
     -- a part's options card lights up itself (cut off by the page's scrolling)
     local c = pfUI.plates.OpenSection and pfUI.plates.OpenSection("nplook", "Raid mark")
     ok(c and c.card, "Raid mark card opened from the preview")

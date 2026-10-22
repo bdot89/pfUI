@@ -106,14 +106,14 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   -- Sample nameplates drawn with every setting as it is now (OctoBG's
   -- "Icons on nameplates" box), and the test on the real ones.
+  -- (pinned at the top of the page: the options scroll under it)
   local function Preview(p, h)
-    W.Card(p, "Preview", { tip = "Click any part to open its settings, drag it to move it, hold Shift and scroll the mouse wheel over it "
+    W.Pin(p, "Preview", "Click any part to open its settings, drag it to move it, hold Shift and scroll the mouse wheel over it "
       .. "to make it bigger or smaller, right-click it to put it back. "
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
-      .. "a friendly player. Changes show here at once." })
-    -- tall enough that a sample with two aura rows and big icons keeps its size
-    local box = W.Box(p, h or 430)
+      .. "a friendly player. Changes show here at once. Click this bar to fold it away.", function(p)
+    local box = W.Box(p, h or 290)
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page
@@ -144,9 +144,12 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
     how:SetText(key .. "Click|r  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  bigger / smaller     "
       .. key .. "Right-click|r  put it back")
-    W.Live(p, function()
-      if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
-      return "Test on real nameplates puts pretend threat colours, casts and auras on every enemy plate you can see for a minute."
+    -- the test's time left, at the band's right end
+    local status = band:CreateFontString(nil, "OVERLAY")
+    status:SetFont(W.UIFont(), 12, "OUTLINE")
+    status:SetPoint("RIGHT", band, "RIGHT", -8, 0)
+    band:SetScript("OnUpdate", function()
+      if P.Testing() then status:SetText("|cff55ff55Test " .. math.ceil(P.testUntil - GetTime()) .. " s|r") else status:SetText("") end
     end)
     W.Buttons(p, {
       { "Reset everything", function()
@@ -171,9 +174,13 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       end, 120, "Everything you dragged goes back to its first place." },
       { "Test on real nameplates", function() P.Test(60) end, 180,
         "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city." },
-      { "Stop test", function() P.Test(0) end, 90, "Ends the test." },
+      { "Stop test", function() P.Test(0) end, 80, "Ends the test." },
+      { "Grid", function()
+        C.plates.previewgrid = (C.plates.previewgrid == "0") and "1" or "0"
+        U()
+      end, 60, "Grid lines in the preview on or off, with a yellow middle line across and down each sample to line parts up." },
     })
-    Chk(p, "Grid", "Grid lines in the preview, with a yellow middle line across and down each sample to line parts up.", S, "previewgrid")
+    end)
   end
 
   -- the looks, four to a row; the picked one is lit (none = your own mix)

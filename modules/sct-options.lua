@@ -88,10 +88,11 @@ local AREA = { cur = "inc" }
 -- wheel for its text size, right-click to put it back.
 local function Preview(p)
   if not CT.Mini then return end
-  W.Card(p, "Preview", { tip = "A small copy of your screen: every scroll area where it sits, an enemy nameplate, and "
+  -- (pinned at the top of the page: the options scroll under it)
+  W.Pin(p, "Preview", "A small copy of your screen: every scroll area where it sits, an enemy nameplate, and "
     .. "sample texts moving as you set them. Click an area for its options, drag it to move it, hold Shift and scroll "
-    .. "the mouse wheel over it for its text size, right-click it to put it back." })
-  local mini = CT.Mini(W.Box(p, 300), function(key)
+    .. "the mouse wheel over it for its text size, right-click it to put it back. Click this bar to fold it away.", function(p)
+  local mini = CT.Mini(W.Box(p, 250), function(key)
     if key == "plate" then
       O:Open("ctplates")
     else
@@ -117,6 +118,7 @@ local function Preview(p)
   local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
   how:SetText(key .. "Click|r an area  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  text size     "
     .. key .. "Right-click|r  put it back")
+  end)
 end
 
 -- One-click looks for all combat text: { key, label, top keys, every area's keys, plate keys, area keys by area }
