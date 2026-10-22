@@ -90,21 +90,40 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   local ROLE = { auto = "Automatic", tank = "Tank", dps = "Damage / healer" }
 
+  local function Auto(v) return v == 0 and "auto" or (v .. " px") end
+
+  -- a mark's art, each choice shown as its icon in its colour
+  local function MarkDrop(p, label, key, colorKey)
+    local list = {}
+    local r, g, b = GetStringColor(C.plates[colorKey] or "1,1,1,1")
+    for _, m in ipairs(P.MARKART) do
+      table.insert(list, { key = m.key, label = m.label, icon = P.MarkArt(m.key),
+        iconColor = { tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1 } })
+    end
+    return W.Dropdown(p, label, "The art of this mark; None = no mark.", list,
+      function() return C.plates[key] end, function(v) C.plates[key] = v; U() end)
+  end
+
   -- Sample nameplates drawn with every setting as it is now (OctoBG's
   -- "Icons on nameplates" box), and the test on the real ones.
   local function Preview(p, h)
-    W.Card(p, "Preview", { tip = "Click any part to open its settings; drag the cast bar, combo points, auras or raid mark to move them. "
+    W.Card(p, "Preview", { tip = "Click any part to open its settings, drag it to move it, scroll the mouse wheel over it to make it "
+      .. "bigger or smaller, right-click it to put it back. "
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
     P.AttachPreview(W.Box(p, h or 212))
     W.Live(p, function()
-      if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
-      return "Test on real nameplates puts pretend threat colours and casts on every plate you can see for a minute."
+      local how = "|cffffffffClick|r a part: its options    |cffffffffDrag|r: move it    |cffffffffMouse wheel|r: bigger / smaller    "
+        .. "|cffffffffRight-click|r: put it back"
+      if P.Testing() then return how .. "\n|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
+      return how .. "\nTest on real nameplates puts pretend threat colours, casts and auras on every enemy plate you can see for a minute."
     end)
     W.Buttons(p, {
       { "Put parts back", function()
-        for _, k in ipairs({ "castoffx", "castoffy", "cpoffx", "cpoffy", "auraoffx", "specialoffx", "specialoffy" }) do C.plates[k] = "0" end
+        for _, k in ipairs({ "castoffx", "castoffy", "cpoffx", "cpoffy", "auraoffx", "specialoffx", "specialoffy",
+          "nameoffx", "nameoffy", "leveloffx", "leveloffy", "hpoffx", "hpoffy", "markoffx", "markoffy",
+          "questoffx", "questoffy", "ciconoffx", "ciconoffy", "targetgap" }) do C.plates[k] = "0" end
         C.plates.auraoffset = "2"
         C.nameplates.raidiconoffx, C.nameplates.raidiconoffy = "0", "-5"
         U()
@@ -224,7 +243,12 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Unit frame font", "Use pfUI's unit frame font when no font is picked above.", N, "use_unitfonts")
     Chk(p, "Show the name", nil, S, "nameshow")
     Chk(p, "Show the level", nil, S, "levelshow")
-    Sld(p, "Elite mark size", "0 = as big as the name.", 0, 32, 1, S, "marksize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Sld(p, "Name left / right", "Or drag the name in the preview.", -80, 80, 1, S, "nameoffx", Px)
+    Sld(p, "Name up / down", nil, -40, 40, 1, S, "nameoffy", Px)
+    Sld(p, "Level left / right", "Or drag the level in the preview.", -80, 80, 1, S, "leveloffx", Px)
+    Sld(p, "Level up / down", nil, -40, 40, 1, S, "leveloffy", Px)
+    Sld(p, "Health text left / right", "Or drag it in the preview.", -80, 80, 1, S, "hpoffx", Px)
+    Sld(p, "Health text up / down", nil, -30, 30, 1, S, "hpoffy", Px)
     Chk(p, "Health text", "Numbers on the health bar.", N, "showhp")
     Drop(p, "Health text place", nil, DD("textalign"), N, "hptextpos")
     Drop(p, "Health text shows", nil, DD("hpformat"), N, "hptextformat")
@@ -336,6 +360,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Accent colour", "The marker in pfUI Octo's accent colour.", S, "targetaccent")
     Color(p, "Marker colour", "When the accent colour is off.", S, "targetcolor")
     Sld(p, "Target size", "Your target's plate grows to this.", 80, 160, 5, S, "size_target", Pct)
+    Sld(p, "Marker size", "0 = twice the bar's height.", 0, 60, 1, S, "targetsize", Auto)
+    Sld(p, "Marker distance", "How far the arrows sit from the bar. Or drag them in the preview.", -20, 60, 1, S, "targetgap", Px)
     Sld(p, "Other plates", "How see-through the plates that are not your target are.", 0.1, 1, 0.05, N, "notargalpha", Alpha)
     Chk(p, "Mouse-over highlight", "The bar lights up under the mouse.", S, "mouseover")
     W.Card(p, "More target effects", { folded = true })
@@ -533,14 +559,35 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       return (pfMap and pfMap.tooltips) and "pfQuest |cff55ff55found|r: kill and loot objectives, quests to take (!) and hand in (?)"
         or "pfQuest |cffff5555not on|r: only mobs to kill from your quest log"
     end)
-    Chk(p, "Quest marks", "A mark right of the name: diamond = for your quest, ! = has a quest for you, ? = hand one in.", S, "questmark")
-    Chk(p, "Colour quest mobs", "Quest mobs' bars in the colour below (threat and NPC colours win).", S, "questbar")
-    Color(p, "Quest colour", nil, S, "questcolor")
-    W.Card(p, "Icons")
+    Chk(p, "Quest marks", "A mark right of the name for quest mobs, quest givers and hand-ins.", S, "questmark")
+    Chk(p, "Colour quest mobs", "Quest mobs' bars in the objective colour (threat and NPC colours win).", S, "questbar")
+    MarkDrop(p, "Quest mob mark", "questobjstyle", "questcolor")
+    Color(p, "Quest mob colour", nil, S, "questcolor")
+    MarkDrop(p, "Quest to take", "queststartstyle", "questgivercolor")
+    MarkDrop(p, "Quest to hand in", "questendstyle", "questgivercolor")
+    Color(p, "Quest giver colour", nil, S, "questgivercolor")
+    Sld(p, "Size", "0 = a bit bigger than the name.", 0, 40, 1, S, "questsize", Auto)
+    Sld(p, "Left / right", "Or drag the mark in the preview.", -80, 80, 1, S, "questoffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "questoffy", Px)
+    W.Card(p, "Elite, rare and boss marks", { on = { function() return C.plates.eliteicon == "1" end,
+      function(v) C.plates.eliteicon = v and "1" or "0"; U() end, "A mark left of the name for elite, rare and boss units." } })
+    MarkDrop(p, "Elite", "markelite", "elitecolor")
+    Color(p, "Elite colour", nil, S, "elitecolor")
+    MarkDrop(p, "Rare", "markrare", "rarecolor")
+    MarkDrop(p, "Rare elite", "markrareelite", "rarecolor")
+    Color(p, "Rare colour", nil, S, "rarecolor")
+    MarkDrop(p, "Boss", "markboss", "bosscolor")
+    Color(p, "Boss colour", nil, S, "bosscolor")
+    Sld(p, "Size", "0 = as big as the name.", 0, 40, 1, S, "marksize", Auto)
+    Sld(p, "Left / right", "Or drag the mark in the preview.", -80, 80, 1, S, "markoffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "markoffy", Px)
+    W.Card(p, "Class and pet icons")
     Chk(p, "Class icon on enemy players", nil, S, "classicon_enemy")
     Chk(p, "Class icon on friendly players", nil, S, "classicon_friend")
     Chk(p, "Paw on pets", nil, S, "peticon")
-    Chk(p, "Elite, rare and boss marks", nil, S, "eliteicon")
+    Sld(p, "Size", "0 = as big as the name.", 0, 40, 1, S, "ciconsize", Auto)
+    Sld(p, "Left / right", "Or drag the icon in the preview.", -80, 80, 1, S, "ciconoffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "ciconoffy", Px)
     W.Card(p, "Auto", { tip = "Nameplates switch themselves on or off. Leave = as you set them with V / Shift-V." })
     local ACT = { { key = "keep", label = "Leave" }, { key = "show", label = "On" }, { key = "hide", label = "Off" } }
     local function A(label, k, list)
@@ -587,8 +634,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     level = { "nplook", "Colours" }, health = { "nplook", "Bar" }, raid = { "nplook", "Raid mark" },
     combo = { "nplook", "Combo points" }, threat = { "npthreat", "Damage and healer colours" },
     target = { "nptarget", "Target" }, cast = { "npcast", "Bar" }, auras = { "npauras", "Icons" },
-    special = { "npauras", "Special auras" }, elite = { "npquest", "Icons" }, quest = { "npquest", "Quests" },
-    icons = { "npquest", "Icons" },
+    special = { "npauras", "Special auras" }, elite = { "npquest", "Elite, rare and boss marks" }, quest = { "npquest", "Quests" },
+    icons = { "npquest", "Class and pet icons" },
   }
   P.GO = GO
   function P.OpenSection(key, title)

@@ -131,7 +131,7 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- plate parts
 
-  local QUESTART = { objective = "quest-objective", start = "quest-start", ["end"] = "quest-end" }
+  local QUESTSTYLE = { objective = "questobjstyle", start = "queststartstyle", ["end"] = "questendstyle" }
 
   function L.Build(plate, o)
     o.qmark = plate:CreateTexture(nil, "OVERLAY")
@@ -144,12 +144,14 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
     if not o.qmark then L.Build(plate, o) end
     L.Read()
     local size = (tonumber(S.namesize) or 0) > 0 and tonumber(S.namesize) or (tonumber(C.global.font_size) or 12)
-    o.qmark:SetWidth(size + 4)
-    o.qmark:SetHeight(size + 4)
+    local qs = (tonumber(S.questsize) or 0) > 0 and tonumber(S.questsize) or (size + 4)
+    o.qmark:SetWidth(qs)
+    o.qmark:SetHeight(qs)
     o.qmark:ClearAllPoints()
-    o.qmark:SetPoint("LEFT", plate.name, "RIGHT", 2, 0)
-    o.cicon:SetWidth(size + 2)
-    o.cicon:SetHeight(size + 2)
+    o.qmark:SetPoint("LEFT", plate.name, "RIGHT", 2 + (tonumber(S.questoffx) or 0), tonumber(S.questoffy) or 0)
+    local cs = (tonumber(S.ciconsize) or 0) > 0 and tonumber(S.ciconsize) or (size + 2)
+    o.cicon:SetWidth(cs)
+    o.cicon:SetHeight(cs)
     o.cicon:ClearAllPoints()
     o.cicon:SetPoint("RIGHT", o.mark, "LEFT", -1, 0)
   end
@@ -168,9 +170,11 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
 
     -- quest mark
     local q = S.questmark == "1" and plate.name:IsShown() and o.quest
-    if q and QUESTART[q] then
-      o.qmark:SetTexture(P.ART(QUESTART[q]))
-      local c = q == "objective" and { GetStringColor(S.questcolor) } or { 1, .82, 0 }
+    -- each kind of quest mark has its own art (picked on the Quests card)
+    local tex = q and P.MarkArt(S[QUESTSTYLE[q] or ""])
+    if tex then
+      o.qmark:SetTexture(tex)
+      local c = { GetStringColor(q == "objective" and S.questcolor or S.questgivercolor) }
       o.qmark:SetVertexColor(tonumber(c[1]) or 1, tonumber(c[2]) or .82, tonumber(c[3]) or 0, 1)
       o.qmark:Show()
     else
@@ -196,7 +200,8 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
       o.cicon:SetTexture(icon)
       if coords then o.cicon:SetTexCoord(coords[1], coords[2], coords[3], coords[4]) else o.cicon:SetTexCoord(0, 1, 0, 1) end
       o.cicon:ClearAllPoints()
-      if o.mark:IsShown() then o.cicon:SetPoint("RIGHT", o.mark, "LEFT", -1, 0) else o.cicon:SetPoint("RIGHT", plate.name, "LEFT", -2, 0) end
+      local ix, iy = tonumber(S.ciconoffx) or 0, tonumber(S.ciconoffy) or 0
+      if o.mark:IsShown() then o.cicon:SetPoint("RIGHT", o.mark, "LEFT", -1 + ix, iy) else o.cicon:SetPoint("RIGHT", plate.name, "LEFT", -2 + ix, iy) end
       o.cicon:Show()
     else
       o.cicon:Hide()
@@ -261,4 +266,19 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
   end)
 
   L.Read()
+
+  -- (not nameplates: a small Octo tweak that needs a module to live in)
+  -- The game's "Screen Captured" text showed up in the user's screenshots
+  -- (22 Oct 2026): its ScreenshotStatus frame stops listening for a good
+  -- screenshot; failures still show. Settings > General can bring it back.
+  function pfUI.octoShot()
+    if not ScreenshotStatus or not ScreenshotStatus.UnregisterEvent then return end
+    if C.global.screenshotmsg == "1" then
+      ScreenshotStatus:RegisterEvent("SCREENSHOT_SUCCEEDED")
+    else
+      ScreenshotStatus:UnregisterEvent("SCREENSHOT_SUCCEEDED")
+      ScreenshotStatus:Hide()
+    end
+  end
+  pfUI.octoShot()
 end)

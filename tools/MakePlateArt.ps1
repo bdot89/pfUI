@@ -42,6 +42,10 @@ public static class Art {
     return p;
   }
   static readonly double[] STAR = Star();
+  static readonly double[] CROWN = { 0.12, 0.2, 0.88, 0.2, 0.9, 0.72, 0.7, 0.48, 0.5, 0.82, 0.3, 0.48, 0.1, 0.72 };
+  static readonly double[] SHIELD = { 0.16, 0.86, 0.84, 0.86, 0.84, 0.5, 0.5, 0.1, 0.16, 0.5 };
+  static readonly double[] SPARKLE = { 0.5, 0.95, 0.6, 0.6, 0.95, 0.5, 0.6, 0.4, 0.5, 0.05, 0.4, 0.4, 0.05, 0.5, 0.4, 0.6 };
+  static readonly double[] HEX = { 0.5, 0.92, 0.86, 0.71, 0.86, 0.29, 0.5, 0.08, 0.14, 0.29, 0.14, 0.71 };
   static readonly double[] ARROW = { 0.12, 0.14, 0.88, 0.5, 0.12, 0.86, 0.34, 0.5 };
   static readonly double[] CHEV1 = { 0.06, 0.12, 0.26, 0.12, 0.54, 0.5, 0.26, 0.88, 0.06, 0.88, 0.34, 0.5 };
   static readonly double[] CHEV2 = { 0.40, 0.12, 0.60, 0.12, 0.88, 0.5, 0.60, 0.88, 0.40, 0.88, 0.68, 0.5 };
@@ -200,6 +204,22 @@ public static class Art {
         a = Math.Exp(-r * r * 18);
         return;
       }
+      // marks to choose from (elite / rare / boss / quest): solid shapes, dark outline
+      case "mark-crown": case "mark-shield": case "mark-sparkle": case "mark-hex": {
+        double[] poly = kind == "mark-crown" ? CROWN : kind == "mark-shield" ? SHIELD : kind == "mark-sparkle" ? SPARKLE : HEX;
+        if (Poly(poly, u, v)) { lum = 0.72 + 0.28 * v; a = 1; }
+        else if (Poly(poly, 0.5 + (u - 0.5) / 1.14, 0.5 + (v - 0.5) / 1.14)) { lum = 0; a = 0.9; }
+        else a = 0;
+        return;
+      }
+      case "quest-circle": case "quest-circle-ask": {
+        double r = Math.Sqrt((u - .5) * (u - .5) + (v - .5) * (v - .5));
+        bool sign = kind == "quest-circle" ? Bang(u, v, 0.5, 0.2, 0.8) : Ask(0.5 + (u - 0.5) * 1.35, 0.5 + (v - 0.5) * 1.35, 0);
+        if (r <= .42) { lum = sign ? 0.0 : 0.75 + 0.25 * v; a = 1; }
+        else if (r <= .48) { lum = 0; a = .9; }
+        else a = 0;
+        return;
+      }
       case "pet": {
         bool pad = Circle(u, v, 0.5, 0.36, 0.2);
         bool toes = Circle(u, v, 0.22, 0.62, 0.09) || Circle(u, v, 0.4, 0.76, 0.09) || Circle(u, v, 0.6, 0.76, 0.09) || Circle(u, v, 0.78, 0.62, 0.09);
@@ -248,7 +268,9 @@ $list = @(
   @("arrow", 64, 64), @("chevron", 64, 64), @("corner", 32, 32), @("underglow", 256, 64), @("spark", 32, 64),
   @("star", 32, 32), @("skull", 32, 32), @("tick", 8, 32),
   @("quest-objective", 32, 32), @("quest-start", 32, 32), @("quest-end", 32, 32), @("pet", 32, 32),
-  @("cp-orb", 32, 32), @("cp-gem", 32, 32), @("cp-square", 32, 32), @("cp-ring", 32, 32), @("cp-glow", 32, 32)
+  @("cp-orb", 32, 32), @("cp-gem", 32, 32), @("cp-square", 32, 32), @("cp-ring", 32, 32), @("cp-glow", 32, 32),
+  @("mark-crown", 32, 32), @("mark-shield", 32, 32), @("mark-sparkle", 32, 32), @("mark-hex", 32, 32),
+  @("quest-circle", 32, 32), @("quest-circle-ask", 32, 32)
 )
 foreach ($t in $list) {
   [Art]::Write((Join-Path $OutDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])

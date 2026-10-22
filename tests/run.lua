@@ -1714,6 +1714,35 @@ do
         S.castoffx, S.castoffy = "0", "0"
         Mock.cx, Mock.cy = nil, nil
       end
+      -- the name drags too; the wheel resizes; right-click puts it back
+      local nh = fp.name.hots and fp.name.hots[first]
+      if nh then
+        Mock.cx, Mock.cy = 0, 0
+        Mock.Run(nh, "OnMouseDown")
+        Mock.cx, Mock.cy = 10, 6
+        Mock.now = Mock.now + 1
+        Mock.Run(nh, "OnUpdate", .1)
+        Mock.Run(nh, "OnMouseUp")
+        Mock.Run(nh, "OnClick")   -- the client clicks after a drag; it is swallowed
+        ok(S.nameoffx == "10" and S.nameoffy == "6", "the name drags (" .. S.nameoffx .. ", " .. S.nameoffy .. ")")
+        local cast = fp.castbar.hots[first]
+        local h0 = tonumber(S.castheight)
+        Mock.Run(cast, "OnMouseWheel", 1)
+        ok(tonumber(S.castheight) == h0 + 1, "the wheel makes the cast bar taller")
+        Mock.Run(nh, "OnClick", "RightButton")
+        ok(S.nameoffx == "0" and S.nameoffy == "0", "right-click puts the name back")
+        Mock.Run(cast, "OnClick", "RightButton")
+        ok(S.castheight == "12", "right-click puts the cast bar's size back")
+        Mock.cx, Mock.cy = nil, nil
+      end
+      -- every mark has its art
+      S.markelite = "crown"
+      P.Update(fp)
+      ok(fp.octo.mark:IsShown() and string.find(fp.octo.mark.texture or "", "mark%-crown"), "elite mark as a crown")
+      S.markelite = "none"
+      P.Update(fp)
+      ok(not fp.octo.mark:IsShown(), "elite mark None")
+      S.markelite = "star"
       P.OnPreviewClick = was
       ok(fp.octo.cp and fp.octo.cp[1].hots, "combo points are clickable")
       S.skin = "thick"

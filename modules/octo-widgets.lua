@@ -994,6 +994,16 @@ function W.Menu(anchor, options, width, onPick)
     t:SetWidth(width - 20)
     t:SetJustifyH("LEFT")
     if o.font then t:SetFont(o.font, 13, "") end
+    -- (octo) an icon shows as a small square before its name
+    if o.icon then
+      local ic = e:CreateTexture(nil, "ARTWORK")
+      ic:SetTexture(o.icon)
+      ic:SetWidth(14)
+      ic:SetHeight(14)
+      ic:SetPoint("LEFT", e, "LEFT", 4, 0)
+      if o.iconColor then ic:SetVertexColor(o.iconColor[1], o.iconColor[2], o.iconColor[3]) end
+      t:SetPoint("LEFT", e, "LEFT", 24, 0)
+    end
     -- (octo) a texture shows as a strip behind its name
     if o.texture then
       local s = e:CreateTexture(nil, "BORDER")
@@ -1057,9 +1067,16 @@ function W.MiniDrop(parent, width, options, get, set, menuWidth)
   sample:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 2)
   sample:SetVertexColor(.25, .55, .9, .9)
   sample:Hide()
+  local icon = f:CreateTexture(nil, "ARTWORK")
+  icon:SetWidth(14)
+  icon:SetHeight(14)
+  icon:SetPoint("LEFT", f, "LEFT", 4, 0)
+  icon:Hide()
   local function Refresh()
     local k = get()
     sample:Hide()
+    icon:Hide()
+    text:SetPoint("LEFT", f, "LEFT", 7, 0)
     for i = 1, table.getn(options) do
       local o = options[i]
       if o.key == k then
@@ -1069,6 +1086,12 @@ function W.MiniDrop(parent, width, options, get, set, menuWidth)
           sample:SetTexture(o.texture)
           sample:Show()
           text:SetFont(W.UIFont(), 11, "OUTLINE")
+        end
+        if o.icon then
+          icon:SetTexture(o.icon)
+          if o.iconColor then icon:SetVertexColor(o.iconColor[1], o.iconColor[2], o.iconColor[3]) else icon:SetVertexColor(1, 1, 1) end
+          icon:Show()
+          text:SetPoint("LEFT", f, "LEFT", 24, 0)
         end
         text:SetText(o.label)
         return

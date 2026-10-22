@@ -33,7 +33,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   local COL = {}
   local COLORS = { "c_aggro", "c_pulling", "c_safe", "c_tankaggro", "c_losing", "c_offtank", "c_lost", "c_taking",
     "executecolor", "c_cast", "c_channel", "c_done", "c_stopped", "bgcolor", "castbg", "targetcolor",
-    "namecolor", "levelcolor", "hptextcolor", "casttextcolor", "bordercolor", "skincolor", "cpcustom" }
+    "namecolor", "levelcolor", "hptextcolor", "casttextcolor", "bordercolor", "skincolor", "cpcustom",
+    "elitecolor", "rarecolor", "bosscolor", "questcolor", "questgivercolor" }
   local function ReadColors()
     for _, k in ipairs(COLORS) do
       local r, g, b, a = GetStringColor(S[k] or "1,1,1,1")
@@ -323,6 +324,18 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if hpsize <= 0 then hpsize = fsize - 2 end
     local h, cb = plate.health, plate.castbar
 
+    -- places: the bar hangs from the top of the plate (pfUI hangs it from the
+    -- name) so the name can be moved on its own; health text moves too
+    local nx, ny = tonumber(S.nameoffx) or 0, tonumber(S.nameoffy) or 0
+    plate.name:ClearAllPoints()
+    plate.name:SetPoint("TOP", plate, "TOP", nx, ny)
+    h:ClearAllPoints()
+    h:SetPoint("TOP", plate, "TOP", 0, -namesize + (tonumber(C.nameplates.health.offset) or -3))
+    local hx, hy = tonumber(S.hpoffx) or 0, tonumber(S.hpoffy) or 0
+    h.text:ClearAllPoints()
+    h.text:SetPoint("TOPLEFT", h, "TOPLEFT", 2 + hx, hy)
+    h.text:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -2 + hx, hy)
+
     -- look
     plate.name:SetFont(font, namesize, style)
     plate.level:SetFont(font, namesize, style)
@@ -384,7 +397,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local hh = tonumber(C.nameplates.heighthealth) or 8
     local r, g, b, a = COL.targetcolor[1], COL.targetcolor[2], COL.targetcolor[3], COL.targetcolor[4]
     if S.targetaccent == "1" and GetAccentColor then r, g, b = GetAccentColor() end
-    local isz = math.max(12, hh * 2)
+    local isz = (tonumber(S.targetsize) or 0) > 0 and tonumber(S.targetsize) or math.max(12, hh * 2)
+    local tgap = tonumber(S.targetgap) or 0
     local arrow = S.indicator == "chevrons" and Art("chevron") or Art("arrow")
     o.left:SetTexture(arrow)
     o.right:SetTexture(arrow)
@@ -396,9 +410,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       t:SetVertexColor(r, g, b, a)
     end
     o.left:ClearAllPoints()
-    o.left:SetPoint("RIGHT", plate.level, "LEFT", -1, 0)
+    o.left:SetPoint("RIGHT", plate.level, "LEFT", -1 - tgap, 0)
     o.right:ClearAllPoints()
-    o.right:SetPoint("LEFT", h, "RIGHT", 3, 0)
+    o.right:SetPoint("LEFT", h, "RIGHT", 3 + tgap, 0)
     local csz = math.max(6, hh)
     local CORNERS = {
       { "TOPLEFT", -3, 3, 0, 1, 0, 1 }, { "TOPRIGHT", 3, 3, 1, 0, 0, 1 },
@@ -451,7 +465,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.mark:SetWidth(msz)
     o.mark:SetHeight(msz)
     o.mark:ClearAllPoints()
-    o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2, 0)
+    o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2 + (tonumber(S.markoffx) or 0), tonumber(S.markoffy) or 0)
 
     o.scale = nil
     if P.Lists then P.Lists.Configure(plate, o) end
@@ -585,9 +599,24 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.cpglowing = true
   end
 
+  -- the art you can pick for any mark (user, 22 Oct 2026: "different elite
+  -- markers and different quest icons all should have art options")
+  P.MARKART = {
+    { key = "star", label = "Star", art = "star" }, { key = "crown", label = "Crown", art = "mark-crown" },
+    { key = "sparkle", label = "Sparkle", art = "mark-sparkle" }, { key = "shield", label = "Shield", art = "mark-shield" },
+    { key = "hex", label = "Hexagon", art = "mark-hex" }, { key = "gem", label = "Gem", art = "cp-gem" },
+    { key = "orb", label = "Orb", art = "cp-orb" }, { key = "skull", label = "Skull", art = "skull" },
+    { key = "diamond", label = "Diamond !", art = "quest-objective" }, { key = "circle", label = "Circle !", art = "quest-circle" },
+    { key = "bang", label = "!", art = "quest-start" }, { key = "ask", label = "?", art = "quest-end" },
+    { key = "circleask", label = "Circle ?", art = "quest-circle-ask" }, { key = "none", label = "None" },
+  }
+  local MARKBY = {}
+  for _, m in ipairs(P.MARKART) do MARKBY[m.key] = m.art end
+  function P.MarkArt(key) return MARKBY[key or ""] and Art(MARKBY[key]) end
+  -- unit kind -> its style and colour settings
   local MARKS = {
-    elite = { "star", 1, .8, .25 }, rareelite = { "star", .85, .9, 1 }, rare = { "star", .7, .75, .85 },
-    worldboss = { "skull", 1, .9, .9 }, boss = { "skull", 1, .9, .9 },
+    elite = { "markelite", "elitecolor" }, rareelite = { "markrareelite", "rarecolor" }, rare = { "markrare", "rarecolor" },
+    worldboss = { "markboss", "bosscolor" }, boss = { "markboss", "bosscolor" },
   }
 
   -- everything that changes with the unit (runs after pfUI's own update)
@@ -674,9 +703,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       if pv then cls = pv.class end
       mark = cls and MARKS[cls]
     end
-    if mark then
-      o.mark:SetTexture(Art(mark[1]))
-      o.mark:SetVertexColor(mark[2], mark[3], mark[4], 1)
+    local tex = mark and P.MarkArt(S[mark[1]])
+    if tex then
+      local c = COL[mark[2]]
+      o.mark:SetTexture(tex)
+      o.mark:SetVertexColor(c[1], c[2], c[3], c[4])
       o.mark:Show()
     else
       o.mark:Hide()
@@ -819,6 +850,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
 
     Vis(o.hl, S.mouseover == "1" and plate.cache.mouseover and plate.health:IsShown())
+    -- the level's place (pfUI puts it back on every update)
+    if plate.health:IsShown() and ((tonumber(S.leveloffx) or 0) ~= 0 or (tonumber(S.leveloffy) or 0) ~= 0) then
+      plate.level:ClearAllPoints()
+      plate.level:SetPoint("RIGHT", plate.health, "LEFT", -5 + (tonumber(S.leveloffx) or 0), tonumber(S.leveloffy) or 0)
+    end
     -- name / level shown or not (see-through, so the bar under them stays put)
     plate.name:SetAlpha(S.nameshow == "0" and 0 or 1)
     plate.level:SetAlpha(S.levelshow == "0" and 0 or 1)
@@ -955,6 +991,22 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     cast = { "castoffx", "castoffy" }, combo = { "cpoffx", "cpoffy" },
     auras = { "auraoffx", "auraoffset" }, special = { "specialoffx", "specialoffy" },
     raid = { "raidiconoffx", "raidiconoffy", pf = true },
+    name = { "nameoffx", "nameoffy" }, level = { "leveloffx", "leveloffy" }, hptext = { "hpoffx", "hpoffy" },
+    elite = { "markoffx", "markoffy" }, quest = { "questoffx", "questoffy" }, icons = { "ciconoffx", "ciconoffy" },
+    target = { "targetgap" },
+  }
+  -- what the mouse wheel makes bigger / smaller (pf = pfUI's own keys)
+  P.SIZE = {
+    name = { "namesize" }, level = { "namesize" }, guild = { "namesize" }, hptext = { "hpsize" },
+    cast = { "castheight" }, combo = { "cpsize" }, auras = { "aurawidth", "auraheight" }, special = { "specialsize" },
+    elite = { "marksize" }, quest = { "questsize" }, icons = { "ciconsize" }, target = { "targetsize" },
+    raid = { "raidiconsize", pf = true }, health = { "heighthealth", pf = true }, threat = { "heighthealth", pf = true },
+  }
+  -- what right-click puts back
+  P.PUTBACK = {
+    namesize = "0", hpsize = "0", castheight = "12", cpsize = "12", aurawidth = "20", auraheight = "16",
+    specialsize = "32", marksize = "0", questsize = "0", ciconsize = "0", targetsize = "0", auraoffset = "2",
+    raidiconsize = "16", heighthealth = "12", raidiconoffy = "-5",
   }
   function P.Hot(game, region, what, level)
     if not region or not game or not game.preview then return end
@@ -976,18 +1028,35 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       this.hl:Show()
       GameTooltip:SetOwner(this, "ANCHOR_TOP")
       GameTooltip:AddLine(P.HOTLABEL[this.what] or this.what)
-      GameTooltip:AddLine(P.DRAG[this.what] and "Click: its options.  Drag: move it." or "Click to change it", 1, 1, 1)
+      GameTooltip:AddLine("Click: its options", 1, 1, 1)
+      if P.DRAG[this.what] then GameTooltip:AddLine("Drag: move it", 1, 1, 1) end
+      if P.SIZE[this.what] then GameTooltip:AddLine("Mouse wheel: bigger / smaller", 1, 1, 1) end
+      GameTooltip:AddLine("Right-click: put it back", 1, 1, 1)
       GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function()
       this.hl:Hide()
       GameTooltip:Hide()
     end)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function()
       -- a drag is not a click
       if this.dragged then this.dragged = nil return end
-      if this.region:IsVisible() and P.OnPreviewClick then P.OnPreviewClick(this.what) end
+      if not this.region:IsVisible() then return end
+      if arg1 == "RightButton" then
+        P.PutBack(this.what)
+      elseif P.OnPreviewClick then
+        P.OnPreviewClick(this.what)
+      end
     end)
+    -- the mouse wheel makes the part bigger or smaller
+    if P.SIZE[what] then
+      b:EnableMouseWheel(true)
+      b:SetScript("OnMouseWheel", function()
+        if not this.region:IsVisible() then return end
+        P.Resize(this.what, arg1 or 0, this.region)
+      end)
+    end
     -- (user, 22 Oct 2026: "you should be able to drag features") parts with a
     -- place of their own move with the mouse; the setting follows
     local drag = P.DRAG[what]
@@ -995,7 +1064,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       b:SetScript("OnMouseDown", function()
         local cx, cy = GetCursorPosition()
         local t = drag.pf and C.nameplates or S
-        this.down = { cx, cy, tonumber(t[drag[1]]) or 0, tonumber(t[drag[2]]) or 0 }
+        this.down = { cx, cy, tonumber(t[drag[1]]) or 0, drag[2] and tonumber(t[drag[2]]) or 0 }
         this.dragged = nil
         this:SetScript("OnUpdate", function()
           local d = this.down
@@ -1007,7 +1076,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           this.dragged = true
           local t = drag.pf and C.nameplates or S
           t[drag[1]] = tostring(d[3] + dx)
-          t[drag[2]] = tostring(d[4] + dy)
+          if drag[2] then t[drag[2]] = tostring(d[4] + dy) end
           if (this.next or 0) < GetTime() then
             this.next = GetTime() + .05
             P.Refresh()
@@ -1022,6 +1091,29 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
     region.hots[game] = b
     return b
+  end
+
+  -- one step of the mouse wheel on a part: its size settings go up / down
+  -- a pixel ("0" = automatic starts from the size it has now)
+  function P.Resize(what, step, region)
+    local keys = P.SIZE[what]
+    if not keys then return end
+    local t = keys.pf and C.nameplates or S
+    for _, k in ipairs(keys) do
+      local cur = tonumber(t[k]) or 0
+      if cur <= 0 and region then cur = math.floor((region:GetHeight() or 10) + .5) end
+      t[k] = tostring(math.max(2, math.min(80, cur + step)))
+    end
+    P.Refresh()
+  end
+
+  -- right-click on a part: its place and size go back to the first ones
+  function P.PutBack(what)
+    for _, set in ipairs({ P.DRAG[what], P.SIZE[what] }) do
+      local t = set and set.pf and C.nameplates or S
+      for _, k in ipairs(set or {}) do t[k] = P.PUTBACK[k] or "0" end
+    end
+    P.Refresh()
   end
 
   local function SamplePlate(box, d)
