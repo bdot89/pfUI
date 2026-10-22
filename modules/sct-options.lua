@@ -92,7 +92,7 @@ local function Preview(p)
   W.Pin(p, "Preview", "A small copy of your screen: every scroll area where it sits, an enemy nameplate, and "
     .. "sample texts moving as you set them. Click an area for its options, drag it to move it, hold Shift and scroll "
     .. "the mouse wheel over it for its text size, right-click it to put it back. Click this bar to fold it away.", function(p)
-  local mini = CT.Mini(W.Box(p, 250), function(key)
+  local mini = CT.Mini(W.Box(p, 190), function(key)
     if key == "plate" then
       O:Open("ctplates")
     else
@@ -103,7 +103,7 @@ local function Preview(p)
   end)
   table.insert(p.items, { Refresh = function() mini.Refresh() end })
   -- what the mouse does, in an accent band
-  local band = W.Row(p, 28, 0, 4)
+  local band = W.Row(p, 20, 0, 3)
   local bg = band:CreateTexture(nil, "BACKGROUND")
   bg:SetAllPoints(band)
   bg:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -111,7 +111,7 @@ local function Preview(p)
   if GetAccentColor then ar, ag, ab = GetAccentColor() end
   bg:SetVertexColor(ar, ag, ab, .22)
   local how = band:CreateFontString(nil, "OVERLAY")
-  how:SetFont(W.UIFont(), 13, "OUTLINE")
+  how:SetFont(W.UIFont(), 11, "OUTLINE")
   how:SetPoint("LEFT", band, "LEFT", 12, 0)
   how:SetPoint("RIGHT", band, "RIGHT", -8, 0)
   how:SetJustifyH("LEFT")

@@ -110,34 +110,34 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- which is a marked target, which is an elite, which is a rare, what the
   -- marks mean"), drawn in the art and colours picked for them.
   local LEGEND = {
-    { "Your target", function() return P.ART(C.plates.indicator == "chevrons" and "chevron" or "arrow") end, "targetcolor" },
+    { "Target", function() return P.ART(C.plates.indicator == "chevrons" and "chevron" or "arrow") end, "targetcolor" },
     { "Elite", function() return P.MarkArt(C.plates.markelite) end, "elitecolor" },
     { "Rare", function() return P.MarkArt(C.plates.markrare) end, "rarecolor" },
     { "Rare elite", function() return P.MarkArt(C.plates.markrareelite) end, "rarecolor" },
     { "Boss", function() return P.MarkArt(C.plates.markboss) end, "bosscolor" },
     { "Quest mob", function() return P.MarkArt(C.plates.questobjstyle) end, "questcolor" },
-    { "Quest to take", function() return P.MarkArt(C.plates.queststartstyle) end, "questgivercolor" },
+    { "Quest", function() return P.MarkArt(C.plates.queststartstyle) end, "questgivercolor" },
     { "Hand in", function() return P.MarkArt(C.plates.questendstyle) end, "questgivercolor" },
     { "Raid mark", function() return "Interface\\TargetingFrame\\UI-RaidTargetingIcons" end, nil, { .75, 1, .25, .5 } },
   }
   local function Legend(p)
-    local row = W.Row(p, 20, 0, 4)
+    local row = W.Row(p, 16, 0, 3)
     local items = {}
     local x = 0
     for i, l in ipairs(LEGEND) do
       -- a new line when this one is full
       if x > W.CW - 110 then
-        row = W.Row(p, 20, 0, 2)
+        row = W.Row(p, 16, 0, 1)
         x = 0
       end
       local ic = row:CreateTexture(nil, "ARTWORK")
-      ic:SetWidth(14)
-      ic:SetHeight(14)
+      ic:SetWidth(12)
+      ic:SetHeight(12)
       ic:SetPoint("LEFT", row, "LEFT", x, 0)
-      local fs = W.Font(row:CreateFontString(nil, "OVERLAY"), 11, .8, .8, .8)
+      local fs = W.Font(row:CreateFontString(nil, "OVERLAY"), 10, .75, .75, .75)
       fs:SetPoint("LEFT", ic, "RIGHT", 3, 0)
       fs:SetText(l[1])
-      x = x + 14 + 3 + (fs:GetStringWidth() or 40) + 12
+      x = x + 12 + 3 + (fs:GetStringWidth() or 40) + 14
       items[i] = ic
     end
     local function Paint()
@@ -166,7 +166,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once. Click this bar to fold it away.", function(p)
-    local box = W.Box(p, h or 290)
+    local box = W.Box(p, h or 215)
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page
@@ -178,7 +178,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     -- what the marks mean, in your own art and colours
     Legend(p)
     -- what the mouse does, in an accent band so it stands out
-    local band = W.Row(p, 28, 0, 4)
+    local band = W.Row(p, 20, 0, 3)
     local bg = band:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(band)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -192,7 +192,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     edge:SetPoint("TOPLEFT", band, "TOPLEFT", 0, 0)
     edge:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT", 0, 0)
     local how = band:CreateFontString(nil, "OVERLAY")
-    how:SetFont(W.UIFont(), 13, "OUTLINE")
+    how:SetFont(W.UIFont(), 11, "OUTLINE")
     how:SetPoint("LEFT", band, "LEFT", 12, 0)
     how:SetPoint("RIGHT", band, "RIGHT", -8, 0)
     how:SetJustifyH("LEFT")

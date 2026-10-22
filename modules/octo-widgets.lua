@@ -53,11 +53,12 @@ function B.Store()
   return pfUI_cache.octoui
 end
 
-W.WIDTH = 700      -- page body width
+-- (octo, 22 Oct 2026: wider, so the options breathe - "easier on the eye")
+W.WIDTH = 800      -- page body width
 local X = 6        -- page margin
-W.CW = 668         -- width inside a card
-local HALF = 326   -- a cell of the two-column grid
-local COL2 = 340   -- where the right-hand column starts
+W.CW = 768         -- width inside a card
+local HALF = 376   -- a cell of the two-column grid
+local COL2 = 390   -- where the right-hand column starts
 local CTRL = 196   -- whole-row controls start here, after their label
 local CARD_HEAD = 24
 local CARD_TOP = 32 -- card top to its first control

@@ -1317,7 +1317,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
   -- the samples are shown this much bigger than in the game (they shrink
   -- only when something does not fit their cell)
-  P.ZOOM = 1.35
+  P.ZOOM = 1.15
 
   -- Faint grid lines over the box, each sample's cell outlined, and a yellow
   -- middle line across and down every cell to line plates up against
@@ -1343,7 +1343,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       Line(c[1], c[2] + c[4] - 1, c[3], 1, 1, 1, 1, .14)
       Line(c[1], c[2], 1, c[4], 1, 1, 1, .14)
       Line(c[1] + c[3] - 1, c[2], 1, c[4], 1, 1, 1, .14)
-      Line(c[1] + 6, c[2] + c[4] * .58, c[3] - 12, 1, 1, .82, 0, .45)
+      Line(c[1] + 6, c[2] + c[4] * .62, c[3] - 12, 1, 1, .82, 0, .45)
       Line(c[1] + c[3] / 2, c[2] + 6, 1, c[4] - 12, 1, .82, 0, .45)
     end
     function g.Apply()
@@ -1356,12 +1356,14 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   function P.AttachPreview(box)
     local list = {}
     local n = table.getn(SAMPLES)
-    -- two by two: each sample gets half the box's width
+    -- one row of four in a wide box (compact: the options below keep their
+    -- room), two by two in a narrow one
     local W, H = box:GetWidth() or 640, box:GetHeight() or 320
-    local cw, ch = W / 2, H / 2
+    local cols = (W >= 700) and n or 2
+    local cw, ch = W / cols, H / math.ceil(n / cols)
     local cells = {}
     for i = 1, n do
-      local cx, cy = math.mod(i - 1, 2) * cw, math.floor((i - 1) / 2) * ch
+      local cx, cy = math.mod(i - 1, cols) * cw, math.floor((i - 1) / cols) * ch
       cells[i] = { cx, cy, cw, ch }
     end
     box.grid = Grid(box, cells)
@@ -1371,7 +1373,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       game.cell, game.fit = c, P.ZOOM
       -- the health bar on the cell's yellow middle line (a little below the
       -- middle, as the aura rows above it take more room than the cast bar)
-      game.at = { c[1] + c[3] / 2, -(c[2] + c[4] * .58) + 18 }
+      game.at = { c[1] + c[3] / 2, -(c[2] + c[4] * .62) + 18 }
       game:SetScale(P.ZOOM)
       game:SetPoint("TOP", box, "TOPLEFT", game.at[1] / P.ZOOM, game.at[2] / P.ZOOM)
       game.preview.anyTarget = true

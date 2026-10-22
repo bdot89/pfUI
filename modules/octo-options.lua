@@ -46,7 +46,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     { "About", { "About" } },
   }
 
-  local WIDTH, HEIGHT, NAV_W, NAV_ROW = 980, 660, 196, 20
+  -- (wider and taller since 22 Oct 2026; it shrinks itself to fit the screen)
+  local WIDTH, HEIGHT, NAV_W, NAV_ROW = 1080, 740, 196, 20
   local SEARCH = "[" .. T["Search"] .. "]"
 
   -- ---------------------------------------------------------------- helpers for pages
@@ -262,7 +263,14 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       if arg1 == "RightButton" then O:ApplyScale(1) end
     end)
     self.grip = grip
-    if tonumber(B.Store().winscale) then f:SetScale(math.max(.6, math.min(1.6, tonumber(B.Store().winscale)))) end
+    if tonumber(B.Store().winscale) then
+      f:SetScale(math.max(.6, math.min(1.6, tonumber(B.Store().winscale))))
+    else
+      -- never bigger than the screen the first time it opens
+      local sw, sh = UIParent:GetWidth() or WIDTH, UIParent:GetHeight() or HEIGHT
+      local fit = math.min(1, (sw - 40) / WIDTH, (sh - 40) / HEIGHT)
+      if fit > .5 and fit < 1 then f:SetScale(fit) end
+    end
   end
 
   -- The strip under the title, on every page.
