@@ -174,7 +174,11 @@ see "Roadmap" below.
    button size) + a sample button. Not seen in game. tests stub GetNumShapeshiftForms (the
    actionbar module now starts in the mock).
    22 Oct, effects (EllesmereUI's feature list as the model; its licence reserves all rights and
-   much of its art is other artists', so nothing copied): page "Effects" (abeffects). In
+   much of its art is other artists', so nothing copied). Same day the user asked for every
+   button option on ONE page: "Buttons" (abbuttons) has cards Button / Hover and press (incl.
+   press animation) / Cooldown (swipe + number + colours) / Proc glow / Highlights / Letters /
+   Equipped items; the sample's parts open their card, the button itself opens what it is showing
+   now; Test buttons replay one effect on the sample (M.Play) or on the real bars (AB.Test). In
    actionbar-octo.lua: hover / press looks (AB.STYLES, AB.Layer / AB.Paint; hover rides on pfUI's
    f.highlight, press on OnMouseDown/Up + keystate in OnClick, 3 s safety), proc glows (AB.GLOWS
    ants / pulse / shine / border + start burst; AB.REACTIVE icons while IsUsableAction, AB.PROCS

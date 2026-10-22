@@ -57,8 +57,9 @@ local function New(kind, name, parent)
 end
 Mock.New = New
 
-function methods:SetWidth(v) self.w = v end
-function methods:SetHeight(v) self.h = v end
+-- (the client takes "20" and gives back 20)
+function methods:SetWidth(v) self.w = tonumber(v) or v end
+function methods:SetHeight(v) self.h = tonumber(v) or v end
 function methods:GetWidth() return self.w end
 function methods:GetHeight() return self.h end
 function methods:SetPoint(p, rel, rp, x, y)

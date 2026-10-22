@@ -293,9 +293,20 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       end)
       return h
     end
-    Hot(empty, "Empty slot fill", "Empty slots", "abeffects")
-    Hot(worn, "Equipped item mark", "Equipped items", "abeffects")
-    Hot(b, "Button border and icon zoom", "Buttons", "abbuttons", 8)
+    Hot(empty, "Empty slot fill", "Button", "abbuttons")
+    Hot(worn, "Equipped item mark", "Equipped items", "abbuttons")
+    -- the button itself opens what it is showing (hover, press, glow...),
+    -- else its border and icon
+    local whole = Hot(b, "This button", "Button", "abbuttons", 8)
+    whole.follow = true
+    whole:SetScript("OnEnter", function()
+      this.hl:Show()
+      GameTooltip:SetOwner(this, "ANCHOR_TOP")
+      GameTooltip:AddLine("Sample button")
+      GameTooltip:AddLine("Click: the settings for what it shows now (" .. (b.noteCard or "Button") .. ")", 1, 1, 1)
+      GameTooltip:AddLine("Its letters and cooldown number open their own", .7, .7, .7)
+      GameTooltip:Show()
+    end)
     Hot(b.hotkey, "Key text", "Letters", "abbuttons")
     Hot(b.macro, "Macro text", "Letters", "abbuttons")
     Hot(b.count, "Count text", "Letters", "abbuttons")
@@ -303,8 +314,8 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     local cdSpot = CreateFrame("Frame", nil, b)
     cdSpot:SetWidth(34) cdSpot:SetHeight(28)
     cdSpot:SetPoint("CENTER", b, "CENTER", 0, 0)
-    Hot(cdSpot, "Cooldown text", "Letters", "abbuttons")
-    Hot(note, "What the sample shows now", "Highlights", "abgeneral").follow = true
+    Hot(cdSpot, "Cooldown swipe and number", "Cooldown", "abbuttons")
+    Hot(note, "What the sample shows now", "Button", "abbuttons").follow = true
 
     local function Text(fs, size, color, text)
       local font = pfUI.media[C.bars.font] or pfUI.font_default
@@ -361,8 +372,34 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       b.note:SetText(text)
       b.notePage, b.noteCard = page, card
     end
+    -- Test buttons play one part of the loop on demand: { from, to, seconds }
+    M.PLAYS = {
+      cooldown = { 0, 6.2, 6.2 },
+      press = { 5.95, 6.4, .6 },
+      hover = { 7, 7, 2.5 },
+      highlights = { 7.5, 9.9, 2.4 },
+      glow = { 10, 12.9, 4 },
+    }
+    function M.Play(kind)
+      local pl = M.PLAYS[kind]
+      if not pl then return end
+      M.force = { pl[1], pl[2], pl[3], GetTime() }
+      b.pressed = kind ~= "cooldown" and kind ~= "press" and true or nil
+      if kind == "glow" and b.octoGlow then AB.Glow(b, false) end
+    end
     function M.Animate(now)
       local t = math.mod(now, LOOP)
+      local key = math.floor(now / LOOP)
+      local f = M.force
+      if f then
+        local e = now - f[4]
+        if e < f[3] then
+          t = f[1] + (f[2] - f[1]) * e / f[3]
+          key = "test" .. f[4]
+        else
+          M.force = nil
+        end
+      end
       local size = b:GetHeight() or 76
       local style = C.bars.cd_style or "clock"
       -- cooldown
@@ -373,26 +410,26 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
         else
           b.sweep:Hide()
           -- (the real swipe, started once per loop and on a style change)
-          if not b.drainFor or b.drainFor ~= style .. math.floor(now / LOOP) then
-            b.drainFor = style .. math.floor(now / LOOP)
+          if not b.drainFor or b.drainFor ~= style .. key then
+            b.drainFor = style .. key
             AB.Drain(b, now - t, 6, 1)
           end
         end
         -- pfUI's own cooldown text, so its colours and tenths show as in game
         b.cd:SetTextColor(1, 1, 1)
         b.cd:SetText(GetColoredTimeString(6 - t))
-        Note("cooldown", "abeffects", "Cooldown")
+        Note("cooldown", "abbuttons", "Cooldown")
       else
         b.sweep:Hide()
         if b.octoDrain then b.octoDrain:Hide() end
         b.drainFor = nil
         b.cd:SetText("")
-        Note("ready", "abgeneral", "Behaviour")
+        Note("ready", "abbuttons", "Button")
       end
       -- the press: the press look held for a moment, and the press animation
       if t >= 6 and t < 6.35 then
         if b.pressOn then b.press:Show() else b.press:Hide() end
-        Note("pressed", "abeffects", "Hover and press")
+        Note("pressed", "abbuttons", "Hover and press")
       else
         b.press:Hide()
       end
@@ -408,7 +445,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       -- the hover
       if t >= 6.5 and t < 7.5 then
         if b.hoverPfui then b.pfhl:Show() b.hover:Hide() else b.pfhl:Hide() b.hover:Show() end
-        Note("mouse over", "abeffects", "Hover and press")
+        Note("mouse over", "abbuttons", "Hover and press")
       else
         b.pfhl:Hide()
         b.hover:Hide()
@@ -418,14 +455,14 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       for _, s in ipairs(STATES) do
         if t >= s[1] and t < s[2] and C.bars[s[3]] == "1" then
           r, g, bl = GetStringColor(C.bars[s[4]] or "1,1,1,1")
-          Note(s[5], "abgeneral", "Highlights")
+          Note(s[5], "abbuttons", "Highlights")
         end
       end
       b.icon:SetVertexColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(bl) or 1)
       -- a proc
       local glow = t >= 10
       AB.Glow(b, glow)
-      if glow then Note("proc glow", "abeffects", "Proc glow") end
+      if glow then Note("proc glow", "abbuttons", "Proc glow") end
       -- a button on the bars lights up now and then, as if pressed
       if (M.flashAt or 0) < now then
         M.flashAt = now + .7
@@ -455,12 +492,37 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     return M
   end
 
-  local function Preview(p)
+  local TESTS = {
+    { "cooldown", "Cooldown", "The swipe and the number counting down." },
+    { "press", "Press", "The press look and the press animation." },
+    { "hover", "Hover", "The look while the mouse is over a button." },
+    { "glow", "Proc glow", "The glow, with its burst." },
+    { "highlights", "Highlights", "Out of range, out of mana, not usable." },
+  }
+
+  local function Preview(p, tests)
     W.Pin(p, "Preview", "Your bars on a small copy of the screen, and a sample button with the look. Click a bar for its "
       .. "settings, hold Shift and scroll the mouse wheel over it for bigger or smaller buttons. Move frames (top) "
       .. "moves the bars themselves. Click this bar to fold it away.", function(p)
       local mini = Mini(W.Box(p, 150))
       table.insert(p.items, { Refresh = function() mini.Refresh() mini.Sample() end })
+      -- test buttons: one effect on the sample now, or all of them on your bars
+      if tests then
+        local row = W.Row(p, 24, 0, 3)
+        local x = 0
+        for _, tt in ipairs(TESTS) do
+          local bt = W.Button(row, "Test: " .. tt[2], 118, 22)
+          bt:SetPoint("LEFT", row, "LEFT", x, 0)
+          bt.kind = tt[1]
+          bt:SetScript("OnClick", function() mini.Play(this.kind) end)
+          W.Tip(bt, "Test " .. string.lower(tt[2]), tt[3] .. " Plays on the sample button.")
+          x = x + 122
+        end
+        local mine = W.Button(row, "Test on my bars", 140, 22)
+        mine:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        mine:SetScript("OnClick", function() AB.Test(6) end)
+        W.Tip(mine, "Test on my bars", "For 6 seconds every button on your bars glows, runs a cooldown and flashes its press look.")
+      end
       local band = W.Row(p, 20, 0, 3)
       local bg = band:CreateTexture(nil, "BACKGROUND")
       bg:SetAllPoints(band)
@@ -513,7 +575,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
 
   BUILD.abgeneral = function(p)
     W.Heading(p, "Action bars", { about = "Your action bars: how they look, how buttons behave, and what lights up. "
-      .. "Each bar's layout and when it shows are on Bars; letters and button borders on Buttons and text." })
+      .. "Each bar's layout and when it shows are on Bars; everything about a button (looks, effects, letters) on Buttons." })
     Preview(p)
     W.Card(p, "Looks", { tip = "Ready-made styles for every bar." })
     Looks(p)
@@ -525,16 +587,6 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Chk(p, "Shift-drag always", "Shift lets you drag a button even when the bars are locked.", G, "shiftdrag")
     Chk(p, "Read spells in macros", "Macros show the cooldown, range and icon of the spell they cast.", G, "macroscan")
     Chk(p, "Reagent count", "How many reagents you carry, on spells that use them.", G, "reagents")
-    Chk(p, "Animate hidden bars", "The press animation shows even on bars that are faded out.", G, "animalways")
-    Drop(p, "Press animation", nil, DD("actionbuttonanimations"), G, "animation")
-    Drop(p, "Animate on", nil, DD("animationmode"), G, "animmode")
-    W.Card(p, "Highlights", { tip = "Buttons change colour when the action cannot be used right now." })
-    Chk(p, "Out of range", nil, G, "glowrange")
-    Color(p, "Colour", nil, G, "rangecolor")
-    Chk(p, "Out of mana", nil, G, "showoom")
-    Color(p, "Colour", nil, G, "oomcolor")
-    Chk(p, "Not usable", nil, G, "showna")
-    Color(p, "Colour", nil, G, "nacolor")
   end
 
   -- ---------------------------------------------------------------- bars
@@ -599,40 +651,8 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Chk(p, "Autocast mark (pet bar)", nil, G, "showcastable")
   end
 
-  -- ---------------------------------------------------------------- buttons and text
 
-  BUILD.abbuttons = function(p)
-    W.Heading(p, "Buttons and text", { about = "The border and icon of every button, and the letters on them." })
-    Preview(p)
-    W.Card(p, "Buttons")
-    local skins = {}
-    for _, s in ipairs(AB.SKINS) do table.insert(skins, { key = s.key, label = s.label }) end
-    Drop(p, "Border", nil, skins, G, "skin")
-    Sld(p, "Icon zoom", "Cuts the icon's edges: 0 = the whole picture.", 0, .25, .01, G, "zoom", Pct)
-    W.Card(p, "Letters")
-    local fonts = {}
-    for _, f in ipairs(W.Fonts()) do table.insert(fonts, { key = f.key, label = f.label, font = f.key }) end
-    Drop(p, "Font", nil, fonts, G, "font")
-    Sld(p, "Text inset", "Moves the texts in from the button's edges.", -5, 10, 1, G, "font_offset", Px)
-    Sld(p, "Key size", nil, 6, 20, 1, G, "bind_size", Px)
-    Color(p, "Key colour", nil, G, "bind_color")
-    Sld(p, "Macro size", nil, 6, 20, 1, G, "macro_size", Px)
-    Color(p, "Macro colour", nil, G, "macro_color")
-    Sld(p, "Count size", nil, 6, 20, 1, G, "count_size", Px)
-    Color(p, "Count colour", nil, G, "count_color")
-    Sld(p, "Cooldown size", nil, 6, 30, 1, G, "cd_size", Px)
-    -- cooldown colours are pfUI's shared ones (every cooldown text uses them)
-    local function CD() return C.appearance.cd end
-    local function Re() if pfUI.api.ResetTimeColors then pfUI.api.ResetTimeColors() end end
-    Color(p, "Cooldown colour", "Seconds left, on every cooldown.", CD, "normalcolor", Re)
-    Color(p, "Last 5 seconds colour", "When it is nearly ready.", CD, "lowcolor", Re)
-    Color(p, "Minutes colour", nil, CD, "minutecolor", Re)
-    Color(p, "Hours colour", nil, CD, "hourcolor", Re)
-    PfChk(p, "Tenths in the last 5 seconds", "Shows 4.2 instead of 4.", CD, "milliseconds", Re)
-    Sld(p, "Hide cooldowns shorter than", "No number on short ones, like the global cooldown.", 0, 10, .5, CD, "threshold", Sec, Re)
-  end
-
-  -- ---------------------------------------------------------------- effects
+  -- ---------------------------------------------------------------- buttons
 
   local function List(src)
     local out = {}
@@ -640,10 +660,24 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     return out
   end
 
-  BUILD.abeffects = function(p)
-    W.Heading(p, "Effects", { about = "What buttons do when you hover, press, wait on a cooldown or get a proc, "
-      .. "and how empty slots and equipped items look. The sample button plays them all." })
-    Preview(p)
+  -- Everything about a button on one page, one card per part of the sample
+  -- (user, 22 Oct 2026: "All options available for this button should be on
+  -- the same page"). The sample's parts open these cards by title.
+  BUILD.abbuttons = function(p)
+    W.Heading(p, "Buttons", { about = "Everything about a button: its border and icon, what it does when you hover, press, "
+      .. "wait on a cooldown or get a proc, its colours, its letters and equipped items. Click a part of the sample "
+      .. "button to jump to it; the Test buttons play an effect on the sample or on your own bars." })
+    Preview(p, true)
+
+    W.Card(p, "Button", { tip = "The border round every button, the icon, and what fills an empty slot." })
+    local skins = {}
+    for _, s in ipairs(AB.SKINS) do table.insert(skins, { key = s.key, label = s.label }) end
+    Drop(p, "Border", nil, skins, G, "skin")
+    Sld(p, "Icon zoom", "Cuts the icon's edges: 0 = the whole picture.", 0, .25, .01, G, "zoom", Pct)
+    Drop(p, "Empty slot fill", "Behind the icon: shows in empty slots.", List(AB.SLOTS), G, "slot_style")
+    Color(p, "Slot colour", nil, G, "slot_color")
+    Chk(p, "Slot in class colour", nil, G, "slot_color_class")
+
     W.Card(p, "Hover and press", { tip = "Hover: the mouse is over a button. Press: it is held down, by mouse or key." })
     Drop(p, "Hover look", nil, List(AB.STYLES), G, "hover_style")
     Color(p, "Hover colour", nil, G, "hover_color")
@@ -653,6 +687,27 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Color(p, "Press colour", nil, G, "press_color")
     Chk(p, "Press in class colour", nil, G, "press_color_class")
     Sld(p, "Press border", "Thickness for Border only.", 1, 6, 1, G, "press_size", Px)
+    Drop(p, "Press animation", "Plays over the icon as the action goes off.", DD("actionbuttonanimations"), G, "animation")
+    Drop(p, "Animate on", nil, DD("animationmode"), G, "animmode")
+    Chk(p, "Animate hidden bars", "The press animation shows even on bars that are faded out.", G, "animalways")
+
+    W.Card(p, "Cooldown", { tip = "The swipe over a button cooling down, and the number counting." })
+    Drop(p, "Swipe", nil, List(AB.CDSTYLES), G, "cd_style")
+    Color(p, "Swipe colour", nil, G, "cd_color")
+    Chk(p, "Edge line", "A bright line where the swipe ends.", G, "cd_edge")
+    Color(p, "Edge colour", nil, G, "cd_edgecolor")
+    Chk(p, "Edge in class colour", nil, G, "cd_edgecolor_class")
+    Sld(p, "Number size", nil, 6, 30, 1, G, "cd_size", Px)
+    -- cooldown number colours are pfUI's shared ones (every cooldown uses them)
+    local function CD() return C.appearance.cd end
+    local function Re() if pfUI.api.ResetTimeColors then pfUI.api.ResetTimeColors() end end
+    Color(p, "Number colour", "Seconds left, on every cooldown.", CD, "normalcolor", Re)
+    Color(p, "Last 5 seconds colour", "When it is nearly ready.", CD, "lowcolor", Re)
+    Color(p, "Minutes colour", nil, CD, "minutecolor", Re)
+    Color(p, "Hours colour", nil, CD, "hourcolor", Re)
+    PfChk(p, "Tenths in the last 5 seconds", "Shows 4.2 instead of 4.", CD, "milliseconds", Re)
+    Sld(p, "Hide cooldowns shorter than", "No swipe or number on short ones, like the global cooldown.", 0, 10, .5, CD, "threshold", Sec, Re)
+
     W.Card(p, "Proc glow", { tip = "Lights a button when it is worth pressing now." })
     Chk(p, "Reactive abilities", "Overpower, Revenge, Execute, Riposte, Counterattack, Mongoose Bite and Hammer of Wrath while usable.", G, "glow_reactive")
     Chk(p, "Procs", "Shadow Bolt during Shadow Trance (Nightfall).", G, "glow_procs")
@@ -663,16 +718,27 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Sld(p, "Lines", "For Marching lines.", 2, 16, 1, G, "glow_lines")
     Sld(p, "Thickness", nil, 1, 6, 1, G, "glow_thick", Px)
     Sld(p, "Speed", nil, 1, 10, 1, G, "glow_speed")
-    W.Card(p, "Cooldown", { tip = "How a button shows it is cooling down. The number is on Buttons and text." })
-    Drop(p, "Swipe", nil, List(AB.CDSTYLES), G, "cd_style")
-    Color(p, "Swipe colour", nil, G, "cd_color")
-    Chk(p, "Edge line", "A bright line where the swipe ends.", G, "cd_edge")
-    Color(p, "Edge colour", nil, G, "cd_edgecolor")
-    Chk(p, "Edge in class colour", nil, G, "cd_edgecolor_class")
-    W.Card(p, "Empty slots")
-    Drop(p, "Slot fill", "Behind the icon: shows in empty slots.", List(AB.SLOTS), G, "slot_style")
-    Color(p, "Slot colour", nil, G, "slot_color")
-    Chk(p, "Slot in class colour", nil, G, "slot_color_class")
+
+    W.Card(p, "Highlights", { tip = "The icon changes colour when the action cannot be used right now." })
+    Chk(p, "Out of range", nil, G, "glowrange")
+    Color(p, "Range colour", nil, G, "rangecolor")
+    Chk(p, "Out of mana", nil, G, "showoom")
+    Color(p, "Mana colour", nil, G, "oomcolor")
+    Chk(p, "Not usable", nil, G, "showna")
+    Color(p, "Not usable colour", nil, G, "nacolor")
+
+    W.Card(p, "Letters", { tip = "The key, macro name and count on each button." })
+    local fonts = {}
+    for _, f in ipairs(W.Fonts()) do table.insert(fonts, { key = f.key, label = f.label, font = f.key }) end
+    Drop(p, "Font", nil, fonts, G, "font")
+    Sld(p, "Text inset", "Moves the texts in from the button's edges.", -5, 10, 1, G, "font_offset", Px)
+    Sld(p, "Key size", nil, 6, 20, 1, G, "bind_size", Px)
+    Color(p, "Key colour", nil, G, "bind_color")
+    Sld(p, "Macro size", nil, 6, 20, 1, G, "macro_size", Px)
+    Color(p, "Macro colour", nil, G, "macro_color")
+    Sld(p, "Count size", nil, 6, 20, 1, G, "count_size", Px)
+    Color(p, "Count colour", nil, G, "count_color")
+
     W.Card(p, "Equipped items", { tip = "Items you wear, put on a bar (trinkets, weapons)." })
     Chk(p, "Mark equipped items", nil, G, "showequipped")
     Drop(p, "Mark", nil, List(AB.EQSTYLES), G, "eq_style")
@@ -716,8 +782,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   O.replaced[T["Actionbar"]] = true
   O:AddPage("Action Bars", "abgeneral", "General", BUILD.abgeneral)
   O:AddPage("Action Bars", "abbars", "Bars", BUILD.abbars)
-  O:AddPage("Action Bars", "abbuttons", "Buttons and text", BUILD.abbuttons)
-  O:AddPage("Action Bars", "abeffects", "Effects", BUILD.abeffects)
+  O:AddPage("Action Bars", "abbuttons", "Buttons", BUILD.abbuttons)
   O:AddPage("Action Bars", "abpaging", "Paging", BUILD.abpaging)
   O:AddPage("Action Bars", "abgryphons", "Gryphons", BUILD.abgryphons)
   AB.TAB = TAB

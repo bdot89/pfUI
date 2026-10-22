@@ -383,6 +383,7 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
     if not f or not f.id or (f.bar and f.bar > 10) then return false end
     local icon = Icon(f.texture)
     if not icon then return false end
+    if GetTime() < (AB.testUntil or 0) then return true end
     if C.bars.glow_procs == "1" and procLit[icon] then return true end
     if C.bars.glow_reactive == "1" and AB.REACTIVE[icon] then
       local usable = IsUsableAction(f.id)
@@ -550,6 +551,31 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
     AB.Slot(f)
     AB.Equipped(f)
     if f.octoGlow then f.octoGlow.lit = nil end
+  end
+
+  -- try the effects on your own bars: every button with an action glows,
+  -- runs a cooldown and flashes its press look for a few seconds
+  function AB.Test(seconds)
+    seconds = seconds or 6
+    local now = GetTime()
+    AB.testUntil = now + seconds
+    for i = 1, 10 do
+      local bar = BARS[i]
+      if bar and bar:IsShown() then
+        for j = 1, 12 do
+          local f = bar[j]
+          if f and f:IsShown() and f.texture then
+            if f.octoGlow then f.octoGlow.lit = nil end
+            AB.Glow(f, true)
+            if f.cd and CooldownFrame_SetTimer then CooldownFrame_SetTimer(f.cd, now, seconds, 1) end
+            if f.octoPress and f.octoPress.on then
+              f.octoPress:Show()
+              f.octoPress.untilT = now + .4
+            end
+          end
+        end
+      end
+    end
   end
 
   -- glows and equipped borders follow the game (5 times a second)

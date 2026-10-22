@@ -1117,10 +1117,10 @@ do
     for _, s in ipairs(O.octo) do if s[1] == "Combat Text" then ct = s end end
     ok(ct and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
     ok(O.first and string.sub(O.first, 1, 2) == "o:", "the window first opens on an Octo page: " .. tostring(O.first))
-    -- Action Bars: six clean pages instead of pfUI's old Actionbar category
+    -- Action Bars: five clean pages instead of pfUI's old Actionbar category
     local abs
     for _, s in ipairs(O.octo) do if s[1] == "Action Bars" then abs = s end end
-    ok(abs and table.getn(abs[2]) == 6, "Action Bars section with its six pages")
+    ok(abs and table.getn(abs[2]) == 5, "Action Bars section with its five pages")
     local oldab = 0
     for k in pairs(O.legacy) do if string.find(k, "^l:Actionbar") then oldab = oldab + 1 end end
     ok(oldab == 0, "pfUI's old Actionbar pages are gone from the list")
@@ -1296,6 +1296,13 @@ do
     cb.glow_style = "ants"
     AB.Glow(b, false)
     ok(not b.octoGlow:IsShown(), "the glow goes when the reason does")
+    -- "Test on my bars": every button with an action glows for a while
+    b.texture = "Interface\\Icons\\Spell_Fire_FlameBolt"
+    AB.Test(6)
+    ok(AB.ShouldGlow(b) and b.octoGlow:IsShown(), "Test on my bars lights the buttons")
+    Mock.now = Mock.now + 7
+    ok(not AB.ShouldGlow(b), "and stops after its time")
+    AB.Glow(b, false)
     -- cooldown swipe
     cb.cd_style = "drain"
     pfUI.bars:UpdateConfig()
