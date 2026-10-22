@@ -426,6 +426,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
     W.Card(p, "All cast bars", { tip = "For the player, target and focus cast bars." })
     Color(p, "Casting", nil, A, "castbarcolor")
     Color(p, "Channeling", nil, A, "channelcolor")
+    Color(p, "Can't be interrupted", "Casts none of your kicks or silences can stop (ClassicAPI tells; without it bars keep the colours above).", A, "nointcolor")
     W.Dropdown(p, "Texture", nil, Textures(), function() return A().texture end, function(v)
       A().texture = v
       UpAll()

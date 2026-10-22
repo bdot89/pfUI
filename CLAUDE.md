@@ -39,8 +39,52 @@ see "Roadmap" below.
   (pfUI tests `if not frame.HookScript`), GetNumPoints / GetPoint / SetGradientAlpha exist (pfUI
   uses them on 1.12, so OctoBG's mock is wrong to refuse them), font sizes may be numeric strings.
 
+## Client DLLs (SuperWoW, ClassicAPI, nampower)
+User rule (22 Oct 2026): use SuperWoW and ClassicAPI wherever they give better data, in every
+module, always with the plain-API path as a guarded fallback - nobody without them may lose a
+feature. ClassicAPI's call list = "Usage:" strings in `C:\Games\OctoWoW\ClassicAPI.dll`; its docs
+are brues-code/ClassicAPI docs/API.md (download it, ~800 KB). `libs\libclient.lua`
+(`pfUI.api.libclient`, loaded before libcast) wraps them: GUID, Aura (C_UnitAuras.UnitAura,
+texture-checked because Turtle-style servers park extra debuffs in buff slots), Cast
+(C_Spell.UnitCastingInfo / UnitChannelInfo), Distance (UnitDistanceSquared, SuperWoW
+UnitPosition, UnitXP "distanceBetween"), InRange, Stealthed, PlayerAura. ClassicAPI globals are
+read as `_G.X` and only when `C_UnitAuras` exists: pfUI.api.UnitInRange shadows ClassicAPI's
+UnitInRange inside pfUI's environment, and the test mock turns unknown CamelCase globals into
+stand-ins. C_* names are only called with real unit tokens or GUIDs (they raise on names).
+What uses it (22 Oct, NOT seen in game):
+- superwow.lua: `superwow_active` is set at load when SUPERWOW_VERSION >= 1.5 (pfUI set it only at
+  the first UNIT_CASTEVENT, so GUID plates / click casting without a target swap / position range
+  started late).
+- libcast: UnitCastingInfo / UnitChannelInfo ask ClassicAPI first (any token or GUID, player
+  pushback, cleared at once on kicks), then SuperWoW / combat log data; two extra returns
+  notInterruptible, delayMs. Cast bars (castbar.lua) colour can't-interrupt casts
+  (`appearance.castbar.nointcolor`, Cast bars page "Can't be interrupted") and show ClassicAPI's
+  pushback. Nameplates, plates.lua, afkcam get the better data through libcast.
+- libdebuff:UnitDebuff: name, real timer (talents, combo points) and caster from ClassicAPI when
+  it saw the cast (no tooltip scan then); pfUI's duration table stays the fallback.
+- librange:UnitInSpellRange: ClassicAPI UnitInRange (reach-aware 40 yd), else distance < 45 from
+  libclient, for every class (it used to need a healer's 40 yd spell on the bars); the
+  target-swap scan stays the fallback.
+- libtotem: GetTotemInfo reads ClassicAPI's totem tracker (early death / recall, custom totems).
+- unitframes-octo.lua UO.Auras: timers on other units' buffs (1.12 has none) and a blue frame on
+  enemy Magic buffs (`o_purge`, on for target / focus; Frames > Buffs card).
+- tooltip.lua: "Cast by <name>" on unit buff / debuff tooltips (`tooltip.auracaster`), spell id
+  with Show Item IDs.
+- actionbar-octo.lua: stealth visibility from IsStealthed, Shadow Trance by spell id 17941
+  (AB.PROC_IDS) next to the icon list.
+- Already before: plates (GUIDs, C_UnitAuras end times, C_NamePlate), sct (nampower events),
+  keymap (GetCursorInfo, SetBindingSpell / Item / Macro), superwow.lua (focus by GUID,
+  /pfcast mouseover, druid mana).
+Tests: tests\clientapi.lua (run by run.lua): fallbacks without ClassicAPI, then doc-shaped stubs.
+Not done (ideas): ClassicAPI-only click casting via C_Spell.CastAtUnit (it skips the
+CastSpellByName hooks libpredict needs for heal prediction); focus frame on ClassicAPI's own
+`focus` token when SuperWoW is missing; notInterruptible colour on nameplate cast bars;
+C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
+
 ## Verified vs unverified
 - Unverified: `GetAddOnMetadata(name, "X-Octo-Version")` on this client (falls back to "0").
+- Unverified (22 Oct 2026): every ClassicAPI call in libclient (shapes from its API.md), the
+  SUPERWOW_VERSION string format, Shadow Trance's buff id 17941, UnitXP "distanceBetween".
 
 ## Roadmap (approved 19 Oct 2026)
 0. Foundation: branch, toc, this file, tests. DONE.

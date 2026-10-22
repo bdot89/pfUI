@@ -2685,6 +2685,10 @@ do
   end
 end
 
+-- SuperWoW / ClassicAPI use across the modules (libs\libclient.lua)
+octo_ok, octo_dir = ok, DIR
+dofile(DIR .. "/tests/clientapi.lua")
+
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do
   if failedModules[m] then broken = broken + 1 else started = started + 1 end

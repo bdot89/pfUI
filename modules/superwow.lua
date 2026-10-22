@@ -251,6 +251,16 @@ pfUI:RegisterModule("superwow", "vanilla", function ()
   -- Enhance libcast with SuperWoW data
   local supercast = CreateFrame("Frame")
   supercast:RegisterEvent("UNIT_CASTEVENT")
+
+  -- Octo: SuperWoW is known at load (SUPERWOW_VERSION), so its GUID paths
+  -- (nameplates, cast bars, click casting without a target swap, range by
+  -- position) start at once instead of after the first UNIT_CASTEVENT seen.
+  -- 1.5+ only: older builds keep the wait-for-an-event behaviour below.
+  local _, _, swv = string.find(tostring(SUPERWOW_VERSION or ""), "^(%d+%.?%d*)")
+  if swv and tonumber(swv) >= 1.5 then
+    superwow_active = true
+  end
+
   supercast:SetScript("OnEvent", function()
     if not supercast.init then
       -- disable combat parsing events in superwow mode

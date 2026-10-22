@@ -83,7 +83,22 @@ local totems = {
   },
 }
 
+-- Octo: ClassicAPI tracks totems itself from the spell data (custom totems
+-- too) and clears a slot when the totem dies or is recalled early; it also
+-- fires PLAYER_TOTEM_UPDATE. Its first return is "holds the totem tool", so
+-- map it to pfUI's "a totem is out". The cast-hook tracker below stays the
+-- fallback.
+local classicTotem = C_UnitAuras and _G.GetTotemInfo
+
 GetTotemInfo = function(id)
+  if classicTotem then
+    local ok, _, name, start, duration, icon = pcall(classicTotem, id)
+    if ok and name then
+      if name ~= "" and start and start > 0 then return 1, name, start, duration, icon end
+      return nil
+    end
+  end
+
   if not active[id] or not active[id].name then return end
   if active[id].start + active[id].duration - GetTime() < 0 then
     libtotem:Clean(id)

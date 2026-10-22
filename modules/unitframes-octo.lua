@@ -408,6 +408,43 @@ pfUI:RegisterModule("unitframes-octo", "vanilla:tbc", function ()
     end
   end
 
+  -- ---------------------------------------------------------------- ClassicAPI auras
+
+  -- 1.12 gives no timer on other units' buffs and no dispel type on buffs;
+  -- ClassicAPI (libclient.Aura) does when the client saw the cast. Without it
+  -- the buffs stay as pfUI draws them.
+  function UO.Auras(f)
+    if not libclient or not libclient.HasClassicAPI() or pfUI.client > 11200 then return end
+    if not f or not f.buffs or not f.config or f.label == "player" then return end
+    local unit = Unit(f)
+    if not unit or not UnitExists(unit) then return end
+    local purge = f.config.o_purge == "1" and UnitCanAttack("player", unit)
+    for i, b in ipairs(f.buffs) do
+      if b:IsShown() then
+        local tex = UnitBuff(unit, i)
+        local name, duration, left, _, _, dtype = libclient.Aura(unit, i, nil, tex)
+        if b.cd then
+          if duration and left then
+            CooldownFrame_SetTimer(b.cd, GetTime() + left - duration, duration, 1)
+          elseif b.octoTimer then
+            CooldownFrame_SetTimer(b.cd, 0, 0, 0)
+          end
+          b.octoTimer = (duration and left) and true or nil
+        end
+        if b.backdrop then
+          local col = purge and dtype == "Magic" and DebuffTypeColor and DebuffTypeColor.Magic
+          if col then
+            b.backdrop:SetBackdropBorderColor(col.r, col.g, col.b, 1)
+            b.octoPurge = true
+          elseif b.octoPurge then
+            b.backdrop:SetBackdropBorderColor(GetStringColor(C.appearance.border.color))
+            b.octoPurge = nil
+          end
+        end
+      end
+    end
+  end
+
   -- ---------------------------------------------------------------- combat flash
 
   function UO.Flash(f, heal)
@@ -535,5 +572,6 @@ pfUI:RegisterModule("unitframes-octo", "vanilla:tbc", function ()
   pfUI.uf.RefreshUnit = function(self, unit, component)
     RefreshUnit(self, unit, component)
     if unit and unit.octoClass then UO.Update(unit) end
+    if unit and (not component or component == "all" or component == "aura") then UO.Auras(unit) end
   end
 end)

@@ -267,4 +267,42 @@ pfUI:RegisterModule("tooltip", "vanilla:tbc", function ()
       end
       GameTooltip:Show()
     end
+
+  -- Octo: who cast a buff / debuff (and, with "Show Item IDs", its spell id) on
+  -- every unit aura tooltip. ClassicAPI only knows casts it saw this session;
+  -- without ClassicAPI nothing is added.
+  if libclient then
+    local function AddCaster(tip, unit, index, harmful)
+      if C.tooltip.auracaster ~= "1" or not unit or not index or not libclient.HasClassicAPI() then return end
+      local tex
+      if harmful then tex = UnitDebuff(unit, index) else tex = UnitBuff(unit, index) end
+      local name, _, _, caster, spellId = libclient.Aura(unit, index, harmful, tex)
+      if not name then return end
+      local added
+      local who = caster and UnitExists(caster) and UnitName(caster)
+      if who then
+        local _, class = UnitClass(caster)
+        local col = class and RAID_CLASS_COLORS[class]
+        tip:AddLine(T["Cast by"] .. " " .. who, col and col.r or 1, col and col.g or .82, col and col.b or 0)
+        added = true
+      end
+      if C.tooltip.itemid == "1" and spellId then
+        tip:AddLine(T["Spell ID"] .. ": " .. spellId, .6, .6, .6)
+        added = true
+      end
+      if added then tip:Show() end
+    end
+
+    for _, kind in pairs({ "SetUnitBuff", "SetUnitDebuff" }) do
+      local orig = GameTooltip[kind]
+      local harmful = kind == "SetUnitDebuff"
+      if orig then
+        GameTooltip[kind] = function(self, unit, index, a, b)
+          local r = orig(self, unit, index, a, b)
+          AddCaster(self, unit, index, harmful)
+          return r
+        end
+      end
+    end
+  end
 end)

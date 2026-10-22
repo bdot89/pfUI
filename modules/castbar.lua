@@ -92,12 +92,14 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         query = guid or query
       end
 
-      local cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(query)
+      -- Octo: with ClassicAPI (libcast) two more returns: can't be interrupted, pushback in ms
+      local cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill, noint, delayMs = UnitCastingInfo(query)
       if not cast then
         -- scan for channel spells if no cast was found
-        channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(query)
+        channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill, noint = UnitChannelInfo(query)
         cast = channel
       end
+      if delayMs and delayMs > 0 then this.delay = delayMs / 1000 end
 
       if cast then
         local duration = endTime - startTime
@@ -109,8 +111,10 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         local spellname = this.showname and cast and cast .. " " or ""
         local rank = this.showrank and nameSubtext and nameSubtext ~= "" and string.format("|cffaaffcc[%s]|r", nameSubtext) or ""
 
-        if this.endTime ~= endTime then
-          this.bar:SetStatusBarColor(strsplit(",", C.appearance.castbar[(channel and "channelcolor" or "castbarcolor")]))
+        if this.endTime ~= endTime or this.noint ~= noint then
+          this.noint = noint
+          local colour = noint and C.appearance.castbar.nointcolor or C.appearance.castbar[(channel and "channelcolor" or "castbarcolor")]
+          this.bar:SetStatusBarColor(strsplit(",", colour))
           this.bar:SetMinMaxValues(0, duration / 1000)
           this.bar.left:SetText(spellname .. rank)
           this.fadeout = nil

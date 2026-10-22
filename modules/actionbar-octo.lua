@@ -361,6 +361,10 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
   AB.PROCS = {
     spell_shadow_twilight = "spell_shadow_shadowbolt", -- Shadow Trance (Nightfall)
   }
+  -- the same by the buff's spell id (ClassicAPI): exact, whatever the icon
+  AB.PROC_IDS = {
+    [17941] = "spell_shadow_shadowbolt", -- Shadow Trance (Nightfall)
+  }
   local function Icon(tex)
     if not tex then return end
     local _, _, name = string.find(string.lower(tex), "([^\\]+)$")
@@ -371,6 +375,11 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
   local procLit = {}
   local function ScanProcs()
     for k in pairs(procLit) do procLit[k] = nil end
+    if libclient and libclient.HasClassicAPI() then
+      for id, lit in pairs(AB.PROC_IDS) do
+        if libclient.PlayerAura(id) then procLit[lit] = true end
+      end
+    end
     for i = 1, 32 do
       local tex = UnitBuff("player", i)
       if not tex then break end
@@ -604,6 +613,9 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
 
   -- stealth / prowl by the buff's icon
   local function Stealthed()
+    -- ClassicAPI's IsStealthed reads the state itself (Shadowmeld, Prowl, Stealth...)
+    local real = libclient and libclient.Stealthed()
+    if real ~= nil then return real end
     for i = 1, 32 do
       local tex = UnitBuff("player", i)
       if not tex then break end

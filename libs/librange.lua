@@ -161,17 +161,12 @@ librange:SetScript("OnUpdate", function()
   if this.id <= numunits and librange.slot then
     local unit = units[this.id]
     if not UnitIsUnit("target", unit) then
-      -- try to read distance via superwow first
-      if superwow_active then
-        local x1, y1, z1 = UnitPosition("player")
-        local x2, y2, z2 = UnitPosition(unit)
-        -- only continue if we got position values
-        if x1 and y1 and z1 and x2 and y2 and z2 then
-          local distance = ((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)^.5
-          unitdata[unit] = distance < 45 and 1 or 0
-          this.id = this.id + 1
-          return
-        end
+      -- try to read distance via ClassicAPI / SuperWoW / UnitXP first (libclient)
+      local distance = libclient and libclient.Distance(unit)
+      if distance then
+        unitdata[unit] = distance < 45 and 1 or 0
+        this.id = this.id + 1
+        return
       end
 
       -- suspend for various conditions
@@ -264,6 +259,19 @@ function librange:GetRangeSlot()
 end
 
 function librange:UnitInSpellRange(unit)
+  -- Octo: a DLL that reads positions answers at once, for every class
+  -- (ClassicAPI UnitInRange counts both units' reach like a 40 yd heal)
+  -- (a centre-to-centre distance gets 5 yd for reach, as pfUI's SuperWoW scan did)
+  if libclient and UnitExists(unit) then
+    local direct
+    if C_UnitAuras and _G.UnitInRange then
+      local ok, inrange, checked = pcall(_G.UnitInRange, unit)
+      if ok and checked then direct = inrange and true or false end
+    end
+    if direct == nil then direct = libclient.InRange(unit, 45) end
+    if direct ~= nil then return direct and 1 or nil end
+  end
+
   if not librange.slot then return nil end
 
   if UnitIsUnit("target", unit) then

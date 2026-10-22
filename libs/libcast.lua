@@ -415,5 +415,35 @@ hooksecurefunc("UseAction", function(slot, target, button)
   CastCustom(cachedSpellId, cachedBookType, cachedRawSpellName, cachedRank, cachedTexture, cachedCastingTime)
 end)
 
+-- Octo: ClassicAPI reads casts from the client itself (any unit token or GUID,
+-- pushback included for the player, cleared at once on interrupts), so it goes
+-- first; the combat log / SuperWoW data above stays the fallback. Two extra
+-- returns: notInterruptible (ClassicAPI, relative to your own kicks) and the
+-- pushback so far in ms.
+if C_Spell and (C_Spell.UnitCastingInfo or C_Spell.UnitChannelInfo) then
+  local logCast, logChannel = UnitCastingInfo, UnitChannelInfo
+  local Cast = libclient.Cast
+
+  UnitCastingInfo = function(unit)
+    local name, texture, startMs, endMs, channel, noint, delay = Cast(unit)
+    if name and not channel then
+      local logName, rank = logCast(unit)
+      return name, (logName == name and rank) or "", "", texture, startMs, endMs, nil, noint, delay
+    end
+    if name then return end
+    return logCast(unit)
+  end
+
+  UnitChannelInfo = function(unit)
+    local name, texture, startMs, endMs, channel, noint = Cast(unit)
+    if name and channel then
+      local logName, rank = logChannel(unit)
+      return name, (logName == name and rank) or "", "", texture, startMs, endMs, nil, noint
+    end
+    if name then return end
+    return logChannel(unit)
+  end
+end
+
 -- add libcast to pfUI API
 pfUI.api.libcast = libcast

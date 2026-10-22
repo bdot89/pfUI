@@ -261,7 +261,17 @@ function libdebuff:UnitDebuff(unit, id)
   local caster = nil -- experimental
   local effect
 
-  if texture then
+  -- Octo: ClassicAPI knows the name, the real (talented, combo point) timer and
+  -- the caster of debuffs whose cast the client saw; the tooltip scan and the
+  -- duration table below stay the fallback
+  local cduration, cleft, ccaster
+  if texture and libclient then
+    local name
+    name, cduration, cleft, ccaster = libclient.Aura(unit, id, true, texture)
+    if name then effect = name end
+  end
+
+  if texture and not effect then
     scanner:SetUnitDebuff(unit, id)
     effect = scanner:Line(1) or ""
   end
@@ -280,6 +290,10 @@ function libdebuff:UnitDebuff(unit, id)
       -- clean up invalid values
       data[effect] = nil
     end
+  end
+
+  if cduration and cleft then
+    duration, timeleft, caster = cduration, cleft, ccaster or caster
   end
 
   return effect, rank, texture, stacks, dtype, duration, timeleft, caster

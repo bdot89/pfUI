@@ -1,0 +1,223 @@
+-- pfUI Octo: SuperWoW / ClassicAPI / nampower use across the modules
+-- (libs\libclient.lua and its users), run by tests\run.lua. First without
+-- ClassicAPI (the plain-API fallbacks must keep working), then with stubs
+-- shaped like ClassicAPI's docs (API.md: C_UnitAuras.UnitAura, C_Spell.Unit-
+-- CastingInfo / UnitChannelInfo, UnitInRange, UnitDistanceSquared, IsStealthed,
+-- GetTotemInfo). The stubs follow the docs; the real DLL is not verified here.
+local ok = octo_ok
+local DIR = octo_dir
+local env = pfUI:GetEnvironment()
+local LC = pfUI.api.libclient
+ok(LC and LC.Aura and LC.Cast and LC.Distance and LC.InRange, "libclient loaded")
+
+-- reload one of pfUI's lib files (they decide some paths at load)
+local function Reload(file)
+  local h = io.open(DIR .. "/" .. file, "rb")
+  local src = h:read("*a")
+  h:close()
+  local fn, err = loadstring(src, "@" .. file)
+  ok(fn, "reload parses: " .. file .. " " .. tostring(err))
+  if fn then
+    local good, e = pcall(fn)
+    ok(good, "reload runs: " .. file .. " " .. tostring(e))
+  end
+end
+
+-- a target with one buff and one debuff
+local TGT = "0x00000000000C0001"
+local savedTarget = Mock.target
+Mock.Enemy(TGT, "Arcanist", "MAGE", 20, 0, {
+  buffs = { { "Interface\\Icons\\Spell_Holy_PowerWordShield", 1, nil, 10901 } },
+  debuffs = { { "Interface\\Icons\\Spell_Shadow_ShadowWordPain", 1, "Magic", 10894 } },
+})
+Mock.target = TGT
+
+-- ---------------------------------------------------------------- without ClassicAPI
+C_UnitAuras, C_Spell = nil, nil
+ok(not LC.HasClassicAPI(), "no ClassicAPI in the mock by default")
+ok(LC.Aura("target", 1, true, "x") == nil, "no ClassicAPI: Aura gives nothing")
+ok(LC.Cast("target") == nil, "no ClassicAPI: Cast gives nothing")
+ok(LC.Stealthed() == nil, "no ClassicAPI: Stealthed unknown (callers scan buff icons)")
+ok(LC.GUID("player") == "0x0000000000000001", "GUID from nampower / SuperWoW (" .. tostring(LC.GUID("player")) .. ")")
+-- SuperWoW's UnitPosition (mock: x 20, y 0) gives a distance
+local d = LC.Distance("target")
+ok(d and math.abs(d - 20) < .01, "SuperWoW distance 20 yd (" .. tostring(d) .. ")")
+ok(LC.InRange("target", 40) == true and LC.InRange("target", 10) == false, "InRange from the distance")
+ok(env.superwow_active == true, "SuperWoW mode on at load (SUPERWOW_VERSION), not after the first cast event")
+
+-- libdebuff without ClassicAPI: name from the tooltip scan, no timer
+local lib = pfUI.api.libdebuff
+-- (the mock's tooltip scanner has no lines)
+local scan = pfUI.api.libtipscan:GetScanner("libdebuff")
+if scan and not scan.NumLines then scan.NumLines = function() return 0 end end
+local name, _, tex, _, dtype, duration, left = lib:UnitDebuff("target", 1)
+ok(tex == "Interface\\Icons\\Spell_Shadow_ShadowWordPain" and dtype == "Magic" and duration == nil,
+  "plain libdebuff: texture and type, no timer (" .. tostring(duration) .. ")")
+
+-- range for every class by position
+ok(pfUI.api.librange:UnitInSpellRange("target") == 1, "librange: SuperWoW position says in range (any class)")
+
+-- ---------------------------------------------------------------- ClassicAPI stubs
+local now = GetTime()
+local AURAS = {
+  HELPFUL = { { "Power Word: Shield", "Interface\\Icons\\Spell_Holy_PowerWordShield", 1, "Magic", 30, now + 21, "party1", 10901 } },
+  HARMFUL = { { "Shadow Word: Pain", "Interface\\Icons\\Spell_Shadow_ShadowWordPain", 1, "Magic", 24, now + 18, "player", 10894 } },
+}
+local cast = nil
+C_UnitAuras = {
+  UnitAura = function(unit, index, filter)
+    if unit ~= "target" then return nil end
+    local a = AURAS[filter or "HELPFUL"][index]
+    if not a then return nil end
+    -- name, icon, count, dispelType, duration, expirationTime, source, isStealable,
+    -- nameplateShowPersonal, spellId
+    return a[1], a[2], a[3], a[4], a[5], a[6], a[7], false, false, a[8]
+  end,
+  GetPlayerAuraBySpellID = function(id) if id == 17941 then return { spellId = id } end end,
+}
+C_Spell = {
+  UnitCastingInfo = function(unit)
+    if cast and (unit == "target" or unit == TGT) and not cast.channel then
+      return cast.name, cast.name, cast.icon, cast.s, cast.e, false, "Cast-3-0-0-0-1-1", cast.noint, 1, nil, cast.delay
+    end
+  end,
+  UnitChannelInfo = function(unit)
+    if cast and (unit == "target" or unit == TGT) and cast.channel then
+      return cast.name, cast.name, cast.icon, cast.s, cast.e, false, cast.noint, 1
+    end
+  end,
+}
+local savedG = { UnitInRange = rawget(_G, "UnitInRange"), UnitDistanceSquared = rawget(_G, "UnitDistanceSquared"),
+  IsStealthed = rawget(_G, "IsStealthed"), UnitGUID = rawget(_G, "UnitGUID"), GetTotemInfo = rawget(_G, "GetTotemInfo"),
+  CooldownFrame_SetTimer = rawget(_G, "CooldownFrame_SetTimer") }
+local inrange = true
+_G.UnitInRange = function(u) if u == "target" then return inrange, true end return false, false end
+_G.UnitDistanceSquared = function(u) if u == "target" then return 900, true end return 0, false end
+_G.IsStealthed = function() return true end
+ok(LC.HasClassicAPI(), "ClassicAPI stubs seen")
+
+-- auras: timer, caster, the texture guard
+local an, adur, aleft, acaster, aid, atype = LC.Aura("target", 1, true, "Interface\\ICONS\\spell_shadow_shadowwordpain")
+ok(an == "Shadow Word: Pain" and adur == 24 and math.abs(aleft - 18) < .01 and acaster == "player" and aid == 10894 and atype == "Magic",
+  "ClassicAPI aura: name, 24 s with 18 left, yours, id, type (" .. tostring(an) .. " " .. tostring(adur) .. " " .. tostring(aleft) .. " " .. tostring(acaster) .. ")")
+ok(LC.Aura("target", 1, true, "Interface\\Icons\\Other") == nil, "texture guard: a different icon at that index gives nothing")
+ok(LC.Aura("Arcanist", 1, true) == nil, "a name is not a unit token: nothing asked")
+
+-- libdebuff now: ClassicAPI's name, timer and caster
+name, _, tex, _, dtype, duration, left, caster = lib:UnitDebuff("target", 1)
+ok(name == "Shadow Word: Pain" and duration == 24 and math.abs(left - 18) < .01 and caster == "player",
+  "libdebuff takes ClassicAPI's timer and caster (" .. tostring(name) .. " " .. tostring(duration) .. " " .. tostring(caster) .. ")")
+local own = lib:UnitOwnDebuff("target", 1)
+ok(own == "Shadow Word: Pain", "own debuff found by ClassicAPI's caster")
+
+-- distance / range
+d = LC.Distance("target")
+ok(d and math.abs(d - 30) < .01, "ClassicAPI distance from UnitDistanceSquared 900 -> 30 (" .. tostring(d) .. ")")
+ok(LC.InRange("target", 40) == true, "40 yd uses UnitInRange")
+inrange = false
+ok(pfUI.api.librange:UnitInSpellRange("target") == nil, "librange: UnitInRange says out of range")
+inrange = true
+ok(pfUI.api.librange:UnitInSpellRange("target") == 1, "librange: UnitInRange says in range")
+ok(LC.Stealthed() == true, "IsStealthed read")
+ok(pfUI.barsOcto and pfUI.barsOcto.Stealthed and pfUI.barsOcto.Stealthed() == true, "action bars: stealth from IsStealthed")
+ok(LC.PlayerAura(17941) and not LC.PlayerAura(1), "player aura by spell id")
+
+-- cast bars: libcast decides at load, so load it again with C_Spell there
+local savedCast = { env.UnitCastingInfo, env.UnitChannelInfo, pfUI.api.libcast }
+pfUI.api.libcast = nil
+Reload("libs/libcast.lua")
+cast = { name = "Polymorph", icon = "Interface\\Icons\\Spell_Nature_Polymorph", s = now * 1000, e = now * 1000 + 1500, noint = true, delay = 300 }
+local cn, rank, _, ctex, cs, ce, _, noint, delay = env.UnitCastingInfo("target")
+ok(cn == "Polymorph" and ce - cs == 1500 and noint == true and delay == 300 and rank == "",
+  "UnitCastingInfo from ClassicAPI with can't-interrupt and pushback (" .. tostring(cn) .. ")")
+ok(env.UnitChannelInfo("target") == nil, "a cast is not a channel")
+cast.channel = true
+ok(env.UnitChannelInfo("target") == "Polymorph" and env.UnitCastingInfo("target") == nil, "a channel is not a cast")
+cast = nil
+ok(env.UnitCastingInfo("target") == nil, "no ClassicAPI cast: libcast's own data (none)")
+
+-- the target cast bar paints a can't-interrupt cast in its colour
+local cb = pfUI.castbar and pfUI.castbar.target
+if cb then
+  cast = { name = "Polymorph", icon = "Interface\\Icons\\Spell_Nature_Polymorph", s = now * 1000, e = now * 1000 + 1500, noint = true }
+  cb.endTime = nil
+  Mock.Run(cb, "OnUpdate")
+  local r, g, b = cb.bar:GetStatusBarColor()
+  local nr, ng, nb = pfUI.api.strsplit(",", pfUI_config.appearance.castbar.nointcolor)
+  ok(tonumber(r) == tonumber(nr) and tonumber(g) == tonumber(ng) and tonumber(b) == tonumber(nb),
+    "cast bar: can't-interrupt colour (" .. tostring(r) .. "," .. tostring(g) .. "," .. tostring(b) .. ")")
+  cast.noint = false
+  Mock.Run(cb, "OnUpdate")
+  r = cb.bar:GetStatusBarColor()
+  local cr = pfUI.api.strsplit(",", pfUI_config.appearance.castbar.castbarcolor)
+  ok(tonumber(r) == tonumber(cr), "cast bar: normal colour again (" .. tostring(r) .. ")")
+  cast = nil
+  Mock.Run(cb, "OnUpdate")
+else
+  ok(false, "target cast bar exists in the mock")
+end
+env.UnitCastingInfo, env.UnitChannelInfo, pfUI.api.libcast = savedCast[1], savedCast[2], savedCast[3]
+
+-- unit frame buffs: timer and purge frame from ClassicAPI
+local UO = pfUI.ufExtras
+local tf = pfUI.uf and pfUI.uf.target
+if UO and UO.Auras and tf and tf.buffs and tf.buffs[1] then
+  local timers = {}
+  _G.CooldownFrame_SetTimer = function(cd, s, dur, on) timers[cd] = { s, dur, on } end
+  env.CooldownFrame_SetTimer = nil
+  local b = tf.buffs[1]
+  b:Show()
+  local border
+  if b.backdrop then b.backdrop.SetBackdropBorderColor = function(self, r, g, bl) border = { r, g, bl } end end
+  local savedPurge = tf.config.o_purge
+  tf.config.o_purge = "1"
+  UO.Auras(tf)
+  local t = timers[b.cd]
+  ok(t and t[2] == 30 and math.abs(t[1] - (now + 21 - 30)) < .01, "target buff gets ClassicAPI's timer (30 s, 21 left)")
+  ok(border and DebuffTypeColor and DebuffTypeColor.Magic and border[3] == DebuffTypeColor.Magic.b,
+    "enemy magic buff framed for purge")
+  tf.config.o_purge = "0"
+  UO.Auras(tf)
+  ok(not b.octoPurge, "purge frame off again")
+  tf.config.o_purge = savedPurge
+  _G.CooldownFrame_SetTimer = savedG.CooldownFrame_SetTimer
+  b:Hide()
+else
+  ok(false, "unit frame extras and a target frame with buffs in the mock")
+end
+
+-- tooltip: who cast it
+local tip = GameTooltip
+tip:SetOwner(UIParent, "ANCHOR_NONE")
+pfUI_config.tooltip.auracaster = "1"
+-- (an earlier test may have its own party1 and UnitName for it: keep them)
+local savedParty = Mock.units["party1"]
+if not savedParty then Mock.Enemy("party1", "Priestly", "PRIEST", 5, 0) end
+tip:SetUnitBuff("target", 1)
+local found
+for _, l in ipairs(tip.lines or {}) do if string.find(tostring(l), "^Cast by %S") then found = true end end
+ok(found, "buff tooltip says who cast it (" .. table.concat(tip.lines or {}, " | ") .. ")")
+pfUI_config.tooltip.auracaster = "0"
+tip:SetOwner(UIParent, "ANCHOR_NONE")
+tip:SetUnitBuff("target", 1)
+ok(table.getn(tip.lines or {}) == 0, "switched off: no caster line")
+pfUI_config.tooltip.auracaster = "1"
+if not savedParty then Mock.units["party1"] = nil end
+
+-- totems: ClassicAPI's tracker (libtotem decides at load)
+local savedTotem = env.GetTotemInfo
+_G.GetTotemInfo = function(slot)
+  if slot == 1 then return true, "Searing Totem", now - 5, 55, "Interface\\Icons\\Spell_Fire_SearingTotem", 1, 10438 end
+  return true, "", 0, 0, nil, 1, 0
+end
+Reload("libs/libtotem.lua")
+local active, tname, tstart, tdur = env.GetTotemInfo(1)
+ok(active == 1 and tname == "Searing Totem" and tdur == 55, "GetTotemInfo from ClassicAPI's tracker")
+ok(env.GetTotemInfo(2) == nil, "an empty slot (tool held, no totem) is not a totem")
+env.GetTotemInfo = savedTotem
+
+-- ---------------------------------------------------------------- back to the plain mock
+C_UnitAuras, C_Spell = nil, nil
+for k, v in pairs(savedG) do rawset(_G, k, v) end
+Mock.units[TGT] = nil
+Mock.target = savedTarget

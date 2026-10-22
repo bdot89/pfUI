@@ -957,6 +957,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Time left as a sweep", "Also on debuffs.", U, "cooldown_anim")
     Chk(p, "Flash in the last 30 seconds (player)", "Your own buffs pulse before they run out.",
       function() return C.unitframes.player end, "o_flashexpire", function() UF.Apply("player") end)
+    Chk(p, "Frame enemy buffs you can purge", "Magic buffs on enemies get a blue frame. Needs ClassicAPI (the plain game does not say a buff's type); with it others' buffs also show their time left.", U, "o_purge")
 
     W.Card(p, "Debuffs")
     Drop(p, "Where", nil, DD("uf_buff_position"), U, "debuffs")
