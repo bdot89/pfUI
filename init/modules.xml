@@ -60,6 +60,7 @@
   <Include file="..\modules\plates-lists.lua"/>
   <Include file="..\modules\plates-options.lua"/>
   <Include file="..\modules\unitframes-options.lua"/>
+  <Include file="..\modules\castbar-options.lua"/>
   <Include file="..\modules\loot.lua"/>
   <Include file="..\modules\roll.lua"/>
   <Include file="..\modules\infight.lua"/>

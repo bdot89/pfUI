@@ -107,7 +107,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     icons = "Icons", glow = "Glow and indicators", class = "Class and status", border = "Border and background",
   }
   UF.HOTLABEL = {
-    class = "Class icon, badge or status", border = "Border and background",
+    class = "Class icon, badge or status", border = "Border and background", castbar = "Cast bar (opens Cast bars)",
     frame = "The frame", hp = "Health bar", power = "Power bar", portrait = "Portrait",
     hptext = "Health text", powertext = "Power text", buffs = "Buffs", debuffs = "Debuffs",
     icons = "Icon", glow = "Glow and indicators",
@@ -313,10 +313,50 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
           table.insert(set.texts, { h, t[1], t[3] })
         end
       end
+      -- the cast bar under the player, target and focus frames: a click
+      -- opens the Cast bars page on its tab
+      if (key == "player" or key == "target" or key == "focus") and C.castbar and C.castbar[key] then
+        local f = set.frames[1]
+        local cb = CreateFrame("StatusBar", nil, set)
+        cb:SetMinMaxValues(0, 100)
+        cb:SetValue(60)
+        CreateBackdrop(cb)
+        cb.text = cb:CreateFontString(nil, "OVERLAY")
+        cb.text:SetPoint("LEFT", cb, "LEFT", 3, 0)
+        cb.key = key
+        set.castbar = cb
+        local h = Hot(set, cb, "castbar", 24)
+        h:SetScript("OnClick", function() O:Open("ufcastbar", key) end)
+        f.octoPrevCast = cb
+      end
       M.sets[key] = set
       return set
     end
     M.Set = Set
+
+    -- the sample cast bar: pfUI's look and the Cast bars page's size
+    local function CastSample(set, key)
+      local cb = set.castbar
+      if not cb then return end
+      local s = C.castbar[key]
+      if s.hide_pfui == "1" then cb:Hide() return end
+      local f = set.frames[1]
+      local w = tonumber(s.width) or -1
+      if w <= 0 then w = f:GetWidth() or 200 end
+      local h = tonumber(s.height) or -1
+      if h <= 0 then h = (tonumber(C.global.font_size) or 12) * 1.5 end
+      cb:SetWidth(w)
+      cb:SetHeight(h)
+      cb:ClearAllPoints()
+      cb:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -6)
+      cb:SetStatusBarTexture(pfUI.media[C.appearance.castbar.texture])
+      local r, g, b, a = GetStringColor(C.appearance.castbar.castbarcolor or ".7,.7,.9,.8")
+      cb:SetStatusBarColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1)
+      cb:SetValue(math.mod(GetTime() * 40, 100))
+      cb.text:SetFont(pfUI.font_default or STANDARD_TEXT_FONT, tonumber(C.global.font_size) or 12, "OUTLINE")
+      cb.text:SetText(s.showname == "1" and "Frostbolt" or "")
+      cb:Show()
+    end
 
     -- where the frames of a set sit on the stage (party in a column, raid
     -- in a grid as its settings say)
@@ -375,6 +415,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         Samples(f, cfg)
       end
       Place(set, key)
+      CastSample(set, key)
       local u = BY[key]
       local who = DataUnit(key) == "player" and "your character" or ("your " .. DataUnit(key))
       local off = cfg.visible == "0" and "  |cffff8080(this frame is off: Frame card)|r" or ""

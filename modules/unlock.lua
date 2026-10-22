@@ -81,9 +81,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["ActionBarPet"]         = { T["Actionbar"], T["Pet Actionbar"]},
 
     -- castbar
-    ["TargetCastbar"]  = { T["Castbar"], nil },
-    ["PlayerCastbar"]  = { T["Castbar"], nil },
-    ["FocusCastbar"]   = { T["Castbar"], nil },
+    ["TargetCastbar"]  = { "ufcastbar", "target" },
+    ["PlayerCastbar"]  = { "ufcastbar", "player" },
+    ["FocusCastbar"]   = { "ufcastbar", "focus" },
 
     -- minimap
     ["Minimap"]        = { T["Minimap"], T["Minimap"] },

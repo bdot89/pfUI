@@ -109,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo" }
+  "unitframes-options", "unitframes-octo", "castbar-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1199,7 +1199,7 @@ do
     -- right-click lookups: a page in another category still found, any case
     ok(O:FindLegacy("Bars", "Experience Bar") == "l:XP Bar/Experience Bar", "page found outside its old category: " .. tostring(O:FindLegacy("Bars", "Experience Bar")))
     ok(O:FindLegacy("buffs", "totem icons") == "l:Buffs/Totem Icons", "names match in any case")
-    ok(O:FindLegacy("Castbar") == "l:Castbar", "a category without pages")
+    ok(O:FindLegacy("Loot") == "l:Loot", "a category without pages")
     -- an Octo slider takes a typed number (and percent for 0-1 values)
     local ar = O:Page("ctareas")
     if ar then
@@ -1436,7 +1436,7 @@ do
   if UF and O then
     local sec
     for _, s in ipairs(O.octo) do if s[1] == "Unit Frames" then sec = s end end
-    ok(sec and table.getn(sec[2]) == 3, "Unit Frames: three pages instead of fourteen")
+    ok(sec and table.getn(sec[2]) == 4, "Unit Frames: four pages (with Cast bars) instead of fifteen")
     local old = 0
     for k in pairs(O.legacy) do if string.find(k, "^l:Unit Frames") then old = old + 1 end end
     ok(old == 0, "pfUI's own Unit Frames pages are gone from the list")
@@ -1462,6 +1462,16 @@ do
         if not pfUI.plates.OpenSection("ufframes", UF.GO[what]) then table.insert(missing, "no card: " .. UF.GO[what]) end
       end
       ok(table.getn(missing) == 0, "every part of the frame opens its own card (" .. table.concat(missing, ", ") .. ")")
+      -- the cast bar under the frame opens the Cast bars page on its tab
+      local cbh
+      for _, h in ipairs(M.sets.player.hots) do if h.what == "castbar" then cbh = h end end
+      ok(cbh and M.sets.player.castbar, "the player frame's preview has its cast bar")
+      if cbh then
+        _G.this = cbh
+        Mock.Run(cbh, "OnClick", "LeftButton")
+        ok(O.current == "o:ufcastbar" and pfUI.castbarOcto.cur == "player", "clicking it opens Cast bars on Player")
+        O:Select("o:ufframes")
+      end
       -- sample buffs and marks so they can be clicked
       local b1 = f.buffs and f.buffs[1]
       ok(b1 and b1:IsShown(), "sample buffs on the preview")
@@ -1492,6 +1502,42 @@ do
       "the Raid tab shows ten raid frames instead")
     UF.cur = "player"
     M.Refresh()
+    -- the cast bar page: an animated sample, every part opens its card
+    local CB = pfUI.castbarOcto
+    O:Select("o:ufcastbar")
+    ok(CB and CB.mini and CB.mini.cb, "the cast bar page has its preview")
+    if CB and CB.mini then
+      local cb = CB.mini.cb
+      local sc = pfUI_config.castbar.player
+      sc.showicon, sc.showlag = "1", "1"
+      CB.mini.Refresh()
+      Mock.now = 1000 * 4 * 4 + 1   -- the first sample (a cast), 1 s in
+      CB.mini.Animate(Mock.now)
+      ok(cb.bar:GetValue() > 0 and cb.bar:GetValue() < 2.5 and string.find(cb.bar.left:GetText() or "", "Frostbolt"), "it casts, filling")
+      ok(string.find(cb.bar.right:GetText() or "", " / "), "with the timer")
+      ok(cb.icon:IsShown() and cb.bar.lag:IsShown(), "icon and lag as set")
+      Mock.now = 1000 * 4 * 4 + 4 + 1   -- the second (a channel), 1 s in
+      CB.mini.Animate(Mock.now)
+      ok(cb.bar:GetValue() > 1.5 and string.find(cb.bar.left:GetText() or "", "Arcane Missiles"), "then channels, emptying")
+      local missing = {}
+      for what, title in pairs(CB.GO) do
+        if not CB.mini.hots[what] then table.insert(missing, "no spot: " .. what) end
+        if not pfUI.plates.OpenSection("ufcastbar", title) then table.insert(missing, "no card: " .. title) end
+      end
+      ok(table.getn(missing) == 0, "every part of the cast bar opens its own card (" .. table.concat(missing, ", ") .. ")")
+      -- Shift + wheel on the bar: taller
+      local h0 = sc.height
+      Mock.shift = true
+      _G.this, _G.arg1 = CB.mini.hots.bar, 1
+      Mock.Run(CB.mini.hots.bar, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(tonumber(sc.height) and tonumber(sc.height) > 0, "Shift + wheel sets a height (" .. tostring(sc.height) .. ")")
+      sc.height, sc.showicon, sc.showlag = h0, "0", "0"
+      -- tabs
+      O.tabs.ufcastbar("target")
+      ok(CB.cur == "target", "a cast bar's box opens its tab")
+      CB.cur = "player"
+    end
     pfUI.gui:Hide()
   end
 end
@@ -2174,10 +2220,10 @@ do
     local castTopic
     for _, grp in ipairs(O.groups) do
       if grp.header.text.text == "Unit Frames" then
-        for _, b in ipairs(grp.buttons) do if b.key == "l:Castbar" then castTopic = true end end
+        for _, b in ipairs(grp.buttons) do if b.key == "o:ufcastbar" then castTopic = true end end
       end
     end
-    ok(castTopic, "Castbar is a topic under Unit Frames")
+    ok(castTopic, "Cast bars is a topic under Unit Frames")
     -- the topic list uses the panel's real height: an open section pushes the
     -- rest down, nothing past the old 540 px guess is dropped
     local nav = O.navFrame

@@ -340,3 +340,11 @@ see "Roadmap" below.
    Test buttons (hit / heal flash, debuff colour, dead, offline). Not on 1.12 or skipped: role
    icons, ready check, summons, absorbs, own-caster auras, stealable glow, talents, sorting.
    Unverified: UnitIsAFK / UnitIsFeignDeath on this client (guarded), UNIT_COMBAT args.
+   Cast bars page (22 Oct): modules/castbar-options.lua (`pfUI.castbarOcto`), key "ufcastbar" under
+   Unit Frames, replaces pfUI's Castbar page. Tabs Player / Target / Focus (CB.cur); pinned
+   preview = a sample cast bar built like castbar.lua's, looping 4 spells (cast fills, channel
+   empties, fades out), name / rank / timer / icon / lag per settings; spots: bar (size, Shift +
+   wheel height), fill (colours + texture), name, timer, icon, lag. CB.Apply sets show* flags,
+   size, texture and text points on pfUI's real cast bars live; on/off, fonts, hide_blizz need a
+   reload (settingChanged). The Unit Frames preview shows a cast bar under player / target / focus
+   that opens this page on its tab; layout mode's cast bar boxes do too (O.tabs.ufcastbar).
