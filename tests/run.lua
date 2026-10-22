@@ -1776,6 +1776,18 @@ do
       S.markelite = "star"
       P.OnPreviewClick = was
       P.Limits = limits
+      -- a sample sticking out of its column shrinks; with room it grows back
+      local col, ext = P.Column, P.Extent
+      P.Column = function() return 0, 100, 100, 0 end
+      P.Extent = function() return -20, 90, 90, 10 end
+      first.fit = 1
+      P.Fit(first)
+      ok(first.fit < 1, "a sample sticking out shrinks (" .. first.fit .. ")")
+      P.Extent = function() return 30, 70, 70, 30 end
+      local f0 = first.fit
+      P.Fit(first)
+      ok(first.fit > f0, "with room to spare it grows back")
+      P.Column, P.Extent = col, ext
       ok(fp.octo.cp and fp.octo.cp[1].hots, "combo points are clickable")
       S.skin = "thick"
       P.Refresh()
@@ -1809,6 +1821,12 @@ do
       end
     end
     ok(castTopic, "Castbar is a topic under Unit Frames")
+    -- the corner grip scales the window, within limits, and remembers it
+    ok(O.grip ~= nil, "the window has a resize grip")
+    O:ApplyScale(3)
+    ok(pfUI_cache.octoui.winscale == 1.6, "window size stops at 160%")
+    O:ApplyScale(1)
+    ok(pfUI_cache.octoui.winscale == 1, "back to normal size")
     -- the spacing slider rebuilds the pages
     pfUI_cache.octoui.space = 8
     O:Select("o:nplook")

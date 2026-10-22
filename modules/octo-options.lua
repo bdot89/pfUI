@@ -188,8 +188,81 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
     if root.area.wheel then root.area.wheel:EnableMouseWheel(false) end
 
+    self:BuildGrip(f)
     self:ApplyAlpha()
     self:BuildNav()
+  end
+
+  -- The window's size (user, 22 Oct 2026: "a window resize slider on the
+  -- bottom right ... make the dragger stand out"): a grip in the accent
+  -- colour; dragging it scales the whole window, its top left corner stays
+  -- put. Right-click = normal size. Kept per account (B.Store().winscale).
+  function O:ApplyScale(s)
+    s = math.max(.6, math.min(1.6, s or tonumber(B.Store().winscale) or 1))
+    local f = self.frame
+    local l, t = f:GetLeft(), f:GetTop()
+    local old = f:GetEffectiveScale() or 1
+    f:SetScale(s)
+    if l and t then
+      -- keep the top left corner where it was on screen
+      local new = f:GetEffectiveScale() or 1
+      f:ClearAllPoints()
+      f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l * old / new, t * old / new)
+    end
+    B.Store().winscale = s
+  end
+
+  function O:BuildGrip(f)
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetWidth(26)
+    grip:SetHeight(26)
+    grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+    grip:SetFrameLevel(f:GetFrameLevel() + 20)
+    grip:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    local tex = grip:CreateTexture(nil, "OVERLAY")
+    tex:SetAllPoints(grip)
+    tex:SetTexture("Interface\\AddOns\\pfUI\\img\\octo\\resize-bottomright")
+    tex:SetVertexColor(K.accent[1], K.accent[2], K.accent[3], 1)
+    local glow = grip:CreateTexture(nil, "BACKGROUND")
+    glow:SetPoint("TOPLEFT", grip, "TOPLEFT", -6, 6)
+    glow:SetPoint("BOTTOMRIGHT", grip, "BOTTOMRIGHT", 4, -4)
+    glow:SetTexture("Interface\\AddOns\\pfUI\\img\\plates\\cp-glow")
+    glow:SetBlendMode("ADD")
+    glow:SetVertexColor(K.accent[1], K.accent[2], K.accent[3], .7)
+    grip:SetScript("OnEnter", function()
+      glow:SetVertexColor(1, 1, 1, .9)
+      GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT")
+      GameTooltip:AddLine("Window size")
+      GameTooltip:AddLine("Drag: bigger or smaller", 1, 1, 1)
+      GameTooltip:AddLine("Right-click: normal size", 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    grip:SetScript("OnLeave", function()
+      glow:SetVertexColor(K.accent[1], K.accent[2], K.accent[3], .7)
+      GameTooltip:Hide()
+    end)
+    grip:SetScript("OnMouseDown", function()
+      if arg1 == "RightButton" then return end
+      local x, y = GetCursorPosition()
+      this.from = { x, y, f:GetScale() or 1 }
+      this:SetScript("OnUpdate", function()
+        local d = this.from
+        if not d then return end
+        local cx, cy = GetCursorPosition()
+        -- right and down = bigger, about 1 % per 6 px
+        local move = ((cx - d[1]) + (d[2] - cy)) / (UIParent:GetEffectiveScale() or 1)
+        O:ApplyScale(d[3] * (1 + move / 600))
+      end)
+    end)
+    grip:SetScript("OnMouseUp", function()
+      this.from = nil
+      this:SetScript("OnUpdate", nil)
+    end)
+    grip:SetScript("OnClick", function()
+      if arg1 == "RightButton" then O:ApplyScale(1) end
+    end)
+    self.grip = grip
+    if tonumber(B.Store().winscale) then f:SetScale(math.max(.6, math.min(1.6, tonumber(B.Store().winscale)))) end
   end
 
   -- The strip under the title, on every page.

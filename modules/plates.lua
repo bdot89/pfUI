@@ -1128,37 +1128,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   -- How far all visible pieces of a part may move and stay in the preview
   -- box: { min dx, max dx, min dy, max dy } (0 where it is already outside,
   -- so it can only come back in).
+  -- (limits are the sample's column inside the box, in the part's own units)
   function P.Limits(game, what)
-    local box = game:GetParent()
-    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
-    if not (l and r and t and b) then return end
-    local ul, ur, ut, ub
-    for _, h in ipairs(game.hotlist or {}) do
-      if h.what == what and h.region:IsVisible() and h:GetLeft() then
-        ul = math.min(ul or h:GetLeft(), h:GetLeft())
-        ur = math.max(ur or h:GetRight(), h:GetRight())
-        ut = math.max(ut or h:GetTop(), h:GetTop())
-        ub = math.min(ub or h:GetBottom(), h:GetBottom())
-      end
-    end
-    if not ul then return end
-    return { math.min(0, l - ul), math.max(0, r - ur), math.min(0, b - ub), math.max(0, t - ut) }
-  end
-
-  -- every visible piece of a part (all its aura icons, all five combo points)
-  -- inside the preview box? (user, 22 Oct 2026: a dragged aura left the box
-  -- and covered the help band below it)
-  function P.Inside(game, what)
-    local box = game:GetParent()
-    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
-    if not (l and r and t and b) then return true end
-    for _, h in ipairs(game.hotlist or {}) do
-      if h.what == what and h.region:IsVisible() then
-        local hl, hr, ht, hb = h:GetLeft(), h:GetRight(), h:GetTop(), h:GetBottom()
-        if hl and (hl < l or hr > r or ht > t or hb < b) then return false end
-      end
-    end
-    return true
+    local l, r, t, b = P.Column(game)
+    local ul, ur, ut, ub = P.Extent(game, what)
+    if not l or not ul then return end
+    local k = game:GetEffectiveScale() or 1
+    return { math.min(0, l - ul) / k, math.max(0, r - ur) / k, math.min(0, b - ub) / k, math.max(0, t - ut) / k }
   end
 
   -- the part under the mouse in a preview box (Shift + wheel on the box)
@@ -1340,7 +1316,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     for i = 1, n do
       local game = SamplePlate(box, SAMPLES[i])
       -- room above for the aura rows and the big special icons
-      game:SetPoint("TOP", box, "TOPLEFT", (box:GetWidth() or 640) * (i - .5) / n, -92)
+      game.col, game.cols, game.fit = i, n, 1
+      game.at = { (box:GetWidth() or 640) * (i - .5) / n, -92 }
+      game:SetPoint("TOP", box, "TOPLEFT", game.at[1], game.at[2])
       game.preview.anyTarget = true
       game.caption = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       game.caption:SetPoint("BOTTOM", box, "BOTTOMLEFT", (box:GetWidth() or 640) * (i - .5) / n, 8)
@@ -1360,9 +1338,59 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       local whole = l and box:GetTop() and math.abs(t - box:GetTop() * k) < 1 and math.abs(b - box:GetBottom() * k) < 1
       for _, game in ipairs(list) do
         if whole and not game:IsShown() then game:Show() elseif not whole and game:IsShown() then game:Hide() end
+        if whole then P.Fit(game) end
       end
     end)
     return list
+  end
+
+  -- A sample's column of its box, in screen units, with a margin all round
+  -- (and room for the caption at the bottom).
+  function P.Column(game)
+    local box = game:GetParent()
+    local k = box:GetEffectiveScale() or 1
+    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
+    if not (l and r and t and b) then return end
+    local w = (r - l) / (game.cols or 1)
+    local m = 6
+    return (l + w * ((game.col or 1) - 1) + m) * k, (l + w * (game.col or 1) - m) * k, (t - m) * k, (b + 22) * k
+  end
+
+  -- All visible parts of a sample (or only those of one kind), screen units.
+  function P.Extent(game, what)
+    local ul, ur, ut, ub
+    for _, h in ipairs(game.hotlist or {}) do
+      if (not what or h.what == what) and h.region:IsVisible() and h:GetLeft() then
+        local k = h:GetEffectiveScale() or 1
+        ul = math.min(ul or h:GetLeft() * k, h:GetLeft() * k)
+        ur = math.max(ur or h:GetRight() * k, h:GetRight() * k)
+        ut = math.max(ut or h:GetTop() * k, h:GetTop() * k)
+        ub = math.min(ub or h:GetBottom() * k, h:GetBottom() * k)
+      end
+    end
+    return ul, ur, ut, ub
+  end
+
+  -- Keeps every part of a sample inside its column (user, 22 Oct 2026: "the
+  -- plates should sit inside better"): a sample whose parts stick out
+  -- shrinks a little each frame; one with room to spare grows back to full.
+  function P.Fit(game)
+    local cl, cr, ct, cb = P.Column(game)
+    local ul, ur, ut, ub = P.Extent(game)
+    if not cl or not ul then return end
+    local fit = game.fit or 1
+    if ul < cl or ur > cr or ut > ct or ub < cb then
+      fit = math.max(.45, fit * .97)
+    elseif fit < 1 and ul - cl > 10 and cr - ur > 10 and ct - ut > 10 and ub - cb > 10 then
+      fit = math.min(1, fit * 1.01)
+    end
+    if fit ~= game.fit then
+      game.fit = fit
+      game:SetScale(fit)
+      -- its place in the box stays (offsets count in the sample's own scale)
+      game:ClearAllPoints()
+      game:SetPoint("TOP", game:GetParent(), "TOPLEFT", game.at[1] / fit, game.at[2] / fit)
+    end
   end
 
   -- ---------------------------------------------------------------- wrap pfUI's nameplates
