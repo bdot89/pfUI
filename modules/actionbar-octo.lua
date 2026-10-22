@@ -68,6 +68,512 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
 
   AB.Skin, AB.Zoom = Skin, Zoom
 
+  -- ---------------------------------------------------------------- effects
+  -- (user, 22 Oct 2026: "build the action bar ideas from EllesmereUI": press
+  -- and hover looks, proc glows, cooldown swipe and edge, empty slot fill,
+  -- equipped border. EllesmereUI's licence reserves its rights: only its
+  -- feature list was read. Art: tools\MakePlateArt.ps1 -> img\bars.)
+
+  local ART = "Interface\\AddOns\\pfUI\\img\\bars\\"
+  AB.ART = ART
+
+  -- a setting's colour, or the class colour when its "_class" switch is on
+  local function Col(key)
+    local r, g, b, a = GetStringColor(C.bars[key] or "1,1,1,1")
+    r, g, b, a = tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+    if C.bars[key .. "_class"] == "1" then
+      local _, class = UnitClass("player")
+      local c = class and RAID_CLASS_COLORS[class]
+      if c then r, g, b = c.r, c.g, c.b end
+    end
+    return r, g, b, a
+  end
+  AB.Col = Col
+
+  -- hover and press looks
+  AB.STYLES = {
+    { key = "pfui", label = "pfUI glow" },
+    { key = "light", label = "Light", add = .25 },
+    { key = "medium", label = "Medium", add = .45 },
+    { key = "strong", label = "Strong", add = .7 },
+    { key = "fill", label = "Solid colour" },
+    { key = "border", label = "Border only" },
+    { key = "inner", label = "Inner glow", tex = "btn-inner", add = 1 },
+    { key = "gloss", label = "Gloss", tex = "btn-gloss", add = 1 },
+    { key = "corners", label = "Corners", tex = "btn-corners" },
+    { key = "none", label = "None" },
+  }
+  local STYLEBY = {}
+  for _, s in ipairs(AB.STYLES) do STYLEBY[s.key] = s end
+
+  -- a layer over a button: a fill and four edge lines
+  function AB.Layer(parent, level)
+    local l = CreateFrame("Frame", nil, parent)
+    l:SetAllPoints(parent)
+    l:SetFrameLevel(parent:GetFrameLevel() + (level or 1))
+    l.fill = l:CreateTexture(nil, "OVERLAY")
+    l.fill:SetAllPoints(l)
+    l.edges = {}
+    for i = 1, 4 do
+      l.edges[i] = l:CreateTexture(nil, "OVERLAY")
+      l.edges[i]:SetTexture(WHITE)
+    end
+    return l
+  end
+
+  -- a layer's four edge lines, px thick, in one colour
+  function AB.Edges(l, px, r, g, b, a)
+    local e = l.edges
+    e[1]:ClearAllPoints() e[1]:SetPoint("TOPLEFT", l, "TOPLEFT") e[1]:SetPoint("TOPRIGHT", l, "TOPRIGHT") e[1]:SetHeight(px)
+    e[2]:ClearAllPoints() e[2]:SetPoint("BOTTOMLEFT", l, "BOTTOMLEFT") e[2]:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT") e[2]:SetHeight(px)
+    e[3]:ClearAllPoints() e[3]:SetPoint("TOPLEFT", l, "TOPLEFT") e[3]:SetPoint("BOTTOMLEFT", l, "BOTTOMLEFT") e[3]:SetWidth(px)
+    e[4]:ClearAllPoints() e[4]:SetPoint("TOPRIGHT", l, "TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT") e[4]:SetWidth(px)
+    for i = 1, 4 do e[i]:SetVertexColor(r, g, b, a or 1) e[i]:Show() end
+  end
+
+  -- paint a layer in a style; prefix: "hover" / "press" (C.bars keys
+  -- <prefix>_style, _color, _color_class, _size). Returns false for pfUI's own.
+  function AB.Paint(l, prefix, style)
+    style = style or C.bars[prefix .. "_style"] or "pfui"
+    local s = STYLEBY[style] or STYLEBY.pfui
+    local r, g, b, a = Col(prefix .. "_color")
+    l.fill:Hide()
+    for i = 1, 4 do l.edges[i]:Hide() end
+    if s.key == "pfui" or s.key == "none" then return s.key == "none" end
+    if s.key == "border" then
+      AB.Edges(l, tonumber(C.bars[prefix .. "_size"]) or 1, r, g, b, a)
+      return true
+    end
+    l.fill:SetTexture(s.tex and (ART .. s.tex) or WHITE)
+    l.fill:SetBlendMode(s.add and "ADD" or "BLEND")
+    l.fill:SetVertexColor(r, g, b, a * (s.add or 1))
+    l.fill:Show()
+    return true
+  end
+
+  -- the press layer shows while the button is held (mouse or key)
+  local function PressDown() local p = this.octoPress if p and p.on then p:Show() p.untilT = GetTime() + 3 end end
+  local function PressUp() if this.octoPress then this.octoPress:Hide() end end
+  local function PressKey()
+    local p = _G.this.octoPress
+    if not (p and p.on) then return end
+    if keystate == "down" then
+      p:Show()
+      p.untilT = GetTime() + 3
+    elseif keystate == "up" then
+      p:Hide()
+    end
+  end
+  -- (a press never sticks: a lost key-up ends it after 3 s)
+  local function PressWatch() if GetTime() > (this.untilT or 0) then this:Hide() end end
+
+  -- slot backgrounds, under the icon
+  AB.SLOTS = {
+    { key = "pfui", label = "pfUI's" },
+    { key = "solid", label = "Solid colour" },
+    { key = "grad", label = "Gradient", tex = "btn-grad" },
+    { key = "stripes", label = "Stripes", tex = "btn-stripes" },
+    { key = "dots", label = "Dots", tex = "btn-dots" },
+  }
+  local SLOTBY = {}
+  for _, s in ipairs(AB.SLOTS) do SLOTBY[s.key] = s end
+  function AB.Slot(f, holder)
+    holder = holder or f.backdrop or f
+    local s = SLOTBY[C.bars.slot_style or "pfui"]
+    if not s or s.key == "pfui" then
+      if f.octoSlot then f.octoSlot:Hide() end
+      return
+    end
+    if not f.octoSlot then
+      f.octoSlot = holder:CreateTexture(nil, "ARTWORK")
+      f.octoSlot:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+      f.octoSlot:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    end
+    f.octoSlot:SetTexture(s.tex and (ART .. s.tex) or WHITE)
+    f.octoSlot:SetVertexColor(Col("slot_color"))
+    f.octoSlot:Show()
+  end
+
+  -- ------------------------------------------------ proc glows
+
+  AB.GLOWS = {
+    { key = "ants", label = "Marching lines" },
+    { key = "pulse", label = "Pulsing inner glow" },
+    { key = "shine", label = "Circling sparks" },
+    { key = "border", label = "Soft outer glow" },
+  }
+
+  -- ants: dashes running round the edge
+  local function Ants(g, t)
+    local f = g:GetParent()
+    local w, h = tonumber(f:GetWidth()) or 36, tonumber(f:GetHeight()) or 36
+    local per = 2 * (w + h)
+    local n = math.max(1, math.min(16, tonumber(C.bars.glow_lines) or 8))
+    local th = tonumber(C.bars.glow_thick) or 2
+    local len = per / n / 2
+    local shift = math.mod(t * (tonumber(C.bars.glow_speed) or 4) * 10, per)
+    for i = 1, 16 do
+      local d = g.dash[i]
+      if i > n then
+        d:Hide()
+      else
+        -- start of the dash along the edge, clockwise from the top left
+        local p = math.mod(shift + (i - 1) * per / n, per)
+        local l = len
+        d:ClearAllPoints()
+        if p < w then
+          l = math.min(l, w - p)
+          d:SetPoint("TOPLEFT", f, "TOPLEFT", p, 0) d:SetWidth(l) d:SetHeight(th)
+        elseif p < w + h then
+          p = p - w
+          l = math.min(l, h - p)
+          d:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -p) d:SetWidth(th) d:SetHeight(l)
+        elseif p < 2 * w + h then
+          p = p - w - h
+          l = math.min(l, w - p)
+          d:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -p, 0) d:SetWidth(l) d:SetHeight(th)
+        else
+          p = p - 2 * w - h
+          l = math.min(l, h - p)
+          d:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, p) d:SetWidth(th) d:SetHeight(l)
+        end
+        d:Show()
+      end
+    end
+  end
+
+  -- shine: four sparks circling the edge
+  local function Shine(g, t)
+    local f = g:GetParent()
+    local w, h = tonumber(f:GetWidth()) or 36, tonumber(f:GetHeight()) or 36
+    local per = 2 * (w + h)
+    local shift = math.mod(t * (tonumber(C.bars.glow_speed) or 4) * 8, per)
+    for i = 1, 4 do
+      local p = math.mod(shift + (i - 1) * per / 4, per)
+      local x, y
+      if p < w then x, y = p, 0
+      elseif p < w + h then x, y = w, -(p - w)
+      elseif p < 2 * w + h then x, y = w - (p - w - h), -h
+      else x, y = 0, -(h - (p - 2 * w - h)) end
+      local s = g.spark[i]
+      s:ClearAllPoints()
+      s:SetPoint("CENTER", f, "TOPLEFT", x, y)
+      s:Show()
+    end
+  end
+
+  local function GlowUpdate()
+    local g = this
+    local t = GetTime() - (g.start or 0)
+    local style = C.bars.glow_style or "ants"
+    local speed = tonumber(C.bars.glow_speed) or 4
+    if style == "ants" then Ants(g, t)
+    elseif style == "shine" then Shine(g, t)
+    else
+      local pulse = .55 + .45 * math.sin(t * speed * 1.2)
+      if style == "pulse" then g.inner:SetAlpha(pulse) else g.outer:SetAlpha(pulse) end
+    end
+    -- the burst as it starts: a ring grows and fades
+    if g.burst:IsShown() then
+      local k = t / .4
+      if k >= 1 then
+        g.burst:Hide()
+      else
+        local sz = (tonumber(g:GetParent():GetWidth()) or 36) * (1 + k)
+        g.burst:SetWidth(sz) g.burst:SetHeight(sz)
+        g.burst:SetAlpha(1 - k)
+      end
+    end
+  end
+
+  function AB.Glow(f, on)
+    local g = f.octoGlow
+    if not on then
+      if g and g:IsShown() then g:Hide() end
+      return
+    end
+    if not g then
+      g = CreateFrame("Frame", nil, f)
+      g:SetAllPoints(f)
+      g:SetFrameLevel(f:GetFrameLevel() + 4)
+      g.dash = {}
+      for i = 1, 16 do g.dash[i] = g:CreateTexture(nil, "OVERLAY") g.dash[i]:SetTexture(WHITE) end
+      g.spark = {}
+      for i = 1, 4 do
+        g.spark[i] = g:CreateTexture(nil, "OVERLAY")
+        g.spark[i]:SetTexture("Interface\\AddOns\\pfUI\\img\\plates\\cp-glow")
+        g.spark[i]:SetBlendMode("ADD")
+      end
+      g.inner = g:CreateTexture(nil, "OVERLAY")
+      g.inner:SetAllPoints(g)
+      g.inner:SetTexture(ART .. "btn-inner")
+      g.inner:SetBlendMode("ADD")
+      g.outer = CreateFrame("Frame", nil, g)
+      g.outer:SetPoint("TOPLEFT", g, "TOPLEFT", -6, 6)
+      g.outer:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", 6, -6)
+      g.outer:SetBackdrop({ edgeFile = pfUI.media["img:glow"], edgeSize = 8 })
+      g.burst = g:CreateTexture(nil, "OVERLAY")
+      g.burst:SetPoint("CENTER", g, "CENTER")
+      g.burst:SetTexture(ART .. "btn-ring")
+      g.burst:SetBlendMode("ADD")
+      g:SetScript("OnUpdate", GlowUpdate)
+      f.octoGlow = g
+    end
+    if g:IsShown() and g.lit then return end
+    -- (re)paint for the style picked now
+    local style = C.bars.glow_style or "ants"
+    local r, gg, b, a = Col("glow_color")
+    local th = tonumber(C.bars.glow_thick) or 2
+    for i = 1, 16 do g.dash[i]:SetVertexColor(r, gg, b, a) g.dash[i]:Hide() end
+    for i = 1, 4 do
+      g.spark[i]:SetVertexColor(r, gg, b, a)
+      g.spark[i]:SetWidth(th * 5) g.spark[i]:SetHeight(th * 5)
+      g.spark[i]:Hide()
+    end
+    g.inner:SetVertexColor(r, gg, b, a)
+    if style == "pulse" then g.inner:Show() else g.inner:Hide() end
+    g.outer:SetBackdropBorderColor(r, gg, b, a)
+    if style == "border" then g.outer:Show() else g.outer:Hide() end
+    g.burst:SetVertexColor(r, gg, b, a)
+    if C.bars.glow_burst == "1" then g.burst:Show() else g.burst:Hide() end
+    g.start = GetTime()
+    g.lit = true
+    g:Show()
+  end
+  -- call after a glow setting changes, so lit glows repaint
+  function AB.GlowRepaint()
+    for _, f in pairs(BARS.buttons or {}) do
+      if f.octoGlow then f.octoGlow.lit = nil end
+    end
+  end
+
+  -- what glows: reactive abilities while usable, and spells a proc made free
+  -- (icon names, lower case, without "interface\icons\")
+  AB.REACTIVE = {
+    ability_meleedamage = true,        -- Overpower
+    ability_warrior_revenge = true,    -- Revenge
+    inv_sword_48 = true,               -- Execute
+    ability_warrior_challange = true,  -- Riposte, Counterattack
+    ability_hunter_swiftstrike = true, -- Mongoose Bite
+    ability_thunderclap = true,        -- Hammer of Wrath
+  }
+  -- buff icon -> the spell it lights
+  AB.PROCS = {
+    spell_shadow_twilight = "spell_shadow_shadowbolt", -- Shadow Trance (Nightfall)
+  }
+  local function Icon(tex)
+    if not tex then return end
+    local _, _, name = string.find(string.lower(tex), "([^\\]+)$")
+    return name
+  end
+  AB.Icon = Icon
+
+  local procLit = {}
+  local function ScanProcs()
+    for k in pairs(procLit) do procLit[k] = nil end
+    for i = 1, 32 do
+      local tex = UnitBuff("player", i)
+      if not tex then break end
+      local lit = AB.PROCS[Icon(tex) or ""]
+      if lit then procLit[lit] = true end
+    end
+  end
+
+  function AB.ShouldGlow(f)
+    if not f or not f.id or (f.bar and f.bar > 10) then return false end
+    local icon = Icon(f.texture)
+    if not icon then return false end
+    if C.bars.glow_procs == "1" and procLit[icon] then return true end
+    if C.bars.glow_reactive == "1" and AB.REACTIVE[icon] then
+      local usable = IsUsableAction(f.id)
+      return usable and true or false
+    end
+    return false
+  end
+
+  -- ------------------------------------------------ cooldown swipe
+
+  AB.CDSTYLES = {
+    { key = "clock", label = "Clock (game)" },
+    { key = "drain", label = "Drains down" },
+    { key = "rise", label = "Fills up" },
+    { key = "fade", label = "Fades out" },
+    { key = "none", label = "None" },
+  }
+
+  local function DrainUpdate()
+    local d = this
+    local left = (d.start + d.duration) - GetTime()
+    if left <= 0 or d.duration <= 0 then d:Hide() return end
+    local frac = left / d.duration
+    local f = d:GetParent()
+    local h = tonumber(f:GetHeight()) or 36
+    local style = d.style
+    if style == "fade" then
+      d.dark:SetHeight(h)
+      d.dark:SetAlpha(frac)
+      d.edge:Hide()
+      return
+    end
+    d.dark:SetAlpha(1)
+    d.dark:SetHeight(math.max(.01, h * frac))
+  end
+
+  -- start / stop the swipe on a button (pfUI's CooldownFrame_SetTimer calls)
+  function AB.Drain(f, start, duration, enable)
+    local style = C.bars.cd_style or "clock"
+    local d = f.octoDrain
+    local gcd = tonumber(C.appearance.cd.threshold) or 1.5
+    if style == "clock" or style == "none" or not start or start <= 0 or not duration or duration < gcd or enable == 0 then
+      if d then d:Hide() end
+      return
+    end
+    if not d then
+      d = CreateFrame("Frame", nil, f)
+      d:SetAllPoints(f)
+      d:SetFrameLevel(f:GetFrameLevel() + 1)
+      d.dark = d:CreateTexture(nil, "ARTWORK")
+      d.dark:SetTexture(WHITE)
+      d.edge = d:CreateTexture(nil, "OVERLAY")
+      d.edge:SetTexture(ART .. "btn-edge")
+      d.edge:SetBlendMode("ADD")
+      d:SetScript("OnUpdate", DrainUpdate)
+      f.octoDrain = d
+    end
+    d.style = style
+    d.start, d.duration = start, duration
+    d.dark:ClearAllPoints()
+    d.edge:ClearAllPoints()
+    -- drain: the dark part shrinks down to the bottom; rise: up to the top
+    local anchor = style == "rise" and "TOP" or "BOTTOM"
+    d.dark:SetPoint(anchor .. "LEFT", d, anchor .. "LEFT")
+    d.dark:SetPoint(anchor .. "RIGHT", d, anchor .. "RIGHT")
+    d.dark:SetVertexColor(Col("cd_color"))
+    local other = anchor == "TOP" and "BOTTOM" or "TOP"
+    d.edge:SetPoint("LEFT", d.dark, other .. "LEFT", 0, 0)
+    d.edge:SetPoint("RIGHT", d.dark, other .. "RIGHT", 0, 0)
+    d.edge:SetHeight(math.max(4, (tonumber(f:GetHeight()) or 36) / 5))
+    d.edge:SetVertexColor(Col("cd_edgecolor"))
+    if C.bars.cd_edge == "1" and style ~= "fade" then d.edge:Show() else d.edge:Hide() end
+    d:Show()
+  end
+
+  hooksecurefunc("CooldownFrame_SetTimer", function(cd, start, duration, enable)
+    local f = cd and cd.octoButton
+    if f then AB.Drain(f, start, duration, enable) end
+  end)
+
+  -- ------------------------------------------------ equipped border
+
+  AB.EQSTYLES = {
+    { key = "fill", label = "Green tint (pfUI)" },
+    { key = "border", label = "Quality border" },
+    { key = "both", label = "Tint and border" },
+    { key = "none", label = "None" },
+  }
+  local scan
+  local quality = {}
+  -- the item's quality colour: the scanning tooltip's name line
+  function AB.Quality(f)
+    local key = (f.texture or "") .. (f.id or 0)
+    if quality[key] then return unpack(quality[key]) end
+    if not scan then
+      scan = CreateFrame("GameTooltip", "pfOctoBarScan", nil, "GameTooltipTemplate")
+    end
+    local r, g, b = .2, .8, .2
+    if scan.SetAction and f.id then
+      scan:SetOwner(WorldFrame, "ANCHOR_NONE")
+      scan:SetAction(f.id)
+      local line = _G["pfOctoBarScanTextLeft1"]
+      if line and line.GetTextColor then
+        local lr, lg, lb = line:GetTextColor()
+        if lr then r, g, b = lr, lg, lb end
+      end
+      scan:Hide()
+    end
+    quality[key] = { r, g, b }
+    return r, g, b
+  end
+
+  function AB.Equipped(f)
+    if not f.equipped then return end
+    local style = C.bars.eq_style or "fill"
+    local on = f.equipped:IsShown()
+    f.equipped:SetAlpha((style == "fill" or style == "both") and 1 or 0)
+    local want = on and (style == "border" or style == "both")
+    if not want then
+      if f.octoEq then f.octoEq:Hide() end
+      return
+    end
+    if not f.octoEq then f.octoEq = AB.Layer(f, 3) end
+    local l = f.octoEq
+    local r, g, b = AB.Quality(f)
+    AB.Edges(l, tonumber(C.bars.eq_size) or 2, r, g, b, 1)
+    l.fill:Hide()
+    l:Show()
+  end
+
+  -- ------------------------------------------------ on every button
+
+  function AB.Effects(f)
+    -- hover: our layer rides on pfUI's highlight frame (shown on mouse-over
+    -- and key down); pfUI's own glow border hides under another style
+    if f.highlight then
+      if not f.octoHover then f.octoHover = AB.Layer(f.highlight, 0) end
+      local ours = AB.Paint(f.octoHover, "hover")
+      f.highlight:SetBackdropBorderColor(1, 1, 1, ours and 0 or .8)
+    end
+    -- press
+    if not f.octoPress then
+      f.octoPress = AB.Layer(f, 2)
+      f.octoPress:Hide()
+      f.octoPress:SetScript("OnUpdate", PressWatch)
+      if f.HookScript then
+        f:HookScript("OnMouseDown", PressDown)
+        f:HookScript("OnMouseUp", PressUp)
+        f:HookScript("OnClick", PressKey)
+      end
+    end
+    f.octoPress.on = AB.Paint(f.octoPress, "press") and C.bars.press_style ~= "none" or nil
+    -- cooldown swipe: the game's clock shows only in "clock"
+    if f.cd then
+      f.cd.octoButton = f
+      if (C.bars.cd_style or "clock") == "clock" then
+        f.cd.pfCooldownStyleAnimation = 1
+        f.cd:SetAlpha(1)
+      else
+        f.cd.pfCooldownStyleAnimation = 0
+        f.cd:SetAlpha(0)
+      end
+      if f.octoDrain then f.octoDrain:Hide() end
+    end
+    AB.Slot(f)
+    AB.Equipped(f)
+    if f.octoGlow then f.octoGlow.lit = nil end
+  end
+
+  -- glows and equipped borders follow the game (5 times a second)
+  local watch = CreateFrame("Frame")
+  watch:RegisterEvent("PLAYER_AURAS_CHANGED")
+  watch:RegisterEvent("PLAYER_ENTERING_WORLD")
+  watch:SetScript("OnEvent", ScanProcs)
+  watch:SetScript("OnUpdate", function()
+    if (this.tick or 0) > GetTime() then return end
+    this.tick = GetTime() + .2
+    for i = 1, 10 do
+      local bar = BARS[i]
+      if bar and bar:IsShown() then
+        for j = 1, 12 do
+          local f = bar[j]
+          if f and f:IsShown() then
+            AB.Glow(f, AB.ShouldGlow(f))
+            if f.equipped and (f.octoEq or C.bars.eq_style ~= "fill") then AB.Equipped(f) end
+          end
+        end
+      end
+    end
+  end)
+
   -- ---------------------------------------------------------------- visibility
 
   -- stealth / prowl by the buff's icon
@@ -135,6 +641,7 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
           if f then
             Skin(f)
             Zoom(f)
+            AB.Effects(f)
           end
         end
       end

@@ -1117,10 +1117,10 @@ do
     for _, s in ipairs(O.octo) do if s[1] == "Combat Text" then ct = s end end
     ok(ct and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
     ok(O.first and string.sub(O.first, 1, 2) == "o:", "the window first opens on an Octo page: " .. tostring(O.first))
-    -- Action Bars: five clean pages instead of pfUI's old Actionbar category
+    -- Action Bars: six clean pages instead of pfUI's old Actionbar category
     local abs
     for _, s in ipairs(O.octo) do if s[1] == "Action Bars" then abs = s end end
-    ok(abs and table.getn(abs[2]) == 5, "Action Bars section with its five pages")
+    ok(abs and table.getn(abs[2]) == 6, "Action Bars section with its six pages")
     local oldab = 0
     for k in pairs(O.legacy) do if string.find(k, "^l:Actionbar") then oldab = oldab + 1 end end
     ok(oldab == 0, "pfUI's old Actionbar pages are gone from the list")
@@ -1259,6 +1259,71 @@ do
       ok(AB.CurrentLook() == pr[1], "bar look " .. pr[1] .. " applies and is lit")
     end
     AB.ApplyPreset("pfui")
+    -- effects (EllesmereUI's ideas): hover / press looks
+    local cb = pfUI_config.bars
+    cb.hover_style, cb.press_style = "inner", "border"
+    pfUI.bars:UpdateConfig()
+    ok(b.octoHover and b.octoHover.fill:IsShown(), "hover look painted on the highlight")
+    ok(b.octoPress and b.octoPress.on and b.octoPress.edges[1]:IsShown(), "press look: border lines")
+    _G.this = b
+    Mock.Run(b, "OnMouseDown", "LeftButton")
+    ok(b.octoPress:IsShown(), "pressing the button shows the press look")
+    Mock.Run(b, "OnMouseUp", "LeftButton")
+    ok(not b.octoPress:IsShown(), "letting go hides it")
+    Mock.Run(b, "OnMouseDown", "LeftButton")
+    Mock.now = Mock.now + 4
+    _G.this = b.octoPress
+    Mock.Run(b.octoPress, "OnUpdate", .1)
+    ok(not b.octoPress:IsShown(), "a lost key-up never leaves the press look stuck")
+    cb.hover_style, cb.press_style = "pfui", "pfui"
+    -- proc glow on a reactive ability
+    local usable = IsUsableAction
+    IsUsableAction = function() return 1 end
+    b.texture = "Interface\\Icons\\Ability_MeleeDamage"
+    ok(AB.ShouldGlow(b), "Overpower glows while usable")
+    IsUsableAction = function() return nil end
+    ok(not AB.ShouldGlow(b), "and not when it is not")
+    IsUsableAction = usable
+    for _, g in ipairs(AB.GLOWS) do
+      cb.glow_style = g.key
+      AB.Glow(b, false)
+      if b.octoGlow then b.octoGlow.lit = nil end
+      AB.Glow(b, true)
+      _G.this = b.octoGlow
+      local good, err = pcall(Mock.Run, b.octoGlow, "OnUpdate", .1)
+      ok(good and b.octoGlow:IsShown(), "glow " .. g.key .. " runs: " .. tostring(err or ""))
+    end
+    cb.glow_style = "ants"
+    AB.Glow(b, false)
+    ok(not b.octoGlow:IsShown(), "the glow goes when the reason does")
+    -- cooldown swipe
+    cb.cd_style = "drain"
+    pfUI.bars:UpdateConfig()
+    ok(b.cd.pfCooldownStyleAnimation == 0, "the game's clock hides under another swipe")
+    AB.Drain(b, Mock.now, 10, 1)
+    ok(b.octoDrain and b.octoDrain:IsShown() and b.octoDrain.edge:IsShown(), "drain swipe with its edge line")
+    AB.Drain(b, Mock.now, 1, 1)
+    ok(not b.octoDrain:IsShown(), "no swipe for the global cooldown")
+    cb.cd_style = "clock"
+    pfUI.bars:UpdateConfig()
+    ok(b.cd.pfCooldownStyleAnimation == 1, "clock style keeps the game's clock")
+    -- empty slot fill and the equipped border
+    cb.slot_style = "stripes"
+    pfUI.bars:UpdateConfig()
+    ok(b.octoSlot and b.octoSlot:IsShown(), "empty slot fill")
+    cb.slot_style = "pfui"
+    pfUI.bars:UpdateConfig()
+    ok(not b.octoSlot:IsShown(), "pfUI's slot again")
+    if b.equipped then
+      cb.eq_style = "border"
+      b.equipped:Show()
+      AB.Equipped(b)
+      ok(b.octoEq and b.octoEq:IsShown(), "equipped items get a quality border")
+      cb.eq_style = "fill"
+      AB.Equipped(b)
+      ok(not b.octoEq:IsShown(), "and only the tint in pfUI's style")
+      b.equipped:Hide()
+    end
   end
 end
 

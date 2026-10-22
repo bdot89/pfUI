@@ -11,6 +11,10 @@ param([string]$OutDir = (Join-Path $PSScriptRoot "..\img\plates"))
 #   skull      32 x 32  boss mark, dark outline
 #   tick        8 x 32  execute marker on the bar
 #   quest-objective / quest-start / quest-end / pet  32 x 32  marks by the name
+# and into img\bars (action buttons):
+#   btn-inner / gloss / corners  64 x 64  hover and press looks
+#   btn-grad / stripes / dots    64 x 64  empty slot fills
+#   btn-ring  64 x 64  proc burst      btn-edge  64 x 16  cooldown edge
 # White (grey shading) + alpha, tinted in game. Uncompressed 32-bit TGA,
 # bottom-left origin, 4 x 4 samples per pixel. Same output every run.
 #   powershell -ExecutionPolicy Bypass -File tools\MakePlateArt.ps1
@@ -220,6 +224,44 @@ public static class Art {
         else a = 0;
         return;
       }
+      // action buttons (img\bars): hover / press looks, empty slot fills, proc ring, cooldown edge
+      case "btn-inner": {
+        double d = Math.Min(Math.Min(u, 1 - u), Math.Min(v, 1 - v));
+        a = Math.Exp(-d / 0.09);
+        return;
+      }
+      case "btn-gloss": {
+        double y0 = 0.5 + 0.1 * Math.Cos((u - 0.5) * Math.PI);
+        double s = Math.Max(0, Math.Min(1, (v - y0) / 0.04));
+        a = s * (0.12 + 0.45 * Math.Max(0, (v - y0) / (1 - y0)));
+        return;
+      }
+      case "btn-corners": {
+        double t = 0.09, len = 0.32;
+        bool edge = u < t || v < t || u > 1 - t || v > 1 - t;
+        bool corner = (u < len || u > 1 - len) && (v < len || v > 1 - len);
+        a = edge && corner ? 1 : 0;
+        return;
+      }
+      case "btn-grad":
+        lum = 0.45 + 0.55 * v;
+        return;
+      case "btn-stripes":
+        a = ((u + v) * 6) % 1.0 < 0.5 ? 1 : 0.4;
+        return;
+      case "btn-dots": {
+        double cu = (u * 4) % 1.0 - 0.5, cv = (v * 4) % 1.0 - 0.5;
+        a = cu * cu + cv * cv < 0.04 ? 1 : 0.35;
+        return;
+      }
+      case "btn-ring": {
+        double r = Math.Sqrt((u - .5) * (u - .5) + (v - .5) * (v - .5));
+        a = Math.Exp(-Math.Pow((r - 0.40) / 0.06, 2));
+        return;
+      }
+      case "btn-edge":
+        a = Math.Exp(-Math.Pow((v - 0.5) / 0.2, 2));
+        return;
       case "pet": {
         bool pad = Circle(u, v, 0.5, 0.36, 0.2);
         bool toes = Circle(u, v, 0.22, 0.62, 0.09) || Circle(u, v, 0.4, 0.76, 0.09) || Circle(u, v, 0.6, 0.76, 0.09) || Circle(u, v, 0.78, 0.62, 0.09);
@@ -276,3 +318,15 @@ foreach ($t in $list) {
   [Art]::Write((Join-Path $OutDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])
 }
 Get-ChildItem $OutDir -Filter *.tga | ForEach-Object { "{0,-16} {1,7} bytes" -f $_.Name, $_.Length }
+
+# action button art (modules/actionbar-octo.lua), next to the plates' folder
+$BarDir = Join-Path (Split-Path $OutDir -Parent) "bars"
+if (-not (Test-Path $BarDir)) { New-Item -ItemType Directory -Force $BarDir | Out-Null }
+$bars = @(
+  @("btn-inner", 64, 64), @("btn-gloss", 64, 64), @("btn-corners", 64, 64), @("btn-grad", 64, 64),
+  @("btn-stripes", 64, 64), @("btn-dots", 64, 64), @("btn-ring", 64, 64), @("btn-edge", 64, 16)
+)
+foreach ($t in $bars) {
+  [Art]::Write((Join-Path $BarDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])
+}
+Get-ChildItem $BarDir -Filter *.tga | ForEach-Object { "{0,-16} {1,7} bytes" -f $_.Name, $_.Length }

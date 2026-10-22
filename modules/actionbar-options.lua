@@ -233,6 +233,33 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     b.animation.tex:SetTexCoord(.08, .92, .08, .92)
     b.animation.tex:SetAllPoints(b.animation)
     b.animation:Hide()
+    -- the effects (actionbar-octo.lua), as on a real button
+    b.hover = AB.Layer(b, 2)
+    b.press = AB.Layer(b, 3)
+    -- pfUI's own hover glow
+    b.pfhl = CreateFrame("Frame", nil, b)
+    b.pfhl:SetAllPoints(b)
+    b.pfhl:SetFrameLevel(b:GetFrameLevel() + 2)
+    b.pfhl:SetBackdrop({ edgeFile = pfUI.media["img:glow"], edgeSize = 8 })
+    b.pfhl:SetBackdropBorderColor(1, 1, 1, .8)
+    b.pfhl:Hide()
+    -- an empty slot (left) and an equipped item (right), small as on a bar
+    local function Small(anchor, x)
+      local s = CreateFrame("Frame", nil, side)
+      s:SetWidth(30) s:SetHeight(30)
+      s:SetPoint(anchor, b, anchor == "RIGHT" and "LEFT" or "RIGHT", x, -23)
+      CreateBackdrop(s)
+      return s
+    end
+    local empty = Small("RIGHT", -6)
+    local worn = Small("LEFT", 6)
+    worn.icon = worn:CreateTexture(nil, "ARTWORK")
+    worn.icon:SetAllPoints(worn)
+    worn.icon:SetTexture("Interface\\Icons\\INV_Jewelry_Talisman_07")
+    worn.icon:SetTexCoord(.08, .92, .08, .92)
+    worn.tint = worn:CreateTexture(nil, "OVERLAY")
+    worn.tint:SetAllPoints(worn)
+    worn.edge = AB.Layer(worn, 2)
     local note = side:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     note:SetPoint("BOTTOM", side, "BOTTOM", 0, 4)
     note:SetWidth(sideW - 6)
@@ -259,10 +286,15 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       end)
       h:SetScript("OnLeave", function() this.hl:Hide() GameTooltip:Hide() end)
       h:SetScript("OnClick", function()
-        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(page, card) else O:Open(page) end
+        -- (the note's target follows what the sample is showing)
+        local pg, cd = page, card
+        if this.follow then pg, cd = b.notePage or page, b.noteCard or card end
+        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(pg, cd) else O:Open(pg) end
       end)
       return h
     end
+    Hot(empty, "Empty slot fill", "Empty slots", "abeffects")
+    Hot(worn, "Equipped item mark", "Equipped items", "abeffects")
     Hot(b, "Button border and icon zoom", "Buttons", "abbuttons", 8)
     Hot(b.hotkey, "Key text", "Letters", "abbuttons")
     Hot(b.macro, "Macro text", "Letters", "abbuttons")
@@ -272,7 +304,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     cdSpot:SetWidth(34) cdSpot:SetHeight(28)
     cdSpot:SetPoint("CENTER", b, "CENTER", 0, 0)
     Hot(cdSpot, "Cooldown text", "Letters", "abbuttons")
-    Hot(note, "Highlight colours", "Highlights", "abgeneral")
+    Hot(note, "What the sample shows now", "Highlights", "abgeneral").follow = true
 
     local function Text(fs, size, color, text)
       local font = pfUI.media[C.bars.font] or pfUI.font_default
@@ -293,33 +325,77 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       Text(b.count, C.bars.count_size, C.bars.count_color, "20")
       Text(b.cd, C.bars.cd_size, "1,1,1,1", "")
       b.animation:SetScript("OnUpdate", pfUI.bars.animations and pfUI.bars.animations[C.bars.animation] or nil)
+      -- effects
+      AB.Slot(empty, empty)
+      local eq = C.bars.eq_style or "fill"
+      local tr, tg, tb, ta = GetStringColor(C.bars.eqcolor or ".2,.8,.2,.2")
+      worn.tint:SetTexture(tonumber(tr) or .2, tonumber(tg) or .8, tonumber(tb) or .2, tonumber(ta) or .2)
+      if C.bars.showequipped == "1" and (eq == "fill" or eq == "both") then worn.tint:Show() else worn.tint:Hide() end
+      worn.edge.fill:Hide()
+      if C.bars.showequipped == "1" and (eq == "border" or eq == "both") then
+        AB.Edges(worn.edge, tonumber(C.bars.eq_size) or 2, .64, .21, .93, 1)  -- an epic's purple
+        worn.edge:Show()
+      else
+        worn.edge:Hide()
+      end
+      b.hoverPfui = not AB.Paint(b.hover, "hover")
+      b.pressOn = AB.Paint(b.press, "press") and C.bars.press_style ~= "none"
+      -- a changed glow setting repaints a lit glow
+      local sig = (C.bars.glow_style or "") .. (C.bars.glow_color or "") .. (C.bars.glow_color_class or "")
+        .. (C.bars.glow_thick or "") .. (C.bars.glow_burst or "")
+      if sig ~= b.glowSig and b.octoGlow then b.octoGlow.lit = nil end
+      b.glowSig = sig
     end
 
-    -- The sample in use, on a 10 s loop: a 6 s cooldown rolls down and counts,
-    -- the press animation plays when it is ready, then it shows each highlight
-    -- colour in turn (out of range, out of mana, not usable).
+    -- The sample in use, on a 13 s loop: a 6 s cooldown with the chosen swipe
+    -- and the counting number; a press (press look + animation); a hover; the
+    -- highlight colours (out of range, out of mana, not usable); a proc glow.
+    -- The note says what shows, and clicking it opens that setting.
+    local LOOP = 13
     local STATES = {
-      { 7, 7.8, "glowrange", "rangecolor", "out of range" },
-      { 7.8, 8.6, "showoom", "oomcolor", "out of mana" },
-      { 8.6, 9.4, "showna", "nacolor", "not usable" },
+      { 7.5, 8.3, "glowrange", "rangecolor", "out of range" },
+      { 8.3, 9.1, "showoom", "oomcolor", "out of mana" },
+      { 9.1, 9.9, "showna", "nacolor", "not usable" },
     }
+    local function Note(text, page, card)
+      b.note:SetText(text)
+      b.notePage, b.noteCard = page, card
+    end
     function M.Animate(now)
-      local t = math.mod(now, 10)
+      local t = math.mod(now, LOOP)
       local size = b:GetHeight() or 76
+      local style = C.bars.cd_style or "clock"
       -- cooldown
       if t < 6 then
-        b.sweep:SetHeight(math.max(1, size * (6 - t) / 6))
-        b.sweep:Show()
+        if style == "clock" then
+          b.sweep:SetHeight(math.max(1, size * (6 - t) / 6))
+          b.sweep:Show()
+        else
+          b.sweep:Hide()
+          -- (the real swipe, started once per loop and on a style change)
+          if not b.drainFor or b.drainFor ~= style .. math.floor(now / LOOP) then
+            b.drainFor = style .. math.floor(now / LOOP)
+            AB.Drain(b, now - t, 6, 1)
+          end
+        end
         -- pfUI's own cooldown text, so its colours and tenths show as in game
         b.cd:SetTextColor(1, 1, 1)
         b.cd:SetText(GetColoredTimeString(6 - t))
-        b.note:SetText("cooldown")
+        Note("cooldown", "abeffects", "Cooldown")
       else
         b.sweep:Hide()
+        if b.octoDrain then b.octoDrain:Hide() end
+        b.drainFor = nil
         b.cd:SetText("")
-        b.note:SetText("ready")
+        Note("ready", "abgeneral", "Behaviour")
       end
-      -- the press animation once, as the cooldown ends
+      -- the press: the press look held for a moment, and the press animation
+      if t >= 6 and t < 6.35 then
+        if b.pressOn then b.press:Show() else b.press:Hide() end
+        Note("pressed", "abeffects", "Hover and press")
+      else
+        b.press:Hide()
+      end
       if t >= 6 and not b.pressed then
         b.pressed = true
         if C.bars.animation ~= "none" then
@@ -329,15 +405,27 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       elseif t < 6 then
         b.pressed = nil
       end
+      -- the hover
+      if t >= 6.5 and t < 7.5 then
+        if b.hoverPfui then b.pfhl:Show() b.hover:Hide() else b.pfhl:Hide() b.hover:Show() end
+        Note("mouse over", "abeffects", "Hover and press")
+      else
+        b.pfhl:Hide()
+        b.hover:Hide()
+      end
       -- highlight colours
       local r, g, bl = 1, 1, 1
       for _, s in ipairs(STATES) do
         if t >= s[1] and t < s[2] and C.bars[s[3]] == "1" then
           r, g, bl = GetStringColor(C.bars[s[4]] or "1,1,1,1")
-          b.note:SetText(s[5])
+          Note(s[5], "abgeneral", "Highlights")
         end
       end
       b.icon:SetVertexColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(bl) or 1)
+      -- a proc
+      local glow = t >= 10
+      AB.Glow(b, glow)
+      if glow then Note("proc glow", "abeffects", "Proc glow") end
       -- a button on the bars lights up now and then, as if pressed
       if (M.flashAt or 0) < now then
         M.flashAt = now + .7
@@ -447,8 +535,6 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Color(p, "Colour", nil, G, "oomcolor")
     Chk(p, "Not usable", nil, G, "showna")
     Color(p, "Colour", nil, G, "nacolor")
-    Chk(p, "Equipped items", nil, G, "showequipped")
-    Color(p, "Colour", nil, G, "eqcolor")
   end
 
   -- ---------------------------------------------------------------- bars
@@ -546,6 +632,54 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Sld(p, "Hide cooldowns shorter than", "No number on short ones, like the global cooldown.", 0, 10, .5, CD, "threshold", Sec, Re)
   end
 
+  -- ---------------------------------------------------------------- effects
+
+  local function List(src)
+    local out = {}
+    for _, s in ipairs(src) do table.insert(out, { key = s.key, label = s.label, texture = s.tex and (AB.ART .. s.tex) or nil }) end
+    return out
+  end
+
+  BUILD.abeffects = function(p)
+    W.Heading(p, "Effects", { about = "What buttons do when you hover, press, wait on a cooldown or get a proc, "
+      .. "and how empty slots and equipped items look. The sample button plays them all." })
+    Preview(p)
+    W.Card(p, "Hover and press", { tip = "Hover: the mouse is over a button. Press: it is held down, by mouse or key." })
+    Drop(p, "Hover look", nil, List(AB.STYLES), G, "hover_style")
+    Color(p, "Hover colour", nil, G, "hover_color")
+    Chk(p, "Hover in class colour", nil, G, "hover_color_class")
+    Sld(p, "Hover border", "Thickness for Border only.", 1, 6, 1, G, "hover_size", Px)
+    Drop(p, "Press look", nil, List(AB.STYLES), G, "press_style")
+    Color(p, "Press colour", nil, G, "press_color")
+    Chk(p, "Press in class colour", nil, G, "press_color_class")
+    Sld(p, "Press border", "Thickness for Border only.", 1, 6, 1, G, "press_size", Px)
+    W.Card(p, "Proc glow", { tip = "Lights a button when it is worth pressing now." })
+    Chk(p, "Reactive abilities", "Overpower, Revenge, Execute, Riposte, Counterattack, Mongoose Bite and Hammer of Wrath while usable.", G, "glow_reactive")
+    Chk(p, "Procs", "Shadow Bolt during Shadow Trance (Nightfall).", G, "glow_procs")
+    Drop(p, "Glow", nil, List(AB.GLOWS), G, "glow_style")
+    Color(p, "Glow colour", nil, G, "glow_color")
+    Chk(p, "Glow in class colour", nil, G, "glow_color_class")
+    Chk(p, "Burst as it starts", "A ring grows out of the button when the glow begins.", G, "glow_burst")
+    Sld(p, "Lines", "For Marching lines.", 2, 16, 1, G, "glow_lines")
+    Sld(p, "Thickness", nil, 1, 6, 1, G, "glow_thick", Px)
+    Sld(p, "Speed", nil, 1, 10, 1, G, "glow_speed")
+    W.Card(p, "Cooldown", { tip = "How a button shows it is cooling down. The number is on Buttons and text." })
+    Drop(p, "Swipe", nil, List(AB.CDSTYLES), G, "cd_style")
+    Color(p, "Swipe colour", nil, G, "cd_color")
+    Chk(p, "Edge line", "A bright line where the swipe ends.", G, "cd_edge")
+    Color(p, "Edge colour", nil, G, "cd_edgecolor")
+    Chk(p, "Edge in class colour", nil, G, "cd_edgecolor_class")
+    W.Card(p, "Empty slots")
+    Drop(p, "Slot fill", "Behind the icon: shows in empty slots.", List(AB.SLOTS), G, "slot_style")
+    Color(p, "Slot colour", nil, G, "slot_color")
+    Chk(p, "Slot in class colour", nil, G, "slot_color_class")
+    W.Card(p, "Equipped items", { tip = "Items you wear, put on a bar (trinkets, weapons)." })
+    Chk(p, "Mark equipped items", nil, G, "showequipped")
+    Drop(p, "Mark", nil, List(AB.EQSTYLES), G, "eq_style")
+    Color(p, "Tint colour", nil, G, "eqcolor")
+    Sld(p, "Border", "In the item's quality colour.", 1, 4, 1, G, "eq_size", Px)
+  end
+
   -- ---------------------------------------------------------------- paging
 
   BUILD.abpaging = function(p)
@@ -583,6 +717,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   O:AddPage("Action Bars", "abgeneral", "General", BUILD.abgeneral)
   O:AddPage("Action Bars", "abbars", "Bars", BUILD.abbars)
   O:AddPage("Action Bars", "abbuttons", "Buttons and text", BUILD.abbuttons)
+  O:AddPage("Action Bars", "abeffects", "Effects", BUILD.abeffects)
   O:AddPage("Action Bars", "abpaging", "Paging", BUILD.abpaging)
   O:AddPage("Action Bars", "abgryphons", "Gryphons", BUILD.abgryphons)
   AB.TAB = TAB

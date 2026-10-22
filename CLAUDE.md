@@ -173,6 +173,17 @@ see "Roadmap" below.
    category hidden; pinned preview = real bars on a mini screen (click = its tab, Shift + wheel =
    button size) + a sample button. Not seen in game. tests stub GetNumShapeshiftForms (the
    actionbar module now starts in the mock).
+   22 Oct, effects (EllesmereUI's feature list as the model; its licence reserves all rights and
+   much of its art is other artists', so nothing copied): page "Effects" (abeffects). In
+   actionbar-octo.lua: hover / press looks (AB.STYLES, AB.Layer / AB.Paint; hover rides on pfUI's
+   f.highlight, press on OnMouseDown/Up + keystate in OnClick, 3 s safety), proc glows (AB.GLOWS
+   ants / pulse / shine / border + start burst; AB.REACTIVE icons while IsUsableAction, AB.PROCS
+   buff icon -> spell icon; 5 Hz watcher), cooldown swipe (AB.CDSTYLES; hooks
+   CooldownFrame_SetTimer via cd.octoButton; non-clock styles set cd.pfCooldownStyleAnimation = 0),
+   empty slot fill (AB.SLOTS, on f.backdrop), equipped quality border (AB.Quality = scanning
+   tooltip's name colour). Art from tools\MakePlateArt.ps1 -> img\bars. The preview's sample
+   plays a 13 s loop of all of them; the note under it opens what it shows. Not seen in game;
+   unverified: Model SetAlpha(0) hiding the clock, keystate on key presses, tooltip quality colour.
 9. OctoBG's look for the whole options window (20 Oct, not seen in game). User (ElvUI screenshots +
    OctoBG's options): "copy Octo BGS style of UI and update PFUI into being my own addon", and
    "PLEASE GET SCROLLING COMBAT TEXT OPTION PANEL IT WAS IN OCTO BG" (the CreateConfig pages
