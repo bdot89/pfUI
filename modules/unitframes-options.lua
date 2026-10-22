@@ -352,7 +352,6 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       cb:SetStatusBarTexture(pfUI.media[C.appearance.castbar.texture])
       local r, g, b, a = GetStringColor(C.appearance.castbar.castbarcolor or ".7,.7,.9,.8")
       cb:SetStatusBarColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1)
-      cb:SetValue(math.mod(GetTime() * 40, 100))
       cb.text:SetFont(pfUI.font_default or STANDARD_TEXT_FONT, tonumber(C.global.font_size) or 12, "OUTLINE")
       cb.text:SetText(s.showname == "1" and "Frostbolt" or "")
       cb:Show()
@@ -414,14 +413,20 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         pcall(pfUI.uf.RefreshUnit, pfUI.uf, f, "all")
         -- part health and power, so the bar texture, the empty part's colour
         -- and shade show; health drops every few seconds (fading bar, flash)
-        local hp = math.mod(math.floor(GetTime() / 3), 2) == 0 and 85 or 45
-        if f.hp and f.hp.bar and f.hp.bar.SetMinMaxValues then
-          f.hp.bar:SetMinMaxValues(0, 100)
-          f.hp.bar:SetValue(hp)
-        end
-        if f.power and f.power.bar and f.power.bar.SetMinMaxValues then
-          f.power.bar:SetMinMaxValues(0, 100)
-          f.power.bar:SetValue(60)
+        -- (in the bar's own scale, as pfUI just set it: changing the scale
+        -- made the bars jump on every refresh; pfUI slides them to the value)
+        local hp = math.mod(math.floor(GetTime() / 3), 2) == 0 and .85 or .45
+        for _, part in ipairs({ { f.hp, hp }, { f.power, .6 } }) do
+          local bar = part[1] and part[1].bar
+          if bar and bar.SetValue then
+            local lo, hi = bar.min or 0, bar.max
+            if not hi or hi <= lo then
+              hi = 100
+              bar:SetMinMaxValues(0, 100)
+              lo = 0
+            end
+            bar:SetValue(lo + (hi - lo) * part[2])
+          end
         end
         Samples(f, cfg)
       end
@@ -482,8 +487,19 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     end
     M.Fit = Fit
 
+    -- the sample cast fills smoothly: a 2.5 s cast, then a short pause
+    function M.CastTick(now)
+      local set = M.sets[UF.cur]
+      local cb = set and set.castbar
+      if not cb or not cb:IsShown() then return end
+      local t = math.mod(now, 3)
+      cb:SetValue(math.min(100, t / 2.5 * 100))
+      cb:SetAlpha(t < 2.5 and 1 or math.max(0, 1 - (t - 2.5) / .5))
+    end
+
     holder:SetScript("OnUpdate", function()
       local now = GetTime()
+      M.CastTick(now)
       if (this.fit or 0) < now then
         this.fit = now + .1
         Fit()

@@ -1468,6 +1468,12 @@ do
       local cbh
       for _, h in ipairs(M.sets.player.hots) do if h.what == "castbar" then cbh = h end end
       ok(cbh and M.sets.player.castbar, "the player frame's preview has its cast bar")
+      local pcb = M.sets.player.castbar
+      M.CastTick(3000 + 1)
+      local v1 = pcb.val or (pcb.GetValue and pcb:GetValue())
+      M.CastTick(3000 + 1.05)
+      local v2 = pcb.val or (pcb.GetValue and pcb:GetValue())
+      ok(v1 and v2 and v2 > v1 and v2 - v1 < 5, "the sample cast fills in small steps (" .. tostring(v1) .. " -> " .. tostring(v2) .. ")")
       if cbh then
         _G.this = cbh
         Mock.Run(cbh, "OnClick", "LeftButton")
@@ -1504,7 +1510,12 @@ do
       "the Raid tab shows ten raid frames instead")
     -- the preview shows part health, so textures and shades can be seen
     local rf = M.sets.raid.frames[1]
-    ok(rf.hp.bar.val and rf.hp.bar.val < 100 and rf.power.bar.val == 60, "the preview's bars are part full (" .. tostring(rf.hp.bar.val) .. ")")
+    local function Frac(bar) return (bar.val - (bar.min or 0)) / (bar.max - (bar.min or 0)) end
+    ok(Frac(rf.hp.bar) < 1 and math.abs(Frac(rf.power.bar) - .6) < .01, "the preview's bars are part full (" .. tostring(Frac(rf.hp.bar)) .. ")")
+    -- a refresh keeps the bar's scale (no jump) and its value in the same phase
+    local max0, val0 = rf.hp.bar.max, rf.hp.bar.val
+    M.Refresh()
+    ok(rf.hp.bar.max == max0 and rf.hp.bar.val == val0, "refreshing does not make the bars jump")
     -- the shared settings sit on the Frames page, the font under the preview
     local fp = O.pages.ufframes
     local titles = {}
