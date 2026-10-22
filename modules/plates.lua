@@ -1151,10 +1151,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local f = from:GetParent()
     while f and not (f.GetScript and f:GetScript("OnMouseWheel")) do f = f:GetParent() end
     if not f then return end
-    local old = this
-    this = f
+    -- the game's own `this` (_G): a plain `this = f` in pfUI's environment
+    -- made a pfUI-only `this` that hid the real one from every pfUI script
+    -- afterwards (errors all over, a blank options page - 22 Oct 2026)
+    local old = _G.this
+    _G.this = f
     f:GetScript("OnMouseWheel")()
-    this = old
+    _G.this = old
   end
 
   -- one step of the mouse wheel on a part: its size settings go up / down

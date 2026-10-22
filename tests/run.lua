@@ -1729,6 +1729,7 @@ do
         local h0 = tonumber(S.castheight)
         Mock.Run(cast, "OnMouseWheel", 1)
         ok(tonumber(S.castheight) == h0, "the plain wheel leaves sizes alone (it scrolls the page)")
+        ok(rawget(pfUI.env, "this") == nil, "passing the wheel on leaves no pfUI-only `this` behind")
         Mock.shift = true
         Mock.Run(cast, "OnMouseWheel", 1)
         Mock.shift = nil

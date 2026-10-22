@@ -15,6 +15,10 @@ see "Roadmap" below.
   options title and the About page.
 - Lua 5.0: no `#`, `%`, `...` as an expression, string.gfind not gmatch, table.getn. Write Lua with
   Edit/Write, never a shell heredoc (apostrophes and backslashes get mangled).
+- Never assign a client global like `this`, `event` or `arg1` from pfUI code: modules run in
+  pfUI's environment, so `this = f` creates a pfUI-only `this` that hides the real one from every
+  pfUI script afterwards. Use `_G.this` (22 Oct 2026: broke every pfUI script and blanked the
+  options page).
 - Modules are `pfUI:RegisterModule(name, "vanilla:tbc", fn)` listed in init/modules.xml; they run
   in pfUI's environment (`C` = config, `T` = translations, pfUI.api functions as globals).
   Defaults go in api/config.lua (`pfUI:UpdateConfig(group, sub, key, default)`), options in
