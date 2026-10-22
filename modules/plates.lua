@@ -1096,10 +1096,17 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           if not this.dragged then P.Front(game, this.region, this.what) end
           this.dragged = true
           local t = drag.pf and C.nameplates or S
+          local ox, oy = t[drag[1]], drag[2] and t[drag[2]]
+          -- (a part already outside, from before, may still be dragged back in)
+          local wasIn = P.Inside(game, this.what)
           t[drag[1]] = tostring(d[3] + dx)
           if drag[2] then t[drag[2]] = tostring(d[4] + dy) end
-          if (this.next or 0) < GetTime() then
-            this.next = GetTime() + .05
+          if t[drag[1]] == ox and (not drag[2] or t[drag[2]] == oy) then return end
+          P.Refresh()
+          -- it stops at the edge of the preview box
+          if wasIn and not P.Inside(game, this.what) then
+            t[drag[1]] = ox
+            if drag[2] then t[drag[2]] = oy end
             P.Refresh()
           end
         end)
@@ -1114,6 +1121,22 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     game.hotlist = game.hotlist or {}
     table.insert(game.hotlist, b)
     return b
+  end
+
+  -- every visible piece of a part (all its aura icons, all five combo points)
+  -- inside the preview box? (user, 22 Oct 2026: a dragged aura left the box
+  -- and covered the help band below it)
+  function P.Inside(game, what)
+    local box = game:GetParent()
+    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
+    if not (l and r and t and b) then return true end
+    for _, h in ipairs(game.hotlist or {}) do
+      if h.what == what and h.region:IsVisible() then
+        local hl, hr, ht, hb = h:GetLeft(), h:GetRight(), h:GetTop(), h:GetBottom()
+        if hl and (hl < l or hr > r or ht > t or hb < b) then return false end
+      end
+    end
+    return true
   end
 
   -- the part under the mouse in a preview box (Shift + wheel on the box)
@@ -1166,12 +1189,21 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local keys = P.SIZE[what]
     if not keys then return end
     local t = keys.pf and C.nameplates or S
+    local was = {}
+    local host = region and region.hots and next(region.hots)
+    local wasIn = not host or P.Inside(host, what)
     for _, k in ipairs(keys) do
+      was[k] = t[k]
       local cur = tonumber(t[k]) or 0
       if cur <= 0 and region then cur = math.floor((region:GetHeight() or 10) + .5) end
       t[k] = tostring(math.max(2, math.min(80, cur + step)))
     end
     P.Refresh()
+    -- growing stops where the part would leave the preview box
+    if step > 0 and host and wasIn and not P.Inside(host, what) then
+      for k, v in pairs(was) do t[k] = v end
+      P.Refresh()
+    end
   end
 
   -- right-click on a part: its place and size go back to the first ones

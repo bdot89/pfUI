@@ -1711,6 +1711,20 @@ do
         opened = nil
         Mock.Run(hot, "OnClick")
         ok(S.castoffx == "20" and S.castoffy == "-30" and opened == nil, "dragging the cast bar moves it (" .. S.castoffx .. ", " .. S.castoffy .. "), not a click")
+        -- it cannot leave the box: a part outside is refused
+        local inside = P.Inside
+        -- inside before the move, outside after it
+        local calls = 0
+        P.Inside = function() calls = calls + 1 return math.mod(calls, 2) == 1 end
+        Mock.cx, Mock.cy = 100, 100
+        Mock.Run(hot, "OnMouseDown")
+        Mock.cx, Mock.cy = 400, 100
+        Mock.now = Mock.now + 1
+        Mock.Run(hot, "OnUpdate", .1)
+        Mock.Run(hot, "OnMouseUp")
+        Mock.Run(hot, "OnClick")
+        P.Inside = inside
+        ok(S.castoffx == "20", "a drag out of the preview box is refused (" .. S.castoffx .. ")")
         S.castoffx, S.castoffy = "0", "0"
         Mock.cx, Mock.cy = nil, nil
       end
