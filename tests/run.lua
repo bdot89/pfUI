@@ -1253,6 +1253,21 @@ do
       ok(A.size == s0 + 1, "Shift + wheel: bigger text")
       A.size = s0
       Mock.cx, Mock.cy = nil, nil
+      -- one-click looks for all combat text, the picked one known
+      local db = pfUI.sctB.db.sct
+      if CT.ApplyLook then
+        for _, l in ipairs(CT.LOOKS) do
+          CT.ApplyLook(l[1])
+          ok(CT.CurrentLook() == l[1], "combat text look " .. l[1] .. " applies and is lit")
+        end
+        CT.ApplyLook("msbt")
+        ok(db.areas.inc.anim == "parabola" and db.plates.crit == "pow" and db.areas.note.anim == "static", "MSBT: arcs, pow crits, notes stand still")
+        db.areas.out.anim = "spiral"
+        ok(CT.CurrentLook() == nil, "a change = your own mix")
+        CT.ApplyLook("octo")
+      end
+      -- the new settings have their defaults
+      ok(db.scale == 1 and db.fade == .25 and db.maxLive == 90, "text size, fade and most on screen defaults")
     end
   end
 end

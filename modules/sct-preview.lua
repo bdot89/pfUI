@@ -288,7 +288,7 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
       if move == "random" then move = POOL[random(1, table.getn(POOL))] end
       if cs == "sticky" or cs == "pow" or cs == "shake" then move = "pin" end
       o.move, o.cs = move, cs
-      o.size = math.max(6, size * tk)
+      o.size = math.max(6, size * (db.scale or 1) * tk)
       o.dur = dur * ((crit and db.critLook and db.critLook.hold) or 1) / math.max(.25, db.speed or 1)
       o.alpha = alpha or 1
       o.s = (random() < .5) and -1 or 1
@@ -331,7 +331,8 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
       local sc = CritScale(o.cs, e)
       if sc ~= o.sc then o.fs:SetTextHeight(o.size * sc) o.sc = sc end
       local al = o.alpha
-      if e < .06 then al = al * e / .06 elseif t > .75 then al = al * (1 - t) / .25 end
+      local fo = math.max(.05, math.min(.9, DB().fade or .25))
+      if e < .06 then al = al * e / .06 elseif t > 1 - fo then al = al * (1 - t) / fo end
       o.fs:ClearAllPoints()
       o.fs:SetPoint("CENTER", o.anchor, o.origin, x, y)
       -- texts that would leave the pretend screen are not drawn

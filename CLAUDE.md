@@ -275,4 +275,8 @@ see "Roadmap" below.
    area's anim / dir / size / crit style / time / speed. Area boxes: click = its tab on Scroll areas
    (sct-options `AREA.cur`), drag = moves the real area (CT:PlaceArea), Shift + wheel = text size,
    right-click = default place. On Basics, Scroll areas, Nameplates, Crits.
+   22 Oct: combat text pages regrouped: General (looks: CT.LOOKS / ApplyLook / CurrentLook, lit
+   button; preview; look of all text with new db.scale / fade / maxLive in sct-engine; where your
+   damage goes; game numbers), Scroll areas, Nameplates, Crits, Messages and sounds (grid, then
+   warnings and sounds), Text and filters.
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).

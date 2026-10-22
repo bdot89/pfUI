@@ -64,6 +64,9 @@ B.DEFAULTS.sct = {
                glow = true, glowSize = 1, mark = "none", hold = 1.25, numberOnly = false },
   bigScale = 1.4, bigGlow = true,   -- messages ticked "big" on the Messages page
   speed = 1,                       -- all texts: 0.5 = twice as long on screen, 2 = half
+  scale = 1,                       -- (pfUI Octo) every text's size times this
+  fade = 0.25,                     -- (pfUI Octo) the last part of a text's time it fades out over
+  maxLive = 90,                    -- (pfUI Octo) most texts on screen at once
   icons = true, iconScale = 1,
   spellNames = true, schoolNames = false, schoolColors = true, names = false, truncate = "off", truncateLen = 18,
   showResist = true, showGlance = true, overheal = false, healerNames = true, critMark = false, selfHeals = true,
@@ -480,7 +483,7 @@ function CT:Show(text, r, g, b, where, opts)
     if not a.enabled then return end
     areaKey = where
   end
-  if self.nlive >= MAX_LIVE then Release(1) end
+  if self.nlive >= (db.maxLive or MAX_LIVE) then Release(1) end
   local team = opts.team and true or nil
   if plate then
     -- at most plates.max texts per plate (yours and teammates' counted apart)
@@ -530,6 +533,7 @@ function CT:Show(text, r, g, b, where, opts)
     o.areaKey = areaKey
   end
   if opts.small then size = size * db.smallScale end
+  size = size * (db.scale or 1)
   -- Blizzard numbers: straight up from the plate, crits pop and move on
   local blizz = db.style == "blizzard"
   if blizz and plate and not team then
@@ -667,9 +671,10 @@ function CT:Step(o, now)
     o.fs:SetTextHeight(o.size * scale)
     o.scale = scale
   end
-  -- fade in quickly, hold, fade out over the last quarter
+  -- fade in quickly, hold, fade out over the last part (a quarter unless set)
   local a = o.alpha
-  if e < 0.06 then a = a * e / 0.06 elseif t > 0.75 then a = a * (1 - t) / 0.25 end
+  local fo = math.max(0.05, math.min(0.9, B.db.sct.fade or 0.25))
+  if e < 0.06 then a = a * e / 0.06 elseif t > 1 - fo then a = a * (1 - t) / fo end
   if o.hasGlow then
     -- a bright flash for half a second, then a soft glow until the text fades
     local ga = a * ((e < 0.5) and (0.95 - e * 0.9) or 0.5)

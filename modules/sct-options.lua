@@ -119,6 +119,88 @@ local function Preview(p)
     .. key .. "Right-click|r  put it back")
 end
 
+-- One-click looks for all combat text: { key, label, top keys, every area's keys, plate keys, area keys by area }
+local LOOKS = {
+  { "octo", "pfUI Octo", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "OUTLINE", speed = 1, icons = true },
+    { anim = "vertical", crit = "sticky" }, { hit = "fountain", crit = "pow" }, { note = { anim = "static" } } },
+  { "sct", "Classic SCT", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "OUTLINE", speed = 1, icons = false },
+    { anim = "vertical", crit = "flash" }, { hit = "vertical", crit = "flash" }, { note = { anim = "static" } } },
+  { "msbt", "MSBT", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "THICKOUTLINE", speed = 1, icons = true },
+    { anim = "parabola", crit = "pow" }, { hit = "parabola", crit = "pow" }, { note = { anim = "static" } } },
+  { "fountain", "Fountain", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "OUTLINE", speed = 1.1, icons = true },
+    { anim = "fountain", crit = "shake" }, { hit = "fountain", crit = "shake" }, { note = { anim = "static" } } },
+  { "blizzard", "Blizzard", { style = "blizzard", outline = "OUTLINE", speed = 1, icons = false },
+    { anim = "vertical", crit = "blizzard" }, { hit = "vertical", crit = "blizzard" }, { note = { anim = "static" } } },
+  { "minimal", "Minimal", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "", speed = 1.25, icons = false },
+    { anim = "vertical", crit = "normal" }, { hit = "vertical", crit = "normal" }, { note = { anim = "static" } } },
+}
+
+local function ApplyLook(key)
+  local db = B.db.sct
+  for _, l in ipairs(LOOKS) do
+    if l[1] == key then
+      for k, v in pairs(l[3]) do db[k] = v end
+      for _, ak in ipairs(CT.AREA_ORDER) do
+        for k, v in pairs(l[4]) do db.areas[ak][k] = v end
+        for k, v in pairs((l[6] and l[6][ak]) or {}) do db.areas[ak][k] = v end
+        CT:PlaceArea(ak)
+      end
+      for k, v in pairs(l[5]) do db.plates[k] = v end
+    end
+  end
+end
+
+-- the look whose settings all still match (nil = your own mix)
+local function CurrentLook()
+  local db = B.db.sct
+  for _, l in ipairs(LOOKS) do
+    local same = true
+    for k, v in pairs(l[3]) do if db[k] ~= v then same = false end end
+    for _, ak in ipairs(CT.AREA_ORDER) do
+      local want = {}
+      for k, v in pairs(l[4]) do want[k] = v end
+      for k, v in pairs((l[6] and l[6][ak]) or {}) do want[k] = v end
+      for k, v in pairs(want) do if db.areas[ak][k] ~= v then same = false end end
+    end
+    for k, v in pairs(l[5]) do if db.plates[k] ~= v then same = false end end
+    if same then return l[1], l[2] end
+  end
+end
+
+CT.ApplyLook, CT.CurrentLook, CT.LOOKS = ApplyLook, CurrentLook, LOOKS
+
+-- the looks, three to a row; the picked one is lit
+local function Looks(p)
+  local btns, rows = {}, {}
+  for r = 1, math.ceil(table.getn(LOOKS) / 3) do rows[r] = W.Row(p, 24, 0, 6) end
+  local function Paint()
+    local cur = CurrentLook()
+    for _, b in ipairs(btns) do W.Pick(b, b.key == cur) end
+  end
+  for i, l in ipairs(LOOKS) do
+    local b = W.Button(rows[math.floor((i - 1) / 3) + 1], l[2], 180, 22)
+    b:SetPoint("LEFT", b:GetParent(), "LEFT", math.mod(i - 1, 3) * 186, 0)
+    b.key = l[1]
+    b:SetScript("OnClick", function()
+      ApplyLook(this.key)
+      Paint()
+      O:Refresh()
+    end)
+    W.Tip(b, l[2], "Letters, movements and crit style for all combat text in one click.")
+    btns[i] = b
+  end
+  W.Live(p, function()
+    local _, label = CurrentLook()
+    return label and ("Look: |cffffffff" .. label .. "|r") or "Look: |cffffffffyour own mix|r (a setting was changed after picking a look)"
+  end)
+  rows[1]:SetScript("OnUpdate", function()
+    if (this.tick or 0) > GetTime() then return end
+    this.tick = GetTime() + .5
+    Paint()
+  end)
+  Paint()
+end
+
 -- ---------------------------------------------------------------- basics
 
 BUILD.ctgeneral = function(p)
@@ -128,7 +210,7 @@ BUILD.ctgeneral = function(p)
     about = "Everything SCT and SCT - Damage showed (and Mik's Scrolling Battle Text, NameplateSCT, the game's own "
       .. "options over the years). Test combat text sends sample texts everywhere for a minute; Move frames shows "
       .. "the areas as blue boxes to drag and size.\n\nThe other combat text pages: Scroll areas (where and how text "
-      .. "moves), Nameplates (and teammates' damage on them), Crits and sounds, Messages (what shows, its colour, where "
+      .. "moves), Nameplates (and teammates' damage on them), Crits, Messages and sounds (what shows, its colour, where "
       .. "it comes from), Text and filters, Threat." })
   W.Live(p, function()
     local s = {}
@@ -138,20 +220,24 @@ BUILD.ctgeneral = function(p)
     table.insert(s, n .. " nameplate" .. ((n == 1) and "" or "s") .. " on screen" .. ((n == 0) and " - V shows enemy plates, Shift-V friendly" or ""))
     return table.concat(s, "    ")
   end)
-  DamageButtons(p)
+  W.Card(p, "Looks", { tip = "Ready-made styles for all combat text: letters, how each area moves, how crits appear. "
+    .. "Colours, messages and places stay as they are." })
+  Looks(p)
   Preview(p)
-  W.Card(p, "Look", { text = "The letters, outline and speed of all combat text." })
+  W.Card(p, "Look of all text", { tip = "The letters, size, outline and speed of every combat text. Areas can pick their own on Scroll areas." })
   Drop(p, "Style", "Blizzard numbers: the game's own damage-number look - its font, plain numbers, white melee and "
     .. "yellow spells, straight up, crits that pop - still placed and filtered by these pages.", CT.STYLES, DB, "style")
   Drop(p, "Font", "Shown in its own letters. Areas can pick their own on Scroll areas.", W.Fonts(), DB, "font")
   Drop(p, "Outline", "A dark edge around the letters makes them easier to read.", CT.OUTLINES, DB, "outline")
+  Sld(p, "Text size", "Every combat text this much bigger or smaller.", 0.5, 2, 0.05, DB, "scale", nil, Pct)
   Sld(p, "Speed", "How fast all texts move: below 1 they stay longer, above 1 they pass quicker.", 0.5, 2, 0.05, DB, "speed", nil, Times)
+  Sld(p, "Fade out over", "The last part of a text's time it fades away in.", 0.05, 0.9, 0.05, DB, "fade", nil, Pct)
+  Sld(p, "Most on screen", "When more texts than this are showing, the oldest goes first.", 10, 150, 5, DB, "maxLive")
   Chk(p, "Shadow", "A soft shadow behind the letters.", DB, "shadow")
   Chk(p, "Spell icons", "The spell's icon next to its number.", DB, "icons")
   Sld(p, "Icon size", "Next to the text, relative to its height.", 0.5, 2, 0.1, DB, "iconScale", nil, Pct)
-  W.Card(p, "Warnings", { text = "Big text when your health or mana gets low." })
-  Sld(p, "Low health under", "A warning when your health drops below this.", 5, 90, 5, DB, "lowHp", nil, function(v) return v .. "%" end)
-  Sld(p, "Low mana under", "A warning when your mana drops below this.", 5, 90, 5, DB, "lowMana", nil, function(v) return v .. "%" end)
+  W.Card(p, "Where your damage goes")
+  DamageButtons(p)
   W.Card(p, "The game's own numbers", { folded = true,
     tip = "The ON / OFF switch swaps these for you; here they can be set one by one." })
   W.Check(p, "Game damage numbers", "The client's floating damage over targets (CombatDamage).",
@@ -226,7 +312,7 @@ BUILD.ctareas = function(p)
   local fonts = { { key = "", label = "Same as all" } }
   local flist = W.Fonts()
   for f = 1, table.getn(flist) do table.insert(fonts, flist[f]) end
-  Drop(p, "Font", "Letters just for this area. 'Same as all' uses the one on Basics.", fonts, A, "font")
+  Drop(p, "Font", "Letters just for this area. 'Same as all' uses the one on General.", fonts, A, "font")
   Drop(p, "Outline", "A dark edge just for this area.", { { key = "", label = "Same as all" }, { key = "OUTLINE", label = "Outline" },
     { key = "THICKOUTLINE", label = "Thick outline" } }, A, "outline")
   W.Card(p, "Place", { folded = true, text = "Where the area sits on screen. Easier: tick Move frames at the top and drag it." })
@@ -338,14 +424,12 @@ end
 local function PlaySnd(v) CT.PlaySound(v) end
 
 BUILD.ctcrits = function(p)
-  W.Heading(p, "Crits and sounds", {
+  W.Heading(p, "Crits", {
     on = MASTER,
-    text = "Make crits impossible to miss, and give crits and killing blows a sound.",
+    text = "Make crits impossible to miss.",
     about = "Crits get their own font and outline, a colour of their own, a flash behind them, a mark, and stay longer "
-      .. "on screen. How they move is set per area (Scroll areas) and for nameplates below.\n\nSounds: the lists hold "
-      .. "the game's alerts, gunshots and explosions, boss kill lines (\"Die, insect!\"), crowd cheers and victory horns, "
-      .. "BigWigs' voices and four files of your own. Every message can have its own sound on the Messages page. "
-      .. "Picking a sound plays it." })
+      .. "on screen. How they move is set per area (Scroll areas) and for nameplates below. Crit sounds are on "
+      .. "Messages and sounds." })
   W.Buttons(p, {
     TEST,
     { "Show a crit", SampleCrit, 100, "A crit in the Outgoing area and on your target's nameplate." },
@@ -375,6 +459,13 @@ BUILD.ctcrits = function(p)
     tip = "On the Messages page any message can be ticked big (killing blows are): it shows bigger, with the same flash." })
   Sld(p, "Big size", "How much bigger big messages are.", 1, 2.5, 0.05, DB, "bigScale", nil, Times)
   Chk(p, "Flash behind big ones", "The same flash crits get.", DB, "bigGlow")
+end
+
+-- Sounds and warnings (on Messages and sounds)
+local function SoundCards(p)
+  W.Card(p, "Warnings", { tip = "Big text when your health or mana gets low." })
+  Sld(p, "Low health under", "A warning when your health drops below this.", 5, 90, 5, DB, "lowHp", nil, function(v) return v .. "%" end)
+  Sld(p, "Low mana under", "A warning when your mana drops below this.", 5, 90, 5, DB, "lowMana", nil, function(v) return v .. "%" end)
   W.Card(p, "Sounds", { text = "Sounds for killing blows and big crits. Picking a sound plays it." })
   Drop(p, "Killing blow", "Plays when you get a killing blow.", CT.SOUNDS, DB, "killSound", PlaySnd)
   W.Space(p, 2)
@@ -445,7 +536,7 @@ local function EventRow(p, key)
   local cc = W.CheckBox(row, 16)
   cc:SetPoint("LEFT", row, "LEFT", COL.crit + 3, 0)
   cc:SetScript("OnClick", function() S().crit = this:GetChecked() and true or false end)
-  -- big: bigger, with the flash (Crits and sounds sets how much)
+  -- big: bigger, with the flash (Crits sets how much)
   local bg = W.CheckBox(row, 16)
   bg:SetPoint("LEFT", row, "LEFT", COL.big + 3, 0)
   bg:SetScript("OnClick", function() S().big = this:GetChecked() and true or false end)
@@ -468,7 +559,7 @@ local function EventRow(p, key)
   W.Tip(sw, e.label, "Its colour. Click to pick another.")
   W.Tip(wf, e.label, "Where it comes from: one of the screen areas, or the nameplate of the other person.")
   W.Tip(cc, e.label, "Always show it as a crit (bigger, with the crit movement).")
-  W.Tip(bg, e.label, "Bigger, with a flash, so it stands out (sizes on Crits and sounds).")
+  W.Tip(bg, e.label, "Bigger, with a flash, so it stands out (sizes on Crits).")
   W.Tip(sf, e.label, "A sound when it happens. Picking one plays it.")
   table.insert(W.index, { page = p, card = p.cur, label = e.label, desc = "A message type: on, colour, where it comes from, crit, big, sound.", region = row })
 end
@@ -485,12 +576,13 @@ local GROUP_TEXT = {
 }
 
 BUILD.ctevents = function(p)
-  W.Heading(p, "Messages", {
+  W.Heading(p, "Messages and sounds", {
     on = MASTER,
     text = "Every kind of combat text: show it, its colour, where it comes from, always a crit, big, and a sound.",
     about = "Tick to show a message. The swatch is its colour. Where it comes from: a screen area, or the nameplate of "
-      .. "the other unit. Crit = always shown as a crit. Big = bigger with a flash so it stands out (Crits and sounds "
-      .. "sets how much). Sound: picking one plays it." })
+      .. "the other unit. Crit = always shown as a crit. Big = bigger with a flash so it stands out (Crits sets how "
+      .. "much). Sound: picking one plays it.\n\nThe sound lists hold the game's alerts, gunshots and explosions, boss "
+      .. "kill lines (\"Die, insect!\"), crowd cheers and victory horns, BigWigs' voices and four files of your own." })
   W.Buttons(p, {
     { "Your damage on nameplates", function() AllOut("plate") end, 180 },
     { "Your damage on screen", function() AllOut("out") end, 150 },
@@ -519,6 +611,7 @@ BUILD.ctevents = function(p)
       if e.group == grp[1] then EventRow(p, e.key) end
     end
   end
+  SoundCards(p)
 end
 
 -- ---------------------------------------------------------------- text and filters
@@ -588,11 +681,12 @@ end
 
 -- ---------------------------------------------------------------- the window's list
 
-O:AddPage("Combat Text", "ctgeneral", "Basics", BUILD.ctgeneral)
+-- most used first (user, 22 Oct 2026: "regroup and tidy the combat text pages like the nameplates")
+O:AddPage("Combat Text", "ctgeneral", "General", BUILD.ctgeneral)
 O:AddPage("Combat Text", "ctareas", "Scroll areas", BUILD.ctareas)
 O:AddPage("Combat Text", "ctplates", "Nameplates", BUILD.ctplates)
-O:AddPage("Combat Text", "ctcrits", "Crits and sounds", BUILD.ctcrits)
-O:AddPage("Combat Text", "ctevents", "Messages", BUILD.ctevents)
+O:AddPage("Combat Text", "ctcrits", "Crits", BUILD.ctcrits)
+O:AddPage("Combat Text", "ctevents", "Messages and sounds", BUILD.ctevents)
 O:AddPage("Combat Text", "ctfilters", "Text and filters", BUILD.ctfilters)
 
 -- /sct opens these pages (SCT's own command when SCT itself is not loaded)
