@@ -1482,6 +1482,8 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
   pfUI.bars.update = updatecache
   pfUI.bars.buttons = buttoncache
   pfUI.bars.ButtonFullUpdate = ButtonFullUpdate
+  -- octo: the press animations, so the options' sample button plays the same
+  pfUI.bars.animations = button_animations
   pfUI.bars.ButtonEnter = ButtonEnter
   pfUI.bars.ButtonLeave = ButtonLeave
 

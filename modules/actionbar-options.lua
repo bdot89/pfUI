@@ -217,11 +217,63 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
     b.cd = b:CreateFontString(nil, "OVERLAY")
     b.cd:SetPoint("CENTER", b, "CENTER", 0, 2)
+    -- the cooldown: a dark sweep down the button (as pfUI's on 1.12)
+    b.sweep = b:CreateTexture(nil, "OVERLAY")
+    b.sweep:SetTexture("Interface\\Buttons\\WHITE8X8")
+    b.sweep:SetVertexColor(0, 0, 0, .65)
+    b.sweep:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+    b.sweep:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    b.sweep:Hide()
+    -- the press animation, made as pfUI makes it for a real button
+    b.animation = CreateFrame("Frame", nil, b)
+    b.animation.parent = b
+    b.animation:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.animation:SetFrameLevel(b:GetFrameLevel() + 6)
+    b.animation.tex = b.animation:CreateTexture(nil, "BACKGROUND")
+    b.animation.tex:SetTexCoord(.08, .92, .08, .92)
+    b.animation.tex:SetAllPoints(b.animation)
+    b.animation:Hide()
     local note = side:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    note:SetPoint("BOTTOM", side, "BOTTOM", 0, 6)
+    note:SetPoint("BOTTOM", side, "BOTTOM", 0, 4)
     note:SetWidth(sideW - 6)
-    note:SetText("key, macro, count and cooldown text")
-    note:SetTextColor(.5, .5, .5)
+    note:SetTextColor(.6, .6, .6)
+    b.note = note
+
+    -- every part of the sample opens its setting (pfUI.plates.OpenSection
+    -- opens a page at a card)
+    local function Hot(region, title, card, page, level)
+      local h = CreateFrame("Button", nil, side)
+      h:SetFrameLevel(b:GetFrameLevel() + (level or 10))
+      h:SetAllPoints(region)
+      h.hl = h:CreateTexture(nil, "OVERLAY")
+      h.hl:SetAllPoints(h)
+      h.hl:SetTexture("Interface\\Buttons\\WHITE8X8")
+      h.hl:SetVertexColor(1, 1, 1, .2)
+      h.hl:Hide()
+      h:SetScript("OnEnter", function()
+        this.hl:Show()
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:AddLine(title)
+        GameTooltip:AddLine("Click to change it", 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      h:SetScript("OnLeave", function() this.hl:Hide() GameTooltip:Hide() end)
+      h:SetScript("OnClick", function()
+        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(page, card) else O:Open(page) end
+      end)
+      return h
+    end
+    Hot(b, "Button border and icon zoom", "Buttons", "abbuttons", 8)
+    Hot(b.hotkey, "Key text", "Letters", "abbuttons")
+    Hot(b.macro, "Macro text", "Letters", "abbuttons")
+    Hot(b.count, "Count text", "Letters", "abbuttons")
+    -- the cooldown number comes and goes, so its spot is a fixed square
+    local cdSpot = CreateFrame("Frame", nil, b)
+    cdSpot:SetWidth(34) cdSpot:SetHeight(28)
+    cdSpot:SetPoint("CENTER", b, "CENTER", 0, 0)
+    Hot(cdSpot, "Cooldown text", "Letters", "abbuttons")
+    Hot(note, "Highlight colours", "Highlights", "abgeneral")
+
     local function Text(fs, size, color, text)
       local font = pfUI.media[C.bars.font] or pfUI.font_default
       -- (the sample is about twice a real button: the texts grow with it)
@@ -239,12 +291,72 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       Text(b.hotkey, C.bars.bind_size, C.bars.bind_color, "S1")
       Text(b.macro, C.bars.macro_size, C.bars.macro_color, "Mac")
       Text(b.count, C.bars.count_size, C.bars.count_color, "20")
-      Text(b.cd, C.bars.cd_size, "1,1,1,1", "12")
+      Text(b.cd, C.bars.cd_size, "1,1,1,1", "")
+      b.animation:SetScript("OnUpdate", pfUI.bars.animations and pfUI.bars.animations[C.bars.animation] or nil)
+    end
+
+    -- The sample in use, on a 10 s loop: a 6 s cooldown rolls down and counts,
+    -- the press animation plays when it is ready, then it shows each highlight
+    -- colour in turn (out of range, out of mana, not usable).
+    local STATES = {
+      { 7, 7.8, "glowrange", "rangecolor", "out of range" },
+      { 7.8, 8.6, "showoom", "oomcolor", "out of mana" },
+      { 8.6, 9.4, "showna", "nacolor", "not usable" },
+    }
+    function M.Animate(now)
+      local t = math.mod(now, 10)
+      local size = b:GetHeight() or 76
+      -- cooldown
+      if t < 6 then
+        b.sweep:SetHeight(math.max(1, size * (6 - t) / 6))
+        b.sweep:Show()
+        b.cd:SetText(math.ceil(6 - t))
+        b.note:SetText("cooldown")
+      else
+        b.sweep:Hide()
+        b.cd:SetText("")
+        b.note:SetText("ready")
+      end
+      -- the press animation once, as the cooldown ends
+      if t >= 6 and not b.pressed then
+        b.pressed = true
+        if C.bars.animation ~= "none" then
+          b.animation.active = 0
+          b.animation:Show()
+        end
+      elseif t < 6 then
+        b.pressed = nil
+      end
+      -- highlight colours
+      local r, g, bl = 1, 1, 1
+      for _, s in ipairs(STATES) do
+        if t >= s[1] and t < s[2] and C.bars[s[3]] == "1" then
+          r, g, bl = GetStringColor(C.bars[s[4]] or "1,1,1,1")
+          b.note:SetText(s[5])
+        end
+      end
+      b.icon:SetVertexColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(bl) or 1)
+      -- a button on the bars lights up now and then, as if pressed
+      if (M.flashAt or 0) < now then
+        M.flashAt = now + .7
+        if M.lit then M.lit:SetVertexColor(1, 1, 1) end
+        local all = {}
+        for _, r2 in pairs(M.rects) do
+          if r2:IsShown() then for _, ic in pairs(r2.icons) do if ic:IsShown() then table.insert(all, ic) end end end
+        end
+        local n = table.getn(all)
+        if n > 0 then
+          M.lit = all[math.random(1, n)]
+          M.lit:SetVertexColor(1.6, 1.6, 1.6)
+        end
+      end
     end
 
     box:SetScript("OnUpdate", function()
-      if (this.tick or 0) > GetTime() then return end
-      this.tick = GetTime() + .5
+      local now = GetTime()
+      M.Animate(now)
+      if (this.tick or 0) > now then return end
+      this.tick = now + .5
       M.Refresh()
       M.Sample()
     end)
