@@ -270,4 +270,9 @@ see "Roadmap" below.
    (NPC / cast colours and names, quest marks from pfQuest or the quest log, class / pet icons,
    auto toggles, tank "taking"), pages "Colours and names" and "Quests, icons and auto" (9 pages
    now). Spec section 5. tests\globalstrings.lua gained QUEST_MONSTERS_KILLED. Next: phase 4.
+   22 Oct: combat text preview, modules/sct-preview.lua (`CT.Mini(box, onPick)`): a scaled copy of
+   the screen, each area box at its x / y, a mock enemy plate, sample texts moved by CT.MOVE with the
+   area's anim / dir / size / crit style / time / speed. Area boxes: click = its tab on Scroll areas
+   (sct-options `AREA.cur`), drag = moves the real area (CT:PlaceArea), Shift + wheel = text size,
+   right-click = default place. On Basics, Scroll areas, Nameplates, Crits.
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).

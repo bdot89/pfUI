@@ -91,7 +91,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
-  "nameplates", "plates", "plates-options" }
+  "nameplates", "plates", "plates-options", "sct-preview" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1206,6 +1206,54 @@ do
     ok(not O.searching, "clearing Find goes back to the page")
     pfUI_config.sct.enabled = wasOn
     pfUI.gui:Hide()
+  end
+end
+
+-- ---------------------------------------------------------------- combat text preview
+
+do
+  local CT = pfUI.sctB and pfUI.sctB.SCT
+  ok(CT and CT.Mini, "combat text preview loaded")
+  if CT and CT.Mini then
+    local box = CreateFrame("Frame", nil, UIParent)
+    box:SetWidth(640)
+    box:SetHeight(300)
+    local picked
+    local good, M = pcall(CT.Mini, box, function(k) picked = k end)
+    ok(good and M and M.rects.inc and M.rects.note, "the mini screen has every area: " .. tostring(good and "" or M))
+    if good and M then
+      -- texts spawn and move
+      for i = 1, 20 do
+        Mock.now = Mock.now + .1
+        Mock.Run(M.scr, "OnUpdate", .1)
+      end
+      ok(table.getn(M.live) > 0, "sample texts move in the areas (" .. table.getn(M.live) .. ")")
+      local r = M.rects.out
+      local A = pfUI.sctB.db.sct.areas.out
+      -- click: its options
+      Mock.Run(r, "OnClick", "LeftButton")
+      ok(picked == "out", "a click on an area opens its options")
+      -- drag: the real area moves
+      local x0 = A.x
+      Mock.cx, Mock.cy = 0, 0
+      Mock.Run(r, "OnMouseDown", "LeftButton")
+      Mock.cx, Mock.cy = 30, 0
+      Mock.Run(r, "OnUpdate", .1)
+      Mock.Run(r, "OnMouseUp")
+      Mock.Run(r, "OnClick", "LeftButton")
+      ok(A.x > x0, "dragging an area moves it (" .. x0 .. " -> " .. A.x .. ")")
+      -- right-click: back where it started
+      Mock.Run(r, "OnClick", "RightButton")
+      ok(A.x == pfUI.sctB.DEFAULTS.sct.areas.out.x, "right-click puts the area back")
+      -- Shift + wheel: text size
+      local s0 = A.size
+      Mock.shift = true
+      Mock.Run(r, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(A.size == s0 + 1, "Shift + wheel: bigger text")
+      A.size = s0
+      Mock.cx, Mock.cy = nil, nil
+    end
   end
 end
 

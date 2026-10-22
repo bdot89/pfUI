@@ -80,6 +80,45 @@ local function DamageButtons(p)
   })
 end
 
+-- the area picked on Scroll areas (a click on an area in the preview picks it)
+local AREA = { cur = "inc" }
+
+-- A small copy of your screen with every area and sample texts moving as set
+-- (sct-preview.lua): click an area for its options, drag to move it, Shift +
+-- wheel for its text size, right-click to put it back.
+local function Preview(p)
+  if not CT.Mini then return end
+  W.Card(p, "Preview", { tip = "A small copy of your screen: every scroll area where it sits, an enemy nameplate, and "
+    .. "sample texts moving as you set them. Click an area for its options, drag it to move it, hold Shift and scroll "
+    .. "the mouse wheel over it for its text size, right-click it to put it back." })
+  local mini = CT.Mini(W.Box(p, 300), function(key)
+    if key == "plate" then
+      O:Open("ctplates")
+    else
+      AREA.cur = key
+      O:Open("ctareas")
+      O:Refresh()
+    end
+  end)
+  table.insert(p.items, { Refresh = function() mini.Refresh() end })
+  -- what the mouse does, in an accent band
+  local band = W.Row(p, 28, 0, 4)
+  local bg = band:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints(band)
+  bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+  local ar, ag, ab = 0.2, 0.55, 0.9
+  if GetAccentColor then ar, ag, ab = GetAccentColor() end
+  bg:SetVertexColor(ar, ag, ab, .22)
+  local how = band:CreateFontString(nil, "OVERLAY")
+  how:SetFont(W.UIFont(), 13, "OUTLINE")
+  how:SetPoint("LEFT", band, "LEFT", 12, 0)
+  how:SetPoint("RIGHT", band, "RIGHT", -8, 0)
+  how:SetJustifyH("LEFT")
+  local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
+  how:SetText(key .. "Click|r an area  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  text size     "
+    .. key .. "Right-click|r  put it back")
+end
+
 -- ---------------------------------------------------------------- basics
 
 BUILD.ctgeneral = function(p)
@@ -100,6 +139,7 @@ BUILD.ctgeneral = function(p)
     return table.concat(s, "    ")
   end)
   DamageButtons(p)
+  Preview(p)
   W.Card(p, "Look", { text = "The letters, outline and speed of all combat text." })
   Drop(p, "Style", "Blizzard numbers: the game's own damage-number look - its font, plain numbers, white melee and "
     .. "yellow spells, straight up, crits that pop - still placed and filtered by these pages.", CT.STYLES, DB, "style")
@@ -137,9 +177,8 @@ local AREA_INFO = {
 }
 
 BUILD.ctareas = function(p)
-  local cur = "inc"
-  local function A() return B.db.sct.areas[cur] end
-  local function Place() CT:PlaceArea(cur) end
+  local function A() return B.db.sct.areas[AREA.cur] end
+  local function Place() CT:PlaceArea(AREA.cur) end
   W.Heading(p, "Scroll areas", {
     on = MASTER,
     text = "Five places on the screen text can scroll in. Pick one below to change it; each message picks its area on Messages.",
@@ -153,21 +192,22 @@ BUILD.ctareas = function(p)
     b:SetPoint("LEFT", row, "LEFT", (i - 1) * 101, 0)
     b.key = key
     b:SetScript("OnClick", function()
-      cur = this.key
+      AREA.cur = this.key
       O:Refresh()
     end)
     tabs[i] = b
   end
   table.insert(p.items, { Refresh = function()
-    for i = 1, table.getn(tabs) do W.Pick(tabs[i], tabs[i].key == cur) end
+    for i = 1, table.getn(tabs) do W.Pick(tabs[i], tabs[i].key == AREA.cur) end
   end })
   W.Live(p, function()
-    return "|cffffd100" .. CT.AREA_LABEL[cur] .. "|r - " .. AREA_INFO[cur]
+    return "|cffffd100" .. CT.AREA_LABEL[AREA.cur] .. "|r - " .. AREA_INFO[AREA.cur]
   end)
   W.Buttons(p, { TEST, { "Test this area", function()
-    CT:Show("1234", 1, 1, 1, cur, {})
-    CT:Show("5678", 1, 0.3, 0.3, cur, { crit = true })
+    CT:Show("1234", 1, 1, 1, AREA.cur, {})
+    CT:Show("5678", 1, 0.3, 0.3, AREA.cur, { crit = true })
   end, 120, "A hit and a crit in the area picked above." } })
+  Preview(p)
   W.Card(p, "Movement", { text = "How text moves in this area. The switch turns the area on or off.", on = { function() return A().enabled end, function(v) A().enabled = v end,
     "Use this area. Off: messages sent here are not shown." } })
   Drop(p, "Movement", "The way the text travels: straight up, in an arc, sideways, bouncing...", CT.MOVES, A, "anim", Place)
@@ -215,6 +255,7 @@ BUILD.ctplates = function(p)
     { "Your damage on nameplates", function() AllOut("plate") end, 180, "Melee, spells, damage over time, pet, damage shields and misses." },
     { "Test on nameplates", function() CT:TestPlates() end, 140, "A hit, a crit, a miss and a heal on every nameplate on screen." },
   })
+  Preview(p)
   W.Card(p, "Basics", { text = "Which nameplates get text, and what happens when there is no nameplate." })
   Chk(p, "Text on other enemies", "Off: only your target's plate shows text.", PL, "offTarget")
   Chk(p, "Show plates when I log in", "Switches the enemy plates on (V) - turn them off yourself (SCT - Damage did the same).", PL, "autoShow")
@@ -312,6 +353,7 @@ BUILD.ctcrits = function(p)
     { "Clean", function() CritPreset("clean") end, 70, "Just bigger, no flash." },
     { "Blizzard", function() CritPreset("blizzard") end, 80, "The game's crit: the number pops and moves on." },
   })
+  Preview(p)
   W.Card(p, "Crit look", { text = "Make crits stand out: their own letters, colour, a flash and a mark." })
   local fonts = { { key = "", label = "Same as the text" } }
   local list = W.Fonts()
