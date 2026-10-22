@@ -1935,7 +1935,32 @@ do
     end
     ok(octo > 0 and legacy == 0, "Find: nameplate settings on the new pages only (" .. octo .. " / " .. legacy .. ")")
     O.quickFind:SetText("")
+    -- a part's options card lights up itself (cut off by the page's scrolling)
+    local c = pfUI.plates.OpenSection and pfUI.plates.OpenSection("nplook", "Raid mark")
+    ok(c and c.card, "Raid mark card opened from the preview")
+    if c then
+      pfUI.octoui.W.Flash(c.card)
+      ok(c.card.octoFlash and c.card.octoFlash:IsShown() and c.card.octoFlash:GetParent() == c.card, "the card itself lights up")
+    end
     pfUI.gui:Hide()
+  end
+
+  -- the cast bar's spot answers between casts
+  local P = pfUI.plates
+  if P and P.previews and P.previews[1] then
+    local cb = P.previews[1].nameplate.castbar
+    local hot = cb.hots and cb.hots[P.previews[1]]
+    ok(hot and hot.always, "the cast bar can be clicked even between casts")
+  end
+
+  -- everything back as it came
+  if P and P.ResetAll then
+    pfUI_config.plates.size_target = "150"
+    pfUI_config.plates.castoffx = "40"
+    pfUI_config.nameplates.width = "200"
+    P.ResetAll()
+    ok(pfUI_config.plates.size_target == "110" and pfUI_config.plates.castoffx == "0" and pfUI_config.nameplates.width == "130"
+      and P.CurrentLook() == "plater", "Reset everything: as it came, with the Plater look")
   end
 end
 

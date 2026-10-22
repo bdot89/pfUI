@@ -917,9 +917,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   function P.FakeCast(plate, o, now)
     if not o.testi then testCount = testCount + 1 o.testi = testCount end
     local cb = plate.castbar
+    -- a 2.5 s cast every 3 s (a short gap, so the bar is easy to click in the preview)
     local t = now + o.testi * 1.3
-    local k = math.floor(t / 4)
-    t = t - k * 4
+    local k = math.floor(t / 3)
+    t = t - k * 3
     local kicked = math.mod(k, 2) == 1
     if t < 2.5 and not (kicked and t >= 1.5) then
       cb:SetMinMaxValues(0, 2.5)
@@ -1041,8 +1042,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if GetAccentColor then ar, ag, ab = GetAccentColor() end
     b.hl:SetVertexColor(ar, ag, ab, .25)
     b.hl:Hide()
+    -- (the cast bar comes and goes: its spot answers even between casts)
+    b.always = what == "cast"
     b:SetScript("OnEnter", function()
-      if not this.region:IsVisible() then return end
+      if not this.region:IsVisible() and not this.always then return end
       this.hl:Show()
       GameTooltip:SetOwner(this, "ANCHOR_TOP")
       GameTooltip:AddLine(P.HOTLABEL[this.what] or this.what)
@@ -1060,7 +1063,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     b:SetScript("OnClick", function()
       -- a drag is not a click
       if this.dragged then this.dragged = nil return end
-      if not this.region:IsVisible() then return end
+      if not this.region:IsVisible() and not this.always then return end
       if arg1 == "RightButton" then
         P.PutBack(this.what)
       elseif P.OnPreviewClick then
@@ -1338,7 +1341,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       Line(c[1], c[2] + c[4] - 1, c[3], 1, 1, 1, 1, .14)
       Line(c[1], c[2], 1, c[4], 1, 1, 1, .14)
       Line(c[1] + c[3] - 1, c[2], 1, c[4], 1, 1, 1, .14)
-      Line(c[1] + 6, c[2] + c[4] / 2, c[3] - 12, 1, 1, .82, 0, .45)
+      Line(c[1] + 6, c[2] + c[4] * .58, c[3] - 12, 1, 1, .82, 0, .45)
       Line(c[1] + c[3] / 2, c[2] + 6, 1, c[4] - 12, 1, .82, 0, .45)
     end
     function g.Apply()
@@ -1364,8 +1367,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       local game = SamplePlate(box, SAMPLES[i])
       local c = cells[i]
       game.cell, game.fit = c, P.ZOOM
-      -- the health bar on the cell's yellow middle line
-      game.at = { c[1] + c[3] / 2, -(c[2] + c[4] / 2) + 18 }
+      -- the health bar on the cell's yellow middle line (a little below the
+      -- middle, as the aura rows above it take more room than the cast bar)
+      game.at = { c[1] + c[3] / 2, -(c[2] + c[4] * .58) + 18 }
       game:SetScale(P.ZOOM)
       game:SetPoint("TOP", box, "TOPLEFT", game.at[1] / P.ZOOM, game.at[2] / P.ZOOM)
       game.preview.anyTarget = true
@@ -1384,9 +1388,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       if not W or not W.Visible then return end
       local l, r, t, b = W.Visible(box)
       local k = (box:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
-      local whole = l and box:GetTop() and math.abs(t - box:GetTop() * k) < 1 and math.abs(b - box:GetBottom() * k) < 1
+      local whole = l and box:GetTop() and math.abs(t - box:GetTop() * k) < 4 and math.abs(b - box:GetBottom() * k) < 4
+      -- (while the window is resized positions come a frame late: only hide
+      -- once the box has been out of view for a moment)
+      if whole then this.outSince = nil elseif not this.outSince then this.outSince = GetTime() end
+      local hide = this.outSince and GetTime() - this.outSince > .25
       for _, game in ipairs(list) do
-        if whole and not game:IsShown() then game:Show() elseif not whole and game:IsShown() then game:Hide() end
+        if not hide and not game:IsShown() then game:Show() elseif hide and game:IsShown() then game:Hide() end
         if whole then P.Fit(game) end
       end
     end)
@@ -1554,6 +1562,19 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       end
     end
     P.Refresh()
+  end
+
+  -- Every nameplate setting back to a fresh install (user, 22 Oct 2026: "a
+  -- reset all back to out of the box"): pfUI's own nameplate settings and
+  -- ours are emptied in place (other code holds these tables), pfUI fills
+  -- in its defaults, then the Plater look as on a first load.
+  function P.ResetAll()
+    for _, t in ipairs({ C.plates, C.nameplates }) do
+      for k in pairs(t) do t[k] = nil end
+    end
+    pfUI:LoadConfig()
+    S.firstlook = "1"
+    P.ApplyPreset("plater")
   end
 
   -- the look whose settings are all still as it set them (nil = your own mix)

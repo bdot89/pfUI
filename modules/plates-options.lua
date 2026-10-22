@@ -112,7 +112,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
-    local box = W.Box(p, h or 330)
+    -- tall enough that a sample with two aura rows and big icons keeps its size
+    local box = W.Box(p, h or 430)
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page
@@ -148,6 +149,17 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       return "Test on real nameplates puts pretend threat colours, casts and auras on every enemy plate you can see for a minute."
     end)
     W.Buttons(p, {
+      { "Reset everything", function()
+        -- a second click within 4 s does it
+        if (P.resetAsk or 0) < GetTime() then
+          P.resetAsk = GetTime() + 4
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: click |cffffffffReset everything|r again to put every nameplate setting back as it came.")
+          return
+        end
+        P.resetAsk = nil
+        P.ResetAll()
+        O:RebuildPages()
+      end, 130, "Every nameplate setting - looks, sizes, colours, places, auras, lists - back to how it came (the Plater look). Click twice." },
       { "Put parts back", function()
         for _, k in ipairs({ "castoffx", "castoffy", "cpoffx", "cpoffy", "auraoffx", "specialoffx", "specialoffy",
           "nameoffx", "nameoffy", "leveloffx", "leveloffy", "hpoffx", "hpoffy", "markoffx", "markoffy",

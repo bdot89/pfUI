@@ -1304,6 +1304,41 @@ end
 -- preview), only over the part of it that shows on its page: it never
 -- spills out of the window (user, 22 Oct 2026), even when scrolled.
 function W.Flash(region)
+  -- a frame (a card, a row) glows itself: an accent wash and border drawn on
+  -- it, above its controls, cut off by the page's scrolling like the rest of it
+  if region and region.CreateTexture and region.GetChildren then
+    local g = region.octoFlash
+    if not g then
+      g = CreateFrame("Frame", nil, region)
+      g:SetAllPoints(region)
+      g.fill = g:CreateTexture(nil, "OVERLAY")
+      g.fill:SetAllPoints(g)
+      g.fill:SetTexture(U.WHITE)
+      g.edges = {}
+      for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT", 0, 2 }, { "BOTTOMLEFT", "BOTTOMRIGHT", 0, 2 },
+                             { "TOPLEFT", "BOTTOMLEFT", 2, 0 }, { "TOPRIGHT", "BOTTOMRIGHT", 2, 0 } }) do
+        local e = g:CreateTexture(nil, "OVERLAY")
+        e:SetTexture(U.WHITE)
+        e:SetPoint(pts[1], g, pts[1], 0, 0)
+        e:SetPoint(pts[2], g, pts[2], 0, 0)
+        if pts[3] > 0 then e:SetWidth(pts[3]) else e:SetHeight(pts[4]) end
+        g.edges[i] = e
+      end
+      g:SetScript("OnUpdate", function()
+        this.t = (this.t or 0) - (arg1 or 0)
+        if this.t <= 0 then this:Hide() return end
+        -- bright, then a slow fade
+        local a = math.min(1, this.t / 1.2)
+        this.fill:SetVertexColor(C.accent[1], C.accent[2], C.accent[3], .22 * a)
+        for _, e in ipairs(this.edges) do e:SetVertexColor(C.accent[1], C.accent[2], C.accent[3], a) end
+      end)
+      region.octoFlash = g
+    end
+    g:SetFrameLevel((region:GetFrameLevel() or 1) + 15)
+    g.t = 2.4
+    g:Show()
+    return
+  end
   local f = W.flash
   if not f then
     f = CreateFrame("Frame", nil, UIParent)
