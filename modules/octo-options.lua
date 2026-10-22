@@ -358,32 +358,6 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     QuickTip(s, "Background", "How solid this window's background is: lower to see the game through it.")
     self.quickAlpha, self.quickAlphaText = s, sv
 
-    -- room between the rows of the Octo pages
-    local spl = W.Font(bar:CreateFontString(nil, "OVERLAY"), 12, K.text[1], K.text[2], K.text[3])
-    spl:SetPoint("LEFT", sv, "RIGHT", 14, 0)
-    spl:SetText("Spacing")
-    local sp = W.SliderBar(bar, 70, "pfOctoQuickSpace")
-    sp:SetPoint("LEFT", spl, "RIGHT", 10, 0)
-    sp:SetMinMaxValues(0, 12)
-    sp:SetValueStep(1)
-    local spv = W.Font(bar:CreateFontString(nil, "OVERLAY"), 11, K.accent[1], K.accent[2], K.accent[3])
-    spv:SetPoint("LEFT", sp, "RIGHT", 8, 0)
-    sp:SetScript("OnValueChanged", function()
-      if this.loading then return end
-      B.Store().space = math.floor(this:GetValue() + 0.5)
-      spv:SetText(B.Store().space .. " px")
-      W.SliderPaint(this)
-      -- rebuild once the slider rests
-      this.at = GetTime() + .3
-      this:SetScript("OnUpdate", function()
-        if GetTime() < this.at then return end
-        this:SetScript("OnUpdate", nil)
-        O:RebuildPages()
-      end)
-    end)
-    QuickTip(sp, "Spacing", "Room between the rows of settings: less to fit more on a page, more to spread them out.")
-    self.quickSpace, self.quickSpaceText = sp, spv
-
     -- find a setting
     local find = W.EditBox(bar, 190, "pfOctoQuickFind")
     find:SetPoint("RIGHT", bar, "RIGHT", -8, 0)
@@ -418,14 +392,6 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     self.quickAlpha.loading = nil
     W.SliderPaint(self.quickAlpha)
     self.quickAlphaText:SetText(math.floor(a * 100 + 0.5) .. "%")
-    if self.quickSpace then
-      local sp = tonumber(B.Store().space) or 2
-      self.quickSpace.loading = true
-      self.quickSpace:SetValue(sp)
-      self.quickSpace.loading = nil
-      W.SliderPaint(self.quickSpace)
-      self.quickSpaceText:SetText(sp .. " px")
-    end
   end
 
   -- The window's and its panels' backgrounds follow the Background slider.
@@ -739,22 +705,6 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     for _, cat in ipairs(g.frames.order or {}) do
       if cat ~= except and cat.area then cat.area:Hide() end
     end
-  end
-
-  -- Builds every Octo page again (the Spacing slider): the old ones are
-  -- hidden and dropped, Find forgets their settings, previews start afresh.
-  function O:RebuildPages()
-    for _, p in pairs(self.pages) do p.frame:Hide() end
-    self.pages = {}
-    for i = table.getn(W.index), 1, -1 do
-      if W.index[i].page then table.remove(W.index, i) end
-    end
-    self.allBuilt = nil
-    if pfUI.plates and pfUI.plates.previews then
-      for _, s in ipairs(pfUI.plates.previews) do s:Hide() end
-      pfUI.plates.previews = {}
-    end
-    if self.current and string.sub(self.current, 1, 2) == "o:" then self:Select(self.current) end
   end
 
   function O:Page(key)

@@ -1908,13 +1908,8 @@ do
     ok(pfUI_cache.octoui.winscale == 1.6, "window size stops at 160%")
     O:ApplyScale(1)
     ok(pfUI_cache.octoui.winscale == 1, "back to normal size")
-    -- the spacing slider rebuilds the pages
-    pfUI_cache.octoui.space = 8
-    O:Select("o:nplook")
-    O:RebuildPages()
-    ok(O.pages.nplook and O.pages.nplook.frame:IsShown(), "pages rebuilt at a new spacing")
-    pfUI_cache.octoui.space = nil
-    O:RebuildPages()
+    -- no spacing slider any more (it rebuilt pages, which came out overlapped)
+    ok(O.quickSpace == nil and O.RebuildPages == nil, "no spacing slider")
     for _, pg in ipairs(sec and sec[2] or {}) do
       local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
       ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))

@@ -529,14 +529,13 @@ function W.Pin(p, title, tip, build)
 end
 
 -- Anchors a region on a new line of container c, x from its left edge.
--- (octo) extra room between every row of the options: the Spacing slider in
--- the window's top bar (user, 22 Oct 2026), per account; pages are rebuilt
--- when it moves (O:RebuildPages)
-local SPACE = 2
+-- (octo) a little extra room between every row of the options. It had a
+-- slider once; rebuilding every page as it moved was buggy (user, 22 Oct
+-- 2026: "maybe we dont need this just make sure everything is tidy").
+local SPACE = 3
 
 local function Put(c, region, x, gap)
   x = x or 0
-  SPACE = tonumber(B.Store().space) or 2
   region:ClearAllPoints()
   if c.last then
     region:SetPoint("TOPLEFT", c.last, "BOTTOMLEFT", x - c.lastX, -((gap or 4) + SPACE))
@@ -588,10 +587,11 @@ end
 
 -- Open cards are measured one frame after drawing, the page the frame after
 -- (its height depends on the cards'). p.after runs once everything is placed.
-function W.Measure(p)
+function W.Measure(p, tries)
   if not p.body then return end
   p.body:SetScript("OnUpdate", function()
     this:SetScript("OnUpdate", nil)
+    local unknown
     for i = 1, table.getn(p.cards) do
       local c = p.cards[i]
       if c.last and W.IsOpen(c) then
@@ -600,8 +600,16 @@ function W.Measure(p)
           c.h = math.max(1, top - bottom)
           c.parent:SetHeight(c.h)
           c.card:SetHeight(CARD_TOP + c.h + 10)
+        else
+          unknown = true
         end
       end
+    end
+    -- (octo) positions not known yet: try again on the next frames, so no
+    -- card keeps its folded height while its options show (overlapping)
+    if unknown and (tries or 0) < 10 then
+      W.Measure(p, (tries or 0) + 1)
+      return
     end
     this:SetScript("OnUpdate", function()
       this:SetScript("OnUpdate", nil)

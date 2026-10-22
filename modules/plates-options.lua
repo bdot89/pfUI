@@ -216,7 +216,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
         end
         P.resetAsk = nil
         P.ResetAll()
-        O:RebuildPages()
+        -- the controls read the settings again (no rebuild: pages stay as built)
+        O:Refresh()
       end, 130, "Every nameplate setting - looks, sizes, colours, places, auras, lists - back to how it came (the Plater look). Click twice." },
       { "Put parts back", function()
         for _, k in ipairs({ "castoffx", "castoffy", "cpoffx", "cpoffy", "auraoffx", "specialoffx", "specialoffy",
