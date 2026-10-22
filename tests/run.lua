@@ -72,6 +72,8 @@ function CreateFrame(kind, name, parent, template)
 end
 -- the client's cooldown animation script (nameplate debuff icons use it)
 function CooldownFrame_OnUpdateModel() end
+-- shapeshift forms (the action bars' stance bar asks)
+function GetNumShapeshiftForms() return 0 end
 -- the client's level colour (unit frames with level colours)
 function GetDifficultyColor() return { r = 1, g = .82, b = 0 } end
 -- the client's debuff type colours (unit frame debuff borders)
@@ -91,7 +93,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
-  "nameplates", "plates", "plates-options", "sct-preview" }
+  "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1111,9 +1113,21 @@ do
   if O and O.frame then
     pfUI.gui:Show()
     -- Combat Text first, with OctoBG's six pages
-    local ct = O.octo[1]
-    ok(ct and ct[1] == "Combat Text" and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
-    ok(O.first == "o:ctgeneral", "the window first opens on combat text's Basics: " .. tostring(O.first))
+    local ct
+    for _, s in ipairs(O.octo) do if s[1] == "Combat Text" then ct = s end end
+    ok(ct and table.getn(ct[2]) == 6, "Combat Text section with its six pages")
+    ok(O.first and string.sub(O.first, 1, 2) == "o:", "the window first opens on an Octo page: " .. tostring(O.first))
+    -- Action Bars: five clean pages instead of pfUI's old Actionbar category
+    local abs
+    for _, s in ipairs(O.octo) do if s[1] == "Action Bars" then abs = s end end
+    ok(abs and table.getn(abs[2]) == 5, "Action Bars section with its five pages")
+    local oldab = 0
+    for k in pairs(O.legacy) do if string.find(k, "^l:Actionbar") then oldab = oldab + 1 end end
+    ok(oldab == 0, "pfUI's old Actionbar pages are gone from the list")
+    for _, pg in ipairs(abs and abs[2] or {}) do
+      local good, err = pcall(function() O:Select("o:" .. pg[1]) end)
+      ok(good and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
+    end
     for _, pg in ipairs(ct and ct[2] or {}) do
       local okk, err = pcall(function() O:Select("o:" .. pg[1]) end)
       ok(okk and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
@@ -1206,6 +1220,45 @@ do
     ok(not O.searching, "clearing Find goes back to the page")
     pfUI_config.sct.enabled = wasOn
     pfUI.gui:Hide()
+  end
+end
+
+-- ---------------------------------------------------------------- action bars (Bartender)
+
+do
+  local AB = pfUI.barsOcto
+  ok(AB and pfUI.bars and pfUI.bars[1], "action bars and their extras loaded")
+  if AB and pfUI.bars[1] then
+    local d = pfUI_config.bars.bar1
+    -- scale, opacity, fade-to
+    d.scale, d.alpha, d.fadeto = "1.25", ".8", ".3"
+    pfUI.bars:UpdateConfig()
+    ok(pfUI.bars[1].octoAlpha == .8 and pfUI.bars[1].fadeTo == .3 and pfUI.bars[1].alpha == .8, "bar opacity and fade-to applied")
+    d.scale, d.alpha, d.fadeto = "1", "1", "0"
+    -- visibility rules
+    d.vis_combat = "combat"
+    Mock.units.player = { combat = false }
+    ok(not AB.Wanted(1), "a combat-only bar hides out of combat")
+    Mock.units.player.combat = true
+    ok(AB.Wanted(1), "and shows in combat")
+    d.vis_combat = "any"
+    d.vis_target = "target"
+    local tgt = Mock.target
+    Mock.target = nil
+    ok(not AB.Wanted(1), "a target-only bar hides without a target")
+    Mock.target = tgt
+    d.vis_target = "any"
+    Mock.units.player = nil
+    -- button looks
+    pfUI_config.bars.skin = "thick"
+    pfUI.bars:UpdateConfig()
+    local b = pfUI.bars[1][1]
+    ok(b and b.octoSkin and b.octoSkin:IsShown(), "button border skin")
+    for _, pr in ipairs(AB.PRESETS) do
+      AB.ApplyPreset(pr[1])
+      ok(AB.CurrentLook() == pr[1], "bar look " .. pr[1] .. " applies and is lit")
+    end
+    AB.ApplyPreset("pfui")
   end
 end
 

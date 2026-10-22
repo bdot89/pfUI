@@ -1175,7 +1175,7 @@ function pfUI.api.EnableAutohide(frame, timeout, combat)
     frame.hover:RegisterEvent("PLAYER_REGEN_DISABLED")
     frame.hover:SetScript("OnEvent", function()
       if event == "PLAYER_REGEN_DISABLED" then
-        this.parent:SetAlpha(1)
+        this.parent:SetAlpha(this.parent.octoAlpha or 1)
         this.activeTo = "keep"
       elseif event == "PLAYER_REGEN_ENABLED" then
         this.activeTo = GetTime() + timeout
@@ -1186,13 +1186,16 @@ function pfUI.api.EnableAutohide(frame, timeout, combat)
   frame.hover:SetScript("OnUpdate", function()
     if this.activeTo == "keep" then return end
 
+    -- octo: a frame may fade to fadeTo instead of 0, and come back to its
+    -- own opacity (octoAlpha) instead of full (action bars, actionbar-octo.lua)
+    local full, low = this.parent.octoAlpha or 1, this.parent.fadeTo or 0
     if MouseIsOver(this, 10, -10, -10, 10) then
       this.activeTo = GetTime() + timeout
-      this.parent:SetAlpha(1)
+      this.parent:SetAlpha(full)
     elseif this.activeTo then
-      if this.activeTo < GetTime() and this.parent:GetAlpha() > 0 then
+      if this.activeTo < GetTime() and this.parent:GetAlpha() > low then
         local fps = (60 / math.max(GetFramerate(), 1))
-        this.parent:SetAlpha(this.parent:GetAlpha() - 0.05*fps)
+        this.parent:SetAlpha(math.max(low, this.parent:GetAlpha() - 0.05*fps))
       end
     else
       this.activeTo = GetTime() + timeout

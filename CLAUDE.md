@@ -163,6 +163,16 @@ see "Roadmap" below.
    Not verified in game: the spell textures' look as minimap art, SetMaskTexture with a 32-bit
    TGA mask, MINIMAP_PING args, art layer stacking under pfUI's backdrop.
 8. The user will add more addons "like this" into pfUI Octo.
+   22 Oct 2026, action bars (Bartender4 as the model; Bartender4 is All Rights Reserved - the
+   user's Bartender4-4.18.3.1.zip was read for its option list only, nothing copied):
+   modules/actionbar-octo.lua (`pfUI.barsOcto`) hooks pfUI.bars.UpdateConfig and adds per bar
+   scale / alpha / fadeto / vis_combat / vis_pet / vis_target / vis_stealth (C.bars.barN), button
+   skins + icon zoom (C.bars.skin / zoom) and 6 looks. api.lua EnableAutohide fades to
+   frame.fadeTo and back to frame.octoAlpha. modules/actionbar-options.lua: section "Action Bars"
+   (General, Bars with a tab per bar, Buttons and text, Paging, Gryphons), pfUI's Actionbar
+   category hidden; pinned preview = real bars on a mini screen (click = its tab, Shift + wheel =
+   button size) + a sample button. Not seen in game. tests stub GetNumShapeshiftForms (the
+   actionbar module now starts in the mock).
 9. OctoBG's look for the whole options window (20 Oct, not seen in game). User (ElvUI screenshots +
    OctoBG's options): "copy Octo BGS style of UI and update PFUI into being my own addon", and
    "PLEASE GET SCROLLING COMBAT TEXT OPTION PANEL IT WAS IN OCTO BG" (the CreateConfig pages

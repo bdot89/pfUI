@@ -34,7 +34,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   O.NAV = {
     { "Settings", { "Settings" } },
     { "Unit Frames", { "Unit Frames", "Castbar" } },
-    { "Action Bars", { "Actionbar" } },
+    { "Action Bars", { "Action Bars", "Actionbar" } },
     { "Nameplates", { "Nameplates" } },
     { "Combat Text", { "Combat Text" } },
     { "Meters", { "Meters" } },

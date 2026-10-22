@@ -600,11 +600,21 @@ function pfUI:LoadConfig()
     pfUI:UpdateConfig("bars",     "bar"..i,      "autohide",         "0")
     pfUI:UpdateConfig("bars",     "bar"..i,      "hide_time",        "3")
     pfUI:UpdateConfig("bars",     "bar"..i,      "hide_combat",      "1")
+    -- octo (actionbar-octo.lua): scale, opacity, fade-to, visibility rules
+    pfUI:UpdateConfig("bars",     "bar"..i,      "scale",            "1")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "alpha",            "1")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "fadeto",           "0")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "vis_combat",       "any")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "vis_pet",          "any")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "vis_target",       "any")
+    pfUI:UpdateConfig("bars",     "bar"..i,      "vis_stealth",      "any")
     if i ~= 11 and i ~= 12 then
       pfUI:UpdateConfig("bars",     "bar"..i,      "buttons",           "12")
     end
   end
 
+  pfUI:UpdateConfig("bars",       nil,           "skin",             "pfui")
+  pfUI:UpdateConfig("bars",       nil,           "zoom",             ".08")
   pfUI:UpdateConfig("bars",       nil,           "keydown",          "0")
   pfUI:UpdateConfig("bars",       nil,           "altself",          "0")
   pfUI:UpdateConfig("bars",       nil,           "rightself",        "0")
