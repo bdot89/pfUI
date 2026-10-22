@@ -310,7 +310,9 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       if t < 6 then
         b.sweep:SetHeight(math.max(1, size * (6 - t) / 6))
         b.sweep:Show()
-        b.cd:SetText(math.ceil(6 - t))
+        -- pfUI's own cooldown text, so its colours and tenths show as in game
+        b.cd:SetTextColor(1, 1, 1)
+        b.cd:SetText(GetColoredTimeString(6 - t))
         b.note:SetText("cooldown")
       else
         b.sweep:Hide()
@@ -533,6 +535,15 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     Sld(p, "Count size", nil, 6, 20, 1, G, "count_size", Px)
     Color(p, "Count colour", nil, G, "count_color")
     Sld(p, "Cooldown size", nil, 6, 30, 1, G, "cd_size", Px)
+    -- cooldown colours are pfUI's shared ones (every cooldown text uses them)
+    local function CD() return C.appearance.cd end
+    local function Re() if pfUI.api.ResetTimeColors then pfUI.api.ResetTimeColors() end end
+    Color(p, "Cooldown colour", "Seconds left, on every cooldown.", CD, "normalcolor", Re)
+    Color(p, "Last 5 seconds colour", "When it is nearly ready.", CD, "lowcolor", Re)
+    Color(p, "Minutes colour", nil, CD, "minutecolor", Re)
+    Color(p, "Hours colour", nil, CD, "hourcolor", Re)
+    PfChk(p, "Tenths in the last 5 seconds", "Shows 4.2 instead of 4.", CD, "milliseconds", Re)
+    Sld(p, "Hide cooldowns shorter than", "No number on short ones, like the global cooldown.", 0, 10, .5, CD, "threshold", Sec, Re)
   end
 
   -- ---------------------------------------------------------------- paging

@@ -1219,6 +1219,10 @@ end
 -- 'remaining'   the time in seconds that should be converted
 -- return        a colored string including a time unit (m/h/d)
 local color_day, color_hour, color_minute, color_low, color_normal
+-- octo: forget the cached colours after they are changed in the options
+function pfUI.api.ResetTimeColors()
+  color_day, color_hour, color_minute, color_low, color_normal = nil, nil, nil, nil, nil
+end
 function pfUI.api.GetColoredTimeString(remaining)
   if not remaining then return "" end
 
