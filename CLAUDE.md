@@ -305,3 +305,23 @@ see "Roadmap" below.
    damage goes; game numbers), Scroll areas, Nameplates, Crits, Messages and sounds (grid, then
    warnings and sounds), Text and filters.
    tests\mock.lua: SetVertexColor / SetTextColor take numeric strings (as the client does).
+11. Unit frames section (22 Oct 2026, not seen in game). User: "this menu needs updating also and
+   making smaller into managable order ... a nice clean preview box ... tabs that you select which
+   unit frame ... all parts must be clickable ... taking you to their specific menus".
+   modules/unitframes-options.lua (`pfUI.ufOcto`): 3 pages instead of pfUI's 14 - General (shared:
+   text, portraits, colours, class extras, party / raid), Frames (12 tabs in the pinned preview,
+   UF.cur; cards Frame / Health bar / Health text / Power bar / Power text / Portrait / Buffs /
+   Debuffs / Icons / Glow and indicators / Buff and dispel markers / Colours / Raid layout),
+   Click casting. pfUI's Unit Frames category is hidden (O.replaced); custom_indicator list is not
+   on the new pages. Preview = pfUI's REAL frames: pfUI.uf:CreateUnitFrame("OctoPrev"..key, i,
+   C.unitframes[key]) (an unknown unit, so no events), reparented into the box, label set to
+   "player" (or target / pet when they exist), UF.Tame: no click / tooltip / OnUpdate, every
+   part restrata'd FULLSCREEN (pfUI puts frames on MEDIUM, glow / portrait on BACKGROUND).
+   Refreshed every 0.5 s (RefreshUnit in pcall) with sample buffs / debuffs / skull / icons /
+   glow so every part can be clicked; text spots are as wide as the words; the stage zooms and
+   centres to fit the box. Party = 4 frames, raid = 10 (5 x 2). Hot spots: click = UF.GO card
+   (via pfUI.plates.OpenSection), Shift + wheel = UF.SIZE. Layout mode right-click now gives
+   unlock's frame_configs Octo keys ("ufframes", tab); `O.tabs[key](page)` in O:Open picks the
+   tab. Mock: ManaBarColor / UnitReactionColor (run.lua), Get/SetFrameStrata with inheritance.
+   Not verified in game: the preview frames' look, RefreshUnit on a frame whose label was
+   changed by hand, libpredict walking pfUI.uf.frames (the previews are in it).

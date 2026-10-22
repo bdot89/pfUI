@@ -21,35 +21,36 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   -- frame labels and their config section relation
   local frame_configs = {
     -- unitframes
-    ["Player"]             = { T["Unit Frames"], T["Player"] },
-    ["Target"]             = { T["Unit Frames"], T["Target"] },
-    ["TargetTarget"]       = { T["Unit Frames"], T["Target-Target"] },
-    ["TargetTargetTarget"] = { T["Unit Frames"], T["Target-Target-Target"] },
-    ["Pet"]                = { T["Unit Frames"], T["Pet"] },
-    ["PetTarget"]          = { T["Unit Frames"], T["Pet-Target"] },
-    ["Focus"]              = { T["Unit Frames"], T["Focus"] },
-    ["FocusTarget"]        = { T["Unit Frames"], T["Focus-Target"] },
+    -- (octo: the Unit Frames section's Frames page, on the frame's tab)
+    ["Player"]             = { "ufframes", "player" },
+    ["Target"]             = { "ufframes", "target" },
+    ["TargetTarget"]       = { "ufframes", "ttarget" },
+    ["TargetTargetTarget"] = { "ufframes", "tttarget" },
+    ["Pet"]                = { "ufframes", "pet" },
+    ["PetTarget"]          = { "ufframes", "ptarget" },
+    ["Focus"]              = { "ufframes", "focus" },
+    ["FocusTarget"]        = { "ufframes", "focustarget" },
 
     -- octo: more boxes with a page of their own
     ["Totems"]             = { T["Buffs"], T["Totem Icons"] },
     ["TooltipAnchor"]      = { T["Tooltip"], nil },
-    ["Group%dTarget"]      = { T["Unit Frames"], T["Group-Target"] },
-    ["GroupPet%d"]         = { T["Unit Frames"], T["Group-Pet"] },
+    ["Group%dTarget"]      = { "ufframes", "grouptarget" },
+    ["GroupPet%d"]         = { "ufframes", "grouppet" },
 
     -- combopoints
-    ["Combo%d"]       = { T["Unit Frames"], T["General"] },
+    ["Combo%d"]       = { "ufgeneral", nil },
 
     -- groupframes
-    ["Raid%d"]        = { T["Unit Frames"], T["Raid"] },
-    ["Raid%d%d"]      = { T["Unit Frames"], T["Raid"] },
-    ["RaidCluster"]   = { T["Unit Frames"], T["Raid"] },
+    ["Raid%d"]        = { "ufframes", "raid" },
+    ["Raid%d%d"]      = { "ufframes", "raid" },
+    ["RaidCluster"]   = { "ufframes", "raid" },
 
     -- octo: meters and combat text (an Octo page key opens that page)
     ["Meter%d"]       = { T["Meters"], nil },
     ["CombatText%a+"] = { "ctareas", nil },
-    ["Group%d"]       = { T["Unit Frames"], T["Group"] },
-    ["Party%dTarget"] = { T["Unit Frames"], T["Group-Target"] },
-    ["PartyPet%d"]    = { T["Unit Frames"], T["Group-Pet"] },
+    ["Group%d"]       = { "ufframes", "group" },
+    ["Party%dTarget"] = { "ufframes", "grouptarget" },
+    ["PartyPet%d"]    = { "ufframes", "grouppet" },
 
     -- chat
     ["ChatLeft"]      = { T["Chat"], nil },

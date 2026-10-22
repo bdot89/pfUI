@@ -57,6 +57,16 @@ local function New(kind, name, parent)
 end
 Mock.New = New
 
+-- strata: a frame's own, else its parent's (as the client inherits it)
+function methods:SetFrameStrata(s) self._strata = s end
+function methods:GetFrameStrata()
+  local f = self
+  while f do
+    if f._strata then return f._strata end
+    f = f._parent
+  end
+  return "MEDIUM"
+end
 -- (the client takes "20" and gives back 20)
 function methods:SetWidth(v) self.w = tonumber(v) or v end
 function methods:SetHeight(v) self.h = tonumber(v) or v end

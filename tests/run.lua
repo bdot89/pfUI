@@ -76,6 +76,11 @@ function CooldownFrame_OnUpdateModel() end
 function GetNumShapeshiftForms() return 0 end
 -- the client's level colour (unit frames with level colours)
 function GetDifficultyColor() return { r = 1, g = .82, b = 0 } end
+-- the client's colour tables (FrameXML)
+ManaBarColor = { [0] = { r = 0, g = 0, b = 1 }, [1] = { r = 1, g = 0, b = 0 }, [2] = { r = 1, g = .5, b = .25 },
+  [3] = { r = 1, g = 1, b = 0 }, [4] = { r = 0, g = 1, b = 1 } }
+UnitReactionColor = {}
+for i = 1, 8 do UnitReactionColor[i] = { r = i < 4 and 1 or 0, g = i > 3 and 1 or 0, b = 0 } end
 -- the client's debuff type colours (unit frame debuff borders)
 DebuffTypeColor = { none = { r = .8, g = 0, b = 0 }, Magic = { r = .2, g = .6, b = 1 }, Curse = { r = .6, g = 0, b = 1 },
   Disease = { r = .6, g = .4, b = 0 }, Poison = { r = 0, g = .6, b = 0 } }
@@ -93,7 +98,8 @@ FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
-  "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options" }
+  "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
+  "unitframes-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -344,7 +350,8 @@ if U and U.bar then
   -- right-click: the frame's options in the options window
   Mock.Run(pl.drag, "OnClick", "RightButton")
   local O = pfUI.octoui and pfUI.octoui.Options
-  ok(pfUI.gui:IsShown() and O and O.current and string.find(O.current, "Player"), "right-click opens the frame's options (" .. tostring(O and O.current) .. ")")
+  ok(pfUI.gui:IsShown() and O and O.current == "o:ufframes" and pfUI.ufOcto and pfUI.ufOcto.cur == "player",
+    "right-click opens the frame's options on its tab (" .. tostring(O and O.current) .. ")")
   pfUI.gui:Hide()
   _G.pfPlayer, _G.pfPlayerCastbar = nil, nil
   pfUI.movables = { pfTestOne = pfTestOne, pfTestTwo = pfTestTwo }
@@ -1146,8 +1153,10 @@ do
     -- pfUI's pages: a section per category, shown in the page panel
     local lkey
     -- a fixed page with number fields (pairs order changes as the code grows)
-    if O.legacy["l:Unit Frames/Player"] then lkey = "l:Unit Frames/Player" end
-    ok(lkey ~= nil, "pfUI's Unit Frames pages are in the topic list")
+    for _, k in ipairs({ "l:Minimap/Minimap", "l:XP Bar/Experience Bar", "l:Buffs/Player Buff Bar" }) do
+      if not lkey and O.legacy[k] then lkey = k end
+    end
+    ok(lkey ~= nil, "pfUI's own pages are in the topic list (" .. tostring(lkey) .. ")")
     if lkey then
       O:Select(lkey)
       local l = O.legacy[lkey]
@@ -1178,8 +1187,8 @@ do
       end
     end
     -- right-click lookups: a page in another category still found, any case
-    ok(O:FindLegacy("Group Frames", "Raid") == "l:Unit Frames/Raid", "page found outside its old category: " .. tostring(O:FindLegacy("Group Frames", "Raid")))
-    ok(O:FindLegacy("unit frames", "player") == "l:Unit Frames/Player", "names match in any case")
+    ok(O:FindLegacy("Bars", "Experience Bar") == "l:XP Bar/Experience Bar", "page found outside its old category: " .. tostring(O:FindLegacy("Bars", "Experience Bar")))
+    ok(O:FindLegacy("buffs", "totem icons") == "l:Buffs/Totem Icons", "names match in any case")
     ok(O:FindLegacy("Castbar") == "l:Castbar", "a category without pages")
     -- an Octo slider takes a typed number (and percent for 0-1 values)
     local ar = O:Page("ctareas")
@@ -1331,6 +1340,75 @@ do
       ok(not b.octoEq:IsShown(), "and only the tint in pfUI's style")
       b.equipped:Hide()
     end
+  end
+end
+
+-- ---------------------------------------------------------------- unit frames section
+
+do
+  local UF = pfUI.ufOcto
+  local O = pfUI.octoui and pfUI.octoui.Options
+  ok(UF and O, "unit frames section loaded")
+  if UF and O then
+    local sec
+    for _, s in ipairs(O.octo) do if s[1] == "Unit Frames" then sec = s end end
+    ok(sec and table.getn(sec[2]) == 3, "Unit Frames: three pages instead of fourteen")
+    local old = 0
+    for k in pairs(O.legacy) do if string.find(k, "^l:Unit Frames") then old = old + 1 end end
+    ok(old == 0, "pfUI's own Unit Frames pages are gone from the list")
+    pfUI.gui:Show()
+    for _, pg in ipairs(sec and sec[2] or {}) do
+      local good, err = pcall(function() O:Select("o:" .. pg[1]) end)
+      ok(good and O.pages[pg[1]] and O.pages[pg[1]].frame:IsShown(), "page " .. pg[1] .. " builds and shows: " .. tostring(err))
+    end
+    O:Select("o:ufframes")
+    local M = UF.mini
+    ok(M and M.sets.player and table.getn(M.sets.player.frames) == 1, "the preview shows the player frame")
+    if M and M.sets.player then
+      local f = M.sets.player.frames[1]
+      ok(f.octoPreview and f.label == "player" and f:GetParent() == M.sets.player, "a real pfUI frame, on your character, inside the box")
+      ok(f:GetFrameStrata() == "FULLSCREEN" and f.hp:GetFrameStrata() == "FULLSCREEN", "drawn above the options window")
+      ok(f:GetScript("OnClick") == nil and f:GetScript("OnUpdate") == nil, "the preview frame does nothing on its own")
+      -- every part has a spot, and every spot opens its own card
+      local kinds = {}
+      for _, h in ipairs(M.sets.player.hots) do kinds[h.what] = true end
+      local missing = {}
+      for what in pairs(UF.GO) do
+        if not kinds[what] then table.insert(missing, "no spot: " .. what) end
+        if not pfUI.plates.OpenSection("ufframes", UF.GO[what]) then table.insert(missing, "no card: " .. UF.GO[what]) end
+      end
+      ok(table.getn(missing) == 0, "every part of the frame opens its own card (" .. table.concat(missing, ", ") .. ")")
+      -- sample buffs and marks so they can be clicked
+      local b1 = f.buffs and f.buffs[1]
+      ok(b1 and b1:IsShown(), "sample buffs on the preview")
+      ok(f.raidIcon:IsShown(), "sample raid mark on the preview")
+      -- a setting changes the preview (and the real frame)
+      local C = pfUI_config
+      local h0 = C.unitframes.player.height
+      C.unitframes.player.height = "30"
+      UF.Apply("player")
+      ok(f.hp:GetHeight() == 30, "a new height reaches the preview frame")
+      C.unitframes.player.height = h0
+      UF.Apply("player")
+      -- Shift + wheel over the health bar: taller
+      local hot
+      for _, h in ipairs(M.sets.player.hots) do if h.what == "hp" then hot = h end end
+      Mock.shift = true
+      _G.this, _G.arg1 = hot, 1
+      Mock.Run(hot, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(C.unitframes.player.height == tostring(tonumber(h0) + 1), "Shift + wheel on the health bar makes it taller")
+      C.unitframes.player.height = h0
+      UF.Apply("player")
+    end
+    -- tabs: the raid tab shows a grid of raid frames
+    UF.cur = "raid"
+    M.Refresh()
+    ok(M.sets.raid and table.getn(M.sets.raid.frames) == 10 and M.sets.raid:IsShown() and not M.sets.player:IsShown(),
+      "the Raid tab shows ten raid frames instead")
+    UF.cur = "player"
+    M.Refresh()
+    pfUI.gui:Hide()
   end
 end
 

@@ -823,6 +823,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       self.opening = nil
     end
     if key and self.BUILD[key] then
+      -- an Octo page with tabs can open on one (unitframes-options: a frame)
+      if page and self.tabs and self.tabs[key] then self.tabs[key](page) end
       self:Select("o:" .. key)
     elseif key then
       self:Select(self:FindLegacy(key, page) or self.current)
