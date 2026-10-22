@@ -61,19 +61,21 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   local function Mini(box)
     local M = { rects = {} }
     local BW, BH = box:GetWidth() or 640, box:GetHeight() or 190
-    local SW, SH = UIParent:GetWidth() or 1920, UIParent:GetHeight() or 1080
-    if SW < 100 then SW, SH = 1920, 1080 end
-    local sideW = 150
-    local k = math.min((BW - sideW - 16) / SW, (BH - 10) / SH)
+    local sideW = 170
+    -- the view: the part of the screen your bars are in, zoomed to fill the
+    -- room left of the sample button (user, 22 Oct 2026: a whole-screen copy
+    -- left the bars tiny). Worked out again on every refresh.
+    local VW, VH = BW - sideW - 18, BH - 12
     local scr = CreateFrame("Frame", nil, box)
-    scr:SetWidth(SW * k)
-    scr:SetHeight(SH * k)
+    scr:SetWidth(VW)
+    scr:SetHeight(VH)
     scr:SetPoint("LEFT", box, "LEFT", 6, 0)
     local bg = scr:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(scr)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     bg:SetGradient("VERTICAL", .05, .07, .09, .12, .15, .19)
     local ui = UIParent:GetEffectiveScale() or 1
+    local k, ox, oy = 1, 0, 0
 
     local function Rect(i)
       local r = M.rects[i]
@@ -117,19 +119,49 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       return r
     end
 
-    -- where a frame sits on the pretend screen
-    local function Place(f, region)
+    -- a frame's place on screen, in UIParent's units
+    local function Box(region)
       local l, t, r, b = region:GetLeft(), region:GetTop(), region:GetRight(), region:GetBottom()
       if not (l and t and r and b) then return end
       local s = (region:GetEffectiveScale() or 1) / ui
+      return l * s, t * s, r * s, b * s
+    end
+
+    -- where it sits in the view
+    local function Place(f, region)
+      local l, t, r, b = Box(region)
+      if not l then return end
       f:ClearAllPoints()
-      f:SetPoint("TOPLEFT", scr, "BOTTOMLEFT", l * s * k, t * s * k)
-      f:SetWidth(math.max(2, (r - l) * s * k))
-      f:SetHeight(math.max(2, (t - b) * s * k))
+      f:SetPoint("TOPLEFT", scr, "TOPLEFT", (l - ox) * k, (t - oy) * k)
+      f:SetWidth(math.max(2, (r - l) * k))
+      f:SetHeight(math.max(2, (t - b) * k))
       return true
     end
 
+    -- the view frames every shown bar with a margin, centred
+    local function Frame()
+      local ul, ut, ur, ub
+      for _, i in ipairs(AB.ORDER) do
+        local bar = pfUI.bars[i]
+        if bar and bar:IsShown() then
+          local l, t, r, b = Box(bar)
+          if l then
+            ul, ur = math.min(ul or l, l), math.max(ur or r, r)
+            ut, ub = math.max(ut or t, t), math.min(ub or b, b)
+          end
+        end
+      end
+      if not ul then return end
+      local m = 16
+      local w, h = (ur - ul) + 2 * m, (ut - ub) + 2 * m
+      k = math.min(VW / w, VH / h, 1.6)
+      -- centre what the bars cover in the view
+      ox = ul - m - (VW / k - w) / 2
+      oy = ut + m + (VH / k - h) / 2
+    end
+
     function M.Refresh()
+      Frame()
       local ar, ag, ab = .2, .55, .9
       if GetAccentColor then ar, ag, ab = GetAccentColor() end
       for _, i in ipairs(AB.ORDER) do
@@ -170,20 +202,21 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     cap:SetText("Sample button")
     cap:SetTextColor(.6, .6, .6)
     local b = CreateFrame("Frame", nil, side)
-    b:SetWidth(56)
-    b:SetHeight(56)
-    b:SetPoint("CENTER", side, "CENTER", 0, 4)
+    b:SetWidth(76)
+    b:SetHeight(76)
+    b:SetPoint("CENTER", side, "CENTER", 0, 2)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints(b)
     CreateBackdrop(b)
+    -- each text in its own corner, as on a real button
     b.hotkey = b:CreateFontString(nil, "OVERLAY")
-    b.hotkey:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
+    b.hotkey:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
     b.macro = b:CreateFontString(nil, "OVERLAY")
-    b.macro:SetPoint("BOTTOM", b, "BOTTOM", 0, 2)
+    b.macro:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 3, 3)
     b.count = b:CreateFontString(nil, "OVERLAY")
-    b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+    b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
     b.cd = b:CreateFontString(nil, "OVERLAY")
-    b.cd:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.cd:SetPoint("CENTER", b, "CENTER", 0, 2)
     local note = side:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     note:SetPoint("BOTTOM", side, "BOTTOM", 0, 6)
     note:SetWidth(sideW - 6)
@@ -191,7 +224,8 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     note:SetTextColor(.5, .5, .5)
     local function Text(fs, size, color, text)
       local font = pfUI.media[C.bars.font] or pfUI.font_default
-      fs:SetFont(font, (tonumber(size) or 10) * 1.6, "OUTLINE")
+      -- (the sample is about twice a real button: the texts grow with it)
+      fs:SetFont(font, (tonumber(size) or 10) * 1.5, "OUTLINE")
       local r, g, bb = GetStringColor(color or "1,1,1,1")
       fs:SetTextColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(bb) or 1)
       fs:SetText(text)
@@ -203,7 +237,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       AB.Zoom(b)
       AB.Skin(b)
       Text(b.hotkey, C.bars.bind_size, C.bars.bind_color, "S1")
-      Text(b.macro, C.bars.macro_size, C.bars.macro_color, "Macro")
+      Text(b.macro, C.bars.macro_size, C.bars.macro_color, "Mac")
       Text(b.count, C.bars.count_size, C.bars.count_color, "20")
       Text(b.cd, C.bars.cd_size, "1,1,1,1", "12")
     end
@@ -223,7 +257,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     W.Pin(p, "Preview", "Your bars on a small copy of the screen, and a sample button with the look. Click a bar for its "
       .. "settings, hold Shift and scroll the mouse wheel over it for bigger or smaller buttons. Move frames (top) "
       .. "moves the bars themselves. Click this bar to fold it away.", function(p)
-      local mini = Mini(W.Box(p, 180))
+      local mini = Mini(W.Box(p, 150))
       table.insert(p.items, { Refresh = function() mini.Refresh() mini.Sample() end })
       local band = W.Row(p, 20, 0, 3)
       local bg = band:CreateTexture(nil, "BACKGROUND")
