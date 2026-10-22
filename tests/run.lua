@@ -1697,6 +1697,9 @@ do
       ok(hot and fp.name.hots and fp.level.hots and fp.health.hots, "cast bar, name, level and bar are clickable")
       local opened
       local was = P.OnPreviewClick
+      -- (the mock puts every frame at the same place: no box limits here)
+      local limits = P.Limits
+      P.Limits = function() end
       P.OnPreviewClick = function(w) opened = w end
       fp.castbar:Show()
       if hot then Mock.Run(hot, "OnClick") end
@@ -1711,11 +1714,8 @@ do
         opened = nil
         Mock.Run(hot, "OnClick")
         ok(S.castoffx == "20" and S.castoffy == "-30" and opened == nil, "dragging the cast bar moves it (" .. S.castoffx .. ", " .. S.castoffy .. "), not a click")
-        -- it cannot leave the box: a part outside is refused
-        local inside = P.Inside
-        -- inside before the move, outside after it
-        local calls = 0
-        P.Inside = function() calls = calls + 1 return math.mod(calls, 2) == 1 end
+        -- it stops at the edge of the box: here 5 px of room to the right
+        P.Limits = function() return { 0, 5, 0, 5 } end
         Mock.cx, Mock.cy = 100, 100
         Mock.Run(hot, "OnMouseDown")
         Mock.cx, Mock.cy = 400, 100
@@ -1723,8 +1723,8 @@ do
         Mock.Run(hot, "OnUpdate", .1)
         Mock.Run(hot, "OnMouseUp")
         Mock.Run(hot, "OnClick")
-        P.Inside = inside
-        ok(S.castoffx == "20", "a drag out of the preview box is refused (" .. S.castoffx .. ")")
+        P.Limits = function() end
+        ok(S.castoffx == "25", "a drag stops at the edge of the preview box (" .. S.castoffx .. ")")
         S.castoffx, S.castoffy = "0", "0"
         Mock.cx, Mock.cy = nil, nil
       end
@@ -1775,6 +1775,7 @@ do
       ok(not fp.octo.mark:IsShown(), "elite mark None")
       S.markelite = "star"
       P.OnPreviewClick = was
+      P.Limits = limits
       ok(fp.octo.cp and fp.octo.cp[1].hots, "combo points are clickable")
       S.skin = "thick"
       P.Refresh()

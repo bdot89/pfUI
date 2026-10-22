@@ -1273,6 +1273,36 @@ end
 -- ---------------------------------------------------------------- search
 
 -- A short glow over a region (a search result found on its page).
+-- The scrolling page a region sits in (the nearest scroll frame above it).
+function W.Viewport(region)
+  local f = region and region:GetParent()
+  while f do
+    if f.GetVerticalScrollRange and f.GetObjectType and f:GetObjectType() == "ScrollFrame" then return f end
+    f = f:GetParent()
+  end
+end
+
+-- A region's rectangle cut to its page's visible part, in UIParent's units:
+-- left, right, top, bottom, or nil when none of it shows.
+function W.Visible(region, pad)
+  pad = pad or 0
+  local l, r, t, b = region:GetLeft(), region:GetRight(), region:GetTop(), region:GetBottom()
+  if not (l and r and t and b) then return end
+  local k = (region:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+  l, r, t, b = l * k - pad, r * k + pad, t * k + pad, b * k - pad
+  local v = W.Viewport(region)
+  if v and v:GetLeft() then
+    local vk = (v:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    l, r = math.max(l, v:GetLeft() * vk), math.min(r, v:GetRight() * vk)
+    t, b = math.min(t, v:GetTop() * vk), math.max(b, v:GetBottom() * vk)
+  end
+  if r <= l or t <= b then return end
+  return l, r, t, b
+end
+
+-- A short glow over a region (a search result, a card opened from the
+-- preview), only over the part of it that shows on its page: it never
+-- spills out of the window (user, 22 Oct 2026), even when scrolled.
 function W.Flash(region)
   local f = W.flash
   if not f then
@@ -1281,15 +1311,18 @@ function W.Flash(region)
     W.Flat(f, C.accent, 0.18, C.accent)
     f:SetScript("OnUpdate", function()
       this.t = this.t - (arg1 or 0)
-      if this.t <= 0 then this:Hide() else this:SetAlpha(math.min(1, this.t)) end
+      local l, r, t, b = W.Visible(this.region, 3)
+      if this.t <= 0 or not l or not this.region:IsVisible() then this:Hide() return end
+      this:ClearAllPoints()
+      this:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l, t)
+      this:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMLEFT", r, b)
+      this:SetAlpha(math.min(1, this.t))
     end)
     W.flash = f
   end
-  f:ClearAllPoints()
-  f:SetPoint("TOPLEFT", region, "TOPLEFT", -4, 3)
-  f:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT", 4, -3)
+  f.region = region
   f.t = 2
-  f:SetAlpha(1)
+  f:SetAlpha(0)
   f:Show()
 end
 

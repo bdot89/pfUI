@@ -1085,6 +1085,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         local cx, cy = GetCursorPosition()
         local t = drag.pf and C.nameplates or S
         this.down = { cx, cy, tonumber(t[drag[1]]) or 0, drag[2] and tonumber(t[drag[2]]) or 0 }
+        -- How far the part may go: measured once now (positions read while
+        -- moving come a frame late), from all its pieces and the box. A part
+        -- already outside may still come back in.
+        this.lim = P.Limits(game, this.what)
         this.dragged = nil
         this:SetScript("OnUpdate", function()
           local d = this.down
@@ -1095,20 +1099,18 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           if not this.dragged and math.abs(dx) + math.abs(dy) < 3 then return end
           if not this.dragged then P.Front(game, this.region, this.what) end
           this.dragged = true
+          -- it stops at the edge of the preview box
+          local lim = this.lim
+          if lim then
+            dx = math.max(lim[1], math.min(lim[2], dx))
+            dy = math.max(lim[3], math.min(lim[4], dy))
+          end
           local t = drag.pf and C.nameplates or S
           local ox, oy = t[drag[1]], drag[2] and t[drag[2]]
-          -- (a part already outside, from before, may still be dragged back in)
-          local wasIn = P.Inside(game, this.what)
           t[drag[1]] = tostring(d[3] + dx)
           if drag[2] then t[drag[2]] = tostring(d[4] + dy) end
           if t[drag[1]] == ox and (not drag[2] or t[drag[2]] == oy) then return end
           P.Refresh()
-          -- it stops at the edge of the preview box
-          if wasIn and not P.Inside(game, this.what) then
-            t[drag[1]] = ox
-            if drag[2] then t[drag[2]] = oy end
-            P.Refresh()
-          end
         end)
       end)
       b:SetScript("OnMouseUp", function()
@@ -1121,6 +1123,26 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     game.hotlist = game.hotlist or {}
     table.insert(game.hotlist, b)
     return b
+  end
+
+  -- How far all visible pieces of a part may move and stay in the preview
+  -- box: { min dx, max dx, min dy, max dy } (0 where it is already outside,
+  -- so it can only come back in).
+  function P.Limits(game, what)
+    local box = game:GetParent()
+    local l, r, t, b = box:GetLeft(), box:GetRight(), box:GetTop(), box:GetBottom()
+    if not (l and r and t and b) then return end
+    local ul, ur, ut, ub
+    for _, h in ipairs(game.hotlist or {}) do
+      if h.what == what and h.region:IsVisible() and h:GetLeft() then
+        ul = math.min(ul or h:GetLeft(), h:GetLeft())
+        ur = math.max(ur or h:GetRight(), h:GetRight())
+        ut = math.max(ut or h:GetTop(), h:GetTop())
+        ub = math.min(ub or h:GetBottom(), h:GetBottom())
+      end
+    end
+    if not ul then return end
+    return { math.min(0, l - ul), math.max(0, r - ur), math.min(0, b - ub), math.max(0, t - ut) }
   end
 
   -- every visible piece of a part (all its aura icons, all five combo points)
@@ -1190,8 +1212,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if not keys then return end
     local t = keys.pf and C.nameplates or S
     local was = {}
+    -- growing stops a few pixels before the box's edge (measured before the
+    -- change: positions read after it come a frame late)
     local host = region and region.hots and next(region.hots)
-    local wasIn = not host or P.Inside(host, what)
+    if step > 0 and host then
+      local lim = P.Limits(host, what)
+      if lim and (lim[1] > -3 or lim[2] < 3 or lim[3] > -3 or lim[4] < 3) then return end
+    end
     for _, k in ipairs(keys) do
       was[k] = t[k]
       local cur = tonumber(t[k]) or 0
@@ -1199,11 +1226,6 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       t[k] = tostring(math.max(2, math.min(80, cur + step)))
     end
     P.Refresh()
-    -- growing stops where the part would leave the preview box
-    if step > 0 and host and wasIn and not P.Inside(host, what) then
-      for k, v in pairs(was) do t[k] = v end
-      P.Refresh()
-    end
   end
 
   -- right-click on a part: its place and size go back to the first ones
@@ -1326,6 +1348,20 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       table.insert(list, game)
       table.insert(P.previews, game)
     end
+    -- The samples draw in their own layer, which the page's scrolling does
+    -- not cut off: while the box is not wholly in view they hide, so nothing
+    -- of them shows outside the window (user, 22 Oct 2026).
+    local W = pfUI.octoui and pfUI.octoui.W
+    local watch = CreateFrame("Frame", nil, box)
+    watch:SetScript("OnUpdate", function()
+      if not W or not W.Visible then return end
+      local l, r, t, b = W.Visible(box)
+      local k = (box:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+      local whole = l and box:GetTop() and math.abs(t - box:GetTop() * k) < 1 and math.abs(b - box:GetBottom() * k) < 1
+      for _, game in ipairs(list) do
+        if whole and not game:IsShown() then game:Show() elseif not whole and game:IsShown() then game:Hide() end
+      end
+    end)
     return list
   end
 
