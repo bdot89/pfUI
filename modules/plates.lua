@@ -947,10 +947,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
   -- execute range and a friendly player. They follow every setting at once.
   local SAMPLES = {
     { name = "Defias Pillager", level = "17", hp = 80, color = { 1, 0, 0 }, target = true, class = "elite", state = "aggro",
-      cast = true, auras = "all", caption = "your target, casting" },
+      cast = true, auras = "all", caption = "your target - elite - casting" },
     { name = "Defias Thug", level = "16", hp = 55, color = { 1, 0, 0 }, cycle = true, auras = "few", ghost = true,
       raidmark = true, far = true },
-    { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", quest = "objective", caption = "execute range, quest mob" },
+    { name = "Defias Watchman", level = "16", hp = 15, color = { 1, 0, 0 }, state = "safe", quest = "objective", class = "rare",
+      caption = "rare - quest mob - execute range" },
     { name = "Healbot", level = "60", hp = 100, color = { 0, 0, 1 }, caption = "friendly player", guild = "Octo Raiders", hover = true },
   }
   local STATEWORDS = { aggro = "on you", pulling = "you are pulling it", safe = "on someone else",
@@ -1294,7 +1295,8 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         if this.caption then
           local word = pv.data.caption or ("mob " .. (STATEWORDS[pv.state] or ""))
           if pv.data.cycle and S.threat ~= "1" then word = "threat colours are off" end
-          if pv.data.hp < 20 and not P.ExecutePct() then word = "low health (no execute range)" end
+          if pv.data.raidmark then word = word .. " - skull raid mark" end
+          if pv.data.hp < 20 and not P.ExecutePct() then word = string.gsub(word, "execute range", "low health") end
           if pv.away then word = word .. ", out of range" end
           this.caption:SetText(word)
         end

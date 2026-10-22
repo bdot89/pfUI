@@ -106,6 +106,59 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   -- Sample nameplates drawn with every setting as it is now (OctoBG's
   -- "Icons on nameplates" box), and the test on the real ones.
+  -- A row under the preview naming each mark (user, 22 Oct 2026: "showing
+  -- which is a marked target, which is an elite, which is a rare, what the
+  -- marks mean"), drawn in the art and colours picked for them.
+  local LEGEND = {
+    { "Your target", function() return P.ART(C.plates.indicator == "chevrons" and "chevron" or "arrow") end, "targetcolor" },
+    { "Elite", function() return P.MarkArt(C.plates.markelite) end, "elitecolor" },
+    { "Rare", function() return P.MarkArt(C.plates.markrare) end, "rarecolor" },
+    { "Rare elite", function() return P.MarkArt(C.plates.markrareelite) end, "rarecolor" },
+    { "Boss", function() return P.MarkArt(C.plates.markboss) end, "bosscolor" },
+    { "Quest mob", function() return P.MarkArt(C.plates.questobjstyle) end, "questcolor" },
+    { "Quest to take", function() return P.MarkArt(C.plates.queststartstyle) end, "questgivercolor" },
+    { "Hand in", function() return P.MarkArt(C.plates.questendstyle) end, "questgivercolor" },
+    { "Raid mark", function() return "Interface\\TargetingFrame\\UI-RaidTargetingIcons" end, nil, { .75, 1, .25, .5 } },
+  }
+  local function Legend(p)
+    local row = W.Row(p, 20, 0, 4)
+    local items = {}
+    local x = 0
+    for i, l in ipairs(LEGEND) do
+      -- a new line when this one is full
+      if x > W.CW - 110 then
+        row = W.Row(p, 20, 0, 2)
+        x = 0
+      end
+      local ic = row:CreateTexture(nil, "ARTWORK")
+      ic:SetWidth(14)
+      ic:SetHeight(14)
+      ic:SetPoint("LEFT", row, "LEFT", x, 0)
+      local fs = W.Font(row:CreateFontString(nil, "OVERLAY"), 11, .8, .8, .8)
+      fs:SetPoint("LEFT", ic, "RIGHT", 3, 0)
+      fs:SetText(l[1])
+      x = x + 14 + 3 + (fs:GetStringWidth() or 40) + 12
+      items[i] = ic
+    end
+    local function Paint()
+      for i, l in ipairs(LEGEND) do
+        local ic = items[i]
+        local tex = l[2]()
+        if tex then ic:SetTexture(tex) ic:Show() else ic:Hide() end
+        if l[4] then ic:SetTexCoord(l[4][1], l[4][2], l[4][3], l[4][4]) end
+        local r, g, b = 1, 1, 1
+        if l[3] == "targetcolor" and C.plates.targetaccent == "1" and GetAccentColor then
+          r, g, b = GetAccentColor()
+        elseif l[3] then
+          r, g, b = GetStringColor(C.plates[l[3]] or "1,1,1,1")
+        end
+        ic:SetVertexColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1)
+      end
+    end
+    Paint()
+    table.insert(p.items, { Refresh = Paint })
+  end
+
   -- (pinned at the top of the page: the options scroll under it)
   local function Preview(p, h)
     W.Pin(p, "Preview", "Click any part to open its settings, drag it to move it, hold Shift and scroll the mouse wheel over it "
@@ -122,6 +175,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       local hot = IsShiftKeyDown() and P.HotUnderMouse(samples)
       if hot and P.SIZE[hot.what] then P.Resize(hot.what, arg1 or 0, hot.region) else P.PassWheel(this) end
     end)
+    -- what the marks mean, in your own art and colours
+    Legend(p)
     -- what the mouse does, in an accent band so it stands out
     local band = W.Row(p, 28, 0, 4)
     local bg = band:CreateTexture(nil, "BACKGROUND")
@@ -270,47 +325,51 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- look and size
 
   BUILD.nplook = function(p)
-    W.Heading(p, "Look and size", { about = "Bar texture, border skin, background, letters and how big each kind of plate is." })
+    W.Heading(p, "Look and size", { about = "One card for each part of a plate - everything about it in one place: "
+      .. "shown or not, letters, size, colour and where it sits. Click a part in the preview to jump to its card." })
     Preview(p)
-    W.Card(p, "Bar")
+    -- letters for all text on plates
+    W.Card(p, "Letters", { tip = "The font and outline of every text on plates." })
+    Drop(p, "Font", "The letters of names and numbers on plates.", Fonts(), S, "font")
+    Drop(p, "Outline", nil, DD("fontstyle"), NN, "fontstyle")
+    Chk(p, "Unit frame font", "Use pfUI's unit frame font when no font is picked above.", N, "use_unitfonts")
+    W.Card(p, "Name", { on = { function() return C.plates.nameshow ~= "0" end, function(v) C.plates.nameshow = v and "1" or "0"; U() end,
+      "Show the name." }, tip = "Click a swatch for the colour wheel." })
+    Sld(p, "Size", "0 = pfUI's font size.", 0, 24, 1, S, "namesize", function(v) return v == 0 and "pfUI's" or (v .. " px") end)
+    Chk(p, "My own colour", "Off: white, orange in a fight, class colours as set on Threat and colours.", S, "namecustom")
+    Color(p, "Colour", nil, S, "namecolor")
+    Sld(p, "Left / right", "Or drag the name in the preview.", -80, 80, 1, S, "nameoffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "nameoffy", Px)
+    W.Card(p, "Level", { on = { function() return C.plates.levelshow ~= "0" end, function(v) C.plates.levelshow = v and "1" or "0"; U() end,
+      "Show the level." } })
+    Chk(p, "My own colour", "Off: the game's difficulty colour.", S, "levelcustom")
+    Color(p, "Colour", nil, S, "levelcolor")
+    Sld(p, "Left / right", "Or drag the level in the preview.", -80, 80, 1, S, "leveloffx", Px)
+    Sld(p, "Up / down", nil, -40, 40, 1, S, "leveloffy", Px)
+    W.Card(p, "Health bar")
     Drop(p, "Texture", "The fill of the health and cast bars. The Octo ones are pfUI Octo's own art.", Bars(), S, "bartexture")
+    Color(p, "Background", "Behind the bars (the empty part).", S, "bgcolor")
+    Sld(p, "Width", nil, 60, 250, 1, N, "width", Px)
+    Sld(p, "Height", nil, 2, 30, 1, N, "heighthealth", Px)
+    Sld(p, "Gap under the name", "Space between the name and the bar.", -10, 10, 1, NH, "offset", Px)
+    Chk(p, "Upright bar", "The health bar fills from the bottom up.", N, "verticalhealth")
+    W.Card(p, "Border", { tip = "The thin border round the bars, and the skin around that." })
     Drop(p, "Border skin", "The edge around the health and cast bars.", {
       { key = "pfui", label = "Thin black (pfUI)" }, { key = "shadow", label = "Soft shadow" }, { key = "thick", label = "Thick black" },
       { key = "accent", label = "Accent line" }, { key = "neon", label = "Neon glow (accent)" }, { key = "gold", label = "Gold line" },
     }, S, "skin")
-    Color(p, "Background", "Behind the bars (the empty part).", S, "bgcolor")
-    Sld(p, "Width", nil, 60, 250, 1, N, "width", Px)
-    Sld(p, "Health height", nil, 2, 30, 1, N, "heighthealth", Px)
-    Sld(p, "Gap under the name", "Space between the name and the bar.", -10, 10, 1, NH, "offset", Px)
-    Chk(p, "Upright bar", "The health bar fills from the bottom up.", N, "verticalhealth")
-    W.Card(p, "Text")
-    Drop(p, "Font", "The letters of names and numbers on plates.", Fonts(), S, "font")
-    Drop(p, "Outline", nil, DD("fontstyle"), NN, "fontstyle")
-    Sld(p, "Name size", "0 = pfUI's font size.", 0, 24, 1, S, "namesize", function(v) return v == 0 and "pfUI's" or (v .. " px") end)
-    Sld(p, "Health text size", "0 = a bit smaller than the name.", 0, 24, 1, S, "hpsize", function(v) return v == 0 and "auto" or (v .. " px") end)
-    Chk(p, "Unit frame font", "Use pfUI's unit frame font when no font is picked above.", N, "use_unitfonts")
-    Chk(p, "Show the name", nil, S, "nameshow")
-    Chk(p, "Show the level", nil, S, "levelshow")
-    Sld(p, "Name left / right", "Or drag the name in the preview.", -80, 80, 1, S, "nameoffx", Px)
-    Sld(p, "Name up / down", nil, -40, 40, 1, S, "nameoffy", Px)
-    Sld(p, "Level left / right", "Or drag the level in the preview.", -80, 80, 1, S, "leveloffx", Px)
-    Sld(p, "Level up / down", nil, -40, 40, 1, S, "leveloffy", Px)
-    Sld(p, "Health text left / right", "Or drag it in the preview.", -80, 80, 1, S, "hpoffx", Px)
-    Sld(p, "Health text up / down", nil, -30, 30, 1, S, "hpoffy", Px)
-    Chk(p, "Health text", "Numbers on the health bar.", N, "showhp")
-    Drop(p, "Health text place", nil, DD("textalign"), N, "hptextpos")
-    Drop(p, "Health text shows", nil, DD("hpformat"), N, "hptextformat")
-    W.Card(p, "Colours", { tip = "Click a swatch for the colour wheel. Tick the box beside a colour to use it instead of pfUI's." })
-    Chk(p, "My own name colour", "Off: white, orange in a fight, class colours as set on Threat and colours.", S, "namecustom")
-    Color(p, "Name", nil, S, "namecolor")
-    Chk(p, "My own level colour", "Off: the game's difficulty colour.", S, "levelcustom")
-    Color(p, "Level", nil, S, "levelcolor")
-    Chk(p, "My own border colour", "Off: pfUI's black, or its target / combat state colours.", S, "bordercustom")
-    Color(p, "Border", "The thin border round the health and cast bars.", S, "bordercolor")
     Chk(p, "My own skin colour", "Off: each border skin's own colour (black, accent, gold...).", S, "skincustom")
-    Color(p, "Skin", "The border skin's edge (shadow, thick, accent, neon, gold).", S, "skincolor")
-    Color(p, "Health text", nil, S, "hptextcolor")
-    Color(p, "Cast bar text", "The spell name and time.", S, "casttextcolor")
+    Color(p, "Skin colour", nil, S, "skincolor")
+    Chk(p, "My own border colour", "Off: pfUI's black, or its target / combat state colours.", S, "bordercustom")
+    Color(p, "Border colour", "The thin border round the health and cast bars.", S, "bordercolor")
+    W.Card(p, "Health text", { on = { function() return C.nameplates.showhp == "1" end, function(v) C.nameplates.showhp = v and "1" or "0"; U() end,
+      "Numbers on the health bar." } })
+    Drop(p, "Shows", nil, DD("hpformat"), N, "hptextformat")
+    Drop(p, "Place", nil, DD("textalign"), N, "hptextpos")
+    Sld(p, "Size", "0 = a bit smaller than the name.", 0, 24, 1, S, "hpsize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Color(p, "Colour", nil, S, "hptextcolor")
+    Sld(p, "Left / right", "Or drag it in the preview.", -80, 80, 1, S, "hpoffx", Px)
+    Sld(p, "Up / down", nil, -30, 30, 1, S, "hpoffy", Px)
     W.Card(p, "Combo points", { on = { function() return C.nameplates.cpdisplay == "1" end,
       function(v) C.nameplates.cpdisplay = v and "1" or "0"; U() end, "Your combo points on your target's plate." } })
     W.Dropdown(p, "Style", nil, { { key = "orbs", label = "Orbs" }, { key = "gems", label = "Gems" },
@@ -445,6 +504,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Time left", nil, S, "casttimer")
     Chk(p, "Spell name", nil, S, "castname")
     Sld(p, "Text size", "0 = fits the bar.", 0, 24, 1, S, "casttextsize", function(v) return v == 0 and "auto" or (v .. " px") end)
+    Color(p, "Text colour", "The spell name and time.", S, "casttextcolor")
     Sld(p, "Left / right", "Or drag the cast bar in the preview.", -100, 100, 1, S, "castoffx", Px)
     Sld(p, "Up / down", "Minus = lower. Or drag the cast bar in the preview.", -80, 80, 1, S, "castoffy", Px)
     Chk(p, "Spell name (pfUI layout)", "The Plater layout always shows it.", N, "spellname")
@@ -678,8 +738,8 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- A click on a part of a preview opens its page at its card (opened and
   -- scrolled to, with a short glow).
   local GO = {
-    name = { "nplook", "Text" }, guild = { "nplook", "Text" }, hptext = { "nplook", "Text" },
-    level = { "nplook", "Colours" }, health = { "nplook", "Bar" }, raid = { "nplook", "Raid mark" },
+    name = { "nplook", "Name" }, guild = { "nplook", "Name" }, hptext = { "nplook", "Health text" },
+    level = { "nplook", "Level" }, health = { "nplook", "Health bar" }, raid = { "nplook", "Raid mark" },
     combo = { "nplook", "Combo points" }, threat = { "npthreat", "Damage and healer colours" },
     target = { "nptarget", "Target" }, cast = { "npcast", "Bar" }, auras = { "npauras", "Icons" },
     special = { "npauras", "Special auras" }, elite = { "npquest", "Elite, rare and boss marks" }, quest = { "npquest", "Quests" },
