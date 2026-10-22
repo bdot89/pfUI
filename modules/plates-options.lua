@@ -107,17 +107,45 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   -- Sample nameplates drawn with every setting as it is now (OctoBG's
   -- "Icons on nameplates" box), and the test on the real ones.
   local function Preview(p, h)
-    W.Card(p, "Preview", { tip = "Click any part to open its settings, drag it to move it, scroll the mouse wheel over it to make it "
-      .. "bigger or smaller, right-click it to put it back. "
+    W.Card(p, "Preview", { tip = "Click any part to open its settings, drag it to move it, hold Shift and scroll the mouse wheel over it "
+      .. "to make it bigger or smaller, right-click it to put it back. "
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once." })
-    P.AttachPreview(W.Box(p, h or 212))
+    local box = W.Box(p, h or 212)
+    local samples = P.AttachPreview(box)
+    -- Shift + wheel anywhere on the box sizes the part under the mouse; the
+    -- plain wheel scrolls the page
+    box:EnableMouseWheel(true)
+    box:SetScript("OnMouseWheel", function()
+      local hot = IsShiftKeyDown() and P.HotUnderMouse(samples)
+      if hot and P.SIZE[hot.what] then P.Resize(hot.what, arg1 or 0, hot.region) else P.PassWheel(this) end
+    end)
+    -- what the mouse does, in an accent band so it stands out
+    local band = W.Row(p, 28, 0, 4)
+    local bg = band:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(band)
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    local ar, ag, ab = 0.2, 0.55, 0.9
+    if GetAccentColor then ar, ag, ab = GetAccentColor() end
+    bg:SetVertexColor(ar, ag, ab, .22)
+    local edge = band:CreateTexture(nil, "BORDER")
+    edge:SetTexture("Interface\\Buttons\\WHITE8X8")
+    edge:SetVertexColor(ar, ag, ab, 1)
+    edge:SetWidth(3)
+    edge:SetPoint("TOPLEFT", band, "TOPLEFT", 0, 0)
+    edge:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT", 0, 0)
+    local how = band:CreateFontString(nil, "OVERLAY")
+    how:SetFont(W.UIFont(), 13, "OUTLINE")
+    how:SetPoint("LEFT", band, "LEFT", 12, 0)
+    how:SetPoint("RIGHT", band, "RIGHT", -8, 0)
+    how:SetJustifyH("LEFT")
+    local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
+    how:SetText(key .. "Click|r  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  bigger / smaller     "
+      .. key .. "Right-click|r  put it back")
     W.Live(p, function()
-      local how = "|cffffffffClick|r a part: its options    |cffffffffDrag|r: move it    |cffffffffMouse wheel|r: bigger / smaller    "
-        .. "|cffffffffRight-click|r: put it back"
-      if P.Testing() then return how .. "\n|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
-      return how .. "\nTest on real nameplates puts pretend threat colours, casts and auras on every enemy plate you can see for a minute."
+      if P.Testing() then return "|cff55ff55Test running|r (" .. math.ceil(P.testUntil - GetTime()) .. " s) - press V to see enemy plates" end
+      return "Test on real nameplates puts pretend threat colours, casts and auras on every enemy plate you can see for a minute."
     end)
     W.Buttons(p, {
       { "Put parts back", function()

@@ -171,6 +171,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     return player and "enemyplayer" or "enemynpc"
   end
 
+  -- the name's own offset: parts that hang off the name take it back off, so
+  -- moving the name moves nothing else (user, 22 Oct 2026: parts "stay locked
+  -- together ... make sure they are free")
+  function P.NameOff()
+    return tonumber(S.nameoffx) or 0, tonumber(S.nameoffy) or 0
+  end
+
   -- SuperWoW is there (pfUI's own superwow_active only turns on after the
   -- first cast event it sees, so it reads "missing" until someone casts)
   function P.SuperWoW()
@@ -410,7 +417,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       t:SetVertexColor(r, g, b, a)
     end
     o.left:ClearAllPoints()
-    o.left:SetPoint("RIGHT", plate.level, "LEFT", -1 - tgap, 0)
+    -- (the left arrow's x is set on each update from the level's width, so
+    -- moving the level does not move it)
+    o.left:SetPoint("RIGHT", h, "LEFT", -24 - tgap, 0)
+    o.tgap = tgap
     o.right:ClearAllPoints()
     o.right:SetPoint("LEFT", h, "RIGHT", 3 + tgap, 0)
     local csz = math.max(6, hh)
@@ -465,7 +475,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     o.mark:SetWidth(msz)
     o.mark:SetHeight(msz)
     o.mark:ClearAllPoints()
-    o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2 + (tonumber(S.markoffx) or 0), tonumber(S.markoffy) or 0)
+    o.mark:SetPoint("RIGHT", plate.name, "LEFT", -2 + (tonumber(S.markoffx) or 0) - nx, (tonumber(S.markoffy) or 0) - ny)
 
     o.scale = nil
     if P.Lists then P.Lists.Configure(plate, o) end
@@ -544,7 +554,10 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     end
     local size, gap = tonumber(S.cpsize) or 12, tonumber(S.cpgap) or 3
     local h, cb = plate.health, plate.castbar
-    local below = cb:IsShown() and cb or h
+    -- under the health bar, clear of where a cast bar sits by default (moving
+    -- the cast bar does not move them)
+    local under = cb:IsShown() and -((tonumber(S.castheight) or 12) + 8) or -3
+    local nx, ny = P.NameOff()
     local seg = style == "segments"
     local w = seg and ((h:GetWidth() - gap * 4) / 5) or size
     local ht = seg and math.max(3, math.floor(size / 3)) or size
@@ -557,11 +570,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       local x = (i - 3) * (w + gap) + (tonumber(S.cpoffx) or 0)
       local y = tonumber(S.cpoffy) or 0
       if S.cpplace == "above" then
-        f:SetPoint("BOTTOM", plate.name, "TOP", x, 2 + y)
+        f:SetPoint("BOTTOM", plate.name, "TOP", x - nx, 2 + y - ny)
       elseif S.cpplace == "inside" then
         f:SetPoint("CENTER", h, "BOTTOM", x, y)
       else
-        f:SetPoint("TOP", below, "BOTTOM", x, -3 + y)
+        f:SetPoint("TOP", h, "BOTTOM", x, under + y)
       end
       if seg then
         f.tex:SetTexture(pfUI.media[S.bartexture ~= "" and S.bartexture or C.nameplates.healthtexture])
@@ -686,6 +699,11 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
 
     -- target indicator
     local ind = istarget and shown and S.indicator or "none"
+    if ind == "arrows" or ind == "chevrons" then
+      -- left of where the level text sits by default, whatever its width
+      o.left:ClearAllPoints()
+      o.left:SetPoint("RIGHT", h, "LEFT", -6 - (plate.level:GetStringWidth() or 12) - (o.tgap or 0), 0)
+    end
     Vis(o.left, ind == "arrows" or ind == "chevrons")
     Vis(o.right, ind == "arrows" or ind == "chevrons")
     for i = 1, 4 do Vis(o.corners[i], ind == "corners") end
@@ -1030,7 +1048,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       GameTooltip:AddLine(P.HOTLABEL[this.what] or this.what)
       GameTooltip:AddLine("Click: its options", 1, 1, 1)
       if P.DRAG[this.what] then GameTooltip:AddLine("Drag: move it", 1, 1, 1) end
-      if P.SIZE[this.what] then GameTooltip:AddLine("Mouse wheel: bigger / smaller", 1, 1, 1) end
+      if P.SIZE[this.what] then GameTooltip:AddLine("Shift + mouse wheel: bigger / smaller", 1, 1, 1) end
       GameTooltip:AddLine("Right-click: put it back", 1, 1, 1)
       GameTooltip:Show()
     end)
@@ -1049,14 +1067,16 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
         P.OnPreviewClick(this.what)
       end
     end)
-    -- the mouse wheel makes the part bigger or smaller
-    if P.SIZE[what] then
-      b:EnableMouseWheel(true)
-      b:SetScript("OnMouseWheel", function()
-        if not this.region:IsVisible() then return end
+    -- Shift + mouse wheel makes the part bigger or smaller; the plain wheel
+    -- still scrolls the page (user, 22 Oct 2026: the wheel only scrolled)
+    b:EnableMouseWheel(true)
+    b:SetScript("OnMouseWheel", function()
+      if IsShiftKeyDown() and P.SIZE[this.what] and this.region:IsVisible() then
         P.Resize(this.what, arg1 or 0, this.region)
-      end)
-    end
+      else
+        P.PassWheel(this)
+      end
+    end)
     -- (user, 22 Oct 2026: "you should be able to drag features") parts with a
     -- place of their own move with the mouse; the setting follows
     local drag = P.DRAG[what]
@@ -1073,6 +1093,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           local s = this:GetEffectiveScale() or 1
           local dx, dy = math.floor((x - d[1]) / s + .5), math.floor((y - d[2]) / s + .5)
           if not this.dragged and math.abs(dx) + math.abs(dy) < 3 then return end
+          if not this.dragged then P.Front(game, this.region, this.what) end
           this.dragged = true
           local t = drag.pf and C.nameplates or S
           t[drag[1]] = tostring(d[3] + dx)
@@ -1090,7 +1111,50 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       end)
     end
     region.hots[game] = b
+    game.hotlist = game.hotlist or {}
+    table.insert(game.hotlist, b)
     return b
+  end
+
+  -- the part under the mouse in a preview box (Shift + wheel on the box)
+  function P.HotUnderMouse(samples)
+    local best
+    for _, game in ipairs(samples or {}) do
+      for _, b in ipairs(game.hotlist or {}) do
+        if b.region:IsVisible() and MouseIsOver(b) and (not best or b:GetFrameLevel() > best:GetFrameLevel()) then best = b end
+      end
+    end
+    return best
+  end
+
+  -- the part being dragged comes to the front (and stays there), with the
+  -- pieces that belong to it
+  local function Lift(f, level)
+    f:SetFrameLevel(level)
+    for _, kid in ipairs({ f:GetChildren() }) do Lift(kid, level + 1) end
+  end
+  function P.Front(game, region, what)
+    local pl, o = game.nameplate, game.nameplate.octo
+    local list
+    if what == "combo" then list = o.cp
+    elseif what == "auras" then list = o.aicons
+    elseif what == "special" then list = o.bicons
+    elseif what == "cast" then list = { pl.castbar, o.cend }
+    elseif region.GetChildren then list = { region } end
+    P.frontLevel = (P.frontLevel or 12) + 1
+    if P.frontLevel > 26 then P.frontLevel = 13 end
+    for _, f in ipairs(list or {}) do Lift(f, game:GetFrameLevel() + P.frontLevel) end
+  end
+
+  -- hands the wheel to the nearest frame above that scrolls (the page)
+  function P.PassWheel(from)
+    local f = from:GetParent()
+    while f and not (f.GetScript and f:GetScript("OnMouseWheel")) do f = f:GetParent() end
+    if not f then return end
+    local old = this
+    this = f
+    f:GetScript("OnMouseWheel")()
+    this = old
   end
 
   -- one step of the mouse wheel on a part: its size settings go up / down

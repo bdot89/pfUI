@@ -148,7 +148,8 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
     o.qmark:SetWidth(qs)
     o.qmark:SetHeight(qs)
     o.qmark:ClearAllPoints()
-    o.qmark:SetPoint("LEFT", plate.name, "RIGHT", 2 + (tonumber(S.questoffx) or 0), tonumber(S.questoffy) or 0)
+    local nx, ny = P.NameOff()
+    o.qmark:SetPoint("LEFT", plate.name, "RIGHT", 2 + (tonumber(S.questoffx) or 0) - nx, (tonumber(S.questoffy) or 0) - ny)
     local cs = (tonumber(S.ciconsize) or 0) > 0 and tonumber(S.ciconsize) or (size + 2)
     o.cicon:SetWidth(cs)
     o.cicon:SetHeight(cs)
@@ -201,7 +202,10 @@ pfUI:RegisterModule("plates-lists", "vanilla:tbc", function ()
       if coords then o.cicon:SetTexCoord(coords[1], coords[2], coords[3], coords[4]) else o.cicon:SetTexCoord(0, 1, 0, 1) end
       o.cicon:ClearAllPoints()
       local ix, iy = tonumber(S.ciconoffx) or 0, tonumber(S.ciconoffy) or 0
-      if o.mark:IsShown() then o.cicon:SetPoint("RIGHT", o.mark, "LEFT", -1 + ix, iy) else o.cicon:SetPoint("RIGHT", plate.name, "LEFT", -2 + ix, iy) end
+      -- by the name (not the mark: moving the mark leaves the icon where it is)
+      local nx, ny = P.NameOff()
+      local mw = o.mark:IsShown() and ((o.mark:GetWidth() or 14) + 1) or 0
+      o.cicon:SetPoint("RIGHT", plate.name, "LEFT", -2 - mw + ix - nx, iy - ny)
       o.cicon:Show()
     else
       o.cicon:Hide()

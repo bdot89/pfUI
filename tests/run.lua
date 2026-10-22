@@ -1728,7 +1728,23 @@ do
         local cast = fp.castbar.hots[first]
         local h0 = tonumber(S.castheight)
         Mock.Run(cast, "OnMouseWheel", 1)
-        ok(tonumber(S.castheight) == h0 + 1, "the wheel makes the cast bar taller")
+        ok(tonumber(S.castheight) == h0, "the plain wheel leaves sizes alone (it scrolls the page)")
+        Mock.shift = true
+        Mock.Run(cast, "OnMouseWheel", 1)
+        Mock.shift = nil
+        ok(tonumber(S.castheight) == h0 + 1, "Shift + wheel makes the cast bar taller")
+        -- parts move on their own: the name's move leaves the auras and marks put
+        local keepx, keepy = S.nameoffx, S.nameoffy
+        S.nameoffx, S.nameoffy = "0", "0"
+        P.Refresh()
+        local before = { fp.octo.arow.point[4], fp.octo.arow.point[5] }
+        S.nameoffx, S.nameoffy = "15", "4"
+        P.Refresh()
+        ok(fp.octo.arow.point[4] == before[1] - 15 and fp.octo.arow.point[5] == before[2] - 4,
+          "moving the name does not move the auras (" .. tostring(before[1]) .. "," .. tostring(before[2]) .. " -> "
+          .. tostring(fp.octo.arow.point[4]) .. "," .. tostring(fp.octo.arow.point[5]) .. ")")
+        S.nameoffx, S.nameoffy = keepx, keepy
+        P.Refresh()
         Mock.Run(nh, "OnClick", "RightButton")
         ok(S.nameoffx == "0" and S.nameoffy == "0", "right-click puts the name back")
         Mock.Run(cast, "OnClick", "RightButton")

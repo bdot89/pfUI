@@ -309,7 +309,8 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     A.ReadLists()
     local off = tonumber(S.auraoffset) or 2
     o.arow:ClearAllPoints()
-    o.arow:SetPoint("BOTTOM", plate.name, "TOP", tonumber(S.auraoffx) or 0, off)
+    local nx, ny = P.NameOff()
+    o.arow:SetPoint("BOTTOM", plate.name, "TOP", (tonumber(S.auraoffx) or 0) - nx, off - ny)
     o.abig:ClearAllPoints()
     o.abig:SetPoint("BOTTOM", o.arow, "TOP", 0, 2)
     o.aw, o.ah = tonumber(S.aurawidth) or 20, tonumber(S.auraheight) or 16
@@ -359,8 +360,11 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
     -- the special row sits on top of the normal rows that are in use
     local used = math.ceil(n / per)
     o.abig:ClearAllPoints()
-    o.abig:SetPoint("BOTTOM", o.arow, "TOP", tonumber(S.specialoffx) or 0,
-      used * (o.ah + (o.arowgap or 2)) + (o.bgap or 3) + (tonumber(S.specialoffy) or 0))
+    -- from the name, where the rows sit by default: moving the rows (or the
+    -- name) leaves the big icons where they are
+    local nx, ny = P.NameOff()
+    o.abig:SetPoint("BOTTOM", plate.name, "TOP", (tonumber(S.specialoffx) or 0) - nx,
+      2 + used * (o.ah + (o.arowgap or 2)) + (o.bgap or 3) + (tonumber(S.specialoffy) or 0) - ny)
     local m = (S.specialon == "1") and math.min(table.getn(big), 6) or 0
     for i = 1, m do
       local f = Get(o.bicons, o.abig, i, "special")
