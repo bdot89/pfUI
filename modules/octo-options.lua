@@ -167,6 +167,9 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end)
     W.Flat(nav, K.panel, 1, K.line)
     self.navFrame = nav
+    -- the list fills whatever height the panel has, laid out again when it changes
+    nav:SetScript("OnSizeChanged", function() if O.groups then O:LayoutNav() end end)
+    nav:SetScript("OnShow", function() if O.groups then O:LayoutNav() end end)
     nav.up = W.Arrow(nav, 9, "up")
     nav.up:SetPoint("TOP", nav, "TOP", 0, -2)
     nav.down = W.Arrow(nav, 9, "down")
@@ -680,7 +683,17 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       end
     end
     local room = (nav:GetHeight() or 0) - 10
-    if room < 100 then room = 540 end
+    if room < 100 then
+      -- the height is not known yet (the client reports it a frame late):
+      -- a guess now, the real layout on the next frame. (A fixed 540 used to
+      -- stay, and in the taller window the last sections vanished instead of
+      -- moving down when a section opened - user, 22 Oct 2026.)
+      room = 540
+      nav:SetScript("OnUpdate", function()
+        this:SetScript("OnUpdate", nil)
+        if (this:GetHeight() or 0) > 110 then O:LayoutNav() end
+      end)
+    end
     local most = math.max(0, y - room)
     -- keep the open section in view
     if self.reveal then

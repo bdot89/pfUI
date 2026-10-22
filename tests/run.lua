@@ -1891,6 +1891,17 @@ do
       end
     end
     ok(castTopic, "Castbar is a topic under Unit Frames")
+    -- the topic list uses the panel's real height: an open section pushes the
+    -- rest down, nothing past the old 540 px guess is dropped
+    local nav = O.navFrame
+    local gh = nav.GetHeight
+    nav.GetHeight = function() return 720 end
+    O.openGroup = nil
+    O:LayoutNav()
+    local shown = 0
+    for _, grp in ipairs(O.groups) do if grp.header:IsShown() then shown = shown + 1 end end
+    ok(shown == table.getn(O.groups), "every section shows in a tall list (" .. shown .. "/" .. table.getn(O.groups) .. ")")
+    nav.GetHeight = gh
     -- the corner grip scales the window, within limits, and remembers it
     ok(O.grip ~= nil, "the window has a resize grip")
     O:ApplyScale(3)
