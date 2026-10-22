@@ -35,6 +35,104 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   local function ActiveTime(a) return max(1, a.active or 0) end
 
+  -- ---------------------------------------------------------------- per window
+  -- (user, 22 Oct 2026, Details! as the model: "able to add windows and set
+  -- them up, change the looks, everything") Up to six windows, each with its
+  -- own settings in C.meters.winN; win.cfg is that number (the options'
+  -- preview window borrows the one being edited).
+  M.MAXWIN = 6
+  local function S(win) return C.meters["win" .. ((win and (win.cfg or win.id)) or 1)] or C.meters.win1 end
+  M.S = S
+
+  -- the old shared settings, copied into windows 1 and 2 once
+  if C.meters.migrated ~= "1" then
+    for id = 1, 2 do
+      local s = C.meters["win" .. id]
+      s.mode = C.meters["mode" .. id] or s.mode
+      s.segment = C.meters["segment" .. id] or s.segment
+      s.width = C.meters["width" .. id] or C.meters.width or s.width
+      s.height = C.meters["height" .. id] or C.meters.height or s.height
+      s.lock = C.meters["lock" .. id] or s.lock
+      s.barheight = C.meters.barheight or s.barheight
+      s.texture = C.meters.texture or s.texture
+      s.bg = C.meters.background or s.bg
+      s.colorby = C.meters.classcolor == "0" and "fixed" or "class"
+      s.rank = C.meters.showrank or s.rank
+      s.showps = C.meters.showps or s.showps
+      s.showpct = C.meters.showpct or s.showpct
+    end
+    C.meters.migrated = "1"
+  end
+
+  -- one-click looks: { key, label, settings }
+  M.LOOKS = {
+    { "octo", "Octo", { bg = "0.06,0.06,0.06,0.75", border = "pfui", titlebg = "0,0,0,0.45", titleaccent = "1",
+      texture = "Interface\\AddOns\\pfUI\\img\\bar_elvui", spacing = "1", barbg = "1,1,1,0.05", baralpha = "0.85", icons = "class" } },
+    { "minimal", "Minimal", { bg = "0,0,0,0.35", border = "none", titlebg = "0,0,0,0", titleaccent = "0", titlecolor = "0.9,0.9,0.9,1",
+      texture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-flat", spacing = "2", barbg = "0,0,0,0", baralpha = "0.7", icons = "none" } },
+    { "elvui", "ElvUI", { bg = "0.1,0.1,0.1,0.9", border = "pfui", titlebg = "0.1,0.1,0.1,1", titleaccent = "1",
+      texture = "Interface\\AddOns\\pfUI\\img\\bar_elvui", spacing = "1", barbg = "0,0,0,0.4", baralpha = "1", icons = "class" } },
+    { "glass", "Glass", { bg = "0.04,0.05,0.08,0.5", border = "accent", titlebg = "0.2,0.3,0.5,0.35", titleaccent = "0",
+      titlecolor = "1,1,1,1", texture = "Interface\\AddOns\\pfUI\\img\\plates\\bar-glass", spacing = "2", barbg = "1,1,1,0.06",
+      baralpha = "0.8", icons = "class" } },
+    { "classic", "Classic", { bg = "0.05,0.05,0.05,0.85", border = "gold", titlebg = "0.2,0.15,0.05,0.8", titleaccent = "0",
+      titlecolor = "1,0.82,0,1", texture = "Interface\\TargetingFrame\\UI-StatusBar", spacing = "1", barbg = "0,0,0,0.5",
+      baralpha = "1", icons = "class" } },
+    { "neon", "Neon", { bg = "0,0,0,0.6", border = "glow", titlebg = "0,0,0,0.6", titleaccent = "1",
+      texture = "Interface\\AddOns\\pfUI\\img\\bars\\bar-smooth", spacing = "3", barbg = "1,1,1,0.04", baralpha = "0.9", icons = "none" } },
+  }
+  function M.ApplyLook(win, key)
+    local s = S(win)
+    for _, l in ipairs(M.LOOKS) do
+      if l[1] == key then
+        for k, v in pairs(l[3]) do s[k] = v end
+        s.look = key
+      end
+    end
+  end
+  function M.CurrentLook(win)
+    local s = S(win)
+    for _, l in ipairs(M.LOOKS) do
+      local same = true
+      for k, v in pairs(l[3]) do if s[k] ~= v then same = false end end
+      if same then return l[1], l[2] end
+    end
+  end
+
+  -- a made-up fight for the options' preview window
+  local SAMPLE = {
+    { "Thrall", "SHAMAN", 48210, 512, 2100, 3, 1, 4 }, { "Jaina", "MAGE", 45800, 0, 0, 2, 0, 0 },
+    { "Valeera", "ROGUE", 41100, 0, 8600, 4, 0, 1 }, { "Rexxar", "HUNTER", 37950, 0, 1200, 1, 0, 0 },
+    { "Garrosh", "WARRIOR", 33400, 0, 21400, 2, 0, 2 }, { "Gul'dan", "WARLOCK", 30120, 0, 3300, 0, 1, 0 },
+    { "Malfurion", "DRUID", 12900, 38800, 2500, 0, 2, 0 }, { "Anduin", "PRIEST", 4100, 52600, 900, 0, 4, 0 },
+    { "Uther", "PALADIN", 9800, 41200, 6100, 1, 3, 1 },
+  }
+  function M.SampleRows(modekey)
+    local rows = {}
+    for _, p in ipairs(SAMPLE) do
+      local v
+      if modekey == "heal" or modekey == "hps" then v = p[4]
+      elseif modekey == "taken" then v = p[5]
+      elseif modekey == "interrupts" then v = p[6]
+      elseif modekey == "dispels" then v = p[7]
+      elseif modekey == "deaths" then v = p[8]
+      elseif modekey == "threat" then v = p[3] / 500
+      else v = p[3] end
+      if modekey == "dps" or modekey == "hps" then v = v / 102 end
+      if v > 0 then table.insert(rows, { name = p[1], class = p[2], value = v, extra = Num(v / 102) }) end
+    end
+    table.sort(rows, function(x, y) return x.value > y.value end)
+    local total = 0
+    for _, r in ipairs(rows) do total = total + r.value end
+    for _, r in ipairs(rows) do
+      r.max = rows[1].value
+      r.text = Num(r.value)
+      r.pct = total > 0 and r.value / total * 100 or 0
+      if modekey == "threat" then r.text = floor(r.value) .. "%" end
+    end
+    return rows
+  end
+
   -- ---------------------------------------------------------------- modes
 
   local MODES = {
@@ -100,7 +198,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     return rows
   end
 
-  local function SegmentName(key)
+  local function SegmentName(key, win)
+    if win and win.preview then return "|cff66ff661:42|r  Hogger" end
     if key == "overall" then return T["Overall"] end
     local seg = M.Segment(key)
     if not seg then return T["No fight yet"] end
@@ -473,11 +572,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     b.lift = 2
     b.bar = CreateFrame("StatusBar", nil, b)
     b.bar:SetAllPoints()
-    b.bar:SetStatusBarTexture(C.meters.texture)
+    b.bar:SetStatusBarTexture(S(win).texture)
     b.bar:SetMinMaxValues(0, 1)
     b.bg = b:CreateTexture(nil, "BACKGROUND")
     b.bg:SetAllPoints()
     b.bg:SetTexture(1, 1, 1, .05)
+    -- the class icon at the left of the bar
+    b.icon = b.bar:CreateTexture(nil, "OVERLAY")
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
     b.left = b.bar:CreateFontString(nil, "OVERLAY", "GameFontWhite")
     b.left:SetFont(pfUI.font_unit, C.global.font_unit_size, "OUTLINE")
     b.left:SetPoint("LEFT", 4, 0)
@@ -487,29 +589,149 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     b.right:SetPoint("RIGHT", -4, 0)
     b.right:SetJustifyH("RIGHT")
     b.left:SetPoint("RIGHT", b.right, "LEFT", -6, 0)
-    b:SetScript("OnEnter", function() Tooltip(this) end)
+    b:SetScript("OnEnter", function() if not this.win.preview then Tooltip(this) end end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    b:SetScript("OnClick", function() if this.row then M.ShowDetails(this.win, this.row) end end)
+    b:SetScript("OnClick", function()
+      if this.win.preview then
+        if M.PreviewClick then M.PreviewClick(this.win, "bars") end
+        return
+      end
+      if this.row then M.ShowDetails(this.win, this.row) end
+    end)
     win.bars[i] = b
     return b
   end
 
+  local function Col(s, fallback)
+    local r, g, b, a = GetStringColor(s or fallback or "1,1,1,1")
+    return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+  end
+  M.Col = Col
+
+  -- the right text: total, per second and percent in the chosen order
+  M.ORDERS = {
+    { "tps", "Total (per second, percent)" }, { "tsp", "Total (percent, per second)" },
+    { "pts", "Percent  total (per second)" }, { "t", "Total only" }, { "p", "Percent only" },
+  }
+  local function RightText(s, row)
+    local total = row.text or ""
+    local ps = (s.showps ~= "0" and row.extra) or nil
+    local pct = (s.showpct ~= "0" and row.pct) and string.format("%.0f%%", row.pct) or nil
+    local open, close = " |cffaaaaaa(", ")|r"
+    if s.brackets == "0" then open, close = "  |cffaaaaaa", "|r" end
+    local order = s.order or "tps"
+    if order == "t" then return total end
+    if order == "p" then return pct or total end
+    local list = {}
+    if order == "tps" then
+      if ps then table.insert(list, ps) end
+      if pct then table.insert(list, pct) end
+    elseif order == "tsp" then
+      if pct then table.insert(list, pct) end
+      if ps then table.insert(list, ps) end
+    elseif order == "pts" then
+      if ps then table.insert(list, ps) end
+      local head = pct and ("|cffaaaaaa" .. pct .. "|r  " .. total) or total
+      if table.getn(list) > 0 then return head .. open .. table.concat(list, ", ") .. close end
+      return head
+    end
+    if table.getn(list) > 0 then return total .. open .. table.concat(list, ", ") .. close end
+    return total
+  end
+  M.RightText = RightText
+
+  -- the look of a window from its settings: background, border, title bar,
+  -- buttons, fonts (bars are drawn in Refresh)
+  local function ApplyStyle(win)
+    local s = S(win)
+    if win.backdrop then
+      win.backdrop:SetBackdropColor(Col(s.bg))
+      local border = s.border or "pfui"
+      local r, g, b, a = Col(s.bordercolor, "0,0,0,1")
+      if border == "none" then a = 0
+      elseif border == "gold" then r, g, b, a = .85, .68, .3, 1
+      elseif border == "accent" or border == "glow" then r, g, b = GetAccentColor() a = 1 end
+      win.backdrop:SetBackdropBorderColor(r, g, b, a)
+      -- a soft glow round the window
+      if border == "glow" then
+        win.glow = win.glow or CreateFrame("Frame", nil, win)
+        win.glow:SetPoint("TOPLEFT", win, "TOPLEFT", -6, 6)
+        win.glow:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 6, -6)
+        win.glow:SetBackdrop({ edgeFile = pfUI.media["img:glow"], edgeSize = 8 })
+        win.glow:SetBackdropBorderColor(r, g, b, .7)
+        win.glow:Show()
+      elseif win.glow then
+        win.glow:Hide()
+      end
+    end
+    local th = tonumber(s.titleheight) or 18
+    local titled = s.title ~= "0"
+    win.head:SetHeight(th)
+    win.head:SetTexture(Col(s.titlebg, "0,0,0,0.45"))
+    local tsize = tonumber(s.titlesize) or C.global.font_size
+    win.title:SetFont(pfUI.font_default, tsize, "OUTLINE")
+    win.seg:SetFont(pfUI.font_default, max(6, tsize - 1), "OUTLINE")
+    if s.titleaccent == "1" then
+      local ar, ag, ab = GetAccentColor()
+      win.title:SetTextColor(ar, ag, ab, 1)
+    else
+      win.title:SetTextColor(Col(s.titlecolor))
+    end
+    for _, part in ipairs({ win.head, win.titlebtn, win.segbtn }) do
+      if titled then part:Show() else part:Hide() end
+    end
+    if s.showseg == "0" then win.segbtn:Hide() end
+    win.titlebtn:ClearAllPoints()
+    win.titlebtn:SetPoint("TOPLEFT", 2, -(th - 16) / 2 - 1)
+    -- buttons from the right: reset, report, menu (as many as are on)
+    local x = -2
+    for _, e in ipairs({ { win.reset, "btnreset" }, { win.report, "btnreport" }, { win.menu, "btnmenu" } }) do
+      local btn = e[1]
+      btn:ClearAllPoints()
+      if titled and s[e[2]] ~= "0" then
+        btn:SetPoint("TOPRIGHT", win, "TOPRIGHT", x, -(th - 16) / 2 - 1)
+        btn:Show()
+        x = x - 17
+      else
+        btn:Hide()
+      end
+    end
+    win.segbtn:ClearAllPoints()
+    win.segbtn:SetPoint("LEFT", win.titlebtn, "RIGHT", 2, 0)
+    win.segbtn:SetPoint("RIGHT", win, "TOPRIGHT", x - 2, -th / 2)
+    win:SetAlpha(tonumber(s.alpha) or 1)
+  end
+  M.ApplyStyle = ApplyStyle
+
   local function Refresh(win)
     if not win:IsShown() then return end
+    local s = S(win)
+    if win.styled ~= s then ApplyStyle(win) win.styled = s end
     local mode = MODE[win.mode] or MODE.damage
     win.title:SetText(mode.name)
     win.titlebtn:SetWidth(win.title:GetStringWidth() + 10)
     if win.mode == "threat" then
       win.seg:SetText("")
     else
-      win.seg:SetText(SegmentName(win.segment))
+      win.seg:SetText(SegmentName(win.segment, win))
     end
 
-    local rows = M.Rows(win.mode, win.segment)
-    local height = tonumber(C.meters.barheight) or 16
-    local room = win:GetHeight() - 22
-    local visible = max(1, floor((room + 1) / (height + 1)))
+    local rows = win.preview and M.SampleRows(win.mode) or M.Rows(win.mode, win.segment)
+    local height = tonumber(s.barheight) or 16
+    local gap = tonumber(s.spacing) or 1
+    local top = s.title ~= "0" and ((tonumber(s.titleheight) or 18) + 2) or 2
+    local room = win:GetHeight() - top - 2
+    local visible = max(1, floor((room + gap) / (height + gap)))
     if win.offset > max(0, table.getn(rows) - visible) then win.offset = max(0, table.getn(rows) - visible) end
+
+    -- texts
+    local font = (s.font and s.font ~= "") and s.font or pfUI.font_unit
+    local fsize = tonumber(s.fontsize) or C.global.font_unit_size
+    local outline = s.outline == "NONE" and "" or (s.outline or "OUTLINE")
+    local tr, tg, tb, ta = Col(s.barcolor, "0.6,0.6,0.6,1")
+    local bgr, bgg, bgb, bga = Col(s.barbg, "1,1,1,0.05")
+    local balpha = tonumber(s.baralpha) or .85
+    local up = s.grow == "up"
 
     local me = UnitName("player")
     for i = 1, visible do
@@ -517,28 +739,51 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       local b = Bar(win, i)
       if row then
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -20 - (i - 1) * (height + 1))
-        b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -2, -20 - (i - 1) * (height + 1))
+        if up then
+          b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 2, 2 + (i - 1) * (height + gap))
+          b:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -2, 2 + (i - 1) * (height + gap))
+        else
+          b:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -top - (i - 1) * (height + gap))
+          b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -2, -top - (i - 1) * (height + gap))
+        end
         b:SetHeight(height)
         b.row = row
+        b.bar:SetStatusBarTexture(s.texture)
         b.bar:SetValue(row.max and row.max > 0 and row.value / row.max or 0)
+        b.bg:SetTexture(bgr, bgg, bgb, bga)
         local color = row.class and RAID_CLASS_COLORS[row.class]
-        local r, g, bb = .6, .6, .6
-        if color and C.meters.classcolor == "1" then r, g, bb = color.r, color.g, color.b end
+        local r, g, bb = tr, tg, tb
+        if color and s.colorby ~= "fixed" then r, g, bb = color.r, color.g, color.b end
         if win.mode == "threat" then
           -- you: green -> yellow -> red towards the pull point; the tank: dark red
           local share = row.name == me and M.threat and M.threat.Mine()
           if row.tank then r, g, bb = .6, .15, .15
           elseif share then r, g, bb = min(1, share * 2), min(1, 2 - share * 2), .1 end
         end
-        b.bar:SetStatusBarColor(r, g, bb, .85)
-        b.left:SetText((C.meters.showrank ~= "0" and ((i + win.offset) .. ". ") or "") .. row.name)
-        local parts = {}
-        if row.extra and C.meters.showps ~= "0" then table.insert(parts, row.extra) end
-        if row.pct and C.meters.showpct ~= "0" then table.insert(parts, string.format("%.0f%%", row.pct)) end
-        local right = row.text or ""
-        if table.getn(parts) > 0 then right = right .. " |cffaaaaaa(" .. table.concat(parts, ", ") .. ")|r" end
-        b.right:SetText(right)
+        b.bar:SetStatusBarColor(r, g, bb, balpha)
+        -- class icon
+        local coords = row.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[row.class]
+        local iconw = 0
+        if s.icons == "class" and coords then
+          b.icon:SetTexture(pfUI.media["img:classicons"])
+          b.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+          b.icon:SetWidth(height)
+          b.icon:SetHeight(height)
+          b.icon:Show()
+          iconw = height
+        else
+          b.icon:Hide()
+        end
+        for _, fs in ipairs({ b.left, b.right }) do
+          fs:SetFont(font, fsize, outline)
+          if s.shadow == "1" then fs:SetShadowOffset(1, -1) fs:SetShadowColor(0, 0, 0, 1) else fs:SetShadowOffset(0, 0) end
+        end
+        b.left:ClearAllPoints()
+        b.left:SetPoint("LEFT", b, "LEFT", 4 + iconw, 0)
+        b.left:SetPoint("RIGHT", b.right, "LEFT", -6, 0)
+        if s.namecolor == "class" and color then b.left:SetTextColor(color.r, color.g, color.b) else b.left:SetTextColor(1, 1, 1) end
+        b.left:SetText((s.rank ~= "0" and ((i + win.offset) .. ". ") or "") .. row.name)
+        b.right:SetText(RightText(s, row))
         b:Show()
       else
         b.row = nil
@@ -605,7 +850,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   -- ---------------------------------------------------------------- docking
 
   -- window 1 docks as "damage", window 2 as "threat" (pfUI's dock sides)
-  local function KeyOf(win) return win.id == 1 and "pfmeter" or "pfthreat" end
+  local function KeyOf(win) return (win.id == 1 and "pfmeter") or (win.id == 2 and "pfthreat") or nil end
   local function SideOf(win) return win.id == 1 and "damage" or "threat" end
 
   local function CanDock()
@@ -656,13 +901,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     local id = win.id
     win:ClearAllPoints()
     win:SetFrameStrata("MEDIUM")
-    win:SetWidth(tonumber(C.meters["width" .. id] or C.meters.width) or 260)
-    win:SetHeight(tonumber(C.meters["height" .. id] or C.meters.height) or 160)
+    win:SetWidth(tonumber(S(win).width) or 260)
+    win:SetHeight(tonumber(S(win).height) or 160)
     if not (C.position and C.position[win:GetName()]) then
       win:SetPoint("CENTER", UIParent, "CENTER", (id - 1.5) * 280, -120)
     end
     UpdateMovable(win)
-    if C.meters["lock" .. id] == "1" then win.grip:Hide() else win.grip:Show() end
+    if S(win).lock == "1" then win.grip:Hide() else win.grip:Show() end
     win:Show()
     Refresh(win)
     Lift(win)
@@ -704,7 +949,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   local function OpenOptions()
     local O = pfUI.octoui and pfUI.octoui.Options
-    if O and O.Open and O.frame then return O:Open(T["Meters"]) end
+    if O and O.Open and O.frame then return O:Open("mtwindows") end
     pfUI.gui:Show()
     if pfUI.gui.frames[T["Meters"]] then pfUI.gui.frames[T["Meters"]]:Click() end
   end
@@ -712,46 +957,62 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   local BAR_HEIGHTS = { "12", "14", "16", "18", "20", "24" }
 
   local function WindowMenu(win, anchor)
-    local id = win.id
-    local function Flip(key, after)
+    local s = S(win)
+    -- a window setting (tbl = s) or a meter-wide one (tbl = C.meters)
+    local function Flip(tbl, key, after)
       return function()
-        C.meters[key] = C.meters[key] == "1" and "0" or "1"
+        tbl[key] = tbl[key] == "1" and "0" or "1"
         if after then after() end
+        ApplyStyle(win)
         RefreshAll()
         WindowMenu(win, anchor)
       end
     end
-    local items = {
-      { T["Window"], head = true },
-      { T["Docked in the chat panel"], function()
+    local items = { { T["Window"], head = true } }
+    -- (windows 1 and 2 can go into the right chat panel)
+    if win.id <= 2 then
+      table.insert(items, { T["Docked in the chat panel"], function()
           M.SetDocked(win, win.free and true or false)
           WindowMenu(win, anchor)
-        end, tick = not win.free, keep = true },
-    }
-    if win.free then
-      table.insert(items, { T["Lock position and size"], Flip("lock" .. id, function()
-        if C.meters["lock" .. id] == "1" then win.grip:Hide() else win.grip:Show() end
-      end), tick = C.meters["lock" .. id] == "1", keep = true })
+        end, tick = not win.free, keep = true })
     end
-    table.insert(items, { string.format(T["Bar height: %s (click: bigger)"], C.meters.barheight), function()
+    if win.free then
+      table.insert(items, { T["Lock position and size"], Flip(s, "lock", function()
+        if s.lock == "1" then win.grip:Hide() else win.grip:Show() end
+      end), tick = s.lock == "1", keep = true })
+    end
+    table.insert(items, { string.format(T["Bar height: %s (click: bigger)"], s.barheight), function()
       local nextv = BAR_HEIGHTS[1]
       for i, v in ipairs(BAR_HEIGHTS) do
-        if v == C.meters.barheight and BAR_HEIGHTS[i + 1] then nextv = BAR_HEIGHTS[i + 1] end
+        if v == s.barheight and BAR_HEIGHTS[i + 1] then nextv = BAR_HEIGHTS[i + 1] end
       end
-      C.meters.barheight = nextv
+      s.barheight = nextv
       RefreshAll()
       WindowMenu(win, anchor)
     end, keep = true })
     table.insert(items, { T["Show"], head = true })
-    table.insert(items, { T["Rank numbers"], Flip("showrank"), tick = C.meters.showrank ~= "0", keep = true })
-    table.insert(items, { T["Per second"], Flip("showps"), tick = C.meters.showps ~= "0", keep = true })
-    table.insert(items, { T["Percent of the total"], Flip("showpct"), tick = C.meters.showpct ~= "0", keep = true })
-    table.insert(items, { T["Class colors"], Flip("classcolor"), tick = C.meters.classcolor == "1", keep = true })
+    table.insert(items, { T["Rank numbers"], Flip(s, "rank"), tick = s.rank ~= "0", keep = true })
+    table.insert(items, { T["Per second"], Flip(s, "showps"), tick = s.showps ~= "0", keep = true })
+    table.insert(items, { T["Percent of the total"], Flip(s, "showpct"), tick = s.showpct ~= "0", keep = true })
+    table.insert(items, { T["Class colors"], function()
+      s.colorby = s.colorby == "fixed" and "class" or "fixed"
+      RefreshAll()
+      WindowMenu(win, anchor)
+    end, tick = s.colorby ~= "fixed", keep = true })
     table.insert(items, { T["Track"], head = true })
-    table.insert(items, { T["Merge pets into their owner"], Flip("mergepets", function() M.who = {} end),
+    table.insert(items, { T["Merge pets into their owner"], Flip(C.meters, "mergepets", function() M.who = {} end),
       tick = C.meters.mergepets == "1", keep = true })
-    table.insert(items, { T["Everyone nearby (battlegrounds)"], Flip("trackall", function() M.who = {} end),
+    table.insert(items, { T["Everyone nearby (battlegrounds)"], Flip(C.meters, "trackall", function() M.who = {} end),
       tick = C.meters.trackall == "1", keep = true })
+    table.insert(items, { T["Windows"], head = true })
+    if table.getn(M.windows) < M.MAXWIN then
+      table.insert(items, { T["New window"], function() M.AddWindow() end })
+    end
+    if win.id > 1 then
+      table.insert(items, { T["Close this window"], function()
+        CreateQuestionDialog(T["Remove this meter window?"], function() M.RemoveWindow(win.id) end)
+      end })
+    end
     table.insert(items, { T["Actions"], head = true })
     table.insert(items, { T["Report to chat..."], function() ReportMenu(win, anchor) end })
     table.insert(items, { T["Reset all data"], function()
@@ -764,15 +1025,21 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   -- ---------------------------------------------------------------- windows
 
-  local function CreateWindow(id)
-    local win = CreateFrame("Frame", "pfMeter" .. id, UIParent)
+  -- pv = { parent = box, cfg = window number }: the options' preview window,
+  -- a real window on a made-up fight whose parts open their settings
+  local function CreateWindow(id, pv)
+    local win = CreateFrame("Frame", (not pv) and ("pfMeter" .. id) or nil, pv and pv.parent or UIParent)
     win.id = id
-    win.mode = C.meters["mode" .. id] or "damage"
-    win.segment = C.meters["segment" .. id] or "current"
+    if pv then
+      win.preview = true
+      win.cfg = pv.cfg
+    end
+    win.mode = S(win).mode or "damage"
+    win.segment = S(win).segment or "current"
     win.offset = 0
     win.bars = {}
-    win:SetWidth(tonumber(C.meters["width" .. id] or C.meters.width) or 260)
-    win:SetHeight(tonumber(C.meters["height" .. id] or C.meters.height) or 160)
+    win:SetWidth(tonumber(S(win).width) or 260)
+    win:SetHeight(tonumber(S(win).height) or 160)
     win:SetPoint("CENTER", UIParent, "CENTER", (id - 1.5) * 280, -120)
     win:SetFrameStrata("MEDIUM")
     win:SetMovable(true)
@@ -782,7 +1049,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win:EnableMouse(true)
     win:EnableMouseWheel(true)
     CreateBackdrop(win, nil, nil, .8)
-    win.backdrop:SetBackdropColor(GetStringColor(C.meters.background))
+    win.backdrop:SetBackdropColor(Col(S(win).bg))
 
     -- title bar: drag it to move a free window
     win.head = win:CreateTexture(nil, "ARTWORK")
@@ -792,7 +1059,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.head:SetTexture(0, 0, 0, .45)
 
     local function DragStart()
-      if win.free and C.meters["lock" .. win.id] ~= "1" then win:StartMoving() win.moving = true end
+      if win.free and S(win).lock ~= "1" then win:StartMoving() win.moving = true end
     end
     local function DragStop()
       if win.moving then
@@ -822,12 +1089,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     end)
     win.titlebtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     win.titlebtn:SetScript("OnClick", function()
+      if win.preview then if M.PreviewClick then M.PreviewClick(win, "title") end return end
       local items = { { T["Show"], head = true } }
       for _, m in ipairs(MODES) do
         local key = m.key
         table.insert(items, { m.name, function()
           win.mode = key
-          C.meters["mode" .. win.id] = key
+          S(win).mode = key
           win.offset = 0
           Refresh(win)
         end, checked = (key == win.mode) })
@@ -855,12 +1123,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     end)
     win.segbtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     win.segbtn:SetScript("OnClick", function()
+      if win.preview then if M.PreviewClick then M.PreviewClick(win, "title") end return end
       if win.mode == "threat" then return end
       local items = { { T["Fight"], head = true } }
       local function Pick(key)
         return function()
           win.segment = key
-          C.meters["segment" .. win.id] = key
+          S(win).segment = key
           Refresh(win)
         end
       end
@@ -873,15 +1142,22 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       ShowMenu(this, items)
     end)
 
-    win.reset = HeaderButton(win, "X", T["Reset all meter data"], function()
+    -- (in the preview the buttons open their settings instead)
+    local function Btn(fn)
+      return function()
+        if win.preview then if M.PreviewClick then M.PreviewClick(win, "buttons") end return end
+        fn()
+      end
+    end
+    win.reset = HeaderButton(win, "X", T["Reset all meter data"], Btn(function()
       CreateQuestionDialog(T["Reset all meter data?"], function() M.Reset() end)
-    end)
+    end))
     win.reset:SetPoint("TOPRIGHT", -2, -1)
-    win.report = HeaderButton(win, "R", T["Report to chat"], function() ReportMenu(win, this) end)
+    win.report = HeaderButton(win, "R", T["Report to chat"], Btn(function() ReportMenu(win, this) end))
     win.report:SetPoint("RIGHT", win.reset, "LEFT", -1, 0)
-    win.menu = HeaderButton(win, nil, T["Window settings: dock, lock, bars, what to track"], function()
+    win.menu = HeaderButton(win, nil, T["Window settings: dock, lock, bars, what to track"], Btn(function()
       WindowMenu(win, this)
-    end, "menu")
+    end), "menu")
     win.menu:SetPoint("RIGHT", win.report, "LEFT", -1, 0)
 
     -- resize grip (free, unlocked windows)
@@ -906,21 +1182,44 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       end
     end
     win.grip:SetScript("OnMouseDown", function()
-      if win.free and C.meters["lock" .. win.id] ~= "1" then
+      -- the preview: dragging the grip sets the window's size setting
+      if win.preview then
+        local cx, cy = GetCursorPosition()
+        win.psize = { cx, cy, win:GetWidth() or 260, win:GetHeight() or 160 }
+        return
+      end
+      if win.free and S(win).lock ~= "1" then
         win:StartSizing("BOTTOMRIGHT")
         win.sizing = true
       end
     end)
     win.grip:SetScript("OnMouseUp", function()
+      if win.psize then
+        win.psize = nil
+        if M.PreviewSized then M.PreviewSized(win) end
+        return
+      end
       if not win.sizing then return end
       win:StopMovingOrSizing()
       win.sizing = nil
-      C.meters["width" .. win.id] = tostring(floor(win:GetWidth()))
-      C.meters["height" .. win.id] = tostring(floor(win:GetHeight()))
+      S(win).width = tostring(floor(win:GetWidth()))
+      S(win).height = tostring(floor(win:GetHeight()))
       SaveMovable(win)
       Refresh(win)
     end)
     win.grip:SetScript("OnUpdate", function()
+      local p = win.psize
+      if p then
+        local cx, cy = GetCursorPosition()
+        local k = win:GetEffectiveScale() or 1
+        local w = max(150, min(600, floor(p[3] + (cx - p[1]) / k + .5)))
+        local h = max(60, min(500, floor(p[4] - (cy - p[2]) / k + .5)))
+        S(win).width, S(win).height = tostring(w), tostring(h)
+        win:SetWidth(w)
+        win:SetHeight(h)
+        Refresh(win)
+        return
+      end
       if not win.sizing or (this.tick or 0) > GetTime() then return end
       this.tick = GetTime() + .05
       Refresh(win)
@@ -940,13 +1239,87 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     end)
     win:SetScript("OnShow", function() Refresh(this) end)
     win.Refresh = Refresh
+    if pv then
+      -- (above the options window; its parts follow)
+      win:SetFrameStrata("FULLSCREEN")
+      Lift(win)
+      win.free = true
+      win.grip:Show()
+    end
+    ApplyStyle(win)
+    return win
+  end
+  M.CreateWindow = CreateWindow
+
+  M.windows = {}
+  local count = math.max(1, math.min(M.MAXWIN, tonumber(C.meters.windows) or 2))
+  for id = 1, count do M.windows[id] = CreateWindow(id) end
+  table.insert(M.callbacks, RefreshAll)
+
+  -- after a look changes (the options)
+  function M.RestyleAll()
+    for _, w in ipairs(M.windows) do
+      ApplyStyle(w)
+      if w.free then
+        w:SetWidth(tonumber(S(w).width) or 260)
+        w:SetHeight(tonumber(S(w).height) or 160)
+      end
+      w.mode, w.segment = S(w).mode or w.mode, S(w).segment or w.segment
+      Refresh(w)
+    end
+    if M.CombatLook then M.CombatLook() end
+  end
+
+  -- a new window (it floats; windows 1 and 2 can dock)
+  function M.AddWindow()
+    local id = table.getn(M.windows) + 1
+    if id > M.MAXWIN then return end
+    C.meters.windows = tostring(id)
+    local win = _G["pfMeter" .. id] or CreateWindow(id)
+    M.windows[id] = win
+    win.free = true
+    Float(win)
+    win:Show()
     return win
   end
 
-  M.windows = {}
-  local count = C.meters.windows == "1" and 1 or 2
-  for id = 1, count do M.windows[id] = CreateWindow(id) end
-  table.insert(M.callbacks, RefreshAll)
+  -- remove window id: the ones after it move up a place (settings and spot)
+  function M.RemoveWindow(id)
+    local n = table.getn(M.windows)
+    if id < 1 or id > n or n <= 1 then return end
+    for i = id, n - 1 do
+      local s, nxt = C.meters["win" .. i], C.meters["win" .. (i + 1)]
+      for k, v in pairs(nxt) do s[k] = v end
+      if C.position then C.position["pfMeter" .. i] = C.position["pfMeter" .. (i + 1)] end
+    end
+    if C.position then C.position["pfMeter" .. n] = nil end
+    local last = M.windows[n]
+    if last.id == 2 and not last.free then M.SetDocked(last, false) end
+    RemoveMovable(last)
+    last:Hide()
+    M.windows[n] = nil
+    C.meters.windows = tostring(n - 1)
+    M.RestyleAll()
+  end
+
+  -- in / out of combat: opacity, and hiding when the window says so
+  function M.CombatLook()
+    local fighting = UnitAffectingCombat("player")
+    for _, w in ipairs(M.windows) do
+      local s = S(w)
+      local a = tonumber(fighting and s.alpha or s.oocalpha) or 1
+      local hide = (s.autohide == "outofcombat" and not fighting) or (s.autohide == "incombat" and fighting)
+      if hide then a = 0 end
+      w:SetAlpha(a)
+      -- (a hidden window lets clicks through)
+      if w.free then w:EnableMouse(not hide) end
+    end
+  end
+  local combat = CreateFrame("Frame")
+  combat:RegisterEvent("PLAYER_REGEN_DISABLED")
+  combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+  combat:RegisterEvent("PLAYER_ENTERING_WORLD")
+  combat:SetScript("OnEvent", function() M.CombatLook() end)
 
   -- docked windows go into the right chat, the others float
   if CanDock() and C.meters.shown ~= "1" then

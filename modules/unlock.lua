@@ -46,7 +46,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["RaidCluster"]   = { "ufframes", "raid" },
 
     -- octo: meters and combat text (an Octo page key opens that page)
-    ["Meter%d"]       = { T["Meters"], nil },
+    ["Meter%d"]       = { "mtwindows", nil },
     ["CombatText%a+"] = { "ctareas", nil },
     ["Group%d"]       = { "ufframes", "group" },
     ["Party%dTarget"] = { "ufframes", "grouptarget" },

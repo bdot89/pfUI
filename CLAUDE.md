@@ -365,3 +365,22 @@ see "Roadmap" below.
    y in perfect pixels); dragging updates the preview (M.Reconfigure, .04 s) and the real frame on
    release; right-click puts back. Cast bars page: drag name / timer (CB.DRAG), right-click back.
    A two-line help strip under each preview lists every control.
+12. Meters, Details!-style (22 Oct 2026; user's Details zip is All Rights Reserved - option and
+   display names read only, no code or art). Rule from the user: use SuperWoW / ClassicAPI wherever
+   they help, in every module. Phases: 1 windows + looks + options preview (DONE, not seen in
+   game), 2 the extra data (friendly fire, enemy damage, damage taken by spell, healing taken,
+   frags, resources, resurrects, cooldowns, buff / debuff uptime, time measure, trash / boss
+   segments; SuperWoW casts / GUIDs where better), 3 Details-style breakdown window + compare.
+   Phase 1: per-window settings C.meters.win1..win6 (old shared keys copied once, C.meters.migrated),
+   C.meters.windows = count (1-6), M.AddWindow / M.RemoveWindow (later windows move up, positions
+   too), only windows 1 / 2 dock (KeyOf). meters-window.lua: M.S(win), M.LOOKS / ApplyLook /
+   CurrentLook (octo, minimal, elvui, glass, classic, neon), ApplyStyle (background, border incl.
+   glow, title bar height / colours / size, fight text, buttons), Refresh draws bars from the
+   window's settings (height, spacing, texture, class / one colour, opacity, background, grow up,
+   class icons, rank, font / size / outline / shadow, name colour, value order M.ORDERS via
+   M.RightText), M.CombatLook (opacity in / out of combat, hide in / out of combat).
+   CreateWindow(id, pv) makes the options' preview window (FULLSCREEN, sample fight M.SampleRows,
+   clicks -> M.PreviewClick, grip sets the size). modules/meters-options.lua (`pfUI.metersOcto`):
+   pages mtwindows (tabs Window 1-6, + New window, preview, looks, cards Shows / Window / Title bar /
+   Bars / Texts / Remove), mtdata, mtthreat; pfUI's Meters category hidden. O:Open(name) of a
+   replaced category opens its section's first Octo page.

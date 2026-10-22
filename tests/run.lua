@@ -109,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options" }
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -648,17 +648,17 @@ if ME then
     -- lock: hides the resize grip, stays open
     ok(w1.grip:IsShown(), "free window has a resize grip")
     find("Lock position"):Click()
-    ok(pfUI_config.meters.lock1 == "1" and not w1.grip:IsShown() and pfMeterMenu:IsShown(), "lock hides the grip, menu stays open")
+    ok(pfUI_config.meters.win1.lock == "1" and not w1.grip:IsShown() and pfMeterMenu:IsShown(), "lock hides the grip, menu stays open")
     find("Lock position"):Click()
     -- bar height cycles
-    local before = pfUI_config.meters.barheight
+    local before = pfUI_config.meters.win1.barheight
     find("Bar height"):Click()
-    ok(pfUI_config.meters.barheight ~= before, "bar height changes (" .. before .. " -> " .. pfUI_config.meters.barheight .. ")")
-    pfUI_config.meters.barheight = before
+    ok(pfUI_config.meters.win1.barheight ~= before, "bar height changes (" .. before .. " -> " .. pfUI_config.meters.win1.barheight .. ")")
+    pfUI_config.meters.win1.barheight = before
     -- rank numbers off
     find("Rank numbers"):Click()
     w1.Refresh(w1)
-    ok(pfUI_config.meters.showrank == "0" and w1.bars[1].left.text == "Tester", "rank numbers off (" .. tostring(w1.bars[1].left.text) .. ")")
+    ok(pfUI_config.meters.win1.rank == "0" and w1.bars[1].left.text == "Tester", "rank numbers off (" .. tostring(w1.bars[1].left.text) .. ")")
     find("Rank numbers"):Click()
     pfMeterMenu:Hide()
 
@@ -667,7 +667,7 @@ if ME then
     w1.GetHeight = function() return 222 end
     Mock.Run(w1.grip, "OnMouseDown")
     Mock.Run(w1.grip, "OnMouseUp")
-    ok(pfUI_config.meters.width1 == "333" and pfUI_config.meters.height1 == "222", "resized window keeps its size")
+    ok(pfUI_config.meters.win1.width == "333" and pfUI_config.meters.win1.height == "222", "resized window keeps its size")
     w1.GetWidth, w1.GetHeight = nil, nil
 
     -- dock and undock while playing (a stand-in right chat)
@@ -1219,7 +1219,7 @@ do
     end
     -- O:Open by category name (meter window menu, mover right-click)
     O:Open("Meters")
-    ok(O.current and string.find(O.current, "^l:" .. "Meters"), "Open(Meters) opens a Meters page: " .. tostring(O.current))
+    ok(O.current == "o:mtwindows", "Open(Meters) opens the new Meters pages: " .. tostring(O.current))
     -- the Find box finds Octo and pfUI settings
     O.quickFind:SetText("crit")
     local res = O.results or {}
@@ -1350,6 +1350,87 @@ do
       ok(not b.octoEq:IsShown(), "and only the tint in pfUI's style")
       b.equipped:Hide()
     end
+  end
+end
+
+-- ---------------------------------------------------------------- meters phase 1: windows, looks, options
+
+do
+  local ME = pfUI.meters
+  ok(ME and ME.S and ME.AddWindow, "meter windows have their own settings")
+  if ME and ME.AddWindow then
+    local mc = pfUI_config.meters
+    ok(mc.win1 and mc.win6 and mc.win3.mode == "heal", "six windows' settings")
+    -- a new window floats with its own settings
+    local n0 = table.getn(ME.windows)
+    local w = ME.AddWindow()
+    ok(w and w.free and table.getn(ME.windows) == n0 + 1 and mc.windows == tostring(n0 + 1), "a new window (" .. tostring(mc.windows) .. ")")
+    mc["win" .. w.id].rank = "0"
+    mc["win" .. w.id].grow = "up"
+    w.Refresh(w)
+    local w1 = ME.windows[1]
+    ok(ME.S(w).rank == "0" and ME.S(w1).rank ~= "0", "each window keeps its own settings")
+    -- the right text in each order
+    local row = { text = "48.2k", extra = "472", pct = 22 }
+    local s = { showps = "1", showpct = "1", brackets = "1", order = "tps" }
+    ok(string.find(ME.RightText(s, row), "^48.2k |cffaaaaaa%(472, 22%%%)"), "total (per second, percent)")
+    s.order = "t"
+    ok(ME.RightText(s, row) == "48.2k", "total only")
+    s.order = "p"
+    ok(ME.RightText(s, row) == "22%", "percent only")
+    -- looks: applied and known
+    ME.ApplyLook(w, "classic")
+    ok(ME.CurrentLook(w) == "classic" and ME.S(w).border == "gold", "a look applies and is lit")
+    -- hide out of combat
+    ME.S(w).autohide = "outofcombat"
+    Mock.units.player = { combat = false }
+    ME.CombatLook()
+    ok(w:GetAlpha() == 0, "hidden out of combat")
+    ME.S(w).autohide = "never"
+    ME.CombatLook()
+    ok(w:GetAlpha() == 1, "shown again")
+    Mock.units.player = nil
+    -- remove it again
+    ME.RemoveWindow(w.id)
+    ok(table.getn(ME.windows) == n0 and mc.windows == tostring(n0), "the window is removed")
+
+    -- the options: a preview of the window, every part opens its card
+    local MO = pfUI.metersOcto
+    local O = pfUI.octoui.Options
+    pfUI.gui:Show()
+    O:Select("o:mtwindows")
+    ok(MO and MO.preview and MO.preview.preview, "the Windows page has a preview window")
+    if MO and MO.preview then
+      local pw = MO.preview
+      ok(pw.bars[1] and pw.bars[1]:IsShown() and string.find(pw.bars[1].left.text or "", "Thrall"), "it shows the made-up fight")
+      ok(pw:GetFrameStrata() == "FULLSCREEN", "above the options window")
+      local missing = {}
+      for part, title in pairs(MO.GO) do
+        if not pfUI.plates.OpenSection("mtwindows", title) then table.insert(missing, title) end
+      end
+      ok(table.getn(missing) == 0, "every part opens its card (" .. table.concat(missing, ", ") .. ")")
+      -- clicking the preview's title opens Title bar
+      O:Select("o:mtwindows")
+      pw.titlebtn:Click()
+      ok(O.current == "o:mtwindows", "the preview's title opens its settings, not the mode menu")
+      -- a setting reaches the preview
+      local bh = mc.win1.barheight
+      mc.win1.barheight = "24"
+      MO.cur = 1
+      MO.Apply()
+      ok(pw.bars[1]:GetHeight() == 24, "bar height reaches the preview")
+      mc.win1.barheight = bh
+      MO.Apply()
+      -- Shift + wheel: taller bars
+      Mock.shift = true
+      _G.arg1 = 1
+      Mock.Run(pw, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(mc.win1.barheight == tostring(tonumber(bh) + 1), "Shift + wheel: taller bars")
+      mc.win1.barheight = bh
+      MO.Apply()
+    end
+    pfUI.gui:Hide()
   end
 end
 

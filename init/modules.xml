@@ -44,6 +44,7 @@
   <Include file="..\modules\meters.lua"/>
   <Include file="..\modules\meters-threat.lua"/>
   <Include file="..\modules\meters-window.lua"/>
+  <Include file="..\modules\meters-options.lua"/>
   <Include file="..\modules\sct-core.lua"/>
   <Include file="..\modules\sct-engine.lua"/>
   <Include file="..\modules\sct-events.lua"/>

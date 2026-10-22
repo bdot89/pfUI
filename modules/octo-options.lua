@@ -826,6 +826,13 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       -- an Octo page with tabs can open on one (unitframes-options: a frame)
       if page and self.tabs and self.tabs[key] then self.tabs[key](page) end
       self:Select("o:" .. key)
+    elseif key and self.replaced[key] then
+      -- pfUI's category has Octo pages now: open the section's first page
+      local first
+      for _, s in ipairs(self.octo) do
+        if s[1] == key and s[2][1] then first = s[2][1][1] end
+      end
+      self:Select(first and ("o:" .. first) or self.current)
     elseif key then
       self:Select(self:FindLegacy(key, page) or self.current)
     else
