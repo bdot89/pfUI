@@ -111,7 +111,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx",
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options",
   "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
@@ -1820,6 +1820,50 @@ do
       _G.arg1 = "RightButton"
       Mock.Run(l, "OnMouseUp", "RightButton")
       ok(mc.tx == "0" and mc.ty == "2" and mc.tsize == "13", "right-click puts it back")
+    end
+    -- the chat pages: a preview with a line of every kind, cards for each part
+    local CHO = pfUI.chatOcto
+    if CHO then
+      for _, k in ipairs({ "o:chwindows", "o:chmessages", "o:chinput" }) do O:Select(k) end
+      ok(O.pages.chwindows and O.pages.chmessages and O.pages.chinput, "Chat: Windows, Messages, Typing and bubbles")
+      local tx = pfUI_config.chat.text
+      local was = { tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor }
+      tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor = "1", "%H:%M", "1", "1"
+      local stamp, text = CHO.Format({ "CHANNEL", "Rexxar", "HUNTER", "LFM", channel = "2. Trade" })
+      ok(stamp ~= "" and string.find(text, "[2]", 1, true) and not string.find(text, "Trade", 1, true), "a channel line: time, [2], no name of the channel")
+      tx.channelnumonly = "0"
+      stamp, text = CHO.Format({ "CHANNEL", "Rexxar", "HUNTER", "LFM", channel = "2. Trade" })
+      ok(string.find(text, "2. Trade", 1, true), "and with the channel's name")
+      tx.time = "0"
+      stamp = CHO.Format({ "GUILD", "Thrall", "SHAMAN", "hi" })
+      ok(stamp == "", "no time when timestamps are off")
+      tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor = was[1], was[2], was[3], was[4]
+      -- every card a line or part opens exists
+      local missing = {}
+      for _, card in ipairs({ "Left window", "Loot & Spam window", "Tabs and dock", "Lines", "Timestamps", "Channel names",
+                               "Names", "Links", "Whispers", "Text", "Typing box", "Chat bubbles" }) do
+        CHO.Open(card)
+        local found
+        for _, pg in pairs({ O.pages.chwindows, O.pages.chmessages, O.pages.chinput }) do
+          for _, c in ipairs(pg.cards or {}) do if c.title == card then found = true end end
+        end
+        if not found then table.insert(missing, card) end
+      end
+      ok(table.getn(missing) == 0, "every part of the chat preview opens a card (" .. table.concat(missing, ", ") .. ")")
+      -- the switches: timestamps on and off from the preview
+      local tsw
+      for _, t in ipairs(CHO.TOGGLES) do if t.key == "time" then tsw = t end end
+      local before = tx.time
+      tsw.set(not tsw.on())
+      ok(tx.time ~= before, "the Timestamps switch flips the real setting")
+      tsw.set(before == "1")
+      -- a look lights up when it is in use
+      local gl = pfUI_config.chat.global
+      local keep = { tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor, gl.custombg, gl.background, gl.border, gl.tabdock, gl.frameshadow }
+      CHO.ApplyLook("clean")
+      ok(CHO.CurrentLook() == "clean", "a look picked is the look in use")
+      tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor, gl.custombg, gl.background, gl.border, gl.tabdock, gl.frameshadow =
+        keep[1], keep[2], keep[3], keep[4], keep[5], keep[6], keep[7], keep[8], keep[9]
     end
     -- the minimap pages: a preview whose parts are picked, moved and sized
     local MMO = pfUI.minimapOcto
