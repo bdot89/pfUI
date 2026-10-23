@@ -24,8 +24,10 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
 
   local function Snap(f)
     if not f or BZ.snap[f] then return end
-    local s = { parent = f:GetParent(), scale = f:GetScale(), alpha = f:GetAlpha(), shown = f:IsShown(),
-                w = f:GetWidth(), h = f:GetHeight(), points = {} }
+    -- (textures such as MinimapBorderTop have no GetScale on 1.12: in game that
+    -- stopped this module before BZ.GROUPS, and every options page errored)
+    local s = { parent = f.GetParent and f:GetParent(), scale = f.GetScale and f:GetScale(), alpha = f:GetAlpha(),
+                shown = f:IsShown(), w = f:GetWidth(), h = f:GetHeight(), points = {} }
     for i = 1, (f.GetNumPoints and f:GetNumPoints() or 0) do s.points[i] = { f:GetPoint(i) } end
     if f.GetScript then
       for _, sc in ipairs({ "OnShow", "OnEvent", "OnMouseWheel" }) do
@@ -73,14 +75,14 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     local s = BZ.snap[f]
     f.Show = nil
     if s then
-      if s.parent then f:SetParent(s.parent) end
+      if s.parent and f.SetParent then f:SetParent(s.parent) end
       if s.points[1] then
         f:ClearAllPoints()
         for _, p in ipairs(s.points) do
           if p[1] then f:SetPoint(p[1], p[2], p[3], p[4], p[5]) end
         end
       end
-      f:SetScale(s.scale or 1)
+      if f.SetScale then f:SetScale(s.scale or 1) end
       f:SetAlpha(s.alpha or 1)
       if s.OnShow ~= nil then f:SetScript("OnShow", s.OnShow or nil) end
     end

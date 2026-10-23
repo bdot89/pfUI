@@ -19,6 +19,9 @@ local NOT_IN_112 = {
 local methods = {}
 local meta = {
   __index = function(w, key)
+    -- 1.12 textures and font strings have no scale (23 Oct 2026: octo-blizzard
+    -- called MinimapBorderTop:GetScale() and stopped in game)
+    if (key == "GetScale" or key == "SetScale") and (w.kind == "Texture" or w.kind == "FontString") then return nil end
     local m = methods[key]
     if m then return m end
     -- pfUI tests "if not frame.HookScript then": look-ups give nil, a call

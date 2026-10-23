@@ -793,7 +793,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     local swap, BZ = self.swap, pfUI.blizz
     if not swap then return end
     local grp = key and self.groupOf and self.groupOf[key]
-    local ids = BZ and grp and BZ.GROUPS[grp.name]
+    local ids = BZ and grp and BZ.GROUPS and BZ.GROUPS[grp.name]
     self.content:ClearAllPoints()
     self.content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -12, 12)
     if not ids then

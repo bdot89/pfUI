@@ -94,6 +94,8 @@ for i = 1, 8 do UnitReactionColor[i] = { r = i < 4 and 1 or 0, g = i > 3 and 1 o
 -- the client's debuff type colours (unit frame debuff borders)
 DebuffTypeColor = { none = { r = .8, g = 0, b = 0 }, Magic = { r = .2, g = .6, b = 1 }, Curse = { r = .6, g = 0, b = 1 },
   Disease = { r = .6, g = .4, b = 0 }, Poison = { r = 0, g = .6, b = 0 } }
+-- the minimap's border parts are textures in the client (no GetScale on 1.12)
+for _, n in ipairs({ "MinimapBorderTop", "MiniMapMailBorder", "MiniMapBattlefieldBorder" }) do Mock.New("Texture", n) end
 function UIDropDownMenu_SetWidth() end
 function UIDropDownMenu_SetButtonWidth() end
 function UIDropDownMenu_JustifyText() end
@@ -3281,6 +3283,7 @@ end
 do
   local BZ = pfUI.blizz
   ok(BZ and BZ.S and BZ.snap[PlayerFrame], "the Blizzard switch noted Blizzard's frames before pfUI")
+  ok(BZ and BZ.GROUPS and BZ.snap[MinimapBorderTop], "the switch module ran to the end (textures noted too)")
   if BZ then
     BZ.Ready()
     ok(BZ.ready and BZ.globals.ToggleBackpack.octo, "pfUI's own functions noted after every module ran")
