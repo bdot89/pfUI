@@ -266,6 +266,48 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       powerRightText = { "txtpowerrightoffx", "txtpowerrightoffy", -.5, 1, "0", "0" },
     }
 
+    -- Parts that only come in set places (buffs in a corner, the portrait
+    -- left / right / on the bar, the class icon, the elite badge) are dragged
+    -- too: where the mouse is over the frame picks the place.
+    -- (user, 22 Oct 2026: drag and right-click put-back on buffs and portrait)
+    -- pick(rx, ry): rx / ry = the mouse across / up the frame, 0 - 1
+    local function Corner(rx, ry) return (ry >= .5 and "TOP" or "BOTTOM") .. (rx < .5 and "LEFT" or "RIGHT") end
+    -- each frame's own first settings (api/config.lua), for right-click
+    local DEFAULTS = {
+      group = { buffs = "BOTTOMLEFT", debuffs = "BOTTOMLEFT", portrait = "off" },
+      raid = { buffs = "off", debuffs = "off", portrait = "off" },
+      grouptarget = { portrait = "off" }, grouppet = { portrait = "off" },
+    }
+    local function Default(key)
+      local d = DEFAULTS[UF.cur]
+      if d and d[key] then return d[key] end
+      if key == "o_classicon" then return "none" end
+      if key == "o_elitepos" then return "TOPRIGHT" end
+      if key == "portrait" then return "bar" end
+      return "TOPLEFT"
+    end
+    UF.PLACES = {
+      buffs = { key = "buffs", pick = Corner },
+      debuffs = { key = "debuffs", pick = Corner },
+      portrait = { key = "portrait", pick = function(rx) return (rx < .25 and "left") or (rx > .75 and "right") or "bar" end },
+      class = { key = "o_classicon", pick = function(rx, ry)
+        if ry >= .5 then return rx < .5 and "TOPLEFT" or "TOPRIGHT" end
+        return rx < .5 and "LEFT" or "RIGHT"
+      end },
+      elite = { key = "o_elitepos", pick = function(rx) return rx < .5 and "TOPLEFT" or "TOPRIGHT" end },
+    }
+    UF.Default = Default
+
+    -- where the mouse is over frame f: 0 - 1 across and up
+    local function Over(f)
+      local k = f:GetEffectiveScale() or 1
+      local l, b, w, h = f:GetLeft(), f:GetBottom(), f:GetWidth(), f:GetHeight()
+      if not (l and b and w and h) or w <= 0 or h <= 0 then return .5, .5 end
+      local cx, cy = GetCursorPosition()
+      return (cx - l * k) / (w * k), (cy - b * k) / (h * k)
+    end
+    UF.Over = Over
+
     local function DragStart(h)
       local cfg = U()
       local d = h.drag
@@ -282,6 +324,17 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       if not h.moved and math.abs(dx) + math.abs(dy) < 3 then return end
       h.moved = true
       M.dragging = true
+      -- a part with set places: the place under the mouse
+      if h.drag.pick then
+        local cfg = U()
+        local rx, ry = Over(h.f)
+        local v = h.drag.pick(rx, ry)
+        if cfg[h.drag.key] ~= v then
+          cfg[h.drag.key] = v
+          M.Reconfigure(UF.cur)
+        end
+        return
+      end
       local d, cfg = h.drag, U()
       local nx = tostring(math.floor(s[3] + dx * d[3] + .5))
       local ny = tostring(math.floor(s[4] + dy * d[4] + .5))
@@ -346,7 +399,11 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         if arg1 == "RightButton" then
           if this.drag then
             local cfg, d = U(), this.drag
-            cfg[d[1]], cfg[d[2]] = d[5], d[6]
+            if d.pick then
+              cfg[d.key] = Default(d.key)
+            else
+              cfg[d[1]], cfg[d[2]] = d[5], d[6]
+            end
             Up()
           end
           return
@@ -466,15 +523,18 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         Hot(set, f, "frame", 20, f)
         Hot(set, f.hp, "hp", 22, f)
         Hot(set, f.power, "power", 22, f, D.power)
-        Hot(set, f.portrait, "portrait", 23, f)
+        Hot(set, f.portrait, "portrait", 23, f, UF.PLACES.portrait)
         for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
-          for _, b in pairs(list[1] or {}) do b.octoHot = Hot(set, b, list[2], 26, f) end
+          for _, b in pairs(list[1] or {}) do b.octoHot = Hot(set, b, list[2], 26, f, UF.PLACES[list[2]]) end
         end
         Hot(set, f.raidIcon, "icons", 28, f, D.raidIcon)
         Hot(set, f.pvpIcon, "icons", 28, f, D.pvpIcon)
         for _, ic in ipairs({ f.leaderIcon, f.lootIcon, f.happinessIcon, f.restIcon }) do Hot(set, ic, "icons", 28, f) end
         Hot(set, f.combat, "glow", 28, f)
-        for _, r in ipairs({ f.octoClass, f.octoElite, f.octoEliteText, f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29, f) end
+        Hot(set, f.octoClass, "class", 29, f, UF.PLACES.class)
+        Hot(set, f.octoElite, "class", 29, f, UF.PLACES.elite)
+        Hot(set, f.octoEliteText, "class", 29, f, UF.PLACES.elite)
+        for _, r in ipairs({ f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29, f) end
         if f.octoSkin then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
         for _, t in ipairs({ { f.hpLeftText, "hptext", "LEFT", "hpLeftText" }, { f.hpCenterText, "hptext", "CENTER", "hpCenterText" },
             { f.hpRightText, "hptext", "RIGHT", "hpRightText" }, { f.powerLeftText, "powertext", "LEFT", "powerLeftText" },
@@ -559,7 +619,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
             -- (buffs made by this update need their spots)
             for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
               for _, b in pairs(list[1] or {}) do
-                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26, f) end
+                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26, f, UF.PLACES[list[2]]) end
               end
             end
             if f.octoSkin and not f.octoSkin.octoHot then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
@@ -729,7 +789,8 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
 
   local function Preview(p)
     W.Pin(p, "Preview", "The chosen frame, built by pfUI from its settings. Pick a frame with the tabs. Click any part of it "
-      .. "for its settings; drag a text, the raid mark, the PvP flag or the power bar to move it (right-click puts it back); "
+      .. "for its settings; drag a text, the raid mark, the PvP flag, the power bar, the buffs, the portrait, the class icon or "
+      .. "the elite badge to move it (right-click puts it back); "
       .. "hold Shift and scroll over a bar, the buffs or a mark to resize it. Hold Alt and scroll to zoom, drag empty "
       .. "space to move the view, double-click to fit it again. Click this bar to fold it away.", function(p)
       -- the frames as tabs, two rows of six
@@ -797,7 +858,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       local how = band:CreateFontString(nil, "OVERLAY")
       how:SetFont(W.UIFont(), 11, "OUTLINE")
       how:SetPoint("TOPLEFT", band, "TOPLEFT", 12, -4)
-      how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r a text, mark or the power bar  move it     "
+      how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r a text, mark, buffs, portrait or power bar  move it     "
         .. k .. "Right-click|r it  put it back     " .. k .. "Shift + wheel|r  size")
       local how2 = band:CreateFontString(nil, "OVERLAY")
       how2:SetFont(W.UIFont(), 11, "OUTLINE")

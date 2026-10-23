@@ -1781,6 +1781,31 @@ do
       Mock.Run(raidHot, "OnClick", "RightButton")
       ok(pc.raidiconoffx == "0" and pc.raidiconoffy == "20", "right-click puts it back")
     end
+    -- parts with set places: drag the buffs to the bottom left corner,
+    -- right-click puts them back
+    local buffHot
+    for _, h in ipairs(M.sets.player.hots) do if h.what == "buffs" and h.drag and h.drag.pick then buffHot = h end end
+    ok(buffHot, "the buffs can be dragged")
+    if buffHot then
+      local pc = pfUI_config.unitframes.player
+      local fr = buffHot.f
+      fr.GetLeft, fr.GetBottom, fr.GetWidth, fr.GetHeight = function() return 100 end, function() return 100 end,
+        function() return 200 end, function() return 50 end
+      fr.GetEffectiveScale = function() return 1 end
+      Mock.cx, Mock.cy = 150, 140
+      _G.this, _G.arg1 = buffHot, "LeftButton"
+      Mock.Run(buffHot, "OnMouseDown", "LeftButton")
+      Mock.cx, Mock.cy = 110, 105
+      Mock.Run(buffHot, "OnUpdate", .05)
+      Mock.Run(buffHot, "OnMouseUp", "LeftButton")
+      ok(pc.buffs == "BOTTOMLEFT", "dropped at the bottom left: buffs there (" .. tostring(pc.buffs) .. ")")
+      _G.arg1 = "RightButton"
+      Mock.Run(buffHot, "OnClick", "RightButton")
+      ok(pc.buffs == "TOPLEFT", "right-click puts them back (" .. tostring(pc.buffs) .. ")")
+      fr.GetLeft, fr.GetBottom, fr.GetWidth, fr.GetHeight, fr.GetEffectiveScale = nil, nil, nil, nil, nil
+    end
+    ok(UF.PLACES.portrait.pick(.1, .5) == "left" and UF.PLACES.portrait.pick(.9, .5) == "right" and UF.PLACES.portrait.pick(.5, .5) == "bar",
+      "the portrait goes left, right or on the bar by where it is dropped")
     Mock.cx, Mock.cy = nil, nil
     -- the preview shows part health, so textures and shades can be seen
     local rf = M.sets.raid.frames[1]
