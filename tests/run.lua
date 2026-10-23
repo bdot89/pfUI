@@ -635,6 +635,15 @@ if ME then
   local groups = {}
   for _, m in ipairs(ME.MODES) do groups[m.group or "?"] = true end
   ok(groups.Damage and groups.Healing and groups.Resources and groups.Misc, "displays in Details' four groups")
+  -- damage on the boss, and without it (adds, trash)
+  seg.boss = "Hogger"
+  local brow = ME.Rows("bossdmg", "current")
+  local nrow = ME.Rows("noboss", "current")
+  ok(brow[1] and brow[1].name == "Tester" and brow[1].value == me.targets.Hogger, "boss damage: on Hogger only (" .. tostring(brow[1] and brow[1].value) .. ")")
+  ok(nrow[1] and nrow[1].value == me.damage - me.targets.Hogger, "damage without the boss (" .. tostring(nrow[1] and nrow[1].value) .. ")")
+  seg.boss = nil
+  local all = ME.Rows("noboss", "current")
+  ok(all[1] and all[1].value == me.damage, "no boss in the fight: all of it counts")
 
   -- rows, windows, details
   local rows = ME.Rows("damage", "current")

@@ -186,6 +186,34 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   -- ---------------------------------------------------------------- modes
 
   local function Power(a, pow) return (a.power and a.power[pow]) or 0 end
+
+  -- the bosses of the fight being shown (timeSeg); the overall: every
+  -- boss of the kept fights
+  local function Bosses()
+    local out = {}
+    if timeSeg and timeSeg ~= M.overall then
+      if timeSeg.boss then out[timeSeg.boss] = true end
+    else
+      for _, s in ipairs(M.history or {}) do if s.boss then out[s.boss] = true end end
+      if M.current and M.current.boss then out[M.current.boss] = true end
+    end
+    return out
+  end
+  function M.BossDamage(a)
+    local total = 0
+    for name in pairs(Bosses()) do total = total + (a.targets[name] or 0) end
+    return total
+  end
+  function M.BossTargets(a)
+    local out = {}
+    for name in pairs(Bosses()) do if a.targets[name] then out[name] = a.targets[name] end end
+    return out
+  end
+  function M.OtherTargets(a)
+    local bosses, out = Bosses(), {}
+    for name, v in pairs(a.targets) do if not bosses[name] then out[name] = v end end
+    return out
+  end
   local MANA_, RAGE_, ENERGY_ = MANA or "Mana", RAGE or "Rage", ENERGY or "Energy"
   local function Secs(v) return Clock(v) end
 
@@ -197,6 +225,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       extra = function(a) return Num(a.damage / ActiveTime(a)) end, list = function(a) return a.spells, a.damage end },
     { key = "dps", group = "Damage", name = T["DPS"], value = function(a) return a.damage > 0 and a.damage / ActiveTime(a) or 0 end,
       extra = function(a) return Num(a.damage) end, list = function(a) return a.spells, a.damage end },
+    -- damage on the boss only, and on everything else (adds, trash): the
+    -- bosses are those of the fight shown (all fights' for the overall)
+    { key = "bossdmg", group = "Damage", name = T["Boss Damage"], value = function(a) return M.BossDamage(a) end,
+      extra = function(a) return Num(M.BossDamage(a) / ActiveTime(a)) end,
+      plain = function(a) return M.BossTargets(a), M.BossDamage(a) end },
+    { key = "noboss", group = "Damage", name = T["Damage Without Boss"], value = function(a) return a.damage - M.BossDamage(a) end,
+      extra = function(a) return Num((a.damage - M.BossDamage(a)) / ActiveTime(a)) end,
+      plain = function(a) return M.OtherTargets(a), a.damage - M.BossDamage(a) end },
     { key = "taken", group = "Damage", name = T["Damage Taken"], value = function(a) return a.taken end,
       list = function(a) return a.tspells, a.taken end },
     { key = "ff", group = "Damage", name = T["Friendly Fire"], value = function(a) return a.ff or 0 end,
