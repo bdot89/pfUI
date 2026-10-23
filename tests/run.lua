@@ -109,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown" }
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "plates-fx" }
 
 -- ---------------------------------------------------------------- load
 
@@ -2592,7 +2592,7 @@ do
     pfUI.gui:Show()
     local sec
     for _, s in ipairs(O.octo) do if s[1] == "Nameplates" then sec = s end end
-    ok(sec and table.getn(sec[2]) == 7, "Nameplates section with its seven pages")
+    ok(sec and table.getn(sec[2]) == 8, "Nameplates section with its eight pages")
     -- the topic list: most used first, small categories grouped
     local heads = {}
     for _, grp in ipairs(O.groups) do table.insert(heads, grp.header.text.text) end
@@ -2684,6 +2684,44 @@ do
     local cb = P.previews[1].nameplate.castbar
     local hot = cb.hots and cb.hots[P.previews[1]]
     ok(hot and hot.always, "the cast bar can be clicked even between casts")
+  end
+
+  -- phase 4: animations and rules
+  local Fx = P and P.Fx
+  ok(Fx and Fx.Play and Fx.Rules, "nameplate animations and rules loaded")
+  if Fx and P.previews and P.previews[1] then
+    local plate = P.previews[1].nameplate
+    local o = plate.octo
+    local now = GetTime()
+    pfUI_config.plates.animsize = "25"
+    Fx.Play(o, "pop", now)
+    ok(Fx.Scale(plate, o, now + .09) > 1.2, "pop: the plate grows (" .. Fx.Scale(plate, o, now + .09) .. ")")
+    ok(Fx.Scale(plate, o, now + 1) == 1 and not o.anim, "and settles")
+    -- your crit on it animates its plate
+    local pname = plate.original.name:GetText()
+    Fx.seen[plate] = GetTime()
+    Fx.OnCrit(pname)
+    ok(o.anim == pfUI_config.plates.animcrit, "your crit on " .. tostring(pname) .. " plays its animation")
+    o.anim = nil
+    ok(Fx.CritTarget("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Fireball crits Hogger for 500 Fire damage.") == "Hogger",
+      "a crit line names who was crit")
+    -- a rule: names with that word grow and turn orange
+    local r1, r2 = pfUI_config.plates.rule1, pfUI_config.plates.rule2
+    r1.on, r1.when, r1.value, r1.effect, r1.size = "1", "name", string.sub(pname or "x", 1, 3), "bigger", "150"
+    r2.on, r2.when, r2.value, r2.effect, r2.color = "1", "name", pname or "x", "color", "1,0.5,0,1"
+    o.fxAt = 0
+    Fx.Tick(plate, o, GetTime())
+    ok(o.fx and o.fx.scale == 1.5 and o.fx.color, "rules match by name: bigger and coloured")
+    local cr2, cg2 = plate.health:GetStatusBarColor()
+    ok(math.abs((cr2 or 0) - 1) < .01 and math.abs((cg2 or 0) - .5) < .01, "the rule's colour is on the bar")
+    r1.when, r1.value = "health", "200"
+    o.fxAt = 0
+    Fx.Rules(plate, o, GetTime())
+    ok(o.fx and o.fx.scale == 1.5, "health below 200%: always true")
+    r1.on, r2.on = "0", "0"
+    o.fxAt = 0
+    Fx.Tick(plate, o, GetTime())
+    ok(not o.fx, "rules off: nothing")
   end
 
   -- everything back as it came

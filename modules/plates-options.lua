@@ -774,6 +774,41 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   end
 
   O.replaced[T["Nameplates"]] = true
+  -- phase 4: animations and rules (plates-fx.lua)
+  BUILD.npfx = function(p)
+    local Fx = P.Fx
+    W.Heading(p, "Animations and rules", { about = "Plates that move when something happens, and your own rules: when a "
+      .. "plate matches, its bar changes colour, glows, grows, shrinks or hides (Plater's scripts, without code)." })
+    -- (the sample plates follow your rules too)
+    Preview(p)
+    local function L(src)
+      local out = {}
+      for _, e in ipairs(src or {}) do table.insert(out, { key = e[1], label = e[2] }) end
+      return out
+    end
+    W.Card(p, "Animations", { tip = "Movement when you crit a unit, or when a plate becomes your target." })
+    Drop(p, "When you crit it", nil, L(Fx and Fx.ANIMS), S, "animcrit")
+    Drop(p, "When it becomes your target", nil, L(Fx and Fx.ANIMS), S, "animtarget")
+    Sld(p, "How much it grows", "For Pop and Bounce.", 5, 60, 1, S, "animsize", Pct)
+    W.Buttons(p, { { "Play on the preview", function()
+      for _, game in ipairs(P.previews or {}) do
+        local o = game.nameplate and game.nameplate.octo
+        if o and Fx then Fx.Play(o, S().animcrit ~= "none" and S().animcrit or "pop") end
+      end
+    end } })
+    for i = 1, (Fx and Fx.RULES or 6) do
+      local n = i
+      local function R() return C.plates["rule" .. n] end
+      W.Card(p, "Rule " .. n, { tip = "When a plate matches, this happens to it. Rules further down win over earlier ones.",
+        on = { function() return R().on == "1" end, function(v) R().on = v and "1" or "0" U() end, "This rule on or off." } })
+      Drop(p, "When", nil, L(Fx and Fx.WHEN), R, "when")
+      Edit(p, "Name, spell, debuff or %", "A word of the name, a spell's or debuff's name, or a health %.", R, "value")
+      Drop(p, "Then", nil, L(Fx and Fx.THEN), R, "effect")
+      Color(p, "Colour", "For the bar colour and the glow.", R, "color")
+      Sld(p, "Size", "For bigger / smaller.", 105, 200, 5, R, "size", Pct)
+    end
+  end
+
   O:AddPage("Nameplates", "npgeneral", "General", BUILD.npgeneral)
   O:AddPage("Nameplates", "nplook", "Look and size", BUILD.nplook)
   O:AddPage("Nameplates", "npthreat", "Threat and colours", BUILD.npthreat)
@@ -781,4 +816,5 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   O:AddPage("Nameplates", "npcast", "Cast bar", BUILD.npcast)
   O:AddPage("Nameplates", "npauras", "Auras", BUILD.npauras)
   O:AddPage("Nameplates", "npquest", "Quests, icons and auto", BUILD.npquest)
+  O:AddPage("Nameplates", "npfx", "Animations and rules", BUILD.npfx)
 end)

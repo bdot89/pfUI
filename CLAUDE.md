@@ -473,3 +473,12 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    (Num), erasetrash (trash fights dropped from the list, overall keeps them), reportlines,
    tooltip / tooltiplines. Options: Windows > Status bar card (preview's status bar clicks to it),
    Data > Numbers, reports and tooltips card.
+   23 Oct, more (NOT seen in game): breakdown "Chart" tab (M.Sample once a second into
+   seg.timeline, M.Curve = per second smoothed over 5 s; columns in class colour, the group in
+   grey behind; merged trash keeps the first fight's timeline), five custom displays
+   (C.meters.custom1..5 name / kind / spell; MODES custom1..5 in group "Custom", shown once a
+   spell is set; M.CustomValue; Data > Custom displays card), share a window's look
+   (M.ExportLook / M.ImportLook "OCTOMETER1:key=value|...", known keys only, not mode / segment /
+   lock; Windows > Share this look card). Nameplates phase 4: see docs/plates-spec.md section 6.
+   Unit frame preview: UF.PLACES (buffs / debuffs corner, portrait left / right / bar, class icon,
+   elite badge) dragged by where the mouse is over the frame (UF.Over), right-click = UF.Default.

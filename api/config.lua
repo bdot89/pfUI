@@ -173,6 +173,18 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("meters",     nil,           "mergetrash",       "1")
   pfUI:UpdateConfig("meters",     nil,           "autocurrent",      "1")
   pfUI:UpdateConfig("meters",     nil,           "timemeasure",      "active")
+  -- octo nameplates phase 4: animations and rules (plates-fx.lua)
+  pfUI:UpdateConfig("plates",     nil,           "animcrit",         "pop")
+  pfUI:UpdateConfig("plates",     nil,           "animtarget",       "pop")
+  pfUI:UpdateConfig("plates",     nil,           "animsize",         "25")
+  for i = 1, 6 do
+    pfUI:UpdateConfig("plates", "rule" .. i, "on",     "0")
+    pfUI:UpdateConfig("plates", "rule" .. i, "when",   "name")
+    pfUI:UpdateConfig("plates", "rule" .. i, "value",  "")
+    pfUI:UpdateConfig("plates", "rule" .. i, "effect", "color")
+    pfUI:UpdateConfig("plates", "rule" .. i, "color",  "1,0.5,0,1")
+    pfUI:UpdateConfig("plates", "rule" .. i, "size",   "130")
+  end
   -- octo phase 4: numbers, trash, report / tooltip lines
   pfUI:UpdateConfig("meters",     nil,           "numformat",        "short")
   pfUI:UpdateConfig("meters",     nil,           "erasetrash",       "0")

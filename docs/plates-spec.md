@@ -162,7 +162,19 @@ Tick / Off). While `C.plates.auras` is on, pfUI's own debuff row is skipped (sho
   pull %, colour `c_taking`.
 - Art: quest-objective, quest-start, quest-end, pet (tools\MakePlateArt.ps1).
 
-## 6. Later phases
+## 6. Phase 4: animations and rules (done 23 Oct 2026, not seen in game)
+
+`modules/plates-fx.lua` (`P.Fx`), called from plates.lua's Tick (`P.Fx.Scale` multiplies the eased
+size, `P.Fx.Tick` runs last). Animations (C.plates.animcrit / animtarget / animsize): Pop (grow
+fast, settle), Bounce (damped wobble), Flash (white over the bar). Your crits are read with the
+meters' reader (any language) or English patterns, and play on every plate with that name seen
+in the last second (pfUI's plate registry is private, so Fx keeps `Fx.seen`). Rules (Plater's
+scripts without code, C.plates.rule1..6: on, when, value, effect, color, size), checked 5 times
+a second: when name has / casts / health below % / has debuff (texture or ClassicAPI name) /
+is your target; then colour the bar / glow / bigger / smaller / hide. Later rules win. Page
+"Animations and rules" (npfx) with the shared preview and "Play on the preview".
+
+## 7. Later phases
 
 3. Lists and indicators (NPC colours, cast colours, quest units, class / pet icons, name-only friends,
    Auto tab, personal bar).

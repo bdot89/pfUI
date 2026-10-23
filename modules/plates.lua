@@ -844,10 +844,13 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
       o.scale = o.scale + (want - o.scale) * math.min(1, dt * 12)
       if math.abs(want - o.scale) < .005 then o.scale = want end
     end
-    if o.applied ~= o.scale then
+    -- (phase 4: animations and rules can make it bigger or smaller for a moment)
+    local mul = P.Fx and P.Fx.Scale(plate, o, now) or 1
+    local final = o.scale * mul
+    if o.applied ~= final then
       -- a preview plate sits in the options window, already at the UI's scale
-      plate:SetScale((pv and 1 or UIParent:GetScale()) * o.scale)
-      o.applied = o.scale
+      plate:SetScale((pv and 1 or UIParent:GetScale()) * final)
+      o.applied = final
     end
 
     -- range / line of sight: fade (after pfUI's non-target alpha)
@@ -891,6 +894,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     P.TickCast(plate, o, now)
     if P.Auras then P.Auras.Tick(plate, o, now) end
     P.ComboTick(o, now)
+    if P.Fx then P.Fx.Tick(plate, o, now) end
   end
 
   -- ---------------------------------------------------------------- test mode and preview
