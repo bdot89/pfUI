@@ -167,8 +167,11 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
   local function FindAnchored(parent)
     for _, child in ipairs({ parent:GetChildren() }) do
       -- (pfUI's own parts round the map - tracking, panels - stay where they are)
-      if child ~= pfUI.minimap and OnTheMap(child) and IsButtonValid(child) and not string.find(child:GetName(), "^pf")
-        and not TableMatch(pfUI.addonbuttons.buttons, child:GetName()) then
+      -- 23 Oct 2026: GetPoint only on named, button-like frames (IsButtonValid
+      -- first): asking every UIParent child for its anchors crashed the client
+      -- at login (ACCESS_VIOLATION in the Lua core, #132)
+      if child ~= pfUI.minimap and child:GetName() and IsButtonValid(child) and not string.find(child:GetName(), "^pf")
+        and OnTheMap(child) and not TableMatch(pfUI.addonbuttons.buttons, child:GetName()) then
         table.insert(pfUI.addonbuttons.buttons, child:GetName())
       end
     end
@@ -178,7 +181,6 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     FindButtons(Minimap)
     FindButtons(MinimapBackdrop)
     if MinimapCluster then FindAnchored(MinimapCluster) end
-    FindAnchored(UIParent)
   end
 
   local function SetupMainFrame()

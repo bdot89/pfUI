@@ -1896,15 +1896,17 @@ do
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "hide" and fake.alpha == 0, "and can be hidden")
       pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
-      -- a button made on UIParent but anchored to the map is found too
-      local loose = CreateFrame("Button", "OctoLooseMapButton", UIParent)
+      -- a button made on MinimapCluster but anchored to the map is found too (UIParent is not
+      -- scanned: asking every UIParent child for its anchors crashed the client at login)
+      if not MinimapCluster:GetParent() then MinimapCluster:SetParent(UIParent) end
+      local loose = CreateFrame("Button", "OctoLooseMapButton", MinimapCluster)
       loose:SetWidth(24)
       loose:SetHeight(24)
       loose:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 0, 0)
       loose:SetScript("OnClick", function() end)
       local foundLoose
       for _, n in ipairs(pfUI.addonbuttons:List()) do if n == "OctoLooseMapButton" then foundLoose = true end end
-      ok(foundLoose, "a button anchored to the map from elsewhere is gathered")
+      ok(foundLoose, "a button on MinimapCluster anchored to the map is gathered")
       local ownSpot
       for _, n in ipairs(pfUI.addonbuttons:List()) do if string.find(n, "^pf") then ownSpot = n end end
       ok(not ownSpot, "pfUI's own parts are left alone (" .. tostring(ownSpot) .. ")")
