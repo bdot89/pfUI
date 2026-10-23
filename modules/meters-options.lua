@@ -25,6 +25,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   local function G() return C.meters end
   local function Px(v) return v .. " px" end
   local function Pct(v) return math.floor(v * 100 + .5) .. "%" end
+  local function Pct2(v) return math.floor(v + .5) .. "%" end
   local function Reload() if pfUI.gui then pfUI.gui.settingChanged = true end end
 
   function MO.Apply()
@@ -451,13 +452,146 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     end
   end
 
+  -- ---------------------------------------------------------------- threat
+  -- (moved from OctoBG's "Threat label" page, 23 Oct 2026, and added to)
+
+  -- the preview: a made-up nameplate with the label as you set it, going
+  -- through safe, near your cap, past it and aggro
+  local function ThreatPreview(p)
+    local TH = M.threat
+    W.Pin(p, "Preview", "A nameplate with your threat label, going through safe, near your cap, past it and aggro. "
+      .. "Click the label or the plate for their settings.", function(pp)
+      local box = W.Box(pp, 110)
+      local holder = CreateFrame("Frame", nil, box)
+      holder:SetAllPoints(box)
+      holder:SetFrameStrata("FULLSCREEN")
+      -- the mock plate
+      local plate = CreateFrame("Button", nil, holder)
+      plate:SetWidth(150)
+      plate:SetHeight(12)
+      plate:SetPoint("CENTER", box, "CENTER", 0, -12)
+      plate.bar = plate:CreateTexture(nil, "ARTWORK")
+      plate.bar:SetTexture(pfUI.media["img:bar"] or "Interface\\Buttons\\WHITE8X8")
+      plate.bar:SetPoint("TOPLEFT", plate, "TOPLEFT")
+      plate.bar:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT")
+      plate.bar:SetWidth(110)
+      plate.bar:SetVertexColor(.8, .15, .15)
+      plate.bg = plate:CreateTexture(nil, "BACKGROUND")
+      plate.bg:SetAllPoints(plate)
+      plate.bg:SetTexture(0, 0, 0, .7)
+      plate.name = plate:CreateFontString(nil, "OVERLAY")
+      plate.name:SetFont(pfUI.font_default, 11, "OUTLINE")
+      plate.name:SetPoint("BOTTOM", plate, "TOP", 0, 2)
+      plate.name:SetText("Onyxia's Elite Guard")
+      plate:SetScript("OnClick", function() MO.OpenThreat("Label") end)
+      local caption = holder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      caption:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -6)
+      caption:SetTextColor(.6, .6, .6)
+      local l = TH and TH.NewLabel(holder) or nil
+      if l then
+        l:SetFrameStrata("FULLSCREEN")
+        l:EnableMouse(true)
+        l:SetScript("OnMouseUp", function() MO.OpenThreat("Label") end)
+      end
+      MO.threatPreview = { plate = plate, label = l, caption = caption }
+      local STEPS = { { "safe", 45 }, { "near your cap", nil }, { "past your cap", 120 }, { "you have aggro" } }
+      holder:SetScript("OnUpdate", function()
+        if not l or (this.t or 0) > GetTime() then return end
+        this.t = GetTime() + .25
+        local step = math.mod(math.floor(GetTime() / 2.5), 4) + 1
+        local limit = tonumber(C.meters.threatwarn) or 90
+        local j
+        if step == 4 then j = TH.SampleJudge(nil, true)
+        elseif step == 2 then j = TH.SampleJudge(limit * ((tonumber(C.meters.tnear) or 80) + 8) / 100)
+        else j = TH.SampleJudge(STEPS[step][2] / 100 * limit) end
+        caption:SetText("Now: " .. STEPS[step][1] .. "   -   " .. TH.CapText())
+        if C.meters.tlabel ~= "1" or C.meters.tlook == "none" then l:Hide() return end
+        l:ClearAllPoints()
+        if C.meters.twhere == "screen" then
+          l:SetPoint("BOTTOM", box, "BOTTOM", 0, 6)
+        else
+          local pt = TH.POINTS[C.meters.twhere] or TH.POINTS.above
+          l:SetPoint(pt[1], plate, pt[2], tonumber(C.meters.tx) or 0, tonumber(C.meters.ty) or 0)
+        end
+        TH.Paint(l, j)
+        l:Show()
+      end)
+    end)
+  end
+
+  function MO.OpenThreat(card)
+    if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtthreat", card) else O:Open("mtthreat") end
+  end
+
   local function BuildThreat(p)
-    W.Heading(p, "Threat", { about = "The threat meter asks the server for threat, as TWThreat does." })
-    W.Card(p, "Threat")
-    Chk(p, "Threat meter", "After a reload.", G, "threat", Reload)
-    Drop(p, "Warn me at", "Of the pull point.", List({ { "70", "70%" }, { "80", "80%" }, { "90", "90%" }, { "95", "95%" } }), G, "threatwarn", function() end)
-    Chk(p, "Warning sound", nil, G, "threatsound", function() end)
-    Chk(p, "Warning text on screen", nil, G, "threatflash", function() end)
+    local TH = M.threat
+    W.Heading(p, "Threat", { about = "Your threat on the mob you target, from the server (the same answers TWThreat shows): "
+      .. "only in a party or raid, on a mob in combat. A label by your target's nameplate turns yellow near your cap and red "
+      .. "past it, a popup and a sound can warn you, and a meter window can show everyone's threat." })
+    if not TH then
+      W.Card(p, "Threat")
+      Chk(p, "Threat meter", "After a reload.", G, "threat", Reload)
+      return
+    end
+    ThreatPreview(p)
+    W.Live(p, function() return "Status: " .. TH.StatusLine() end)
+    W.Buttons(p, {
+      { "Sample on my target (8 s)", function() TH.Sample(8) end },
+      { "Test the popup", function() TH.Alert(C.meters.threatpopup or "THREAT", 1, .25, .2) TH.Sound() end },
+      { "Open a threat window", function()
+        local w = M.AddWindow()
+        if w then M.SetMode(w, "threat") end
+      end },
+    })
+
+    W.Card(p, "Threat meter", { tip = "Asking the server for threat. Off: no label, no popups, no threat window." })
+    Chk(p, "Ask the server for threat", "After a reload.", G, "threat", Reload)
+
+    W.Card(p, "Your cap", { tip = "How much threat you allow yourself before the label turns red and the popup shouts." })
+    Sld(p, "Stay under", "Your threat as a share of the reference below.", 10, 150, 5, G, "threatwarn", Pct2, function() end)
+    Drop(p, "...of", "The pull point: where the mob turns to you (110% of the tank's threat in melee, 130% at range). "
+      .. "The top player: stay behind the tank; the top two or three: behind the off-tank or a big hitter too.",
+      List(TH.REFS), G, "threatref", function() end)
+    Sld(p, "Yellow from", "The label turns yellow at this share of your cap.", 50, 95, 5, G, "tnear", Pct2, function() end)
+    W.Buttons(p, {
+      { "Safe 70%", function() C.meters.threatwarn, C.meters.threatref = "70", "1" O:Refresh() end },
+      { "Push 90%", function() C.meters.threatwarn, C.meters.threatref = "90", "1" O:Refresh() end },
+      { "Edge 100%", function() C.meters.threatwarn, C.meters.threatref = "100", "1" O:Refresh() end },
+    })
+
+    W.Card(p, "Label", { tip = "The label by your target's nameplate (or in a box you place)." })
+    Chk(p, "Show the label", nil, G, "tlabel", function() end)
+    Drop(p, "Show it as", nil, List(TH.LOOKS), G, "tlook", function() end)
+    Drop(p, "Where", "A box I place: move the \"Threat Box\" with Move frames.", List(TH.PLACES), G, "twhere", function() end)
+    Sld(p, "Across", nil, -150, 150, 1, G, "tx", Px, function() end)
+    Sld(p, "Up / down", nil, -100, 100, 1, G, "ty", Px, function() end)
+    Sld(p, "Text size", nil, 8, 30, 1, G, "tsize", Px, function() end)
+    Drop(p, "Outline", nil, List({ { "NONE", "None" }, { "OUTLINE", "Outline" }, { "THICKOUTLINE", "Thick outline" } }), G, "toutline", function() end)
+    Chk(p, "With aggro: the next player", "\"Aggro  next 92%\" - for tanks.", G, "tnext", function() end)
+    Chk(p, "...and their name", "\"Aggro  next Jaina 92%\".", G, "tnextname", function() end)
+
+    W.Card(p, "Colours")
+    Color(p, "Safe", nil, G, "tcolsafe", function() end)
+    Color(p, "Near your cap", nil, G, "tcolnear", function() end)
+    Color(p, "Past your cap", nil, G, "tcolover", function() end)
+    Color(p, "Aggro", nil, G, "tcolaggro", function() end)
+
+    W.Card(p, "Popups", { tip = "A big line in the middle of the screen, once each time you cross your cap." })
+    Chk(p, "Shout when I pass my cap", nil, G, "threatflash", function() end)
+    Chk(p, "Also when I pull aggro", "\"AGGRO!\" - tanks may want this off.", G, "threataggro", function() end)
+    W.Edit(p, "Message", nil, function() return C.meters.threatpopup or "" end, function(v)
+      if v and v ~= "" then C.meters.threatpopup = v end
+    end)
+    Chk(p, "Sound", nil, G, "threatsound", function() end)
+    local CT = pfUI.sctB and pfUI.sctB.SCT
+    local sounds = {}
+    for _, s in ipairs(CT and CT.SOUNDS or { { key = "RaidWarning", label = "Raid warning" } }) do
+      if s.key then table.insert(sounds, { key = s.key, label = s.label }) end
+    end
+    W.Dropdown(p, "Which sound", "Picking one plays it.", sounds, function() return C.meters.threatsoundkey end, function(v)
+      C.meters.threatsoundkey = v
+      if CT and CT.PlaySound then CT.PlaySound(v) end
+    end)
   end
 
   O.replaced[T["Meters"]] = true

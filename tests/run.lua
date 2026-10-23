@@ -871,6 +871,49 @@ if ME then
       w2.Refresh(w2)
       ok(w2.bars[1] and string.find(w2.bars[1].left.text or "", "Tester") and string.find(w2.bars[1].right.text or "", "102%%") and string.find(w2.bars[2].left.text or "", "Tankguy"), "threat window: most threat first")
     end
+    -- moved from OctoBG: the cap against the pull point or the top players
+    local mc = pfUI_config.meters
+    local l2 = TH.Parse("TWTv4=Tankguy:1:5000:100:1;Tester:0:4600:92:1;Healbot:0:1000:20:0")
+    mc.threatwarn, mc.threatref, mc.tnear = "90", "1", "80"
+    local j = TH.Judge(l2)
+    ok(math.abs(j.share - 92) < .01 and j.state == 3, "92% of the tank: past a 90% cap (" .. j.share .. ")")
+    mc.threatref = "pull"
+    j = TH.Judge(l2)
+    ok(math.abs(j.share - 92 / 110 * 100) < .01 and j.state == 2, "of the pull point: near the cap")
+    j = TH.Judge(TH.Parse("TWTv4=Tester:1:6000:100:1;Tankguy:0:5500:92:1"))
+    ok(j.aggro and j.nextName == "Tankguy" and string.find(TH.Text(j), "next Tankguy 92%%"), "with aggro: the next player and their name")
+    -- the label goes on your target's nameplate
+    local Fx = pfUI.plates and pfUI.plates.Fx
+    if Fx then
+      local tplate = CreateFrame("Frame", nil, UIParent)
+      tplate.istarget = true
+      Fx.seen[tplate] = GetTime()
+      TH.list, TH.at = l2, GetTime()
+      mc.tlabel, mc.tlook, mc.twhere = "1", "words", "above"
+      TH.Draw()
+      local lp = TH.label.points and TH.label.points[1]
+      ok(TH.label:IsShown() and lp and lp[2] == tplate and string.find(TH.label.text.text or "", "Threat"), "label above the target's plate")
+      mc.twhere = "screen"
+      TH.Draw()
+      lp = TH.label.points and TH.label.points[1]
+      ok(lp and lp[2] == pfThreatBox, "or in the box you place")
+      mc.twhere = "above"
+      Fx.seen[tplate] = nil
+    end
+    -- a popup when you pass your cap
+    mc.threatflash = "1"
+    TH.warned = nil
+    TH.Popups({ share = 120, state = 3 })
+    ok(pfThreatAlert:IsShown() and pfThreatAlert.text.text == mc.threatpopup, "the popup shouts your message")
+    -- OctoBG's settings taken over once
+    local oldDB, oldImp = OctoBGDB, mc.timported
+    OctoBGDB = { threat = { enabled = true, look = "bar", where = "below", limit = 70, ref = 2, popupText = "Back off!" } }
+    mc.timported = "0"
+    ok(TH.ImportOctoBG() and mc.tlook == "bar" and mc.twhere == "below" and mc.threatwarn == "70" and mc.threatref == "2"
+      and mc.threatpopup == "Back off!", "OctoBG's threat settings taken over")
+    ok(not TH.ImportOctoBG(), "only once")
+    OctoBGDB, mc.timported = oldDB, oldImp
+    mc.tlook, mc.twhere, mc.threatwarn, mc.threatref, mc.threatpopup = "words", "above", "90", "pull", "THREAT - back off!"
   end
 
   UnitName = realUnitName

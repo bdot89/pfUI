@@ -482,3 +482,13 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    lock; Windows > Share this look card). Nameplates phase 4: see docs/plates-spec.md section 6.
    Unit frame preview: UF.PLACES (buffs / debuffs corner, portrait left / right / bar, class icon,
    elite badge) dragged by where the mouse is over the frame (UF.Over), right-click = UF.Default.
+   Threat moved from OctoBG (23 Oct; user: "bring the threat section over here and add to it ...
+   remove anything to do with threat tracking from OBG"): meters-threat.lua now also has OctoBG's
+   label (TH.NewLabel / Paint / Draw on your target's pfUI Octo plate via pfUI.plates.Fx.Plates -
+   istarget, else the movable pfThreatBox), cap (TH.Judge: C.meters.threatwarn % of the pull point or
+   of the 1st / 2nd / 3rd other player, threatref; yellow from tnear %), popups (pfThreatAlert +
+   C.meters.threatsoundkey from combat text's sound list, once per crossing and on aggro), the next
+   player's name with aggro, own colours (tcolsafe / near / over / aggro), /pfthreat [70 [pull|1|2|3]].
+   TH.ImportOctoBG copies OctoBGDB.threat once (timported). Page mtthreat: preview (mock plate + the
+   label cycling safe / near / past / aggro, clicks to Label), status, sample / test popup / open a
+   threat window, cards Threat meter, Your cap, Label, Colours, Popups.
