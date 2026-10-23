@@ -109,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "plates-fx",
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx",
   "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
@@ -754,6 +754,83 @@ if ME then
       end
     end
     w1.mode = "damage"
+    -- test mode: a made-up fight with everything in it, real fights kept aside
+    local realHistory, realOverall = ME.history, ME.overall
+    local realTesterDamage = ME.Segment("current").actors.Tester.damage
+    ok(ME.TestMode and ME.TestMode(true), "test mode on")
+    local ts = ME.testSeg
+    ok(ts and ts.test and ME.Segment("current") == ts and ME.Segment("overall") == ts, "every window shows the test fight")
+    ok(ME.history == realHistory and ME.overall == realOverall and realHistory[1].actors.Tester.damage == realTesterDamage
+      and not realHistory[1].actors.Garrosh, "the real fights are untouched")
+    local ga, an, rx, ja = ts.actors.Garrosh, ts.actors.Anduin, ts.actors.Rexxar, ts.actors.Jaina
+    ok(ga and ga.damage > 0 and ga.taken > ga.damage / 3 and next(ga.avoid), "the tank hits, takes the most and avoids (" .. tostring(ga and ga.taken) .. ")")
+    ok(an and an.heal > 0 and an.overheal > 0 and an.dispels == 1 and an.power[pfUI.env.MANA or "Mana"], "a healer heals, overheals, dispels, gets mana")
+    ok(rx and rx.deaths == 1 and rx.deathlogs[1].killer == "Onyxia" and table.getn(rx.deathlogs[1].log) > 0, "a death with its log")
+    ok(ts.actors.Malfurion.ress == 1 and ga.cds >= 2 and ja.interrupts == 1 and ja.ilist[1].with == "Counterspell", "res, cooldowns, interrupt with its spell")
+    ok(ts.actors["Gul'dan"].ff > 0 and ga.buffs["Battle Shout"] and ts.actors["Gul'dan"].debuffs["Curse of Agony"], "friendly fire and uptime")
+    ok(ts.foes.Onyxia and ts.foes["Onyxian Whelp"] and ts.byspell["Flame Breath"] and table.getn(ts.timeline) > 100 and ts.boss == "Onyxia",
+      "enemies, spells on the group, a chart, the boss")
+    local frags = 0
+    for _, a in pairs(ts.actors) do frags = frags + a.frags end
+    ok(frags >= 5, "whelp kills (" .. frags .. ")")
+    -- every bar opens its breakdown; every tab of every view draws
+    w1.Refresh(w1)
+    ok(w1.bars[1].row and w1.bars[1].row.actor and ts.actors[w1.bars[1].row.name], "test bars are the test fight's players")
+    w1.bars[1]:Click()
+    ok(pfMeterBreakdown:IsShown() and BD.seg == ts, "a test bar opens its breakdown")
+    for _, t in ipairs(BD.TABS) do
+      for _, k in ipairs(BD.KINDS) do
+        BD.tab, BD.kind = t[1], k[1]
+        local good, err = pcall(BD.Draw)
+        ok(good, "test breakdown " .. t[1] .. " / " .. k[1] .. ": " .. tostring(err))
+      end
+    end
+    BD.kind = "damage"
+    -- links: Targets -> Onyxia -> who hit her -> back
+    BD.actor = ga
+    BD.tab = "targets"
+    BD.Draw()
+    local link
+    for _, l in ipairs(BD.linesShown) do if l[1] == "Open Onyxia" then link = l.go end end
+    ok(BD.listShown[1].name == "Onyxia" and BD.listShown[1].link and link, "a target is a link")
+    link()
+    ok(BD.foe == "Onyxia" and not BD.actor and BD.tab == "fsummary", "it opens the enemy")
+    for _, t in ipairs(BD.FOETABS) do
+      BD.tab = t[1]
+      local good, err = pcall(BD.Draw)
+      ok(good, "enemy tab " .. t[1] .. ": " .. tostring(err))
+    end
+    BD.tab = "fhitby"
+    BD.Draw()
+    local who = BD.listShown[1]
+    ok(who and who.onclick, "who hit her are links")
+    who.onclick()
+    ok(BD.actor and BD.actor.name == who.name, "and open the player (" .. tostring(BD.actor and BD.actor.name) .. ")")
+    BD.Back()
+    ok(BD.foe == "Onyxia", "Back returns to the enemy")
+    BD.Back()
+    ok(BD.actor == ga and BD.tab == "targets", "and to the player")
+    -- Summary lines jump to their tab
+    BD.tab = "summary"
+    BD.Draw()
+    for _, l in ipairs(BD.linesShown) do if l[1] == "Damage taken" then l.go() end end
+    ok(BD.tab == "taken", "Summary: Damage taken opens Taken")
+    -- an enemy bar and a spell bar open their own views
+    w1.mode = "enemytaken"
+    w1.Refresh(w1)
+    w1.bars[1]:Click()
+    ok(BD.foe and not BD.actor, "an enemy bar opens the enemy (" .. tostring(BD.foe) .. ")")
+    w1.mode = "byspell"
+    w1.Refresh(w1)
+    w1.bars[1]:Click()
+    ok(BD.bspell and pcall(BD.Draw), "a spell bar opens the spell (" .. tostring(BD.bspell) .. ")")
+    w1.mode = "damage"
+    -- menus of everyone / every enemy
+    ok(pcall(BD.PeopleMenu, pfMeterBreakdown.who) and pcall(BD.FoeMenu, pfMeterBreakdown.foes), "people and enemy menus")
+    if pfMeterMenu then pfMeterMenu:Hide() end
+    ME.TestMode(false)
+    ok(not ME.testOn and ME.Segment("current") == realHistory[1] and not pfMeterBreakdown:IsShown(), "test mode off: the real fight is back")
+    w1.Refresh(w1)
     -- report to party
     Mock.chat = {}
     local envSend = pfUI.env.SendChatMessage

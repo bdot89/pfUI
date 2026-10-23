@@ -492,3 +492,16 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    TH.ImportOctoBG copies OctoBGDB.threat once (timported). Page mtthreat: preview (mock plate + the
    label cycling safe / near / past / aggro, clicks to Label), status, sample / test popup / open a
    threat window, cards Threat meter, Your cap, Label, Colours, Popups.
+   Meter test mode (23 Oct, NOT seen in game; user: "a full test mode ... click on test bars ... the
+   extra frames ... every bit of info ... linked with easy click through menus"): modules/meters-test.lua
+   records a made-up 2 min Onyxia fight through M.Record on a fake clock (_G.GetTime swapped inside a
+   pcall, real overall / history / current / recent / onStart put aside and restored, roster in M.who
+   with checked = 1e12), every aura it opens is closed again (the aura tracker `open` is shared).
+   M.TestMode(on) / /pfmetertest; while on, M.Segment returns M.testSeg for every key; a real fight
+   (M.onStart) turns it off. meters.lua Record: r.over = overheal when the target is not a unit.
+   meters-breakdown.lua rewritten: 900 x 500 in the window's look (B.Look: texture, font, bg, border),
+   player tabs Summary / Spells / Targets / Taken / Casts / Auras / Utility / Deaths / Chart / Compare
+   with a damage / healing / friendly fire switch (B.kind), enemy view (B.foe: Summary, Hit by, Spells
+   on it, It hit, Its spells) and spell view (B.bspell) for enemy / spell rows; every name is a link
+   (B.Link -> B.Open, Back stack), Summary lines jump to their tab, header name = menu of everyone,
+   Enemies = menu of every enemy. Windows page: "Test mode" card (switch, status, Open a breakdown).

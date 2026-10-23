@@ -975,10 +975,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   end
 
   -- test bars: every window shows the made-up fight for a while, to try
-  -- looks on the real windows (Details' "create test bars")
+  -- looks on the real windows (Details' "create test bars"); meters-test.lua
+  -- turns this into a whole test fight with breakdowns behind every bar
   function M.TestBars(seconds)
     M.testUntil = GetTime() + (seconds or 30)
     for _, w in ipairs(M.windows or {}) do w:Show() w.Refresh(w) end
+  end
+  function M.Testing()
+    return M.testOn or (M.testUntil or 0) > GetTime()
   end
 
   -- a free window dropped near another one sits flush against it (side by
@@ -1065,9 +1069,15 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       win.seg:SetText(SegmentName(win.segment, win))
     end
 
-    -- (test bars: every window shows the made-up fight for a while)
-    local testing = (M.testUntil or 0) > GetTime()
-    local rows = (win.preview or testing) and M.SampleRows(win.mode) or M.Rows(win.mode, win.segment)
+    -- (test bars: every window shows the made-up fight; with the test fight
+    -- built (meters-test.lua) its real rows, so every bar opens a breakdown)
+    local testing = M.Testing()
+    local rows
+    if win.preview or (testing and not M.testSeg) then
+      rows = M.SampleRows(win.mode)
+    else
+      rows = M.Rows(win.mode, win.segment)
+    end
     local height = tonumber(s.barheight) or 16
     local gap = tonumber(s.spacing) or 1
     local top = s.title ~= "0" and ((tonumber(s.titleheight) or 18) + 2) or 2

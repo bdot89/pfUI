@@ -315,9 +315,29 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     W.Heading(p, "Meter windows", { about = "Pick a window with the tabs (or make a new one), then its look. Every window has "
       .. "its own settings; the preview shows the one you are editing." })
     Preview(p)
+    -- (user, 23 Oct 2026: "a full test mode ... click on test bars in the
+    -- meter and look at the extra frames with information")
+    W.Card(p, "Test mode", { on = { function() return M.testOn and true or false end,
+      function(v) if M.TestMode then M.TestMode(v) end end,
+      "Every window shows a made-up Onyxia fight with everything a real one has. Click any bar for its breakdown." } })
+    W.Live(p, function()
+      if M.testOn then
+        return "|cff55ff55On|r - every window shows a made-up 2 minute Onyxia fight. Click any bar: every name in the "
+          .. "breakdown opens that player, enemy or spell. A real fight turns it off."
+      end
+      return "Off - switch it on to try every display and its breakdown without a fight (/pfmetertest)."
+    end, 2)
+    W.Buttons(p, {
+      { "Open a breakdown", function()
+        if M.TestMode and not M.testOn then M.TestMode(true) end
+        local w = M.windows and M.windows[1]
+        if not w then return end
+        local rows = M.Rows(w.mode, w.segment)
+        if rows[1] then M.ShowDetails(w, rows[1]) end
+      end, 150, "Turns test mode on and opens the breakdown of window 1's top bar." },
+    })
     W.Card(p, "Looks", { tip = "Ready-made looks for this window." })
     Looks(p)
-    W.Buttons(p, { { "Test bars on my windows (30 s)", function() M.TestBars(30) end } })
 
     W.Card(p, "Shows", { tip = "What this window shows when it opens (its title bar changes it while playing)." })
     Drop(p, "Shows", nil, Modes(), S, "mode")

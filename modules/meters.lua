@@ -745,7 +745,9 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       if not r.amt then return end
       local effective = r.amt
       local unit = r.tgt and UnitByName(r.tgt)
-      if unit then effective = min(r.amt, max(0, UnitHealthMax(unit) - UnitHealth(unit))) end
+      if unit then effective = min(r.amt, max(0, UnitHealthMax(unit) - UnitHealth(unit)))
+      -- (the test fight says how much of a heal was too much)
+      elseif r.over then effective = max(0, r.amt - r.over) end
       if srcname then
         Each(function(seg)
           local a = Actor(seg, srcname, Who(srcname))

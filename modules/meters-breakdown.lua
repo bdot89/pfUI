@@ -1,18 +1,18 @@
 pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
-  -- pfUI Octo :: the player breakdown (meters phase 3, Details!' "player
+  -- pfUI Octo :: the breakdown window (meters phase 3, Details!' "player
   -- details" as the model - Details! is All Rights Reserved, nothing of it is
-  -- copied). Clicking a player's bar in a meter window opens it:
-  --   header   class icon, name, what and which fight; < > the next player
-  --            of that window; Report sends the open tab to chat
-  --   Summary  everything about the player in that fight at a glance
-  --   Spells   the spells as bars; click one for its detail: hits, normal
-  --            and critical (count, average, min, max), ticks, misses by
-  --            kind, glancing / crushing, overhealing, its targets
-  --   Targets  who it hit or healed (or who hit it)
-  --   Compare  side by side with another player: each spell and the gap
-  --   Deaths   each death with its last hits and heals, health as a bar
-  -- Enemy and spell rows (enemy damage, damage taken by spell) keep the
-  -- simple breakdown of meters-window.lua.
+  -- copied). Clicking any bar of a meter window opens it. 23 Oct 2026 (user:
+  -- "extra frames ... should carry the same UI look and store vast info from
+  -- the meters every bit of info should be in there easy to manage and linked
+  -- with easy click through menus") it shows everything the meter keeps, in
+  -- the window's own look, and every name in it is a link:
+  --   a player   Summary, Spells, Targets, Taken, Casts, Auras, Utility,
+  --              Deaths, Chart, Compare. Spells / Targets / Chart / Compare
+  --              switch between damage, healing and friendly fire.
+  --   an enemy   Summary, Hit by, Spells on it, It hit, Its spells
+  --   a spell    (damage taken by spell) who it hit, who cast it
+  -- Clicking a player, enemy or spell anywhere opens it; Back goes back; the
+  -- name in the header lists everyone in the fight, Enemies every enemy.
   local M = pfUI.meters
   if not M or not M.ShowDetails or not M.MODES then return end
 
@@ -24,13 +24,14 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   local function Pct(part, all) return (all and all > 0) and string.format("%.1f%%", part / all * 100) or "-" end
   local function Avg(total, n) return n > 0 and Num(total / n) or "-" end
   local HEALMODES = { heal = true, hps = true, overheal = true, htaken = true }
+  local LINK = "|cff7fbfff"
 
-  local B = { tab = "spells" }
+  local B = { tab = "spells", stack = {} }
   M.breakdown = B
 
   -- ---------------------------------------------------------------- the frame
 
-  local W, H = 720, 470
+  local W, H = 900, 500
   local f = CreateFrame("Frame", "pfMeterBreakdown", UIParent)
   f:SetWidth(W)
   f:SetHeight(H)
@@ -48,10 +49,13 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   table.insert(UISpecialFrames, "pfMeterBreakdown")
   B.frame = f
 
+  local texts = {}
   local function Text(parent, size, justify)
     local t = parent:CreateFontString(nil, "OVERLAY", "GameFontWhite")
     t:SetFont(pfUI.font_default, size or C.global.font_size, "OUTLINE")
     t:SetJustifyH(justify or "LEFT")
+    t.base = size or C.global.font_size
+    table.insert(texts, t)
     return t
   end
 
@@ -59,11 +63,6 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   f.icon:SetWidth(22)
   f.icon:SetHeight(22)
   f.icon:SetPoint("TOPLEFT", 10, -8)
-  f.name = Text(f, C.global.font_size + 4)
-  f.name:SetPoint("LEFT", f.icon, "RIGHT", 6, 0)
-  f.sub = Text(f, C.global.font_size)
-  f.sub:SetPoint("LEFT", f.name, "RIGHT", 10, -1)
-  f.sub:SetTextColor(.6, .6, .6)
 
   -- a small text button
   local function Button(parent, label, width, func, tip)
@@ -78,9 +77,9 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     b:SetScript("OnEnter", function()
       local r, g, bb = GetAccentColor()
       if this.backdrop then this.backdrop:SetBackdropBorderColor(r, g, bb, 1) end
-      if tip then
+      if this.tip then
         GameTooltip:SetOwner(this, "ANCHOR_TOP")
-        GameTooltip:SetText(tip, 1, 1, 1)
+        GameTooltip:SetText(this.tip, 1, 1, 1)
         GameTooltip:Show()
       end
     end)
@@ -88,37 +87,74 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       if this.backdrop then this.backdrop:SetBackdropBorderColor(0, 0, 0, 1) end
       GameTooltip:Hide()
     end)
+    b.tip = tip
     return b
   end
   B.Button = Button
+
+  -- the header: the name opens a list of everyone in the fight
+  f.who = Button(f, "", 200, function() B.PeopleMenu(this) end, "Everyone in this fight: click one to open them")
+  f.who:SetPoint("LEFT", f.icon, "RIGHT", 6, 0)
+  f.name = f.who.text
+  f.name:ClearAllPoints()
+  f.name:SetPoint("LEFT", f.who, "LEFT", 6, 0)
+  f.who.text.base = C.global.font_size + 4
+  f.name:SetFont(pfUI.font_default, C.global.font_size + 4, "OUTLINE")
+  f.sub = Text(f, C.global.font_size)
+  f.sub:SetPoint("LEFT", f.who, "RIGHT", 10, 0)
+  f.sub:SetTextColor(.6, .6, .6)
 
   f.close = Button(f, "X", 20, function() f:Hide() end)
   f.close:SetPoint("TOPRIGHT", -8, -8)
   f.report = Button(f, "Report", 64, function() B.ReportMenu(this) end, "Send this tab to chat")
   f.report:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
-  f.next = Button(f, ">", 22, function() B.Step(1) end, "Next player")
+  f.next = Button(f, ">", 22, function() B.Step(1) end, "Next in the window")
   f.next:SetPoint("RIGHT", f.report, "LEFT", -8, 0)
-  f.prev = Button(f, "<", 22, function() B.Step(-1) end, "Previous player")
+  f.prev = Button(f, "<", 22, function() B.Step(-1) end, "Previous in the window")
   f.prev:SetPoint("RIGHT", f.next, "LEFT", -2, 0)
+  f.foes = Button(f, "Enemies", 70, function() B.FoeMenu(this) end, "Every enemy in this fight: click one to open it")
+  f.foes:SetPoint("RIGHT", f.prev, "LEFT", -8, 0)
+  f.back = Button(f, "< Back", 60, function() B.Back() end, "Back to what was open before")
+  f.back:SetPoint("RIGHT", f.foes, "LEFT", -4, 0)
 
-  -- tabs
-  B.TABS = { { "summary", "Summary" }, { "spells", "Spells" }, { "targets", "Targets" }, { "chart", "Chart" },
-             { "compare", "Compare" }, { "deaths", "Deaths" } }
+  -- tabs (the set depends on what is open)
+  B.TABS = { { "summary", "Summary" }, { "spells", "Spells" }, { "targets", "Targets" }, { "taken", "Taken" },
+             { "casts", "Casts" }, { "auras", "Auras" }, { "utility", "Utility" }, { "deaths", "Deaths" },
+             { "chart", "Chart" }, { "compare", "Compare" } }
+  B.FOETABS = { { "fsummary", "Summary" }, { "fhitby", "Hit by" }, { "ftaken", "Spells on it" }, { "fhit", "It hit" },
+                { "fspells", "Its spells" } }
+  B.SPELLTABS = { { "ssummary", "Who it hit" }, { "sfrom", "Who cast it" } }
   f.tabs = {}
-  for i, t in ipairs(B.TABS) do
-    local key = t[1]
-    local b = Button(f, t[2], 96, function()
-      B.tab = key
+  for i = 1, 10 do
+    local b = Button(f, "", 84, function()
+      B.tab = this.key
+      B.offset = 0
       B.Draw()
     end)
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 100, -38)
-    b.key = key
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 88, -38)
+    b.line = b:CreateTexture(nil, "OVERLAY")
+    b.line:SetTexture("Interface\\Buttons\\WHITE8X8")
+    b.line:SetHeight(2)
+    b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 1, 1)
+    b.line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
     f.tabs[i] = b
   end
 
+  -- damage / healing / friendly fire, over the list of the tabs that use it
+  B.KINDS = { { "damage", "Damage" }, { "heal", "Healing" }, { "ff", "Friendly fire" } }
+  f.kinds = {}
+  for i, k in ipairs(B.KINDS) do
+    local key = k[1]
+    local b = Button(f, k[2], 96, function() B.kind = key B.spell = nil B.offset = 0 B.Draw() end)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 100, -64)
+    b.key = key
+    f.kinds[i] = b
+  end
+  local KINDTABS = { spells = true, targets = true, chart = true, compare = true }
+
   -- the body: a list of bars on the left, a panel of lines on the right
-  local BODY_TOP, ROWH = -66, 18
-  local LIST_W = 400
+  local BODY_TOP, ROWH = -90, 18
+  local LIST_W = 470
   f.list = CreateFrame("Frame", nil, f)
   f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP)
   f.list:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
@@ -132,8 +168,14 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   f.panel:SetPoint("TOPLEFT", f.list, "TOPRIGHT", 10, 0)
   f.panel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
   CreateBackdrop(f.panel, nil, true, .5)
+  f.panel:EnableMouseWheel(true)
+  f.panel:SetScript("OnMouseWheel", function()
+    B.lineOffset = max(0, (B.lineOffset or 0) - (arg1 or 0) * 3)
+    B.Draw()
+  end)
   f.rows, f.lines = {}, {}
   local MAXROWS = floor((H + BODY_TOP - 10) / (ROWH + 2))
+  local MAXLINES = floor((H + BODY_TOP - 22) / 16)
   B.MAXROWS = MAXROWS
 
   local function Row(i)
@@ -153,21 +195,39 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     r.sel:SetAllPoints(r)
     r.sel:SetTexture(1, 1, 1, .12)
     r.sel:Hide()
+    r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+    r.hl:SetAllPoints(r)
+    r.hl:SetTexture(1, 1, 1, .08)
     r.left = Text(r.bar, C.global.font_size)
     r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
     r.right = Text(r.bar, C.global.font_size, "RIGHT")
     r.right:SetPoint("RIGHT", r, "RIGHT", -4, 0)
     r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
     r:SetScript("OnClick", function() if this.onclick then this.onclick() end end)
+    r:SetScript("OnEnter", function()
+      if not this.tip then return end
+      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+      GameTooltip:SetText(this.tip, 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.rows[i] = r
     return r
   end
 
-  -- a line on the right panel: label and value
+  -- a line on the right panel: label and value; a line with `go` is a link
   local function Line(i)
     local l = f.lines[i]
     if l then return l end
     l = {}
+    l.btn = CreateFrame("Button", nil, f.panel)
+    l.btn:SetHeight(16)
+    l.btn:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 4, -4 - (i - 1) * 16)
+    l.btn:SetPoint("RIGHT", f.panel, "RIGHT", -4, 0)
+    l.btn.hl = l.btn:CreateTexture(nil, "HIGHLIGHT")
+    l.btn.hl:SetAllPoints(l.btn)
+    l.btn.hl:SetTexture(1, 1, 1, .08)
+    l.btn:SetScript("OnClick", function() if this.go then this.go() end end)
     l.label = Text(f.panel, C.global.font_size)
     l.label:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 8, -6 - (i - 1) * 16)
     l.value = Text(f.panel, C.global.font_size, "RIGHT")
@@ -181,7 +241,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   local texture = "Interface\\AddOns\\pfUI\\img\\bar_elvui"
   local cr, cg, cb = .6, .6, .6
 
-  -- list: { { name, value, text, onclick, selected, color } }
+  -- list: { { name, value, text, onclick, selected, color, tip } }
   local function FillList(list, maxv)
     local off = B.offset or 0
     if off > max(0, table.getn(list) - MAXROWS) then off = max(0, table.getn(list) - MAXROWS) B.offset = off end
@@ -193,9 +253,9 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
         local c = e.color
         r.bar:SetStatusBarColor(c and c[1] or cr, c and c[2] or cg, c and c[3] or cb, .8)
         r.bar:SetValue((maxv and maxv > 0 and e.value) and e.value / maxv or 0)
-        r.left:SetText(e.name)
+        r.left:SetText((e.link and LINK or "") .. e.name .. (e.link and "|r" or ""))
         r.right:SetText(e.text or "")
-        r.onclick = e.onclick
+        r.onclick, r.tip = e.onclick, e.tip
         if e.selected then r.sel:Show() else r.sel:Hide() end
         r:Show()
       else
@@ -205,50 +265,82 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     B.listShown = list
   end
 
-  -- lines: { { label, value, head } }
+  -- lines: { { label, value, head, go } }
   local function FillLines(lines)
     local ar, ag, ab = GetAccentColor()
-    for i = 1, max(table.getn(lines), table.getn(f.lines)) do
-      local e = lines[i]
+    local off = B.lineOffset or 0
+    if off > max(0, table.getn(lines) - MAXLINES) then off = max(0, table.getn(lines) - MAXLINES) B.lineOffset = off end
+    for i = 1, max(MAXLINES, table.getn(f.lines)) do
+      local e = i <= MAXLINES and lines[i + off]
       local l = Line(i)
       if e then
         l.label:SetText(e[1] or "")
         l.value:SetText(e[2] or "")
-        if e.head then l.label:SetTextColor(ar, ag, ab) else l.label:SetTextColor(.85, .85, .85) end
+        if e.head then l.label:SetTextColor(ar, ag, ab)
+        elseif e.go then l.label:SetTextColor(.5, .75, 1)
+        else l.label:SetTextColor(.85, .85, .85) end
         l.label:Show()
         l.value:Show()
+        l.btn.go = e.go
+        if e.go then l.btn:Show() else l.btn:Hide() end
       else
         l.label:Hide()
         l.value:Hide()
+        l.btn:Hide()
       end
     end
     B.linesShown = lines
   end
 
-  -- the spells of an actor for the window's mode: list, total, heal?
+  local function Sorted(tbl, field)
+    local out = {}
+    for name, v in pairs(tbl or {}) do
+      local x = field and v[field] or v
+      if type(x) == "number" then table.insert(out, { name = name, v = x, data = v }) end
+    end
+    table.sort(out, function(x, y) return x.v > y.v end)
+    return out
+  end
+
+  -- ---------------------------------------------------------------- links
+
+  local function Seg() return B.seg end
+  -- a name as a link: a player of the fight, an enemy, or nothing
+  local function Link(name)
+    local seg = Seg()
+    if not seg or not name then return end
+    if seg.actors and seg.actors[name] then return function() B.Open({ actor = seg.actors[name] }) end end
+    if seg.foes and seg.foes[name] then return function() B.Open({ foe = name }) end end
+  end
+  B.Link = Link
+  local function Named(name)
+    if Link(name) then return LINK .. name .. "|r" end
+    return name
+  end
+  -- "Spell - Source": the source part
+  local function SourceOf(label)
+    local _, _, spell, who = string.find(label or "", "^(.-) %- (.+)$")
+    return spell or label, who
+  end
+
+  -- ---------------------------------------------------------------- player tabs
+
+  -- the spells of an actor: list, total, heal?
   local function SpellsOf(a, mode)
     if mode == "taken" then return a.tspells, a.taken end
     if mode == "ff" then return a.ffspells or {}, a.ff or 0 end
-    if HEALMODES[mode] then return a.hspells, a.heal, true end
+    if mode == "heal" or HEALMODES[mode] then return a.hspells, a.heal, true end
     return a.spells, a.damage
   end
   local function TargetsOf(a, mode)
     if mode == "taken" then return a.sources, a.taken, "Damaged by" end
     if mode == "htaken" then return a.hsources or {}, a.htaken or 0, "Healed by" end
     if mode == "ff" then return a.fftargets or {}, a.ff or 0, "Hit" end
-    if HEALMODES[mode] then return a.htargets, a.heal, "Healed" end
+    if mode == "heal" or HEALMODES[mode] then return a.htargets, a.heal, "Healed" end
     return a.targets, a.damage, "Targets"
   end
   B.SpellsOf, B.TargetsOf = SpellsOf, TargetsOf
-
-  local function Sorted(tbl, field)
-    local out = {}
-    for name, v in pairs(tbl or {}) do
-      table.insert(out, { name = name, v = field and v[field] or v, data = v })
-    end
-    table.sort(out, function(x, y) return x.v > y.v end)
-    return out
-  end
+  local function Kind() return B.kind or "damage" end
 
   -- one spell in detail (right panel)
   local function SpellLines(name, s, total, heal)
@@ -283,50 +375,52 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       table.insert(lines, { " ", "" })
       table.insert(lines, { "Targets", "", head = true })
       local list = Sorted(s.targets)
-      for i = 1, min(6, table.getn(list)) do
-        table.insert(lines, { list[i].name, Num(list[i].v) .. "  (" .. Pct(list[i].v, s.total) .. ")" })
+      for i = 1, min(8, table.getn(list)) do
+        table.insert(lines, { list[i].name, Num(list[i].v) .. "  (" .. Pct(list[i].v, s.total) .. ")", go = Link(list[i].name) })
       end
     end
     return lines
   end
   B.SpellLines = SpellLines
 
-  -- ---------------------------------------------------------------- tabs
-
   local function Summary(a, seg)
     local fight = seg and M.Duration(seg) or 1
     local act = max(1, a.active or 0)
+    local function Go(tab, kind) return function() B.kind = kind or B.kind B.tab = tab B.offset = 0 B.Draw() end end
     local lines = { { "Damage and healing", "", head = true },
-      { "Damage done", Num(a.damage) .. "   (" .. Num(a.damage / act) .. " dps)" },
-      { "Healing done", Num(a.heal) .. "   (" .. Num(a.heal / act) .. " hps)" },
-      { "Overhealing", Num(a.overheal) .. "  (" .. Pct(a.overheal, a.heal + a.overheal) .. ")" },
-      { "Damage taken", Num(a.taken) },
-      { "Healing taken", Num(a.htaken or 0) },
-      { "Friendly fire", Num(a.ff or 0) },
+      { "Damage done", Num(a.damage) .. "   (" .. Num(a.damage / act) .. " dps)", go = Go("spells", "damage") },
+      { "Healing done", Num(a.heal) .. "   (" .. Num(a.heal / act) .. " hps)", go = Go("spells", "heal") },
+      { "Overhealing", Num(a.overheal) .. "  (" .. Pct(a.overheal, a.heal + a.overheal) .. ")", go = Go("spells", "heal") },
+      { "Damage taken", Num(a.taken), go = Go("taken") },
+      { "Healing taken", Num(a.htaken or 0), go = Go("taken") },
+      { "Friendly fire", Num(a.ff or 0), go = Go("spells", "ff") },
       { "Time", "", head = true },
       { "Fight", Clock(fight) },
-      { "Active", Clock(act) .. "  (" .. Pct(min(act, fight), fight) .. ")" },
+      { "Active", Clock(act) .. "  (" .. Pct(min(act, fight), fight) .. ")", go = Go("chart") },
       { "Utility", "", head = true },
-      { "Interrupts / dispels", (a.interrupts or 0) .. " / " .. (a.dispels or 0) },
-      { "Cooldowns used", a.cds or 0 },
-      { "Resurrects", a.ress or 0 },
-      { "Kills / deaths", (a.frags or 0) .. " / " .. (a.deaths or 0) },
-      { "Casts", a.ncasts or 0 },
+      { "Interrupts / dispels", (a.interrupts or 0) .. " / " .. (a.dispels or 0), go = Go("utility") },
+      { "Cooldowns used", a.cds or 0, go = Go("casts") },
+      { "Resurrects", a.ress or 0, go = Go("casts") },
+      { "Kills / deaths", (a.frags or 0) .. " / " .. (a.deaths or 0), go = Go((a.deaths or 0) > 0 and "deaths" or "utility") },
+      { "Casts", a.ncasts or 0, go = Go("casts") },
+      { "Buff / debuff uptime", Clock(a.buffsum or 0) .. " / " .. Clock(a.debuffsum or 0), go = Go("auras") },
     }
     -- resources gained
-    for pow, v in pairs(a.power or {}) do table.insert(lines, { pow .. " gained", Num(v) }) end
+    for pow, v in pairs(a.power or {}) do table.insert(lines, { pow .. " gained", Num(v), go = Go("utility") }) end
     FillLines(lines)
-    -- the left: top spells of what the window shows
-    local spells, total, heal = SpellsOf(a, B.mode)
+    -- the left: top spells of the window's kind
+    local spells, total = SpellsOf(a, Kind())
     local list = {}
     for _, e in ipairs(Sorted(spells, "total")) do
-      table.insert(list, { name = e.name, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total) })
+      local name = e.name
+      table.insert(list, { name = name, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total),
+        onclick = function() B.spell = name B.tab = "spells" B.Draw() end })
     end
     FillList(list, list[1] and list[1].value)
   end
 
   local function Spells(a)
-    local spells, total, heal = SpellsOf(a, B.mode)
+    local spells, total, heal = SpellsOf(a, Kind())
     local sorted = Sorted(spells, "total")
     if not B.spell or not spells[B.spell] then B.spell = sorted[1] and sorted[1].name end
     local list = {}
@@ -335,21 +429,166 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       local s = e.data
       table.insert(list, { name = name, value = e.v,
         text = Num(e.v) .. "  " .. Pct(e.v, total) .. "  |cff888888" .. (s.hits + s.ticks) .. "x|r",
-        selected = name == B.spell, onclick = function() B.spell = name B.Draw() end })
+        selected = name == B.spell, onclick = function() B.spell = name B.lineOffset = 0 B.Draw() end })
     end
     FillList(list, sorted[1] and sorted[1].v)
-    if B.spell and spells[B.spell] then FillLines(SpellLines(B.spell, spells[B.spell], total, heal)) else FillLines({}) end
+    if B.spell and spells[B.spell] then FillLines(SpellLines(B.spell, spells[B.spell], total, heal)) else FillLines({ { "Nothing here in this fight.", "" } }) end
   end
 
   local function Targets(a)
-    local tbl, total, title = TargetsOf(a, B.mode)
+    local tbl, total, title = TargetsOf(a, Kind())
+    local spells = SpellsOf(a, Kind())
+    local sorted = Sorted(tbl)
+    if not B.target or not tbl[B.target] then B.target = sorted[1] and sorted[1].name end
     local list = {}
-    for _, e in ipairs(Sorted(tbl)) do
-      table.insert(list, { name = e.name, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total) })
+    for _, e in ipairs(sorted) do
+      local name = e.name
+      table.insert(list, { name = name, link = Link(name) and true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total),
+        selected = name == B.target, onclick = function() B.target = name B.lineOffset = 0 B.Draw() end })
     end
     FillList(list, list[1] and list[1].value)
     local lines = { { title, "", head = true }, { "Total", Num(total) }, { "How many", table.getn(list) } }
-    if list[1] then table.insert(lines, { "Most", list[1].name }) end
+    local t = B.target
+    if t then
+      table.insert(lines, { " ", "" })
+      table.insert(lines, { t, "", head = true })
+      local go = Link(t)
+      if go then table.insert(lines, { "Open " .. t, "", go = go }) end
+      -- which of this player's spells went there
+      local by = {}
+      for sname, s in pairs(spells or {}) do
+        if s.targets and s.targets[t] then by[sname] = s.targets[t] end
+      end
+      for _, e in ipairs(Sorted(by)) do table.insert(lines, { "  " .. e.name, Num(e.v) }) end
+      -- everyone else on that enemy
+      local foe = B.seg and B.seg.foes and B.seg.foes[t]
+      if foe and foe.from then
+        table.insert(lines, { "Everyone on " .. t, "", head = true })
+        for _, e in ipairs(Sorted(foe.from)) do
+          table.insert(lines, { e.name, Num(e.v) .. "  (" .. Pct(e.v, foe.taken) .. ")", go = Link(e.name) })
+        end
+      end
+    end
+    FillLines(lines)
+  end
+
+  local function Taken(a)
+    local sorted = Sorted(a.tspells, "total")
+    if not B.spell or not a.tspells[B.spell] then B.spell = sorted[1] and sorted[1].name end
+    local list = {}
+    for _, e in ipairs(sorted) do
+      local name = e.name
+      local spell, who = SourceOf(name)
+      table.insert(list, { name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
+        text = Num(e.v) .. "  " .. Pct(e.v, a.taken) .. "  |cff888888" .. e.data.hits .. "x|r", color = { .7, .25, .25 },
+        selected = name == B.spell, onclick = function() B.spell = name B.lineOffset = 0 B.Draw() end })
+    end
+    FillList(list, sorted[1] and sorted[1].v)
+    local lines = {}
+    if B.spell and a.tspells[B.spell] then
+      local s = a.tspells[B.spell]
+      local spell, who = SourceOf(B.spell)
+      table.insert(lines, { spell, "", head = true })
+      table.insert(lines, { "From", who and Named(who) or "?", go = Link(who) })
+      table.insert(lines, { "Damage", Num(s.total) .. "  (" .. Pct(s.total, a.taken) .. ")" })
+      table.insert(lines, { "Hits / biggest", s.hits .. " / " .. Num(s.max) })
+      table.insert(lines, { " ", "" })
+    end
+    table.insert(lines, { "Damaged by", Num(a.taken), head = true })
+    for _, e in ipairs(Sorted(a.sources)) do
+      table.insert(lines, { e.name, Num(e.v) .. "  (" .. Pct(e.v, a.taken) .. ")", go = Link(e.name) })
+    end
+    if next(a.avoid or {}) then
+      table.insert(lines, { "Avoided", "", head = true })
+      for how, n in pairs(a.avoid) do table.insert(lines, { "  " .. how, n }) end
+    end
+    if (a.htaken or 0) > 0 then
+      table.insert(lines, { "Healed by", Num(a.htaken), head = true })
+      for _, e in ipairs(Sorted(a.hsources)) do
+        table.insert(lines, { e.name, Num(e.v) .. "  (" .. Pct(e.v, a.htaken) .. ")", go = Link(e.name) })
+      end
+    end
+    FillLines(lines)
+  end
+
+  local function Casts(a)
+    local sorted = Sorted(a.casts)
+    local list = {}
+    for _, e in ipairs(sorted) do
+      local name = e.name
+      -- a spell with numbers opens its detail
+      local kind = (a.spells and a.spells[name] and "damage") or (a.hspells and a.hspells[name] and "heal")
+      table.insert(list, { name = name, value = e.v, text = e.v .. "  " .. Pct(e.v, a.ncasts or 0),
+        tip = kind and "Click: its numbers" or nil,
+        onclick = kind and function() B.kind = kind B.spell = name B.tab = "spells" B.Draw() end or nil })
+    end
+    FillList(list, sorted[1] and sorted[1].v)
+    local start = B.seg and B.seg.start or 0
+    local lines = { { "Casts", (a.ncasts or 0) .. "  (" .. table.getn(sorted) .. " spells)", head = true } }
+    table.insert(lines, { "Cooldowns used", a.cds or 0, head = true })
+    for _, c in ipairs(a.cdlist or {}) do
+      table.insert(lines, { Clock(c.t - start) .. "  " .. c.spell, c.target and Named(c.target) or "", go = Link(c.target) })
+    end
+    table.insert(lines, { "Resurrects", a.ress or 0, head = true })
+    for _, c in ipairs(a.resslist or {}) do
+      table.insert(lines, { Clock(c.t - start) .. "  " .. c.spell, c.target and Named(c.target) or "", go = Link(c.target) })
+    end
+    FillLines(lines)
+  end
+
+  local function Auras(a, seg)
+    local fight = seg and M.Duration(seg) or 1
+    local list = {}
+    for _, e in ipairs(Sorted(a.buffs)) do
+      table.insert(list, { name = e.name, value = e.v, text = Clock(e.v) .. "  " .. Pct(min(e.v, fight), fight), color = { .3, .7, .35 } })
+    end
+    for _, e in ipairs(Sorted(a.debuffs)) do
+      table.insert(list, { name = e.name .. "  |cff888888(on enemies)|r", value = e.v, text = Clock(e.v) .. "  " .. Pct(min(e.v, fight), fight),
+        color = { .6, .3, .7 } })
+    end
+    FillList(list, fight)
+    FillLines({ { "Uptime", "", head = true },
+      { "Buffs on " .. a.name, Clock(a.buffsum or 0) },
+      { "Debuffs from " .. a.name, Clock(a.debuffsum or 0) },
+      { "Fight", Clock(fight) },
+      { " ", "" },
+      { "Green: buffs on them, purple: their debuffs on enemies. Bars are % of the fight.", "" } })
+  end
+
+  local function Utility(a, seg)
+    local start = seg and seg.start or 0
+    local list = {}
+    for _, e in ipairs(a.ilist or {}) do
+      local tgt = e.target
+      table.insert(list, { name = Clock(e.t - start) .. "  Interrupted " .. (e.spell or "?") .. " on " .. Named(tgt or "?"), value = 1,
+        text = e.with and ("with " .. e.with) or "", color = { .9, .6, .2 }, onclick = Link(tgt) })
+    end
+    for _, e in ipairs(a.dlist or {}) do
+      local tgt = e.target
+      table.insert(list, { name = Clock(e.t - start) .. "  Removed " .. (e.aura or "?") .. " from " .. Named(tgt or "?"), value = 1,
+        text = e.with and ("with " .. e.with) or "", color = { .3, .6, .9 }, onclick = Link(tgt) })
+    end
+    for _, e in ipairs(a.fraglist or {}) do
+      local tgt = e.target
+      table.insert(list, { name = Clock(e.t - start) .. "  Killed " .. Named(tgt or "?"), value = 1, text = "",
+        color = { .7, .2, .2 }, onclick = Link(tgt) })
+    end
+    for _, e in ipairs(a.resslist or {}) do
+      local tgt = e.target
+      table.insert(list, { name = Clock(e.t - start) .. "  Resurrected " .. Named(tgt or "?"), value = 1, text = e.spell or "",
+        color = { .3, .8, .4 }, onclick = Link(tgt) })
+    end
+    if table.getn(list) == 0 then table.insert(list, { name = "No interrupts, dispels, kills or resurrects in this fight.", value = 0 }) end
+    FillList(list, 1)
+    local lines = { { "Interrupts / dispels / kills", (a.interrupts or 0) .. " / " .. (a.dispels or 0) .. " / " .. (a.frags or 0), head = true } }
+    for pow, v in pairs(a.power or {}) do
+      table.insert(lines, { pow .. " gained", Num(v), head = true })
+      for _, e in ipairs(Sorted(a.psources and a.psources[pow])) do table.insert(lines, { "  " .. e.name, Num(e.v) }) end
+    end
+    if (a.ff or 0) > 0 then
+      table.insert(lines, { "Friendly fire", Num(a.ff), head = true })
+      for _, e in ipairs(Sorted(a.fftargets)) do table.insert(lines, { e.name, Num(e.v), go = Link(e.name) }) end
+    end
     FillLines(lines)
   end
 
@@ -377,8 +616,8 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       FillLines({ { "Nobody else in this fight to compare with.", "" } })
       return
     end
-    local mine, mtotal = SpellsOf(a, B.mode)
-    local theirs, ttotal = SpellsOf(o, B.mode)
+    local mine, mtotal = SpellsOf(a, Kind())
+    local theirs, ttotal = SpellsOf(o, Kind())
     local names = {}
     for n in pairs(mine) do names[n] = true end
     for n in pairs(theirs) do names[n] = true end
@@ -398,6 +637,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       { "Total", Num(mtotal) .. "  /  " .. Num(ttotal) },
       { "Per second", Num(mtotal / max(1, a.active or 0)) .. "  /  " .. Num(ttotal / max(1, o.active or 0)) },
       { "Active", Clock(a.active or 0) .. "  /  " .. Clock(o.active or 0) },
+      { "Open " .. o.name, "", go = Link(o.name) },
       { " ", "" }, { "Compare with", "", head = true } }
     FillLines(lines)
     -- a list of the others to pick from, under the lines
@@ -432,7 +672,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   end
 
   local function Chart(a, seg)
-    local heal = HEALMODES[B.mode]
+    local heal = Kind() == "heal"
     local mine = M.Curve and M.Curve(seg, a.name, heal) or {}
     local all = M.Curve and M.Curve(seg, nil, heal) or {}
     local n = table.getn(mine)
@@ -502,49 +742,221 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     for i, d in ipairs(deaths) do
       local idx = i
       table.insert(list, { name = string.format("Death %d at %s", i, Clock(d.t - start)), value = 1,
-        text = d.killer and ("by " .. d.killer) or "", color = { .6, .15, .15 },
+        text = d.killer and ("by " .. Named(d.killer)) or "", color = { .6, .15, .15 },
         selected = i == B.death, onclick = function() B.death = idx B.Draw() end })
     end
     FillList(list, 1)
     -- the last hits and heals, newest last, with health
     local d = deaths[B.death]
     local lines = { { "Before death " .. B.death, "health", head = true } }
+    if d.killer and Link(d.killer) then table.insert(lines, { "Killed by " .. d.killer, "", go = Link(d.killer) }) end
     for _, e in ipairs(d.log or {}) do
       local sign = e.kind == "heal" and "|cff66ff66+" or "|cffff6666-"
       local hp = (e.hp and e.hpmax and e.hpmax > 0) and floor(e.hp / e.hpmax * 100) .. "%" or ""
       table.insert(lines, { string.format("%4.1fs ", e.t - d.t) .. sign .. Num(e.amount) .. (e.crit and "*" or "") .. "|r " ..
-        (e.spell or "") .. " |cff888888" .. (e.who or "") .. "|r", hp })
+        (e.spell or "") .. " |cff888888" .. (e.who or "") .. "|r", hp, go = Link(e.who) })
     end
+    FillLines(lines)
+  end
+
+  -- ---------------------------------------------------------------- enemy and spell views
+
+  local function FoeDraw(name, seg)
+    local foe = seg and seg.foes and seg.foes[name]
+    if not foe then
+      FillList({}, 1)
+      FillLines({ { name .. " is not in this fight.", "" } })
+      return
+    end
+    local tab = B.tab
+    local list, lines = {}, {}
+    if tab == "fhitby" or tab == "fsummary" then
+      for _, e in ipairs(Sorted(foe.from)) do
+        local who = e.name
+        local a = seg.actors[who]
+        local c = a and a.class and RAID_CLASS_COLORS[a.class]
+        table.insert(list, { name = who, link = Link(who) and true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, foe.taken),
+          color = c and { c.r, c.g, c.b }, onclick = Link(who) })
+      end
+    elseif tab == "fhit" then
+      for _, e in ipairs(Sorted(foe.to)) do
+        local who = e.name
+        table.insert(list, { name = who, link = Link(who) and true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, foe.done), onclick = Link(who),
+          color = { .7, .25, .25 } })
+      end
+    elseif tab == "ftaken" then
+      for _, e in ipairs(Sorted(foe.tspells, "total")) do
+        local spell, who = SourceOf(e.name)
+        table.insert(list, { name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
+          text = Num(e.v) .. "  " .. Pct(e.v, foe.taken), onclick = Link(who) })
+      end
+    else
+      local sorted = Sorted(foe.dspells, "total")
+      if not B.spell or not foe.dspells[B.spell] then B.spell = sorted[1] and sorted[1].name end
+      for _, e in ipairs(sorted) do
+        local sname = e.name
+        table.insert(list, { name = sname, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, foe.done), color = { .7, .25, .25 },
+          selected = sname == B.spell, onclick = function() B.spell = sname B.Draw() end })
+      end
+      if B.spell and foe.dspells[B.spell] then
+        local s = foe.dspells[B.spell]
+        lines = { { B.spell, "", head = true }, { "Damage", Num(s.total) .. "  (" .. Pct(s.total, foe.done) .. ")" },
+          { "Hits / biggest", s.hits .. " / " .. Num(s.max or 0) } }
+        local b = seg.byspell and seg.byspell[B.spell]
+        if b then
+          table.insert(lines, { "Who it hit", "", head = true })
+          for _, e in ipairs(Sorted(b.targets)) do table.insert(lines, { e.name, Num(e.v), go = Link(e.name) }) end
+        end
+      end
+    end
+    FillList(list, list[1] and list[1].value)
+    if table.getn(lines) == 0 then
+      lines = { { name, "", head = true },
+        { "Damage taken", Num(foe.taken), go = function() B.tab = "fhitby" B.Draw() end },
+        { "Damage done", Num(foe.done), go = function() B.tab = "fhit" B.Draw() end },
+        { "Fight", Clock(M.Duration(seg)) } }
+      if seg.boss == name then table.insert(lines, { "The boss of this fight", "" }) end
+      table.insert(lines, { "Most damage on it", "", head = true })
+      for i, e in ipairs(Sorted(foe.from)) do
+        if i > 5 then break end
+        table.insert(lines, { e.name, Num(e.v), go = Link(e.name) })
+      end
+      table.insert(lines, { "It hit most", "", head = true })
+      for i, e in ipairs(Sorted(foe.to)) do
+        if i > 5 then break end
+        table.insert(lines, { e.name, Num(e.v), go = Link(e.name) })
+      end
+    end
+    FillLines(lines)
+  end
+
+  local function SpellDraw(name, seg)
+    local b = seg and seg.byspell and seg.byspell[name]
+    if not b then
+      FillList({}, 1)
+      FillLines({ { name .. " did not hit anyone in this fight.", "" } })
+      return
+    end
+    local list = {}
+    local tbl = B.tab == "sfrom" and b.from or b.targets
+    for _, e in ipairs(Sorted(tbl)) do
+      local who = e.name
+      table.insert(list, { name = who, link = Link(who) and true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, b.total), onclick = Link(who),
+        color = { .7, .25, .25 } })
+    end
+    FillList(list, list[1] and list[1].value)
+    local lines = { { name, "", head = true }, { "Damage on your group", Num(b.total) }, { "Hits / biggest", b.hits .. " / " .. Num(b.max) },
+      { "Cast by", "", head = true } }
+    for _, e in ipairs(Sorted(b.from)) do table.insert(lines, { e.name, Num(e.v), go = Link(e.name) }) end
     FillLines(lines)
   end
 
   -- ---------------------------------------------------------------- open / draw
 
+  -- the window's look on the breakdown: bar texture, font, background, border
+  local function Look()
+    local s = B.win and M.S and M.S(B.win)
+    if not s then return end
+    texture = (s.texture and s.texture ~= "") and s.texture or texture
+    local font = (s.font and s.font ~= "") and s.font or pfUI.font_default
+    local outline = s.outline == "NONE" and "" or (s.outline or "OUTLINE")
+    local size = tonumber(s.fontsize) or C.global.font_size
+    for _, t in ipairs(texts) do t:SetFont(font, max(8, t.base + (size - C.global.font_size)), outline) end
+    if f.backdrop and M.Col then
+      f.backdrop:SetBackdropColor(M.Col(s.bg, "0,0,0,0.85"))
+      f.backdrop:SetBackdropBorderColor(M.Col(s.bordercolor, "0,0,0,1"))
+    end
+  end
+  B.Look = Look
+
+  local function Tabs(set)
+    local ar, ag, ab = GetAccentColor()
+    for i, b in ipairs(f.tabs) do
+      local t = set[i]
+      if t then
+        b.key = t[1]
+        b.text:SetText(t[2])
+        if b.key == B.tab then
+          b.text:SetTextColor(ar, ag, ab)
+          b.line:SetVertexColor(ar, ag, ab, 1)
+          b.line:Show()
+        else
+          b.text:SetTextColor(1, 1, 1)
+          b.line:Hide()
+        end
+        b:Show()
+      else
+        b:Hide()
+      end
+    end
+  end
+
   function B.Draw()
+    local seg = M.Segment(B.segment)
+    B.seg = seg
+    Look()
+    local mode = MODE[B.mode] or MODE.damage
+    local segname = gsub(M.SegmentName and M.SegmentName(B.segment) or "", "|c%x%x%x%x%x%x%x%x", "")
+    segname = gsub(segname, "|r", "")
+    if B.stack and table.getn(B.stack) > 0 then f.back:Show() else f.back:Hide() end
+    f.icon:Hide()
+    cr, cg, cb = .6, .6, .6
+
+    -- an enemy, or a spell that hit the group
+    if B.foe or B.bspell then
+      local set = B.foe and B.FOETABS or B.SPELLTABS
+      local ok = false
+      for _, t in ipairs(set) do if t[1] == B.tab then ok = true end end
+      if not ok then B.tab = set[1][1] end
+      Tabs(set)
+      for _, k in ipairs(f.kinds) do k:Hide() end
+      f.name:SetText(B.foe or B.bspell)
+      f.name:SetTextColor(1, .45, .45)
+      f.who:SetWidth(max(80, (f.name:GetStringWidth() or 60) + 14))
+      f.sub:SetText((B.foe and "enemy" or "spell on your group") .. "  -  " .. segname)
+      f.chart:Hide()
+      f.list:Show()
+      f.panel:Show()
+      f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP + 26)
+      if B.foe then FoeDraw(B.foe, seg) else SpellDraw(B.bspell, seg) end
+      f:Show()
+      return
+    end
+
     local a = B.actor
     if not a then return end
-    local seg = M.Segment(B.segment)
-    local mode = MODE[B.mode] or MODE.damage
+    -- the actor of this segment (the test fight, a newer fight)
+    if seg and seg.actors and seg.actors[a.name] then a = seg.actors[a.name] B.actor = a end
+    if not B.kind then B.kind = HEALMODES[B.mode] and "heal" or (B.mode == "ff" and "ff" or "damage") end
     B.active = max(1, a.active or 0)
+    local ok = false
+    for _, t in ipairs(B.TABS) do if t[1] == B.tab then ok = true end end
+    if not ok then B.tab = "spells" end
+    Tabs(B.TABS)
     -- header
     local coords = a.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[a.class]
     if coords then
       f.icon:SetTexture(pfUI.media["img:classicons"])
       f.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
       f.icon:Show()
-    else
-      f.icon:Hide()
     end
     local c = a.class and RAID_CLASS_COLORS[a.class]
     f.name:SetText(a.name)
-    if c then f.name:SetTextColor(c.r, c.g, c.b) cr, cg, cb = c.r, c.g, c.b else f.name:SetTextColor(1, 1, 1) cr, cg, cb = .6, .6, .6 end
-    local segname = M.SegmentName and M.SegmentName(B.segment) or ""
-    f.sub:SetText(mode.name .. "  -  " .. gsub(segname, "|c%x%x%x%x%x%x%x%x", ""))
-    if B.win and M.S then texture = M.S(B.win).texture or texture end
-    for _, t in ipairs(f.tabs) do
-      local ar, ag, ab = GetAccentColor()
-      if t.key == B.tab then t.text:SetTextColor(ar, ag, ab) else t.text:SetTextColor(1, 1, 1) end
+    if c then f.name:SetTextColor(c.r, c.g, c.b) cr, cg, cb = c.r, c.g, c.b else f.name:SetTextColor(1, 1, 1) end
+    f.who:SetWidth(max(80, (f.name:GetStringWidth() or 60) + 14))
+    f.sub:SetText(mode.name .. "  -  " .. segname)
+    -- damage / healing / friendly fire switch on the tabs that use it
+    local kinds = KINDTABS[B.tab]
+    local ar, ag, ab = GetAccentColor()
+    for _, k in ipairs(f.kinds) do
+      if kinds then
+        k:Show()
+        if k.key == Kind() then k.text:SetTextColor(ar, ag, ab) else k.text:SetTextColor(1, 1, 1) end
+      else
+        k:Hide()
+      end
     end
+    f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, kinds and BODY_TOP or (BODY_TOP + 26))
     -- the chart takes the whole body
     if B.tab == "chart" then
       f.list:Hide()
@@ -558,37 +970,84 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     if B.tab == "summary" then Summary(a, seg)
     elseif B.tab == "chart" then Chart(a, seg)
     elseif B.tab == "targets" then Targets(a)
+    elseif B.tab == "taken" then Taken(a)
+    elseif B.tab == "casts" then Casts(a)
+    elseif B.tab == "auras" then Auras(a, seg)
+    elseif B.tab == "utility" then Utility(a, seg)
     elseif B.tab == "compare" then Compare(a, seg)
     elseif B.tab == "deaths" then Deaths(a, seg)
     else Spells(a) end
     f:Show()
   end
 
-  -- a click on a player's bar opens it (enemies and spells: the old breakdown)
+  -- what is open now, for Back
+  local function Current() return { actor = B.actor, foe = B.foe, bspell = B.bspell, tab = B.tab, kind = B.kind } end
+  local function Show(v)
+    B.actor, B.foe, B.bspell = v.actor, v.foe, v.bspell
+    B.tab = v.tab or (v.foe and "fsummary") or (v.bspell and "ssummary") or B.tab
+    if v.kind then B.kind = v.kind end
+    B.offset, B.lineOffset, B.spell, B.target, B.death = 0, 0, nil, nil, nil
+    B.Draw()
+  end
+  -- open a player, an enemy or a spell from a link (Back returns)
+  function B.Open(v)
+    table.insert(B.stack, Current())
+    if table.getn(B.stack) > 30 then table.remove(B.stack, 1) end
+    if v.actor and not v.tab then v.tab = (B.tab and not B.foe and not B.bspell) and B.tab or "summary" end
+    Show(v)
+  end
+  function B.Back()
+    local v = table.remove(B.stack)
+    if v then Show(v) end
+  end
+
+  -- the tab that fits what the window shows
+  local FIRSTTAB = { deaths = "deaths", taken = "taken", htaken = "taken", interrupts = "utility", dispels = "utility",
+    frags = "utility", ress = "casts", cooldowns = "casts", buffs = "auras", debuffs = "auras", mana = "utility",
+    rage = "utility", energy = "utility" }
+
+  -- a click on a bar opens it
   local ShowSimple = M.ShowDetails
   M.ShowDetails = function(win, row)
-    if not row or not row.actor then return ShowSimple(win, row) end
+    if not row then return end
     B.win, B.row = win, row
-    B.actor = row.actor
     B.mode = win.mode
     B.segment = win.segment
-    B.offset, B.spell, B.death = 0, nil, nil
-    -- the tab that fits what the window shows
-    if win.mode == "deaths" then B.tab = "deaths"
-    elseif B.tab == "deaths" then B.tab = "spells" end
+    B.stack = {}
+    B.kind = nil
+    B.offset, B.lineOffset, B.spell, B.target, B.death = 0, 0, nil, nil, nil
+    if row.actor then
+      B.actor, B.foe, B.bspell = row.actor, nil, nil
+      -- (the last player tab stays, unless the window says otherwise)
+      local keep
+      for _, t in ipairs(B.TABS) do if t[1] == B.tab and t[1] ~= "deaths" then keep = B.tab end end
+      B.tab = FIRSTTAB[win.mode] or keep or "spells"
+    elseif row.foe then
+      B.actor, B.foe, B.bspell = nil, row.name, nil
+      B.tab = win.mode == "enemydone" and "fhit" or "fsummary"
+    elseif row.byspell then
+      B.actor, B.foe, B.bspell = nil, nil, row.name
+      B.tab = "ssummary"
+    else
+      return ShowSimple(win, row)
+    end
     B.Draw()
   end
 
-  -- < >: the next player of the window's list
+  -- < >: the next row of the window's list
   function B.Step(dir)
     if not B.win then return end
     local rows = M.Rows(B.mode, B.segment)
     for i, r in ipairs(rows) do
-      if r.actor == B.actor then
+      local same = (B.actor and r.actor and r.actor.name == B.actor.name) or (B.foe and r.foe and r.name == B.foe)
+        or (B.bspell and r.byspell and r.name == B.bspell)
+      if same then
         local n = rows[i + dir]
-        if n and n.actor then
-          B.actor = n.actor
-          B.offset, B.spell = 0, nil
+        if n then
+          if n.actor then B.actor, B.foe, B.bspell = n.actor, nil, nil
+          elseif n.foe then B.actor, B.foe, B.bspell = nil, n.name, nil
+          elseif n.byspell then B.actor, B.foe, B.bspell = nil, nil, n.name end
+          B.offset, B.lineOffset, B.spell, B.target = 0, 0, nil, nil
           B.Draw()
         end
         return
@@ -596,7 +1055,36 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     end
   end
 
-  -- Compare: pick the other player (click the panel's head line)
+  -- everyone in the fight / every enemy, as menus
+  function B.PeopleMenu(anchor)
+    local seg = B.seg
+    if not seg or not M.ShowMenu then return end
+    local items = { { "Players in this fight", head = true } }
+    local list = {}
+    for name, a in pairs(seg.actors or {}) do table.insert(list, a) end
+    table.sort(list, function(x, y) return (x.damage + x.heal) > (y.damage + y.heal) end)
+    for _, a in ipairs(list) do
+      local actor = a
+      local c = a.class and RAID_CLASS_COLORS[a.class]
+      local label = c and string.format("|cff%02x%02x%02x%s|r", floor(c.r * 255), floor(c.g * 255), floor(c.b * 255), a.name) or a.name
+      table.insert(items, { label .. "  |cff888888" .. Num(a.damage) .. " / " .. Num(a.heal) .. "|r",
+        function() B.Open({ actor = actor }) end, checked = B.actor and B.actor.name == a.name })
+    end
+    M.ShowMenu(anchor, items)
+  end
+  function B.FoeMenu(anchor)
+    local seg = B.seg
+    if not seg or not M.ShowMenu then return end
+    local items = { { "Enemies in this fight", head = true } }
+    for _, e in ipairs(Sorted(seg.foes, "taken")) do
+      local name = e.name
+      table.insert(items, { name .. "  |cff888888" .. Num(e.v) .. "|r", function() B.Open({ foe = name }) end, checked = B.foe == name })
+    end
+    if table.getn(items) == 1 then table.insert(items, { "No enemies in this fight", head = true }) end
+    M.ShowMenu(anchor, items)
+  end
+
+  -- Compare: pick the other player
   f.pick = Button(f.panel, "Pick player...", 120, function()
     local items = { { "Compare with", head = true } }
     for _, o in ipairs(B.compareChoices or {}) do
@@ -610,28 +1098,33 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   local draw = B.Draw
   B.Draw = function()
     draw()
-    if B.tab == "compare" and B.compareChoices and table.getn(B.compareChoices) > 0 then f.pick:Show() else f.pick:Hide() end
+    if B.actor and not B.foe and not B.bspell and B.tab == "compare" and B.compareChoices and table.getn(B.compareChoices) > 0 then
+      f.pick:Show()
+    else
+      f.pick:Hide()
+    end
   end
 
   -- ---------------------------------------------------------------- report
 
   -- what the open tab shows, as chat lines (top 10)
+  local function Plain(s) return gsub(gsub(tostring(s or ""), "|c%x%x%x%x%x%x%x%x", ""), "|r", "") end
   function B.ReportLines()
-    local a = B.actor
-    if not a then return {} end
+    local title = B.actor and B.actor.name or B.foe or B.bspell
+    if not title then return {} end
     local mode = MODE[B.mode] or MODE.damage
-    local out = { "pfUI Octo - " .. a.name .. " - " .. mode.name .. " (" .. B.tab .. ")" }
-    if B.tab == "summary" or B.tab == "deaths" then
+    local out = { "pfUI Octo - " .. title .. " - " .. mode.name .. " (" .. B.tab .. ")" }
+    if B.tab == "summary" or B.tab == "deaths" or B.tab == "fsummary" then
       for _, l in ipairs(B.linesShown or {}) do
         if not l.head and l[1] and l[1] ~= " " then
-          table.insert(out, gsub(gsub(l[1] .. "  " .. tostring(l[2] or ""), "|c%x%x%x%x%x%x%x%x", ""), "|r", ""))
+          table.insert(out, Plain(l[1] .. "  " .. tostring(l[2] or "")))
         end
         if table.getn(out) > 12 then break end
       end
     else
       for i, e in ipairs(B.listShown or {}) do
         if i > (tonumber(C.meters.reportlines) or 10) then break end
-        table.insert(out, i .. ". " .. e.name .. "  " .. gsub(gsub(e.text or "", "|c%x%x%x%x%x%x%x%x", ""), "|r", ""))
+        table.insert(out, i .. ". " .. Plain(e.name) .. "  " .. Plain(e.text))
       end
     end
     return out
