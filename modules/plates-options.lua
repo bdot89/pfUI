@@ -293,8 +293,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       table.insert(s, UnitXP and "UnitXP |cff55ff55found|r" or "UnitXP |cffff5555missing|r (no range fade)")
       return table.concat(s, "    ")
     end)
-    W.Card(p, "Looks", { tip = "Ready-made styles: bar texture, border skin, sizes, text and target marker in one click." })
-    Looks(p)
     Preview(p)
     W.Card(p, "Show")
     PfChk(p, "Enemies", "Nameplates on hostile units at login (V turns them on and off in game).", N, "showhostile", P.ApplyShow)
@@ -325,10 +323,47 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- look and size
 
+  -- the four kinds of plate, sized as % of the width and height; the one you
+  -- moved last is the one "Match" copies (user, 23 Oct 2026: "a button ...
+  -- that matches all the frame sizes if you change one")
+  local KINDS = { { "size_enemynpc", "Enemy NPCs" }, { "size_enemyplayer", "Enemy players" },
+    { "size_friendlynpc", "Friendly NPCs" }, { "size_friendlyplayer", "Friendly players" } }
+  function P.MatchSizes(from)
+    from = from or P.lastSize or "size_enemynpc"
+    local v = C.plates[from] or "100"
+    for _, k in ipairs(KINDS) do C.plates[k[1]] = v end
+    U()
+  end
+  local function KindLabel(key)
+    for _, k in ipairs(KINDS) do if k[1] == key then return k[2] end end
+    return KINDS[1][2]
+  end
+
   BUILD.nplook = function(p)
-    W.Heading(p, "Look and size", { about = "One card for each part of a plate - everything about it in one place: "
-      .. "shown or not, letters, size, colour and where it sits. Click a part in the preview to jump to its card." })
+    W.Heading(p, "Look and size", { about = "Ready-made looks first, then one card for each part of a plate - everything "
+      .. "about it in one place: shown or not, letters, size, colour and where it sits. Click a part in the preview to jump to its card." })
     Preview(p)
+    W.Card(p, "Looks", { tip = "Ready-made styles: bar texture, border skin, sizes, text and target marker in one click." })
+    Looks(p)
+    W.Card(p, "Size by kind", { tip = "% of the health bar's width and height; plates grow and shrink smoothly." })
+    for _, k in ipairs(KINDS) do
+      local key = k[1]
+      PfSld(p, k[2], nil, 40, 160, 5, S, key, function()
+        P.lastSize = key
+        if C.plates.sizematch == "1" then P.MatchSizes(key) O:Refresh() else U() end
+      end, Pct)
+    end
+    Sld(p, "Out of combat", "Plates shrink to this while you are not fighting.", 40, 120, 5, S, "size_ooc", Pct)
+    Chk(p, "Keep every kind the same size", "Moving one of the four sizes above moves the others with it.", S, "sizematch")
+    W.Buttons(p, {
+      { "Match all sizes", function()
+        P.MatchSizes()
+        O:Refresh()
+      end, 150, "Every kind of plate takes the size of the one you changed last (enemy NPCs if you have not changed one)." },
+    })
+    W.Live(p, function()
+      return "Match copies: |cffffffff" .. KindLabel(P.lastSize) .. " (" .. (C.plates[P.lastSize or "size_enemynpc"] or "100") .. "%)|r"
+    end)
     -- letters for all text on plates
     W.Card(p, "Letters", { tip = "The font and outline of every text on plates." })
     Drop(p, "Font", "The letters of names and numbers on plates.", Fonts(), S, "font")
@@ -387,12 +422,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Color(p, "One colour", nil, S, "cpcustom")
     Chk(p, "Empty slots", "Show the points you do not have yet, dimmed.", S, "cpempty")
     Chk(p, "Glow at 5", "The points pulse when you have all five.", S, "cpglow")
-    W.Card(p, "Size by kind", { tip = "% of the width and height above; plates grow and shrink smoothly." })
-    Sld(p, "Enemy NPCs", nil, 40, 160, 5, S, "size_enemynpc", Pct)
-    Sld(p, "Enemy players", nil, 40, 160, 5, S, "size_enemyplayer", Pct)
-    Sld(p, "Friendly NPCs", nil, 40, 160, 5, S, "size_friendlynpc", Pct)
-    Sld(p, "Friendly players", nil, 40, 160, 5, S, "size_friendlyplayer", Pct)
-    Sld(p, "Out of combat", "Plates shrink to this while you are not fighting.", 40, 120, 5, S, "size_ooc", Pct)
     W.Card(p, "Raid mark", { folded = true })
     Drop(p, "Place", nil, DD("positions"), N, "raidiconpos")
     Sld(p, "Size", nil, 8, 48, 1, N, "raidiconsize", Px)

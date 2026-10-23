@@ -1130,7 +1130,33 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     region.hots[game] = b
     game.hotlist = game.hotlist or {}
     table.insert(game.hotlist, b)
+    P.FitSpot(b)
     return b
+  end
+
+  -- A text's spot is as big as its words, not the whole box the text sits in
+  -- (user, 23 Oct 2026: the health text's spot covered the whole bar, so the
+  -- bar was hard to pick or resize). Run again when the text changes.
+  function P.FitSpot(b)
+    local r = b.region
+    if not (r.IsObjectType and r:IsObjectType("FontString")) then return end
+    local w = math.floor((r:GetStringWidth() or 0) + 6)
+    local _, size = r:GetFont()
+    local h = math.floor((tonumber(size) or 10) + 4)
+    local j = r.GetJustifyH and r:GetJustifyH() or "CENTER"
+    local key = w .. ":" .. h .. ":" .. tostring(j)
+    if b.fit == key then return end
+    b.fit = key
+    b:ClearAllPoints()
+    b:SetWidth(math.max(w, 10))
+    b:SetHeight(h)
+    if j == "LEFT" then
+      b:SetPoint("LEFT", r, "LEFT", -3, 0)
+    elseif j == "RIGHT" then
+      b:SetPoint("RIGHT", r, "RIGHT", 3, 0)
+    else
+      b:SetPoint("CENTER", r, "CENTER", 0, 0)
+    end
   end
 
   -- How far all visible pieces of a part may move and stay in the preview
@@ -1296,6 +1322,7 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           pv.auras = (pv.data.auras == "few") and { all[1] } or all
         end
         NP:OnDataChanged(plate)
+        for _, h in ipairs(this.hotlist or {}) do P.FitSpot(h) end
         if this.caption then
           local word = pv.data.caption or ("mob " .. (STATEWORDS[pv.state] or ""))
           if pv.data.cycle and S.threat ~= "1" then word = "threat colours are off" end

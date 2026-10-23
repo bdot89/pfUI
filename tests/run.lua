@@ -2756,7 +2756,31 @@ do
       pfUI.octoui.W.Flash(c.card)
       ok(c.card.octoFlash and c.card.octoFlash:IsShown() and c.card.octoFlash:GetParent() == c.card, "the card itself lights up")
     end
+    -- the looks live on Look and size, not General; sizes sit right under them
+    ok(pfUI.plates.OpenSection("nplook", "Looks") and not pfUI.plates.OpenSection("npgeneral", "Looks"), "Looks card is on Look and size")
+    local cp = pfUI_config.plates
+    local was = { cp.size_enemynpc, cp.size_enemyplayer, cp.size_friendlynpc, cp.size_friendlyplayer, cp.sizematch }
+    cp.size_friendlynpc = "125"
+    pfUI.plates.lastSize = "size_friendlynpc"
+    pfUI.plates.MatchSizes()
+    ok(cp.size_enemynpc == "125" and cp.size_enemyplayer == "125" and cp.size_friendlyplayer == "125", "Match all sizes copies the one changed last")
+    local sizeSlider
+    for _, e in ipairs(pfUI.octoui.W.index) do
+      if e.page == pl and e.label == "Enemy players" then sizeSlider = e end
+    end
+    ok(sizeSlider, "the size sliders are on Look and size")
+    cp.size_enemynpc, cp.size_enemyplayer, cp.size_friendlynpc, cp.size_friendlyplayer, cp.sizematch = unpack(was)
+    pfUI.plates.lastSize = nil
     pfUI.gui:Hide()
+  end
+
+  -- a text's spot is only as big as its words, so the bar under it can be picked
+  if pfUI.plates and pfUI.plates.previews and pfUI.plates.previews[1] then
+    local g = pfUI.plates.previews[1]
+    local txt = g.nameplate.health.text
+    local th = txt.hots and txt.hots[g]
+    local bh = g.nameplate.health.hots and g.nameplate.health.hots[g]
+    ok(th and bh and th.fit and th:GetWidth() < 60, "health text spot fits its words (" .. tostring(th and th:GetWidth()) .. " px)")
   end
 
   -- the cast bar's spot answers between casts
