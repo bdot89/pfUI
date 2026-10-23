@@ -1177,7 +1177,12 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.head:SetTexture(0, 0, 0, .45)
 
     local function DragStart()
-      if win.free and S(win).lock ~= "1" then win:StartMoving() win.moving = true end
+      if win.free and S(win).lock ~= "1" then
+        -- (closing layout mode sets every mover frame unmovable)
+        win:SetMovable(true)
+        win:StartMoving()
+        win.moving = true
+      end
     end
     local function DragStop()
       if win.moving then
@@ -1316,6 +1321,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
         return
       end
       if win.free and S(win).lock ~= "1" then
+        win:SetResizable(true)
         win:StartSizing("BOTTOMRIGHT")
         win.sizing = true
       end

@@ -1458,6 +1458,12 @@ do
     ME.CombatLook()
     ok(w:GetAlpha() == 1, "shown again")
     Mock.units.player = nil
+    -- layout mode closed (every mover set unmovable): the title still drags it
+    -- (user, 23 Oct 2026: "Frame pfMeter3 is not movable")
+    w:SetMovable(false)
+    local good, err = pcall(Mock.Run, w.titlebtn, "OnDragStart")
+    ok(good and w.moving, "a new window drags by its title after layout mode: " .. tostring(err))
+    Mock.Run(w.titlebtn, "OnDragStop")
     -- remove it again
     ME.RemoveWindow(w.id)
     ok(table.getn(ME.windows) == n0 and mc.windows == tostring(n0), "the window is removed")

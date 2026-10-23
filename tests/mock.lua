@@ -188,7 +188,12 @@ end
 function methods:GetValue() return self.value or 0 end
 function methods:SetStatusBarColor(r, g, b, a) self.barColor = { r, g, b, a } end
 function methods:GetStatusBarColor() local c = self.barColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] end
-function methods:StartMoving() end
+-- (the client refuses to move a frame set unmovable: "Frame X is not movable")
+function methods:SetMovable(v) self._movable = v and true or false end
+function methods:IsMovable() return self._movable end
+function methods:StartMoving()
+  if self._movable == false then error("Frame " .. tostring(self.name) .. " is not movable", 2) end
+end
 function methods:StopMovingOrSizing() end
 function methods:IsObjectType(t) return self.kind == t end
 function methods:GetModel() return self.model end
