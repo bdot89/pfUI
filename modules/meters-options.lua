@@ -456,47 +456,133 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   -- (moved from OctoBG's "Threat label" page, 23 Oct 2026, and added to)
 
   -- the preview: a made-up nameplate with the label as you set it, going
-  -- through safe, near your cap, past it and aggro
+  -- through safe, near your cap, past it and aggro. The label can be dragged
+  -- (Across / Up-down), Shift + wheel sizes its text, right-click puts it back.
   local function ThreatPreview(p)
     local TH = M.threat
     W.Pin(p, "Preview", "A nameplate with your threat label, going through safe, near your cap, past it and aggro. "
-      .. "Click the label or the plate for their settings.", function(pp)
-      local box = W.Box(pp, 110)
+      .. "Click the label or the plate for their settings, drag the label to move it.", function(pp)
+      local box = W.Box(pp, 120)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")
-      -- the mock plate
+      -- the mock plate: name over the health bar, one frame like a real plate,
+      -- so "above" sits over the name as it does in game
       local plate = CreateFrame("Button", nil, holder)
       plate:SetWidth(150)
-      plate:SetHeight(12)
-      plate:SetPoint("CENTER", box, "CENTER", 0, -12)
+      plate:SetHeight(28)
+      plate:SetPoint("CENTER", box, "CENTER", 0, -8)
       plate.bar = plate:CreateTexture(nil, "ARTWORK")
       plate.bar:SetTexture(pfUI.media["img:bar"] or "Interface\\Buttons\\WHITE8X8")
-      plate.bar:SetPoint("TOPLEFT", plate, "TOPLEFT")
       plate.bar:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT")
       plate.bar:SetWidth(110)
+      plate.bar:SetHeight(12)
       plate.bar:SetVertexColor(.8, .15, .15)
       plate.bg = plate:CreateTexture(nil, "BACKGROUND")
-      plate.bg:SetAllPoints(plate)
+      plate.bg:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT")
+      plate.bg:SetPoint("BOTTOMRIGHT", plate, "BOTTOMRIGHT")
+      plate.bg:SetHeight(12)
       plate.bg:SetTexture(0, 0, 0, .7)
       plate.name = plate:CreateFontString(nil, "OVERLAY")
       plate.name:SetFont(pfUI.font_default, 11, "OUTLINE")
-      plate.name:SetPoint("BOTTOM", plate, "TOP", 0, 2)
+      plate.name:SetPoint("BOTTOM", plate, "BOTTOM", 0, 15)
       plate.name:SetText("Onyxia's Elite Guard")
       plate:SetScript("OnClick", function() MO.OpenThreat("Label") end)
+      plate:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:AddLine("Your target's nameplate")
+        GameTooltip:AddLine("Click: the label's settings", 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      plate:SetScript("OnLeave", function() GameTooltip:Hide() end)
       local caption = holder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       caption:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -6)
       caption:SetTextColor(.6, .6, .6)
       local l = TH and TH.NewLabel(holder) or nil
+
+      local function Place()
+        l:ClearAllPoints()
+        if C.meters.twhere == "screen" then
+          l:SetPoint("BOTTOM", box, "BOTTOM", 0, 6)
+        else
+          local pt = TH.POINTS[C.meters.twhere] or TH.POINTS.above
+          l:SetPoint(pt[1], plate, pt[2], tonumber(C.meters.tx) or 0, tonumber(C.meters.ty) or 0)
+        end
+      end
+      local function Clamp(v, lo, hi) return tostring(math.max(lo, math.min(hi, math.floor(v + .5)))) end
+
       if l then
         l:SetFrameStrata("FULLSCREEN")
+        l:SetFrameLevel(holder:GetFrameLevel() + 5)
         l:EnableMouse(true)
-        l:SetScript("OnMouseUp", function() MO.OpenThreat("Label") end)
+        l:EnableMouseWheel(true)
+        l.hl = l:CreateTexture(nil, "BACKGROUND")
+        l.hl:SetAllPoints(l)
+        l.hl:SetTexture("Interface\\Buttons\\WHITE8X8")
+        local ar, ag, ab = .2, .55, .9
+        if GetAccentColor then ar, ag, ab = GetAccentColor() end
+        l.hl:SetVertexColor(ar, ag, ab, .25)
+        l.hl:Hide()
+        l:SetScript("OnEnter", function()
+          this.hl:Show()
+          GameTooltip:SetOwner(this, "ANCHOR_TOP")
+          GameTooltip:AddLine("Threat label")
+          GameTooltip:AddLine("Click: its settings", 1, 1, 1)
+          if C.meters.twhere == "screen" then
+            GameTooltip:AddLine("It sits in its own box: move that with Move frames", 1, 1, 1)
+          else
+            GameTooltip:AddLine("Drag: move it", 1, 1, 1)
+          end
+          GameTooltip:AddLine("Shift + mouse wheel: text size", 1, 1, 1)
+          GameTooltip:AddLine("Right-click: put it back", 1, 1, 1)
+          GameTooltip:Show()
+        end)
+        l:SetScript("OnLeave", function() this.hl:Hide() GameTooltip:Hide() end)
+        l:SetScript("OnMouseDown", function()
+          if arg1 == "RightButton" or C.meters.twhere == "screen" then return end
+          local cx, cy = GetCursorPosition()
+          this.down = { cx, cy, tonumber(C.meters.tx) or 0, tonumber(C.meters.ty) or 0 }
+          this.moved = nil
+        end)
+        -- dragging runs in the holder's OnUpdate (the label's own is TH's)
+        l:SetScript("OnMouseUp", function()
+          if arg1 == "RightButton" then
+            C.meters.tx, C.meters.ty, C.meters.tsize = "0", "2", "13"
+            Place()
+            O:Refresh()
+            return
+          end
+          local moved = this.moved
+          this.down, this.moved = nil, nil
+          if moved then O:Refresh() else MO.OpenThreat("Label") end
+        end)
+        l:SetScript("OnMouseWheel", function()
+          if IsShiftKeyDown() then
+            C.meters.tsize = Clamp((tonumber(C.meters.tsize) or 13) + (arg1 or 0), 8, 30)
+            holder.t = 0
+            O:Refresh()
+          elseif pfUI.plates and pfUI.plates.PassWheel then
+            pfUI.plates.PassWheel(this)
+          end
+        end)
       end
-      MO.threatPreview = { plate = plate, label = l, caption = caption }
+      MO.threatPreview = { plate = plate, label = l, caption = caption, holder = holder }
       local STEPS = { { "safe", 45 }, { "near your cap", nil }, { "past your cap", 120 }, { "you have aggro" } }
       holder:SetScript("OnUpdate", function()
-        if not l or (this.t or 0) > GetTime() then return end
+        if not l then return end
+        local d = l.down
+        if d then
+          local x, y = GetCursorPosition()
+          local k = box:GetEffectiveScale() or 1
+          local dx, dy = (x - d[1]) / k, (y - d[2]) / k
+          if l.moved or math.abs(dx) + math.abs(dy) >= 3 then
+            l.moved = true
+            C.meters.tx = Clamp(d[3] + dx, -150, 150)
+            C.meters.ty = Clamp(d[4] + dy, -100, 100)
+            Place()
+          end
+        end
+        if (this.t or 0) > GetTime() then return end
         this.t = GetTime() + .25
         local step = math.mod(math.floor(GetTime() / 2.5), 4) + 1
         local limit = tonumber(C.meters.threatwarn) or 90
@@ -506,16 +592,25 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
         else j = TH.SampleJudge(STEPS[step][2] / 100 * limit) end
         caption:SetText("Now: " .. STEPS[step][1] .. "   -   " .. TH.CapText())
         if C.meters.tlabel ~= "1" or C.meters.tlook == "none" then l:Hide() return end
-        l:ClearAllPoints()
-        if C.meters.twhere == "screen" then
-          l:SetPoint("BOTTOM", box, "BOTTOM", 0, 6)
-        else
-          local pt = TH.POINTS[C.meters.twhere] or TH.POINTS.above
-          l:SetPoint(pt[1], plate, pt[2], tonumber(C.meters.tx) or 0, tonumber(C.meters.ty) or 0)
-        end
+        Place()
         TH.Paint(l, j)
         l:Show()
       end)
+
+      -- how to use it, on screen
+      local band = W.Row(pp, 20, 0, 3)
+      local bg = band:CreateTexture(nil, "BACKGROUND")
+      bg:SetAllPoints(band)
+      bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+      local ar, ag, ab = .2, .55, .9
+      if GetAccentColor then ar, ag, ab = GetAccentColor() end
+      bg:SetVertexColor(ar, ag, ab, .22)
+      local how = band:CreateFontString(nil, "OVERLAY")
+      how:SetFont(W.UIFont(), 11, "OUTLINE")
+      how:SetPoint("LEFT", band, "LEFT", 12, 0)
+      local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
+      how:SetText(k .. "Click|r the label  its settings     " .. k .. "Drag|r  move it     " .. k .. "Shift + wheel|r  text size     "
+        .. k .. "Right-click|r  put back")
     end)
   end
 

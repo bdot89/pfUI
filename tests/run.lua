@@ -1670,6 +1670,35 @@ do
       mc.win1.barheight = bh
       MO.Apply()
     end
+    -- the threat preview: drag the label, Shift + wheel its size, right-click back
+    O:Select("o:mtthreat")
+    local tp = MO and MO.threatPreview
+    ok(tp and tp.label and tp.plate, "the Threat page has a preview with a label")
+    if tp and tp.label then
+      local l = tp.label
+      mc.tlabel, mc.tlook, mc.twhere, mc.tx, mc.ty, mc.tsize = "1", "words", "above", "0", "2", "13"
+      tp.holder.t = 0
+      Mock.Run(tp.holder, "OnUpdate", .05)
+      ok(l:IsShown() and l.point and l.point[2] == tp.plate, "label sits on the mock plate")
+      Mock.cx, Mock.cy = 500, 500
+      _G.arg1 = "LeftButton"
+      Mock.Run(l, "OnMouseDown", "LeftButton")
+      Mock.cx, Mock.cy = 540, 520
+      Mock.Run(tp.holder, "OnUpdate", .05)
+      _G.arg1 = "LeftButton"
+      Mock.Run(l, "OnMouseUp", "LeftButton")
+      local k = tp.holder:GetEffectiveScale() or 1
+      ok(mc.tx == tostring(math.floor(40 / k + .5)) and mc.ty == tostring(math.floor(2 + 20 / k + .5)), "dragging the label moves it (" .. mc.tx .. ", " .. mc.ty .. ")")
+      ok(O.current == "o:mtthreat", "a drag is not a click")
+      Mock.shift = true
+      _G.arg1 = 1
+      Mock.Run(l, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(mc.tsize == "14", "Shift + wheel: bigger text")
+      _G.arg1 = "RightButton"
+      Mock.Run(l, "OnMouseUp", "RightButton")
+      ok(mc.tx == "0" and mc.ty == "2" and mc.tsize == "13", "right-click puts it back")
+    end
     pfUI.gui:Hide()
   end
 end
