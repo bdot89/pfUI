@@ -1005,8 +1005,11 @@ pfUI:RegisterModule("thirdparty-vanilla", "vanilla", function()
     end)
   end)
 
-  HookAddonOrVariable("BetterCharacterStats", function()
-    if C.thirdparty.bcs.enable == "0" then return end
+  -- (octo: the user's renamed fork is the folder EvenBetterCharacterStats;
+  -- its BCS table marks it loaded either way, and it skins only once)
+  HookAddonOrVariable("BCS", function()
+    if C.thirdparty.bcs.enable == "0" or pfUI.thirdparty.bcsSkinned then return end
+    pfUI.thirdparty.bcsSkinned = true
     StripTextures(BetterCharacterAttributesFrame)
 
     if PlayerStatFrameLeftDropDown then

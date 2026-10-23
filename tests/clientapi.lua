@@ -216,6 +216,24 @@ ok(active == 1 and tname == "Searing Totem" and tdur == 55, "GetTotemInfo from C
 ok(env.GetTotemInfo(2) == nil, "an empty slot (tool held, no totem) is not a totem")
 env.GetTotemInfo = savedTotem
 
+-- ---------------------------------------------------------------- Thirdparty > Integrations
+-- rows only for addons whose folder is there (enabled or not)
+local Has = pfUI.gui and pfUI.gui.HasAddon
+ok(Has, "integrations page has its installed check")
+if Has then
+  local realInfo = GetAddOnInfo
+  _G.GetAddOnInfo = function(name)
+    if name == "EvenBetterCharacterStats" then return name, name, "", nil, 1, "DISABLED" end
+    if name == "WIM" then return nil, nil, nil, nil, nil, "MISSING" end
+    if name == "Broken" then error("no such addon") end
+    return realInfo(name)
+  end
+  ok(Has("BetterCharacterStats", "EvenBetterCharacterStats"), "an installed (even disabled) addon shows its row")
+  ok(not Has("WIM"), "a missing addon has no row")
+  ok(not Has("Broken") and not Has("ShaguDPS"), "an error or nothing back means no row")
+  _G.GetAddOnInfo = realInfo
+end
+
 -- ---------------------------------------------------------------- back to the plain mock
 C_UnitAuras, C_Spell = nil, nil
 for k, v in pairs(savedG) do rawset(_G, k, v) end
