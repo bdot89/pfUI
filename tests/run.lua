@@ -1493,6 +1493,48 @@ do
     ME.CombatLook()
     ok(w:GetAlpha() == 1, "shown again")
     Mock.units.player = nil
+    -- phase 4: number formats
+    mc.numformat = "comma"
+    ok(ME.Num(1234567) == "1,234,567", "numbers with commas (" .. ME.Num(1234567) .. ")")
+    mc.numformat = "full"
+    ok(ME.Num(12345) == "12345", "numbers in full")
+    mc.numformat = "short"
+    ok(ME.Num(12345) == "12.3k", "short numbers")
+    -- the status bar, with its slots
+    ME.S(w).status, ME.S(w).statusleft, ME.S(w).statusright = "1", "time", "fps"
+    ME.ApplyStyle(w)
+    w.Refresh(w)
+    ok(w.status:IsShown() and string.find(w.status.slots[1].text or "", ":") and string.find(w.status.slots[3].text or "", "fps"),
+      "status bar: fight time and fps (" .. tostring(w.status.slots[1].text) .. ")")
+    ME.S(w).status = "0"
+    ME.ApplyStyle(w)
+    ok(not w.status:IsShown(), "status bar off")
+    -- test bars: the real windows show the made-up fight
+    ME.TestBars(30)
+    w.Refresh(w)
+    local first = ME.SampleRows(w.mode)[1]
+    ok(first and w.bars[1] and string.find(w.bars[1].left.text or "", first.name, 1, true),
+      "test bars on a real window (" .. tostring(w.bars[1] and w.bars[1].left.text) .. ")")
+    ME.testUntil = nil
+    -- right-click the title: the displays used last
+    local was = w.mode
+    ME.SetMode(w, "interrupts")
+    ok(ME.Recent()[1] == "interrupts" and w.mode == "interrupts", "a display picked goes first in the recent list")
+    ME.SetMode(w, was)
+    -- windows snap together
+    local w2 = ME.windows[1]
+    local function Box(f, l, t, r, b)
+      f.GetLeft, f.GetTop, f.GetRight, f.GetBottom = function() return l end, function() return t end,
+        function() return r end, function() return b end
+    end
+    Box(w2, 100, 500, 360, 340)
+    Box(w, 368, 496, 628, 336)
+    local snapped = ME.Snap(w)
+    local p = w.points and w.points[1]
+    ok(snapped and p and p[4] == 361 and p[5] == 500, "dropped near another window: flush, tops lined up (" ..
+      tostring(p and p[4]) .. ", " .. tostring(p and p[5]) .. ")")
+    w2.GetLeft, w2.GetTop, w2.GetRight, w2.GetBottom = nil, nil, nil, nil
+    w.GetLeft, w.GetTop, w.GetRight, w.GetBottom = nil, nil, nil, nil
     -- layout mode closed (every mover set unmovable): the title still drags it
     -- (user, 23 Oct 2026: "Frame pfMeter3 is not movable")
     w:SetMovable(false)

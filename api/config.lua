@@ -173,6 +173,20 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("meters",     nil,           "mergetrash",       "1")
   pfUI:UpdateConfig("meters",     nil,           "autocurrent",      "1")
   pfUI:UpdateConfig("meters",     nil,           "timemeasure",      "active")
+  -- octo phase 4: numbers, trash, report / tooltip lines
+  pfUI:UpdateConfig("meters",     nil,           "numformat",        "short")
+  pfUI:UpdateConfig("meters",     nil,           "erasetrash",       "0")
+  pfUI:UpdateConfig("meters",     nil,           "reportlines",      "10")
+  pfUI:UpdateConfig("meters",     nil,           "tooltip",          "1")
+  pfUI:UpdateConfig("meters",     nil,           "tooltiplines",     "8")
+  pfUI:UpdateConfig("meters",     nil,           "snap",             "1")
+  pfUI:UpdateConfig("meters",     nil,           "recent",           "")
+  for i = 1, 6 do
+    pfUI:UpdateConfig("meters", "win" .. i, "status",      "0")
+    pfUI:UpdateConfig("meters", "win" .. i, "statusleft",  "time")
+    pfUI:UpdateConfig("meters", "win" .. i, "statusmid",   "mine")
+    pfUI:UpdateConfig("meters", "win" .. i, "statusright", "clock")
+  end
   local meterModes = { "damage", "threat", "heal", "taken", "interrupts", "deaths" }
   for i = 1, 6 do
     local w = "win" .. i

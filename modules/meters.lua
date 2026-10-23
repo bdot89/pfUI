@@ -512,6 +512,13 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       prev.name = T["Trash"] .. " (" .. prev.merged .. ")"
       table.remove(M.history, 1)
     end
+    -- or trash is not kept at all (Details' "auto erase trash segments";
+    -- the overall keeps it)
+    if seg.trash and C.meters.erasetrash == "1" then
+      for i, s in ipairs(M.history) do
+        if s.trash then table.remove(M.history, i) break end
+      end
+    end
     M.Changed()
   end
 

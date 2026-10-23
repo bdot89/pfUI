@@ -533,7 +533,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       end
     else
       for i, e in ipairs(B.listShown or {}) do
-        if i > 10 then break end
+        if i > (tonumber(C.meters.reportlines) or 10) then break end
         table.insert(out, i .. ". " .. e.name .. "  " .. gsub(gsub(e.text or "", "|c%x%x%x%x%x%x%x%x", ""), "|r", ""))
       end
     end

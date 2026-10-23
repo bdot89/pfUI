@@ -464,3 +464,12 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    Deaths (each death; its last hits / heals with health %). Wheel scrolls the list. meters.lua
    spells gained ctotal / cmax / cmin (crits), ttotal (ticks) and targets per spell; M.Merge keeps
    cmax / cmin as max / min. meters-window exports M.SegmentName, M.Clock.
+   Phase 4 (23 Oct, NOT seen in game), Details' window extras: status bar per window (S.status,
+   statusleft / statusmid / statusright from M.SLOTS: time, mine (your value + rank), segment,
+   clock, fps, ping; 1 s ticker; bars leave it room), M.TestBars(30) (every window shows
+   M.SampleRows until M.testUntil; button under Looks), right-click the title = recent displays
+   (C.meters.recent, M.Recent / M.SetMode), M.Snap on drop (C.meters.snap: flush side by side with
+   tops lined up, or stacked with left edges lined up), C.meters.numformat short | comma | full
+   (Num), erasetrash (trash fights dropped from the list, overall keeps them), reportlines,
+   tooltip / tooltiplines. Options: Windows > Status bar card (preview's status bar clicks to it),
+   Data > Numbers, reports and tooltips card.

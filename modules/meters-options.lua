@@ -80,7 +80,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
 
   -- what a click on each part opens
   MO.GO = { title = "Title bar", buttons = "Title bar", bars = "Bars", name = "Texts", value = "Texts",
-    window = "Window", shows = "Shows" }
+    window = "Window", shows = "Shows", status = "Status bar" }
   function MO.Open(part)
     local title = MO.GO[part] or "Window"
     if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtwindows", title) else O:Open("mtwindows") end
@@ -219,6 +219,21 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       bgspot:SetScript("OnClick", function() MO.Open("window") end)
       bgspot:EnableMouseWheel(true)
       bgspot:SetScript("OnMouseWheel", Wheel)
+      -- the status bar opens its card
+      if pw.status then
+        local stspot = CreateFrame("Button", nil, pw.status)
+        stspot:SetAllPoints(pw.status)
+        stspot:SetFrameLevel(pw.status:GetFrameLevel() + 2)
+        stspot:SetScript("OnClick", function() MO.Open("status") end)
+        stspot:SetScript("OnEnter", function()
+          GameTooltip:SetOwner(this, "ANCHOR_TOP")
+          GameTooltip:AddLine("Status bar")
+          GameTooltip:AddLine("Click: its settings", 1, 1, 1)
+          GameTooltip:Show()
+        end)
+        stspot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        MO.statusSpot = stspot
+      end
       local cap = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       cap:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -6)
       cap:SetTextColor(.6, .6, .6)
@@ -301,6 +316,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Preview(p)
     W.Card(p, "Looks", { tip = "Ready-made looks for this window." })
     Looks(p)
+    W.Buttons(p, { { "Test bars on my windows (30 s)", function() M.TestBars(30) end } })
 
     W.Card(p, "Shows", { tip = "What this window shows when it opens (its title bar changes it while playing)." })
     Drop(p, "Shows", nil, Modes(), S, "mode")
@@ -352,6 +368,12 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Percent", nil, S, "showpct")
     Chk(p, "In brackets", nil, S, "brackets")
 
+    W.Card(p, "Status bar", { tip = "A strip under the bars with three things of your choice (Details' status bar)." })
+    Chk(p, "Show the status bar", nil, S, "status")
+    Drop(p, "Left", nil, List(M.SLOTS), S, "statusleft")
+    Drop(p, "Middle", nil, List(M.SLOTS), S, "statusmid")
+    Drop(p, "Right", nil, List(M.SLOTS), S, "statusright")
+
     W.Card(p, "Remove this window")
     W.Buttons(p, { { "Remove window", function()
       if MO.cur <= 1 then return end
@@ -389,6 +411,15 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Switch to the new fight", "When a fight starts, windows showing an earlier one show it.", G, "autocurrent", function() end)
     Drop(p, "Per second over", "Active: each player's own active time (Details' activity). Whole fight: the fight's length "
       .. "(Details' effective time).", List({ { "active", "Active time" }, { "effective", "Whole fight" } }), G, "timemeasure", Up)
+    Chk(p, "Do not keep trash fights", "Only boss fights stay in the list (the overall still counts the trash).", G, "erasetrash", function() end)
+    W.Card(p, "Numbers, reports and tooltips")
+    Drop(p, "Numbers", nil, List({ { "short", "Short (12.3k)" }, { "comma", "With commas (12,345)" }, { "full", "In full (12345)" } }),
+      G, "numformat", Up)
+    Drop(p, "Report lines", "How many players a report sends.", List({ { "5", "5" }, { "10", "10" }, { "15", "15" }, { "20", "20" }, { "25", "25" } }),
+      G, "reportlines", function() end)
+    Chk(p, "Tooltips on the bars", nil, G, "tooltip", function() end)
+    Drop(p, "Tooltip lines", nil, List({ { "5", "5" }, { "8", "8" }, { "12", "12" }, { "20", "20" } }), G, "tooltiplines", function() end)
+    Chk(p, "Windows snap together", "A window dropped near another sits flush against it.", G, "snap", function() end)
   end
 
   local function BuildThreat(p)

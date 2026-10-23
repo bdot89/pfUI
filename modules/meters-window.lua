@@ -17,8 +17,23 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   -- ---------------------------------------------------------------- numbers
 
+  -- 12345 as "12345" with commas: 12,345
+  local function Commas(n)
+    local s = tostring(floor(n + .5))
+    local out = ""
+    while string.len(s) > 3 do
+      out = "," .. string.sub(s, -3) .. out
+      s = string.sub(s, 1, -4)
+    end
+    return s .. out
+  end
+
   local function Num(v)
     v = tonumber(v) or 0
+    -- (Details' number formats: short 12.3k, with commas 12,345, or in full)
+    local fmt = C.meters.numformat
+    if fmt == "comma" and v >= 1000 then return Commas(v) end
+    if fmt == "full" and v >= 100 then return tostring(floor(v + .5)) end
     if v >= 1000000 then return string.format("%.2fm", v / 1000000) end
     if v >= 10000 then return string.format("%.1fk", v / 1000) end
     if v >= 1000 then return string.format("%.2fk", v / 1000) end
@@ -380,7 +395,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     if win.mode ~= "threat" then title = title .. " - " .. gsub(SegmentName(win.segment), "|c%x%x%x%x%x%x%x%x", "") end
     title = gsub(gsub(title, "|r", ""), "%*", "")
     SendChatMessage(title, channel, nil, whisper)
-    for i = 1, min(table.getn(rows), 10) do
+    for i = 1, min(table.getn(rows), tonumber(C.meters.reportlines) or 10) do
       local r = rows[i]
       local line = i .. ". " .. r.name .. "  " .. r.text
       if r.extra then line = line .. " (" .. r.extra .. ")" end
@@ -650,7 +665,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   local function Tooltip(bar)
     local row = bar.row
-    if not row then return end
+    if not row or C.meters.tooltip == "0" then return end
     GameTooltip:SetOwner(bar, "ANCHOR_LEFT")
     GameTooltip:AddLine(row.name, 1, 1, 1)
     local a = row.actor
@@ -671,7 +686,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     end
     if a or row.foe or row.byspell then
       table.sort(sorted, function(x, y) return x.v > y.v end)
-      for i = 1, min(8, table.getn(sorted)) do
+      for i = 1, min(tonumber(C.meters.tooltiplines) or 8, table.getn(sorted)) do
         local e = sorted[i]
         local v = mode.text and mode.text(e.v) or Num(e.v)
         GameTooltip:AddDoubleLine(e.name, v .. "  " .. Pct(e.v, total or 0), 1, 1, 1, .8, .8, .8)
@@ -819,9 +834,109 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.segbtn:ClearAllPoints()
     win.segbtn:SetPoint("LEFT", win.titlebtn, "RIGHT", 2, 0)
     win.segbtn:SetPoint("RIGHT", win, "TOPRIGHT", x - 2, -th / 2)
+    if win.status then
+      if s.status == "1" then win.status:Show() else win.status:Hide() end
+      win.status.bg:SetTexture(Col(s.titlebg, "0,0,0,0.45"))
+    end
     win:SetAlpha(tonumber(s.alpha) or 1)
   end
   M.ApplyStyle = ApplyStyle
+
+  -- the displays used last (newest first, six), for the title's right-click
+  function M.Recent()
+    local out = {}
+    for key in string.gfind(C.meters.recent or "", "[^,]+") do table.insert(out, key) end
+    if table.getn(out) == 0 then out = { "damage", "heal", "taken", "interrupts", "deaths", "threat" } end
+    return out
+  end
+  function M.SetMode(win, key)
+    win.mode = key
+    S(win).mode = key
+    win.offset = 0
+    local list = { key }
+    for _, k in ipairs(M.Recent()) do
+      if k ~= key and table.getn(list) < 6 then table.insert(list, k) end
+    end
+    C.meters.recent = table.concat(list, ",")
+    win.Refresh(win)
+  end
+
+  -- test bars: every window shows the made-up fight for a while, to try
+  -- looks on the real windows (Details' "create test bars")
+  function M.TestBars(seconds)
+    M.testUntil = GetTime() + (seconds or 30)
+    for _, w in ipairs(M.windows or {}) do w:Show() w.Refresh(w) end
+  end
+
+  -- a free window dropped near another one sits flush against it (side by
+  -- side with the tops lined up, or one under the other)
+  function M.Snap(win)
+    local L, T, R, B = win:GetLeft(), win:GetTop(), win:GetRight(), win:GetBottom()
+    if not (L and T) then return end
+    local x, y = L, T
+    local near = 12
+    for _, o in ipairs(M.windows) do
+      if o ~= win and o:IsShown() and o:GetLeft() then
+        local ol, ot, orr, ob = o:GetLeft(), o:GetTop(), o:GetRight(), o:GetBottom()
+        local overlapY = B < ot and T > ob
+        local overlapX = L < orr and R > ol
+        -- side by side: flush, and the tops lined up when close
+        local side
+        if overlapY and math.abs(L - orr) < near then x, side = orr + 1, true end
+        if overlapY and math.abs(R - ol) < near then x, side = ol - (R - L) - 1, true end
+        if side and math.abs(T - ot) < near then y = ot end
+        -- one under the other: flush, and the left edges lined up when close
+        local stack
+        if overlapX and math.abs(B - ot) < near then y, stack = ot + (T - B) + 1, true end
+        if overlapX and math.abs(T - ob) < near then y, stack = ob - 1, true end
+        if stack and math.abs(L - ol) < near then x = ol end
+      end
+    end
+    if x ~= L or y ~= T then
+      win:ClearAllPoints()
+      win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+      SaveMovable(win)
+    end
+    return x ~= L or y ~= T
+  end
+
+  -- what a status bar slot shows
+  M.SLOTS = {
+    { "none", "Nothing" }, { "time", "Fight time" }, { "mine", "Your value and rank" }, { "segment", "Fight name" },
+    { "clock", "Clock" }, { "fps", "Frames per second" }, { "ping", "Latency" },
+  }
+  local function Slot(win, kind)
+    if kind == "time" then
+      if win.preview then return "1:42" end
+      local seg = M.Segment(win.segment)
+      return seg and Clock(M.Duration(seg)) or "0:00"
+    elseif kind == "mine" then
+      local me = UnitName("player")
+      for i, r in ipairs(win.rowsShown or {}) do
+        if r.name == me or (win.preview and i == 2) then return "#" .. i .. "  " .. (r.text or "") end
+      end
+      return "-"
+    elseif kind == "segment" then
+      local seg = win.preview and "Hogger" or SegmentName(win.segment)
+      return gsub(gsub(seg, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+    elseif kind == "clock" then
+      return date("%H:%M")
+    elseif kind == "fps" then
+      return floor(GetFramerate() or 0) .. " fps"
+    elseif kind == "ping" then
+      local _, _, lag = GetNetStats()
+      return (lag or 0) .. " ms"
+    end
+    return ""
+  end
+  function M.StatusText(win)
+    local st = win.status
+    if not st or not st:IsShown() then return end
+    local s = S(win)
+    st.slots[1]:SetText(Slot(win, s.statusleft))
+    st.slots[2]:SetText(Slot(win, s.statusmid))
+    st.slots[3]:SetText(Slot(win, s.statusright))
+  end
 
   local function Refresh(win)
     if not win:IsShown() then return end
@@ -836,11 +951,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       win.seg:SetText(SegmentName(win.segment, win))
     end
 
-    local rows = win.preview and M.SampleRows(win.mode) or M.Rows(win.mode, win.segment)
+    -- (test bars: every window shows the made-up fight for a while)
+    local testing = (M.testUntil or 0) > GetTime()
+    local rows = (win.preview or testing) and M.SampleRows(win.mode) or M.Rows(win.mode, win.segment)
     local height = tonumber(s.barheight) or 16
     local gap = tonumber(s.spacing) or 1
     local top = s.title ~= "0" and ((tonumber(s.titleheight) or 18) + 2) or 2
-    local room = win:GetHeight() - top - 2
+    local statush = s.status == "1" and 14 or 0
+    local room = win:GetHeight() - top - 2 - statush
     local visible = max(1, floor((room + gap) / (height + gap)))
     if win.offset > max(0, table.getn(rows) - visible) then win.offset = max(0, table.getn(rows) - visible) end
 
@@ -860,8 +978,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       if row then
         b:ClearAllPoints()
         if up then
-          b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 2, 2 + (i - 1) * (height + gap))
-          b:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -2, 2 + (i - 1) * (height + gap))
+          b:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 2, 2 + statush + (i - 1) * (height + gap))
+          b:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -2, 2 + statush + (i - 1) * (height + gap))
         else
           b:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -top - (i - 1) * (height + gap))
           b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -2, -top - (i - 1) * (height + gap))
@@ -911,6 +1029,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       end
     end
     for i = visible + 1, table.getn(win.bars) do win.bars[i]:Hide() end
+    win.rowsShown = rows
+    if M.StatusText then M.StatusText(win) end
 
     -- empty: say why
     if table.getn(rows) == 0 then
@@ -1190,6 +1310,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       if win.moving then
         win:StopMovingOrSizing()
         win.moving = nil
+        if C.meters.snap ~= "0" and M.Snap then M.Snap(win) end
         SaveMovable(win)
       end
     end
@@ -1213,8 +1334,21 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       GameTooltip:Show()
     end)
     win.titlebtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    win.titlebtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     win.titlebtn:SetScript("OnClick", function()
       if win.preview then if M.PreviewClick then M.PreviewClick(win, "title") end return end
+      -- right-click: the displays used last, to switch fast
+      if arg1 == "RightButton" then
+        local items = { { T["Recent"], head = true } }
+        for _, key in ipairs(M.Recent()) do
+          local m = MODE[key]
+          if m then
+            table.insert(items, { m.name, function() M.SetMode(win, key) end, checked = (key == win.mode) })
+          end
+        end
+        ShowMenu(this, items)
+        return
+      end
       -- Details' groups, each with its displays
       local items = {}
       for _, g in ipairs(M.GROUPS) do
@@ -1222,12 +1356,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
         for _, m in ipairs(MODES) do
           if m.group == g then
             local key = m.key
-            table.insert(items, { m.name, function()
-              win.mode = key
-              S(win).mode = key
-              win.offset = 0
-              Refresh(win)
-            end, checked = (key == win.mode) })
+            table.insert(items, { m.name, function() M.SetMode(win, key) end, checked = (key == win.mode) })
           end
         end
       end
@@ -1360,6 +1489,31 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       Refresh(win)
     end)
     win.grip:Hide()
+
+    -- the status bar (Details' "status bar" with its micro displays): three
+    -- slots under the bars
+    win.status = CreateFrame("Frame", nil, win)
+    win.status:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 0, 0)
+    win.status:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 0, 0)
+    win.status:SetHeight(14)
+    win.status.bg = win.status:CreateTexture(nil, "BACKGROUND")
+    win.status.bg:SetAllPoints(win.status)
+    win.status.bg:SetTexture(0, 0, 0, .45)
+    win.status.slots = {}
+    for i, just in ipairs({ "LEFT", "CENTER", "RIGHT" }) do
+      local t = win.status:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+      t:SetFont(pfUI.font_default, max(8, C.global.font_size - 2), "OUTLINE")
+      t:SetJustifyH(just)
+      t:SetPoint(just, win.status, just, just == "LEFT" and 4 or (just == "RIGHT" and -14 or 0), 0)
+      t:SetTextColor(.8, .8, .8)
+      win.status.slots[i] = t
+    end
+    win.status:SetScript("OnUpdate", function()
+      if (this.tick or 0) > GetTime() then return end
+      this.tick = GetTime() + 1
+      if M.StatusText then M.StatusText(win) end
+    end)
+    win.status:Hide()
 
     win.empty = win:CreateFontString(nil, "OVERLAY", "GameFontWhite")
     win.empty:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
