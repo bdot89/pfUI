@@ -180,16 +180,195 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
     end
   end
 
-  -- ---------------------------------------------------------------- apply
+  -- ---------------------------------------------------------------- parts around the map
 
-  local function Place(f, where, inside)
-    f:ClearAllPoints()
-    if where == "top" then
-      f:SetPoint(inside and "TOP" or "BOTTOM", Minimap, "TOP", 0, inside and -3 or 3)
+  -- Every part on or around the map has a place of its own (user, 23 Oct
+  -- 2026: "every frame that we have and shape to be able to have stuff
+  -- edited around it"): a point of the map, an offset from it and a size.
+  -- S[key .. "x"] / ["y"] = "" keeps pfUI's own place (or Move frames');
+  -- S[key .. "scale"] in %. Zone, coordinates, clock and ping always follow
+  -- these (their defaults are pfUI's places).
+  local function CoordPoint()
+    local l = C.appearance.minimap.coordsloc
+    return (l == "topleft" and "TOPLEFT") or (l == "topright" and "TOPRIGHT") or (l == "bottomright" and "BOTTOMRIGHT") or "BOTTOMLEFT"
+  end
+  local function ButtonPoint()
+    local p = C.abuttons.position
+    return (p == "top" and "TOP") or (p == "left" and "LEFT") or (p == "right" and "RIGHT") or "BOTTOM"
+  end
+  -- default offsets from a point: 3 px in from the map's edge
+  local function Inset(pt, n)
+    local x = (string.find(pt, "LEFT") and n) or (string.find(pt, "RIGHT") and -n) or 0
+    local y = (string.find(pt, "TOP") and -n) or (string.find(pt, "BOTTOM") and n) or 0
+    return x, y
+  end
+  local PARTS = {
+    { key = "zone", label = T["Zone name"], get = function() return pfUI.minimapZone end, always = true,
+      point = function() return "TOP" end, def = function() return 0, -3 end },
+    { key = "coords", label = T["Coordinates"], get = function() return pfUI.minimapCoordinates end, always = true,
+      point = CoordPoint, def = function() return Inset(CoordPoint(), 3) end },
+    { key = "clock", label = T["Clock"], get = function() return clock end, always = true,
+      point = function() return S.clockpos == "top" and "TOP" or "BOTTOM" end,
+      def = function() if S.clockpos == "top" then return 0, -3 end return 0, 3 end },
+    { key = "ping", label = T["Who pinged"], get = function() return ping end, always = true,
+      point = function() return "BOTTOM" end,
+      def = function() if S.clockpos == "top" then return 0, 3 end return 0, C.global.font_size + 8 end },
+    { key = "tracking", label = T["Tracking"], get = function() return pfUITracking end,
+      point = function() return "TOPLEFT" end, def = function() return -10, -10 end },
+    { key = "mail", label = T["Mail"], get = function() return MiniMapMailFrame end,
+      point = function() return "TOPRIGHT" end, def = function() return 0, 0 end },
+    { key = "battlefield", label = T["Battleground"], get = function() return MiniMapBattlefieldFrame end,
+      point = function() return "BOTTOMRIGHT" end, def = function() return 4, -4 end },
+    { key = "pvp", label = T["PvP icon"], get = function() return pfUI.minimap.pvpicon end,
+      point = function() return "BOTTOMRIGHT" end, def = function() return -5, 5 end },
+    { key = "abutton", label = T["Addon buttons arrow"], get = function() return pfMinimapButton end,
+      point = ButtonPoint, def = function() return Inset(ButtonPoint(), 4) end },
+  }
+  map.PARTS = PARTS
+  function map.Part(key)
+    for _, p in ipairs(PARTS) do if p.key == key then return p end end
+  end
+
+  -- a frame's point in the map's units, from that point of the map
+  local function PointXY(f, pt)
+    local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
+    if not (l and r and t and b) then return end
+    local x = (string.find(pt, "LEFT") and l) or (string.find(pt, "RIGHT") and r) or (l + r) / 2
+    local y = (string.find(pt, "TOP") and t) or (string.find(pt, "BOTTOM") and b) or (t + b) / 2
+    return x, y
+  end
+
+  -- where a part is now (x, y from its point of the map), as stored or as it sits
+  function map.PartPoint(p)
+    if tonumber(S[p.key .. "x"] or "") and S[p.key .. "pt"] and S[p.key .. "pt"] ~= "" then return S[p.key .. "pt"] end
+    return p.point()
+  end
+
+  function map.PartOffset(p)
+    local sx, sy = tonumber(S[p.key .. "x"] or ""), tonumber(S[p.key .. "y"] or "")
+    if sx and sy then return sx, sy end
+    local f = p.get()
+    if f and not p.always and f:GetLeft() and Minimap:GetLeft() then
+      local pt = p.point()
+      local fx, fy = PointXY(f, pt)
+      local mx, my = PointXY(Minimap, pt)
+      local fs, ms = f:GetEffectiveScale() or 1, Minimap:GetEffectiveScale() or 1
+      if fx and mx then
+        return math.floor((fx * fs - mx * ms) / ms + .5), math.floor((fy * fs - my * ms) / ms + .5)
+      end
+    end
+    return p.def()
+  end
+
+  function map.PartScale(p) return (tonumber(S[p.key .. "scale"]) or 100) / 100 end
+
+  local function PlacePart(p)
+    local f = p.get()
+    if not f then return end
+    local sc = map.PartScale(p)
+    f:SetScale(sc)
+    local sx, sy = tonumber(S[p.key .. "x"] or ""), tonumber(S[p.key .. "y"] or "")
+    local pt = p.point()
+    if sx and sy then
+      -- (the point it was dragged from, kept if pfUI's default changes later)
+      if S[p.key .. "pt"] and S[p.key .. "pt"] ~= "" then pt = S[p.key .. "pt"] end
+    elseif p.always then
+      sx, sy = p.def()
     else
-      f:SetPoint(inside and "BOTTOM" or "TOP", Minimap, "BOTTOM", 0, inside and 3 or -3)
+      return
+    end
+    -- offsets are in the frame's own scale
+    local k = (Minimap:GetEffectiveScale() or 1) / (f:GetEffectiveScale() or 1)
+    f:ClearAllPoints()
+    f:SetPoint(pt, Minimap, pt, sx * k, sy * k)
+    -- the text lines are as wide as the map; their words line up with the point
+    if p.key == "zone" or p.key == "coords" or p.key == "ping" then
+      f:SetWidth(Minimap:GetWidth() - 6)
+      local fs = f.text
+      if fs then
+        fs:SetJustifyH((string.find(pt, "LEFT") and "LEFT") or (string.find(pt, "RIGHT") and "RIGHT") or "CENTER")
+      end
     end
   end
+
+  -- zone name and coordinates shown: on / mouse over the map / off
+  local function ShowTexts()
+    local z, c = pfUI.minimapZone, pfUI.minimapCoordinates
+    local over = MouseIsOver(Minimap)
+    if z then
+      local mode = C.appearance.minimap.zonetext
+      if mode == "on" or (mode == "mouseover" and over) then
+        if not z:IsShown() then
+          z:Show()
+          local fn = z:GetScript("OnEvent")
+          if fn then fn() end
+        end
+      elseif z:IsShown() then
+        z:Hide()
+      end
+    end
+    if c then
+      local mode = C.appearance.minimap.coordstext
+      if mode == "on" or (mode == "mouseover" and over) then c:Show() elseif c:IsShown() then c:Hide() end
+    end
+  end
+
+  function map.PlaceParts()
+    for _, p in ipairs(PARTS) do PlacePart(p) end
+    ShowTexts()
+    if pfUI.minimap.pvpicon then
+      local fn = pfUI.minimap.pvpicon:GetScript("OnEvent")
+      if fn then fn() end
+    end
+  end
+
+  -- the options' preview moves and sizes parts with these
+  function map.MovePart(key, x, y)
+    local p = map.Part(key)
+    if not p then return end
+    S[key .. "pt"] = map.PartPoint(p)
+    S[key .. "x"], S[key .. "y"] = tostring(math.floor(x + .5)), tostring(math.floor(y + .5))
+    PlacePart(p)
+  end
+  function map.SizePart(key, pct)
+    local p = map.Part(key)
+    if not p then return end
+    S[key .. "scale"] = tostring(math.max(50, math.min(250, math.floor(pct + .5))))
+    PlacePart(p)
+  end
+  -- right-click: pfUI's own place and size again
+  function map.ResetPart(key)
+    local p = map.Part(key)
+    if not p then return end
+    S[key .. "x"], S[key .. "y"], S[key .. "pt"], S[key .. "scale"] = "", "", "", "100"
+    local f = p.get()
+    if not f then return end
+    f:SetScale(1)
+    if p.always then
+      PlacePart(p)
+    elseif key == "abutton" and pfUI.addonbuttons and pfUI.addonbuttons.ProcessButtons then
+      pfUI.addonbuttons:ProcessButtons()
+    else
+      local pt, x, y = p.point(), p.def()
+      f:ClearAllPoints()
+      f:SetPoint(pt, Minimap, pt, x, y)
+    end
+  end
+
+  -- pfUI's addon buttons put their arrow back on every update: ours after
+  local function HookButtons()
+    local ab = pfUI.addonbuttons
+    if not ab or ab.octoHooked or not ab.ProcessButtons then return end
+    ab.octoHooked = true
+    local process = ab.ProcessButtons
+    ab.ProcessButtons = function(self)
+      process(self)
+      local p = map.Part("abutton")
+      if p then PlacePart(p) end
+    end
+  end
+
+  -- ---------------------------------------------------------------- apply
 
   function map.ApplyStyle()
     local shape = S.shape or "square"
@@ -236,16 +415,9 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
       end
     end
 
-    -- clock and ping lines
-    Place(clock, S.clockpos or "bottom", true)
-    ping:ClearAllPoints()
-    ping:SetPoint("LEFT", Minimap, "LEFT", 4, 0)
-    ping:SetPoint("RIGHT", Minimap, "RIGHT", -4, 0)
-    if (S.clockpos or "bottom") == "bottom" then
-      ping:SetPoint("BOTTOM", clock, "TOP", 0, 1)
-    else
-      ping:SetPoint("BOTTOM", Minimap, "BOTTOM", 0, 3)
-    end
+    -- every part in its place (clock and ping lines too)
+    HookButtons()
+    map.PlaceParts()
 
     ApplyElements()
     map:SetAlpha(UnitAffectingCombat("player") and (tonumber(S.combatalpha) or 1) or (tonumber(S.alpha) or 1))

@@ -109,7 +109,8 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "plates-fx" }
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "plates-fx",
+  "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -1086,6 +1087,32 @@ if MAP and MAP.ApplyStyle then
     ok(zoom == 0, "zoomed back out after 5 s")
   end
   MS.autozoom = "0"
+
+  -- every part has a place of its own: move, size, put back
+  ok(MAP.PARTS and table.getn(MAP.PARTS) == 9, "nine parts around the map")
+  MAP.MovePart("mail", -20, -12)
+  local mp = MiniMapMailFrame.point or {}
+  ok(MS.mailx == "-20" and MS.maily == "-12" and MS.mailpt == "TOPRIGHT", "a moved part keeps its place")
+  ok(mp[1] == "TOPRIGHT" and mp[2] == Minimap and mp[4] == -20 and mp[5] == -12, "and sits there (" .. tostring(mp[4]) .. ", " .. tostring(mp[5]) .. ")")
+  MAP.SizePart("mail", 150)
+  ok(MS.mailscale == "150" and MiniMapMailFrame:GetScale() == 1.5, "a part can be bigger")
+  MAP.ResetPart("mail")
+  ok(MS.mailx == "" and MS.mailscale == "100" and MiniMapMailFrame:GetScale() == 1, "right-click puts it back")
+  -- the zone name always follows its setting; the coordinates' corner is live
+  MAP.MovePart("zone", 0, -20)
+  ok(pfMinimapZone.point and pfMinimapZone.point[5] == -20, "zone name moved")
+  MAP.ResetPart("zone")
+  pfUI_config.appearance.minimap.coordsloc = "topright"
+  MAP.ApplyStyle()
+  ok(pfMinimapCoord.point and pfMinimapCoord.point[1] == "TOPRIGHT" and pfMinimapCoord.point[4] == -3, "coordinates go to the picked corner")
+  pfUI_config.appearance.minimap.coordsloc = "bottomleft"
+  -- pfUI's addon buttons put their arrow back: ours wins after
+  if pfUI.addonbuttons and pfMinimapButton then
+    MAP.MovePart("abutton", 30, 6)
+    pfUI.addonbuttons:ProcessButtons()
+    ok(pfMinimapButton.point and pfMinimapButton.point[4] == 30, "the arrow stays where you put it")
+    MAP.ResetPart("abutton")
+  end
   MS.shape, MS.border = "square", "pfui"
   MAP.ApplyStyle()
 end
@@ -1699,6 +1726,53 @@ do
       Mock.Run(l, "OnMouseUp", "RightButton")
       ok(mc.tx == "0" and mc.ty == "2" and mc.tsize == "13", "right-click puts it back")
     end
+    -- the minimap pages: a preview whose parts open their cards and move
+    local MMO = pfUI.minimapOcto
+    O:Select("o:mmparts")
+    ok(MMO and MMO.hots and MMO.hots.mail and MMO.hots.map and MMO.hots.bar, "the Minimap pages have a preview with every part")
+    if MMO and MMO.hots then
+      local missing = {}
+      for what, g in pairs(MMO.GO) do
+        if not pfUI.plates.OpenSection(g[1], g[2]) then table.insert(missing, what .. " -> " .. g[2]) end
+      end
+      ok(table.getn(missing) == 0, "every part of the map preview opens its own card (" .. table.concat(missing, ", ") .. ")")
+      local ms = pfUI_config.mapstyle
+      O:Select("o:mmparts")
+      local h = MMO.hots.tracking
+      local x0, y0 = pfUI.minimap.PartOffset(pfUI.minimap.Part("tracking"))
+      Mock.cx, Mock.cy = 300, 300
+      _G.arg1 = "LeftButton"
+      Mock.Run(h, "OnMouseDown", "LeftButton")
+      Mock.cx, Mock.cy = 330, 300
+      Mock.Run(h:GetParent(), "OnUpdate", .05)
+      _G.arg1 = "LeftButton"
+      Mock.Run(h, "OnMouseUp", "LeftButton")
+      ok(tonumber(ms.trackingx) and tonumber(ms.trackingx) > x0 and tonumber(ms.trackingy) == y0, "dragging a part in the preview moves it (" .. tostring(ms.trackingx) .. ")")
+      O:Select("o:mmart")
+      local selected = O.current
+      Mock.Run(h, "OnClick", "LeftButton")
+      ok(selected == "o:mmart", "Art page selected (" .. tostring(selected) .. ")")
+      ok(O.current == "o:mmart", "a drag is not a click (" .. tostring(O.current) .. ")")
+      Mock.shift = true
+      _G.arg1 = 1
+      Mock.Run(h, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(ms.trackingscale == "110", "Shift + wheel makes it bigger")
+      _G.arg1 = "RightButton"
+      Mock.Run(h, "OnClick", "RightButton")
+      ok(ms.trackingx == "" and ms.trackingscale == "100", "right-click puts it back")
+      local was = pfUI_config.appearance.minimap.size
+      Mock.shift = true
+      _G.arg1 = 1
+      Mock.Run(MMO.hots.map, "OnMouseWheel", 1)
+      Mock.shift = nil
+      ok(pfUI_config.appearance.minimap.size == tostring((tonumber(was) or 140) + 5), "Shift + wheel over the map: bigger map")
+      pfUI_config.appearance.minimap.size = was
+      pfUI.minimap:UpdateConfig()
+    end
+    O:Select("o:mmmap")
+    O:Select("o:mmart")
+    ok(O.pages.mmmap and O.pages.mmart and O.pages.mmparts, "Map, Art and Buttons and text pages built")
     pfUI.gui:Hide()
   end
 end

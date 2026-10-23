@@ -80,7 +80,8 @@ Add-Type -TypeDefinition $src
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force $OutDir | Out-Null }
 $OutDir = (Resolve-Path $OutDir).Path
 $shapes = "rounded", "rounder", "squircle", "octagon", "diamond", "corner-tl", "corner-tr", "corner-bl", "corner-br"
-foreach ($s in $shapes) {
+# (round: the game masks the real map; this one draws the options preview)
+foreach ($s in $shapes + "round") {
   [Shapes]::Write((Join-Path $OutDir "mask-$s.tga"), $s, 128, $false, 0, 0)
 }
 foreach ($s in $shapes + "round", "square") {

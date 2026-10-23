@@ -138,7 +138,8 @@ function methods:UnregisterAllEvents() self.events = {} end
 function methods:GetFrameLevel() return self._level end
 function methods:SetFrameLevel(l) self._level = l end
 function methods:GetEffectiveScale() return 1 end
-function methods:GetScale() return 1 end
+function methods:GetScale() return self._scale or 1 end
+function methods:SetScale(s) self._scale = tonumber(s) or 1 end
 function methods:SetAlpha(a) self.alpha = a end
 function methods:GetAlpha() return self.alpha end
 function methods:CreateTexture(name, layer) return New("Texture", name, self) end

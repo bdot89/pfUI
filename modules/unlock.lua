@@ -86,8 +86,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["FocusCastbar"]   = { "ufcastbar", "focus" },
 
     -- minimap
-    ["Minimap"]        = { T["Minimap"], T["Minimap"] },
-    ["UITracking"]     = { T["Minimap"], T["Minimap"] },
+    ["Minimap"]        = { "mmmap" },
+    ["UITracking"]     = { "mmparts" },
 
     -- buffs
     ["BuffFrame"]      = { T["Buffs"], T["Buff/Debuff Icons"] },
