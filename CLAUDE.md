@@ -513,3 +513,23 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    on it, It hit, Its spells) and spell view (B.bspell) for enemy / spell rows; every name is a link
    (B.Link -> B.Open, Back stack), Summary lines jump to their tab, header name = menu of everyone,
    Enemies = menu of every enemy. Windows page: "Test mode" card (switch, status, Open a breakdown).
+13. pfUI Octo or Blizzard, per section, live (23 Oct 2026, NOT seen in game; user: "EVERY PAGE / ADDON
+   Should be easily toggled on or off at the top ... turning off will put it back to your blizzard
+   setup ... no reloads"). modules/octo-blizzard.lua (`pfUI.blizz`) is FIRST in init\modules.xml: it
+   snapshots Blizzard's frames (parent, points, size, scale, alpha, shown, OnShow / OnEvent /
+   OnMouseWheel), MinimapBorder / mail icon textures, SHOW_MULTI_ACTIONBAR_1-4, and the bag / loot
+   functions pfUI replaces (pfUI's versions noted at the first PLAYER_ENTERING_WORLD, BZ.Ready).
+   BZ.Set(id, "blizz" | "octo"), C.blizz[id] = "1" for Blizzard's (re-applied 0.5 s after entering
+   the world). Blizzard's way back: Restore (snapshot, f.Show = nil) + the frame's FrameXML OnLoad
+   (PlayerFrame_OnLoad, TargetFrame_OnLoad, PartyMemberFrame_OnLoad, CastingBarFrame_OnLoad,
+   BuffFrame_OnLoad, LootFrame_OnLoad; ComboFrame / MiniMapMailFrame / MiniMapTrackingFrame events
+   re-registered by hand - read from patch-4 FrameXML, extracted with OctoBG\tools\MpqRead.ps1);
+   pfUI's frames go under the hidden pfOctoBlizzHider (Away / Back). pfUI's way back = what its
+   modules do at load (Kill = UnregisterAllEvents + Hide [+ Show no-op]). Sections: unitframes,
+   castbar, actionbars (+ micro buttons), minimap (addon buttons back round the map:
+   addonbuttons:RestoreAll; ProcessButtons does nothing meanwhile), buffs, nameplates (each plate's
+   parts noted in a wrap of pfUI.nameplates.OnCreate before pfUI blanks them), bags, loot,
+   combattext (CT:SetEnabled), meters (windows hidden). BZ.GROUPS maps topic list sections to them;
+   octo-options shows a strip over the page (O.swap, O:LayoutSwap on Select: content moves to -110)
+   with "pfUI Octo" / "Blizzard" per section, the one in use lit. Not done: chat, tooltip, panels,
+   map (world map), raid (the game has none).

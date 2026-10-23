@@ -480,7 +480,18 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     end
   end)
 
+  -- octo: Blizzard's minimap in use (octo-blizzard.lua): every button back
+  -- round the map, and nothing gathered until pfUI's map is back
+  function pfUI.addonbuttons:RestoreAll()
+    for _, name in ipairs(self.buttons) do
+      if _G[name] then RestoreButton(_G[name]) end
+    end
+    self.buttons = {}
+    self:Hide()
+  end
+
   function pfUI.addonbuttons:ProcessButtons()
+    if pfUI.blizz and pfUI.blizz.IsBlizz and pfUI.blizz.IsBlizz("minimap") then return end
     UpdatePanel()
 
     local i = 1

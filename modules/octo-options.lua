@@ -181,6 +181,37 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     W.Flat(content, K.panel, 1, K.line)
     self.content = content
 
+    -- pfUI Octo or Blizzard, per section, over the page (octo-blizzard.lua;
+    -- user, 23 Oct 2026: "EVERY PAGE / ADDON Should be easily toggled on or
+    -- off at the top"). Shown on the pages of a section that has one; the
+    -- page panel moves down under it.
+    local swap = CreateFrame("Frame", nil, f)
+    swap:SetPoint("TOPLEFT", f, "TOPLEFT", NAV_W + 18, -74)
+    swap:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -74)
+    swap:SetHeight(32)
+    W.Flat(swap, K.panel, 1, K.line)
+    swap:Hide()
+    swap.parts = {}
+    for i = 1, 2 do
+      local part = {}
+      part.label = W.Font(swap:CreateFontString(nil, "OVERLAY"), 12, K.text[1], K.text[2], K.text[3])
+      part.octo = W.Button(swap, "pfUI Octo", 92, 22)
+      part.blizz = W.Button(swap, "Blizzard", 82, 22)
+      part.octo.which, part.blizz.which = "octo", "blizz"
+      for _, b in ipairs({ part.octo, part.blizz }) do
+        b:SetScript("OnClick", function()
+          local BZ = pfUI.blizz
+          if BZ and this.id then BZ.Set(this.id, this.which) end
+          O:PaintSwap()
+        end)
+      end
+      swap.parts[i] = part
+    end
+    swap.note = W.Font(swap:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
+    swap.note:SetPoint("RIGHT", swap, "RIGHT", -10, 0)
+    swap.note:SetText("switches at once - no reload")
+    self.swap = swap
+
     -- pfUI's page area fills the page panel; its tree column is gone
     local root = g.frames
     root.area:ClearAllPoints()
@@ -519,7 +550,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     self.navItems, self.groups, self.nav, self.groupOf, self.legacy = {}, {}, {}, {}, {}
 
     local function Group(name, single)
-      local grp = { header = NavHeader(name, single), buttons = {} }
+      local grp = { header = NavHeader(name, single), buttons = {}, name = name }
       grp.header.group = grp
       table.insert(self.navItems, grp.header)
       table.insert(self.groups, grp)
@@ -757,11 +788,61 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
   end
 
+  -- the switch strip for the section this page is in
+  function O:LayoutSwap(key)
+    local swap, BZ = self.swap, pfUI.blizz
+    if not swap then return end
+    local grp = key and self.groupOf and self.groupOf[key]
+    local ids = BZ and grp and BZ.GROUPS[grp.name]
+    self.content:ClearAllPoints()
+    self.content:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -12, 12)
+    if not ids then
+      swap:Hide()
+      self.content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", NAV_W + 18, -74)
+      return
+    end
+    self.content:SetPoint("TOPLEFT", self.frame, "TOPLEFT", NAV_W + 18, -110)
+    local x = 10
+    for i, part in ipairs(swap.parts) do
+      local id = ids[i]
+      local s = id and BZ.S[id]
+      if s then
+        part.label:ClearAllPoints()
+        part.label:SetPoint("LEFT", swap, "LEFT", x, 0)
+        part.label:SetText(s.label)
+        local lw = math.max(70, (part.label:GetStringWidth() or 70) + 10)
+        part.octo:ClearAllPoints()
+        part.octo:SetPoint("LEFT", swap, "LEFT", x + lw, 0)
+        part.blizz:ClearAllPoints()
+        part.blizz:SetPoint("LEFT", part.octo, "RIGHT", 2, 0)
+        part.octo.id, part.blizz.id = id, id
+        part.label:Show() part.octo:Show() part.blizz:Show()
+        x = x + lw + 92 + 2 + 82 + 26
+      else
+        part.label:Hide() part.octo:Hide() part.blizz:Hide()
+      end
+    end
+    swap:Show()
+    self:PaintSwap()
+  end
+  function O:PaintSwap()
+    local BZ = pfUI.blizz
+    if not self.swap or not BZ then return end
+    for _, part in ipairs(self.swap.parts) do
+      if part.octo.id then
+        local blizz = BZ.IsBlizz(part.octo.id)
+        W.Lit(part.octo, not blizz)
+        W.Lit(part.blizz, blizz)
+      end
+    end
+  end
+
   function O:Select(key)
     if not key or not (self.nav[key]) then key = self.first end
     if not key then return end
     self.current = key
     self.searching = nil
+    self:LayoutSwap(key)
     for k, b in pairs(self.nav) do
       if b.sel and b.bar then NavMark(b, k == key) elseif b.sel then
         if k == key then b.sel:Show() else b.sel:Hide() end

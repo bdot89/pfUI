@@ -3276,6 +3276,60 @@ do
   end
 end
 
+-- ---------------------------------------------------------------- pfUI Octo or Blizzard, per section
+
+do
+  local BZ = pfUI.blizz
+  ok(BZ and BZ.S and BZ.snap[PlayerFrame], "the Blizzard switch noted Blizzard's frames before pfUI")
+  if BZ then
+    BZ.Ready()
+    ok(BZ.ready and BZ.globals.ToggleBackpack.octo, "pfUI's own functions noted after every module ran")
+    -- every section switches both ways without an error
+    for id, s in pairs(BZ.S) do
+      ok(BZ.Set(id, "blizz") and pfUI_config.blizz[id] == "1", id .. ": to Blizzard's")
+      ok(BZ.Set(id, "octo") and pfUI_config.blizz[id] == "0", id .. ": back to pfUI Octo's")
+    end
+    -- unit frames: pfUI's out of sight, the game's player frame listening again
+    local pf = pfUI.uf and pfUI.uf.player
+    BZ.Set("unitframes", "blizz")
+    ok(pf and pf:GetParent() == BZ.hider and PlayerFrame:IsShown(), "Blizzard unit frames: pfUI's player frame away, the game's shown")
+    BZ.Set("unitframes", "octo")
+    ok(pf:GetParent() ~= BZ.hider and not PlayerFrame:IsShown(), "and back")
+    -- the minimap goes home and comes back
+    BZ.Set("minimap", "blizz")
+    ok(Minimap:GetParent() ~= pfUI.minimap and pfUI.minimap:GetParent() == BZ.hider, "Blizzard minimap: out of pfUI's frame")
+    BZ.Set("minimap", "octo")
+    ok(Minimap:GetParent() == pfUI.minimap and pfUI.minimap:GetParent() ~= BZ.hider, "and back in pfUI's")
+    -- bags: the game's functions, then pfUI's
+    BZ.Set("bags", "blizz")
+    ok(_G.ToggleBackpack == BZ.globals.ToggleBackpack.blizz, "Blizzard bags: the game's ToggleBackpack")
+    BZ.Set("bags", "octo")
+    ok(_G.ToggleBackpack == BZ.globals.ToggleBackpack.octo, "and pfUI's again")
+    -- the strip over the page: shown in a section that has a switch
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O and O.frame then
+      pfUI.gui:Show()
+      O:Select("o:ufframes")
+      ok(O.swap:IsShown() and O.swap.parts[1].octo.id == "unitframes" and O.swap.parts[2].octo.id == "castbar",
+        "Unit Frames pages: a pfUI Octo / Blizzard switch for frames and cast bar")
+      ok(O.swap.parts[1].octo.picked and not O.swap.parts[1].blizz.picked, "pfUI Octo lit while in use")
+      Mock.Run(O.swap.parts[1].blizz, "OnClick")
+      ok(pfUI_config.blizz.unitframes == "1" and O.swap.parts[1].blizz.picked, "one click: Blizzard's, lit")
+      Mock.Run(O.swap.parts[1].octo, "OnClick")
+      ok(pfUI_config.blizz.unitframes == "0", "one click back")
+      O:Select("o:ctgeneral")
+      ok(O.swap:IsShown() and O.swap.parts[1].octo.id == "combattext" and not O.swap.parts[2].octo:IsShown(), "one switch where a section has one")
+      local about
+      for k in pairs(O.nav) do if string.find(k, "About") then about = k end end
+      if about then
+        O:Select(about)
+        ok(not O.swap:IsShown(), "no switch where there is nothing of Blizzard's")
+      end
+      pfUI.gui:Hide()
+    end
+  end
+end
+
 -- SuperWoW / ClassicAPI use across the modules (libs\libclient.lua)
 octo_ok, octo_dir = ok, DIR
 dofile(DIR .. "/tests/clientapi.lua")
