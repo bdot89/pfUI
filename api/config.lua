@@ -276,7 +276,7 @@ function pfUI:LoadConfig()
   end
   -- octo-blizzard.lua: "1" = that section uses Blizzard's own frames
   for _, k in pairs({ "unitframes", "castbar", "actionbars", "minimap", "buffs", "nameplates", "bags", "loot",
-                      "combattext", "meters" }) do
+                      "combattext", "meters", "chat", "tooltip", "panels" }) do
     pfUI:UpdateConfig("blizz",    nil,           k,                  "0")
   end
   pfUI:UpdateConfig("mapstyle",   nil,           "shape",            "square")

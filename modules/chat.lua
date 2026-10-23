@@ -299,6 +299,8 @@ pfUI:RegisterModule("chat", "vanilla:tbc", function ()
   end
 
   function pfUI.chat:RefreshChat()
+    -- octo: Blizzard's chat in use (octo-blizzard.lua) - leave its windows be
+    if pfUI.blizz and pfUI.blizz.IsBlizz and pfUI.blizz.IsBlizz("chat") then return end
     local panelheight = C.global.font_size*1.5 + default_border*2 + 2
 
     if C.chat.global.sticky == "1" then

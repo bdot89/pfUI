@@ -22,8 +22,9 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
 
   -- ---------------------------------------------------------------- snapshot (before pfUI)
 
-  local function Snap(f)
-    if not f or BZ.snap[f] then return end
+  local function Snap(f, store)
+    store = store or BZ.snap
+    if not f or store[f] then return end
     -- (textures such as MinimapBorderTop have no GetScale on 1.12: in game that
     -- stopped this module before BZ.GROUPS, and every options page errored)
     local s = { parent = f.GetParent and f:GetParent(), scale = f.GetScale and f:GetScale(), alpha = f:GetAlpha(),
@@ -35,7 +36,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
         if ok then s[sc] = fn or false end
       end
     end
-    BZ.snap[f] = s
+    store[f] = s
   end
   BZ.Snap = Snap
 
@@ -46,7 +47,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     "MinimapZoneTextButton", "MinimapBorderTop", "MiniMapWorldMapButton", "MinimapToggleButton", "LootFrame",
     "MiniMapMailBorder", "MiniMapBattlefieldBorder" }
   for _, n in ipairs(FRAMES) do Snap(_G[n]) end
-  for _, n in ipairs(MICRO_BUTTONS or {}) do Snap(_G[n]) end
+  for _, n in ipairs(type(MICRO_BUTTONS) == "table" and MICRO_BUTTONS or {}) do Snap(_G[n]) end
   BZ.borderTex = MinimapBorder and MinimapBorder:GetTexture()
   BZ.mailTex = MiniMapMailIcon and MiniMapMailIcon:GetTexture()
   BZ.multi = { SHOW_MULTI_ACTIONBAR_1, SHOW_MULTI_ACTIONBAR_2, SHOW_MULTI_ACTIONBAR_3, SHOW_MULTI_ACTIONBAR_4 }
@@ -54,8 +55,79 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
   -- functions pfUI replaces: Blizzard's now, pfUI's once every module ran
   local GLOBALS = { bags = { "OpenAllBags", "CloseAllBags", "ToggleBackpack", "ToggleBag" },
     loot = { "GroupLootDropDown_GiveLoot" } }
+  -- chat: the strings pfUI shortens ("[G]" for guild...), its font sizes and
+  -- link handler; the tooltip's anchor
+  GLOBALS.chat = { "CHAT_FONT_HEIGHTS", "SetItemRef", "CHAT_CHANNEL_GET", "CHAT_GUILD_GET", "CHAT_OFFICER_GET",
+    "CHAT_PARTY_GET", "CHAT_RAID_GET", "CHAT_RAID_LEADER_GET", "CHAT_RAID_WARNING_GET", "CHAT_BATTLEGROUND_GET",
+    "CHAT_BATTLEGROUND_LEADER_GET", "CHAT_SAY_GET", "CHAT_YELL_GET", "CHAT_WHISPER_GET", "CHAT_WHISPER_INFORM_GET" }
+  GLOBALS.tooltip = { "GameTooltip_SetDefaultAnchor" }
   for _, list in pairs(GLOBALS) do
     for _, n in ipairs(list) do BZ.globals[n] = { blizz = _G[n] } end
+  end
+
+  -- each chat window as the game made it: place, tab, background art,
+  -- tab text, scroll buttons, and the edit box
+  local function Tex(t) return t and t.GetTexture and t:GetTexture() end
+  local function FontOf(fs)
+    if not fs or not fs.GetFont then return end
+    local font, size, flags = fs:GetFont()
+    local r, g, b, a = 1, 1, 1, 1
+    if fs.GetTextColor then r, g, b, a = fs:GetTextColor() end
+    return { font, size, flags, r, g, b, a, h = fs:GetHeight(), jv = fs.GetJustifyV and fs:GetJustifyV() }
+  end
+  -- (in a pcall: a surprise here must not stop the module - 23 Oct 2026 a
+  -- texture without GetScale did, and every options page errored)
+  local snapOk, snapErr = pcall(function()
+  BZ.chat = {}
+  for i = 1, (tonumber(NUM_CHAT_WINDOWS) or 7) do
+    local frame, tab = _G["ChatFrame" .. i], _G["ChatFrame" .. i .. "Tab"]
+    if frame and tab then
+      local c = { tex = {}, tabregions = {}, text = FontOf(_G["ChatFrame" .. i .. "TabText"]) }
+      Snap(frame)
+      Snap(tab)
+      Snap(_G["ChatFrame" .. i .. "TabText"])
+      for _, part in ipairs({ "TabLeft", "TabMiddle", "TabRight", "UpButton", "DownButton", "BottomButton" }) do
+        Snap(_G["ChatFrame" .. i .. part])
+      end
+      for _, name in pairs(type(CHAT_FRAME_TEXTURES) == "table" and CHAT_FRAME_TEXTURES or {}) do
+        local t = _G["ChatFrame" .. i .. name]
+        if t then c.tex[name] = { tex = Tex(t), shown = t:IsShown() } end
+      end
+      for j, v in ipairs({ tab:GetRegions() }) do
+        c.tabregions[j] = { tex = Tex(v), h = v.GetHeight and v:GetHeight() }
+      end
+      c.wheel = frame.IsMouseWheelEnabled and frame:IsMouseWheelEnabled()
+      BZ.chat[i] = c
+    end
+  end
+  if ChatFrameEditBox then
+    Snap(ChatFrameEditBox)
+    BZ.editRegions = {}
+    for i, v in ipairs({ ChatFrameEditBox:GetRegions() }) do
+      BZ.editRegions[i] = { shown = v:IsShown(), font = FontOf(v) }
+    end
+  end
+  Snap(ChatFrameMenuButton)
+
+  -- the tooltips' own backdrops and health bar
+  BZ.tips = {}
+  for _, n in ipairs({ "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2" }) do
+    local t = _G[n]
+    if t and t.GetBackdrop then
+      local r, g, b, a = t:GetBackdropColor()
+      local er, eg, eb, ea = t:GetBackdropBorderColor()
+      BZ.tips[n] = { backdrop = t:GetBackdrop(), bg = { r, g, b, a }, edge = { er, eg, eb, ea } }
+    end
+  end
+  if GameTooltipStatusBar then
+    Snap(GameTooltipStatusBar)
+    BZ.tipBarTex = GameTooltipStatusBar.GetStatusBarTexture and Tex(GameTooltipStatusBar:GetStatusBarTexture())
+  end
+  end)
+  if not snapOk then
+    BZ.chat = BZ.chat or {}
+    BZ.tips = BZ.tips or {}
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: chat / tooltip switch could not note the game's setup: " .. tostring(snapErr))
   end
 
   -- ---------------------------------------------------------------- helpers
@@ -70,9 +142,9 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
   end
 
   -- a Blizzard frame as it was: parent, place, size, scale, scripts, Show
-  local function Restore(f, show)
+  local function Restore(f, show, store)
     if not f then return end
-    local s = BZ.snap[f]
+    local s = (store or BZ.snap)[f]
     f.Show = nil
     if s then
       if s.parent and f.SetParent then f:SetParent(s.parent) end
@@ -488,11 +560,172 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     end,
   }
 
+  local function SetGlobals(list, which)
+    for _, n in ipairs(list) do
+      local g = BZ.globals[n]
+      if g and (which == "blizz" or g.octo ~= nil) then _G[n] = g[which] end
+    end
+  end
+  local function Font(fs, f)
+    if not fs or not f or not f[1] then return end
+    fs:SetFont(f[1], f[2], f[3] or "")
+    if f[4] and fs.SetTextColor then fs:SetTextColor(f[4], f[5], f[6], f[7] or 1) end
+    if f.h and f.h > 0 and fs.SetHeight then fs:SetHeight(f.h) end
+    if f.jv and fs.SetJustifyV then fs:SetJustifyV(f.jv) end
+  end
+  BZ.osnap = {}
+
+  -- chat: the windows back on the game's own frames, art and buttons; the
+  -- game docks and fades them again. pfUI's RefreshChat stands down
+  -- meanwhile (chat.lua).
+  S.chat = {
+    label = "Chat",
+    blizz = function()
+      if not pfUI.chat then return end
+      for i, c in pairs(BZ.chat) do
+        local frame, tab = _G["ChatFrame" .. i], _G["ChatFrame" .. i .. "Tab"]
+        Restore(frame, frame:IsShown())
+        Restore(tab, tab:IsShown())
+        tab.SetAlpha = nil
+        for name, t in pairs(c.tex) do
+          local tex = _G["ChatFrame" .. i .. name]
+          if tex then
+            tex:SetTexture(name == "Background" and (tex.oldTexture or t.tex) or t.tex)
+            if t.shown then tex:Show() end
+          end
+        end
+        for j, v in ipairs({ tab:GetRegions() }) do
+          local r = c.tabregions[j]
+          if r then
+            if r.tex and v.SetTexture then v:SetTexture(r.tex) end
+            if r.h and r.h > 0 and v.SetHeight then v:SetHeight(r.h) end
+          end
+        end
+        local text = _G["ChatFrame" .. i .. "TabText"]
+        Restore(text, true)
+        Font(text, c.text)
+        for _, part in ipairs({ "TabLeft", "TabMiddle", "TabRight" }) do Restore(_G["ChatFrame" .. i .. part], true) end
+        for _, part in ipairs({ "UpButton", "DownButton", "BottomButton" }) do Restore(_G["ChatFrame" .. i .. part], true) end
+        local flash = _G["ChatFrame" .. i .. "TabFlash"]
+        if flash then flash.Show = nil end
+        local s = BZ.snap[frame]
+        frame:SetScript("OnMouseWheel", s and s.OnMouseWheel or nil)
+        frame:EnableMouseWheel(c.wheel and true or false)
+        if frame.SetFading then frame:SetFading(true) end
+        if frame.SetTimeVisible then frame:SetTimeVisible(120) end
+      end
+      if ChatFrameEditBox then
+        Restore(ChatFrameEditBox, false)
+        if ChatFrameEditBox.backdrop then ChatFrameEditBox.backdrop:Hide() end
+        for i, v in ipairs({ ChatFrameEditBox:GetRegions() }) do
+          local r = BZ.editRegions and BZ.editRegions[i]
+          if r then
+            if r.shown then v:Show() end
+            Font(v, r.font)
+          end
+        end
+      end
+      Restore(ChatFrameMenuButton, true)
+      SetGlobals(GLOBALS.chat, "blizz")
+      for _, f in ipairs({ pfUI.chat.left, pfUI.chat.right, pfUI.chat.editbox }) do Away(f) end
+      if FCF_DockUpdate then pcall(FCF_DockUpdate) end
+    end,
+    octo = function()
+      if not pfUI.chat then return end
+      for _, f in ipairs({ pfUI.chat.left, pfUI.chat.right, pfUI.chat.editbox }) do Back(f) end
+      SetGlobals(GLOBALS.chat, "octo")
+      for i in pairs(BZ.chat) do
+        local tab = _G["ChatFrame" .. i .. "Tab"]
+        local o = BZ.chatOcto and BZ.chatOcto[i]
+        if o then
+          tab.SetAlpha = o.tabAlpha
+          local flash = _G["ChatFrame" .. i .. "TabFlash"]
+          if flash then flash.Show = o.flashShow end
+        end
+        for _, part in ipairs({ "UpButton", "DownButton", "BottomButton" }) do Kill(_G["ChatFrame" .. i .. part], true) end
+      end
+      if ChatFrameEditBox and pfUI.chat.editbox then
+        ChatFrameEditBox:SetParent(pfUI.chat.editbox)
+        ChatFrameEditBox:ClearAllPoints()
+        ChatFrameEditBox:SetAllPoints(pfUI.chat.editbox)
+        if ChatFrameEditBox.backdrop then ChatFrameEditBox.backdrop:Show() end
+        for i, v in ipairs({ ChatFrameEditBox:GetRegions() }) do
+          if i == 6 or i == 7 or i == 8 then v:Hide() end
+          if v.SetFont then v:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE") end
+        end
+      end
+      if pfUI.chat.RefreshChat then pcall(pfUI.chat.RefreshChat, pfUI.chat) end
+      if FCF_DockUpdate then pcall(FCF_DockUpdate) end
+    end,
+  }
+
+  -- tooltip: the game's backdrop, anchor and health bar
+  local TIPS = { "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2" }
+  S.tooltip = {
+    label = "Tooltip",
+    blizz = function()
+      for _, n in ipairs(TIPS) do
+        local t, s = _G[n], BZ.tips[n]
+        if t and s then
+          if t.backdrop then t.backdrop:Hide() end
+          if t.backdrop_shadow then t.backdrop_shadow:Hide() end
+          t:SetBackdrop(s.backdrop)
+          local bg = TOOLTIP_DEFAULT_BACKGROUND_COLOR
+          local edge = TOOLTIP_DEFAULT_COLOR
+          if bg then t:SetBackdropColor(bg.r, bg.g, bg.b) elseif s.bg[1] then t:SetBackdropColor(s.bg[1], s.bg[2], s.bg[3], s.bg[4]) end
+          if edge then t:SetBackdropBorderColor(edge.r, edge.g, edge.b) elseif s.edge[1] then t:SetBackdropBorderColor(s.edge[1], s.edge[2], s.edge[3], s.edge[4]) end
+        end
+      end
+      SetGlobals(GLOBALS.tooltip, "blizz")
+      if GameTooltipStatusBar then
+        Restore(GameTooltipStatusBar, nil)
+        local s = BZ.snap[GameTooltipStatusBar]
+        if s and s.h and s.h > 0 then GameTooltipStatusBar:SetHeight(s.h) end
+        if BZ.tipBarTex then GameTooltipStatusBar:SetStatusBarTexture(BZ.tipBarTex) end
+        if GameTooltipStatusBar.backdrop then GameTooltipStatusBar.backdrop:Hide() end
+      end
+      Away(pfUI.tooltip)
+      Away(pfUI.tooltipStatusBar)
+    end,
+    octo = function()
+      for _, n in ipairs(TIPS) do
+        local t = _G[n]
+        if t and t.backdrop then
+          t:SetBackdrop(nil)
+          t.backdrop:Show()
+          if t.backdrop_shadow then t.backdrop_shadow:Show() end
+        end
+      end
+      SetGlobals(GLOBALS.tooltip, "octo")
+      if GameTooltipStatusBar then
+        Restore(GameTooltipStatusBar, nil, BZ.osnap)
+        local s = BZ.osnap[GameTooltipStatusBar]
+        if s and s.h and s.h > 0 then GameTooltipStatusBar:SetHeight(s.h) end
+        if BZ.tipBarOcto then GameTooltipStatusBar:SetStatusBarTexture(BZ.tipBarOcto) end
+        if GameTooltipStatusBar.backdrop then GameTooltipStatusBar.backdrop:Show() end
+      end
+      Back(pfUI.tooltip)
+      Back(pfUI.tooltipStatusBar)
+    end,
+  }
+
+  -- panels: the info bars under the chats and the experience / reputation
+  -- bars (the game has none of its own: off hides them)
+  local function PanelFrames()
+    local p = pfUI.panel or {}
+    return { p.left, p.right, pfUI.xp, pfUI.rep }
+  end
+  S.panels = {
+    label = "Panels",
+    blizz = function() for _, f in ipairs(PanelFrames()) do Away(f) end end,
+    octo = function() for _, f in ipairs(PanelFrames()) do Back(f) end end,
+  }
+
   -- which sections each topic of the options window has
   BZ.GROUPS = {
     ["Unit Frames"] = { "unitframes", "castbar" }, ["Action Bars"] = { "actionbars" }, ["Nameplates"] = { "nameplates" },
     ["Combat Text"] = { "combattext" }, ["Meters"] = { "meters" }, ["Minimap & Buffs"] = { "minimap", "buffs" },
-    ["Bags & Loot"] = { "bags", "loot" },
+    ["Bags & Loot"] = { "bags", "loot" }, ["Chat & Panels"] = { "chat", "panels" }, ["Tooltip"] = { "tooltip" },
   }
 
   -- ---------------------------------------------------------------- switching
@@ -520,6 +753,17 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       for _, n in ipairs(list) do BZ.globals[n].octo = _G[n] end
     end
     WrapPlates()
+    -- pfUI's own setup of what it changed in place (chat tabs, the
+    -- tooltip's health bar), to put back after Blizzard's
+    BZ.chatOcto = {}
+    for i in pairs(BZ.chat) do
+      local tab, flash = _G["ChatFrame" .. i .. "Tab"], _G["ChatFrame" .. i .. "TabFlash"]
+      BZ.chatOcto[i] = { tabAlpha = rawget(tab, "SetAlpha"), flashShow = flash and rawget(flash, "Show") }
+    end
+    if GameTooltipStatusBar then
+      Snap(GameTooltipStatusBar, BZ.osnap)
+      BZ.tipBarOcto = GameTooltipStatusBar.GetStatusBarTexture and Tex(GameTooltipStatusBar:GetStatusBarTexture())
+    end
   end
   local boot = CreateFrame("Frame")
   boot:RegisterEvent("PLAYER_ENTERING_WORLD")

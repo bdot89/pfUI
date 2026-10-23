@@ -1898,8 +1898,8 @@ do
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "hide" and fake.alpha == 0, "and can be hidden")
       pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
-      -- a button made on MinimapCluster but anchored to the map is found too (UIParent is not
-      -- scanned: asking every UIParent child for its anchors crashed the client at login)
+      -- buttons made elsewhere and only anchored to the map are not looked for
+      -- (that scan crashed the client at login; /abp add takes them by hand)
       if not MinimapCluster:GetParent() then MinimapCluster:SetParent(UIParent) end
       local loose = CreateFrame("Button", "OctoLooseMapButton", MinimapCluster)
       loose:SetWidth(24)
@@ -3309,6 +3309,25 @@ do
     ok(_G.ToggleBackpack == BZ.globals.ToggleBackpack.blizz, "Blizzard bags: the game's ToggleBackpack")
     BZ.Set("bags", "octo")
     ok(_G.ToggleBackpack == BZ.globals.ToggleBackpack.octo, "and pfUI's again")
+    -- chat: the game's windows and strings, then pfUI's panels again
+    if pfUI.chat and pfUI.chat.left and ChatFrame1 then
+      BZ.Set("chat", "blizz")
+      ok(ChatFrame1:GetParent() ~= pfUI.chat.left and pfUI.chat.left:GetParent() == BZ.hider
+        and _G.CHAT_GUILD_GET == BZ.globals.CHAT_GUILD_GET.blizz, "Blizzard chat: the game's windows and \"[Guild]\" names")
+      ok(pfUI.chat.RefreshChat(pfUI.chat) == nil and ChatFrame1:GetParent() ~= pfUI.chat.left, "pfUI's chat refresh leaves Blizzard's windows alone")
+      BZ.Set("chat", "octo")
+      ok(pfUI.chat.left:GetParent() ~= BZ.hider and _G.CHAT_GUILD_GET == BZ.globals.CHAT_GUILD_GET.octo, "and pfUI's chat back")
+    end
+    -- tooltip: the game's anchor and backdrop
+    BZ.Set("tooltip", "blizz")
+    ok(_G.GameTooltip_SetDefaultAnchor == BZ.globals.GameTooltip_SetDefaultAnchor.blizz
+      and (not pfUI.tooltip or pfUI.tooltip:GetParent() == BZ.hider), "Blizzard tooltip: the game's anchor")
+    BZ.Set("tooltip", "octo")
+    ok(_G.GameTooltip_SetDefaultAnchor == BZ.globals.GameTooltip_SetDefaultAnchor.octo, "and pfUI's again")
+    -- panels hide and come back
+    BZ.Set("panels", "blizz")
+    ok(not pfUI.panel or not pfUI.panel.left or pfUI.panel.left:GetParent() == BZ.hider, "Blizzard: no info panels")
+    BZ.Set("panels", "octo")
     -- the strip over the page: shown in a section that has a switch
     local O = pfUI.octoui and pfUI.octoui.Options
     if O and O.frame then
