@@ -582,6 +582,32 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     label = "Chat",
     blizz = function()
       if not pfUI.chat then return end
+      -- First, whatever the snapshot holds: every window and the typing box
+      -- back on UIParent where the game puts them (FloatingChatFrame.xml:
+      -- ChatFrame1 BOTTOMLEFT 32, 95, 430 x 120; the edit box under it).
+      -- 23 Oct 2026 in game they stayed inside pfUI's chat panels, which then
+      -- went away: no chat and no way to type.
+      for i = 1, (tonumber(NUM_CHAT_WINDOWS) or 7) do
+        local frame, tab = _G["ChatFrame" .. i], _G["ChatFrame" .. i .. "Tab"]
+        if frame then frame:SetParent(UIParent) end
+        if tab then tab:SetParent(UIParent) end
+      end
+      if ChatFrame1 then
+        local s = BZ.snap[ChatFrame1]
+        if not (s and s.points[1]) or ChatFrame1:GetParent() ~= UIParent then
+          ChatFrame1:ClearAllPoints()
+          ChatFrame1:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 32, 95)
+          ChatFrame1:SetWidth(430)
+          ChatFrame1:SetHeight(120)
+        end
+        ChatFrame1:Show()
+      end
+      if ChatFrameEditBox and ChatFrame1 then
+        ChatFrameEditBox:SetParent(UIParent)
+        ChatFrameEditBox:ClearAllPoints()
+        ChatFrameEditBox:SetPoint("TOPLEFT", ChatFrame1, "BOTTOMLEFT", -5, -2)
+        ChatFrameEditBox:SetPoint("TOPRIGHT", ChatFrame1, "BOTTOMRIGHT", 5, -2)
+      end
       for i, c in pairs(BZ.chat) do
         local frame, tab = _G["ChatFrame" .. i], _G["ChatFrame" .. i .. "Tab"]
         Restore(frame, frame:IsShown())
@@ -616,6 +642,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       end
       if ChatFrameEditBox then
         Restore(ChatFrameEditBox, false)
+        if ChatFrameEditBox:GetParent() ~= UIParent then ChatFrameEditBox:SetParent(UIParent) end
         if ChatFrameEditBox.backdrop then ChatFrameEditBox.backdrop:Hide() end
         for i, v in ipairs({ ChatFrameEditBox:GetRegions() }) do
           local r = BZ.editRegions and BZ.editRegions[i]
@@ -629,6 +656,9 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       SetGlobals(GLOBALS.chat, "blizz")
       for _, f in ipairs({ pfUI.chat.left, pfUI.chat.right, pfUI.chat.editbox }) do Away(f) end
       if FCF_DockUpdate then pcall(FCF_DockUpdate) end
+      -- chat and the typing box must be usable, or this is undone (BZ.Set)
+      if ChatFrame1 and not ChatFrame1:IsVisible() then error("the chat window did not come back") end
+      if ChatFrameEditBox and ChatFrameEditBox:GetParent() ~= UIParent then error("the typing box did not come back") end
     end,
     octo = function()
       if not pfUI.chat then return end
@@ -740,10 +770,115 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     C.blizz[id] = (which == "blizz") and "1" or "0"
     local ok, err = pcall(s[which == "blizz" and "blizz" or "octo"])
     BZ.state[id] = which
-    if not ok then DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: " .. s.label .. ": " .. tostring(err)) end
+    if not ok then
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: " .. s.label .. ": " .. tostring(err))
+      -- a switch to Blizzard's that went wrong is undone at once
+      if which == "blizz" then
+        C.blizz[id] = "0"
+        pcall(s.octo)
+        BZ.state[id] = "octo"
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: " .. s.label .. " stays pfUI Octo's.")
+      end
+    end
     return ok
   end
   function BZ.Toggle(id) return BZ.Set(id, BZ.IsBlizz(id) and "octo" or "blizz") end
+
+  -- every section back to pfUI Octo's (Esc menu button, /octoundo)
+  function BZ.AllOcto()
+    for id in pairs(S) do
+      if BZ.IsBlizz(id) or BZ.state[id] == "blizz" then BZ.Set(id, "octo") end
+    end
+    if BZ.confirm then BZ.confirm:Hide() end
+  end
+
+  -- Keep it or not: a switch to Blizzard's from the options window goes back
+  -- by itself unless kept within 15 seconds (user, 23 Oct 2026: the panels
+  -- switch took the chat away and there was no way back). Own frame on top
+  -- of everything, never inside anything a switch hides.
+  local confirm = CreateFrame("Frame", "pfOctoBlizzConfirm", UIParent)
+  confirm:SetFrameStrata("FULLSCREEN_DIALOG")
+  confirm:SetWidth(380)
+  confirm:SetHeight(92)
+  confirm:SetPoint("TOP", UIParent, "TOP", 0, -120)
+  confirm:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+  confirm:SetBackdropColor(.06, .06, .08, .96)
+  confirm:SetBackdropBorderColor(.2, .55, .9, 1)
+  confirm:EnableMouse(true)
+  confirm:Hide()
+  confirm.text = confirm:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+  confirm.text:SetPoint("TOP", confirm, "TOP", 0, -12)
+  confirm.text:SetWidth(350)
+  local function CButton(label, x, fn)
+    local b = CreateFrame("Button", nil, confirm, "UIPanelButtonTemplate")
+    b:SetWidth(150)
+    b:SetHeight(24)
+    b:SetPoint("BOTTOM", confirm, "BOTTOM", x, 12)
+    b:SetText(label)
+    b:SetScript("OnClick", fn)
+    return b
+  end
+  confirm.keep = CButton("Keep Blizzard's", -80, function() confirm.id = nil confirm:Hide() end)
+  confirm.undo = CButton("Go back now", 80, function()
+    local id = confirm.id
+    confirm.id = nil
+    confirm:Hide()
+    if id then BZ.Set(id, "octo") end
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O and O.PaintSwap then O:PaintSwap() end
+  end)
+  confirm:SetScript("OnUpdate", function()
+    if not this.id then this:Hide() return end
+    local left = math.ceil((this.untilT or 0) - GetTime())
+    local s = S[this.id]
+    this.text:SetText("Blizzard's " .. string.lower(s and s.label or "") .. " is on.\nKeep it? Going back to pfUI Octo's in |cffffd100"
+      .. math.max(0, left) .. "|r s.")
+    if left <= 0 then
+      local id = this.id
+      this.id = nil
+      this:Hide()
+      BZ.Set(id, "octo")
+      local O = pfUI.octoui and pfUI.octoui.Options
+      if O and O.PaintSwap then O:PaintSwap() end
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: not kept - " .. (s and s.label or id) .. " is pfUI Octo's again.")
+    end
+  end)
+  BZ.confirm = confirm
+  -- a switch from the options window: Blizzard's asks to be kept
+  function BZ.Pick(id, which)
+    local ok = BZ.Set(id, which)
+    if which == "blizz" and ok and BZ.IsBlizz(id) then
+      confirm.id = id
+      confirm.untilT = GetTime() + 15
+      confirm:Show()
+    elseif confirm.id == id then
+      confirm.id = nil
+      confirm:Hide()
+    end
+    return ok
+  end
+
+  -- the way back that needs no chat: a button in the Esc menu, and /octoundo
+  if GameMenuFrame then
+    local esc = CreateFrame("Button", "GameMenuButtonOctoUndo", GameMenuFrame, "GameMenuButtonTemplate")
+    esc:SetText("pfUI Octo: undo Blizzard")
+    esc:SetPoint("TOP", GameMenuFrame, "BOTTOM", 0, -4)
+    esc:SetScript("OnClick", function()
+      HideUIPanel(GameMenuFrame)
+      BZ.AllOcto()
+    end)
+    GameMenuFrame:SetScript("OnShow", (function(orig)
+      return function()
+        if orig then orig() end
+        local any
+        for id in pairs(S) do if BZ.IsBlizz(id) then any = true end end
+        if any then esc:Show() else esc:Hide() end
+      end
+    end)(GameMenuFrame:GetScript("OnShow")))
+    BZ.escButton = esc
+  end
+  _G.SLASH_OCTOUNDO1 = "/octoundo"
+  _G.SlashCmdList.OCTOUNDO = function() BZ.AllOcto() end
 
   -- after every module ran: pfUI's functions noted, saved choices applied
   function BZ.Ready()

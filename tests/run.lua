@@ -3328,6 +3328,28 @@ do
     BZ.Set("panels", "blizz")
     ok(not pfUI.panel or not pfUI.panel.left or pfUI.panel.left:GetParent() == BZ.hider, "Blizzard: no info panels")
     BZ.Set("panels", "octo")
+    -- keep it or not: a pick goes back by itself unless kept
+    BZ.Pick("panels", "blizz")
+    ok(BZ.IsBlizz("panels") and pfOctoBlizzConfirm:IsShown() and BZ.confirm.id == "panels", "a switch to Blizzard's asks to be kept")
+    Mock.now = Mock.now + 16
+    Mock.Run(pfOctoBlizzConfirm, "OnUpdate", .1)
+    ok(not BZ.IsBlizz("panels") and not pfOctoBlizzConfirm:IsShown(), "not kept in 15 s: pfUI Octo's again")
+    BZ.Pick("panels", "blizz")
+    Mock.Run(BZ.confirm.keep, "OnClick")
+    Mock.now = Mock.now + 16
+    Mock.Run(pfOctoBlizzConfirm, "OnUpdate", .1)
+    ok(BZ.IsBlizz("panels"), "kept: it stays")
+    -- one way back for everything, with no chat needed
+    BZ.Set("tooltip", "blizz")
+    BZ.AllOcto()
+    ok(not BZ.IsBlizz("panels") and not BZ.IsBlizz("tooltip"), "undo Blizzard: every section back")
+    ok(SlashCmdList.OCTOUNDO and GameMenuButtonOctoUndo, "/octoundo and an Esc menu button")
+    -- a switch that goes wrong is undone at once
+    local good = BZ.S.panels.blizz
+    BZ.S.panels.blizz = function() error("boom") end
+    BZ.Set("panels", "blizz")
+    ok(not BZ.IsBlizz("panels") and BZ.state.panels == "octo", "a failed switch to Blizzard's is undone")
+    BZ.S.panels.blizz = good
     -- the strip over the page: shown in a section that has a switch
     local O = pfUI.octoui and pfUI.octoui.Options
     if O and O.frame then

@@ -201,7 +201,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       for _, b in ipairs({ part.octo, part.blizz }) do
         b:SetScript("OnClick", function()
           local BZ = pfUI.blizz
-          if BZ and this.id then BZ.Set(this.id, this.which) end
+          if BZ and this.id then (BZ.Pick or BZ.Set)(this.id, this.which) end
           O:PaintSwap()
         end)
       end
