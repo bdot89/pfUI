@@ -163,7 +163,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     { "SKILL", nil, nil, "Your skill in Mining has increased to 142." },
   }
   -- which card a line opens
-  local CARD = { WHISPER = "Whispers", WHISPER_INFORM = "Whispers", SYSTEM = "Lines", LOOT = "Loot & Spam window",
+  local CARD = { WHISPER = "Whisper windows", WHISPER_INFORM = "Whisper windows", SYSTEM = "Lines", LOOT = "Loot & Spam window",
     COMBAT_XP_GAIN = "Loot & Spam window", COMBAT_FACTION_CHANGE = "Loot & Spam window", SKILL = "Loot & Spam window" }
   local TAGS = { GUILD = "G", OFFICER = "O", PARTY = "P", RAID = "R", RAID_LEADER = "RL", RAID_WARNING = "RW",
     BATTLEGROUND = "BG", SAY = "S", YELL = "Y" }
@@ -264,6 +264,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     local page = (card == "Timestamps" or card == "Channel names" or card == "Names" or card == "Links"
       or card == "Whispers" or card == "Text" or card == "Highlights" or card == "Sounds" or card == "Filters") and "chmessages"
       or ((card == "Invites" or card == "Scrolling" or card == "Search") and "chtools")
+      or ((card == "Whisper windows" or card == "Window look") and "chwhispers")
       or ((card == "Typing box" or card == "Chat bubbles") and "chinput") or "chwindows"
     if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(page, card) else O:Open(page) end
   end
@@ -656,6 +657,58 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     Sld(p, "Same line again within", "0 = off.", 0, 120, 5, PL, "throttle", function(v) return v == 0 and "off" or (v .. " s") end)
   end
 
+  -- chat-whispers.lua: windows of their own
+  local function WS() return C.chat.whisper end
+  local function BuildWhispers(p)
+    W.Heading(p, "Whispers", { about = "Each person who whispers you gets a small window of their own - class, level, "
+      .. "guild, the conversation and a box to answer in - or a tab in the left chat." })
+    Preview(p)
+    local WHm = pfUI.whispers
+    W.Card(p, "Whisper windows", { tip = "How whispers show up." })
+    Drop(p, "Whispers go", nil, { { key = "window", label = "In a window per person" }, { key = "tab", label = "In a Whispers tab" },
+      { key = "off", label = "In the chat only" } }, WS, "mode", function()
+      -- the tab follows the choice
+      for _, t in ipairs(CH.TOGGLES) do
+        if t.key == "whispers" then
+          local want = WS().mode == "tab"
+          if t.on() ~= want then pcall(t.set, want) end
+        end
+      end
+      if WHm then WHm.ApplyChat() end
+      if CH.Layout then CH.Layout() end
+    end)
+    W.Check(p, "Also in the chat", "Off: whispers show only in their windows.", function() return WS().alsochat == "1" end,
+      function(v) WS().alsochat = v and "1" or "0" if WHm then WHm.ApplyChat() end end)
+    Drop(p, "In combat", "What a new whisper does while you fight.", { { key = "pop", label = "Opens at once" },
+      { key = "fold", label = "Opens folded" }, { key = "wait", label = "Waits until the fight ends" } }, WS, "combat", function() end)
+    local CT = pfUI.sctB and pfUI.sctB.SCT
+    local sounds = { { key = "none", label = "No sound" } }
+    for _, s in ipairs(CT and CT.SOUNDS or { { key = "TellMessage", label = "Whisper" } }) do
+      if s.key and s.key ~= "none" then table.insert(sounds, { key = s.key, label = s.label }) end
+    end
+    W.Dropdown(p, "Sound", "On a new whisper (the game plays its own too). Picking one plays it.", sounds,
+      function() return WS().sound or "none" end, function(v)
+        WS().sound = v
+        if pfUI.chatPlus then pfUI.chatPlus.Play(v) end
+      end)
+    W.Buttons(p, {
+      { "Open a test window", function() if WHm then WHm.Test() end end, 150,
+        "A made-up conversation with Thrall: try the window, type in it - nothing is sent.",
+        on = function() return WHm and WHm.windows[WHm.TEST] and WHm.windows[WHm.TEST]:IsShown() end },
+      { "Close all", function() if WHm then WHm.CloseAll() end end, 100, "Every whisper window (conversations are kept)." },
+    })
+    W.Card(p, "Window look", { tip = "Drag a window's title to move it (new ones open from there), its corner to size it." })
+    local function Re() if WHm then for _, f in pairs(WHm.windows) do WHm.Paint(f) end end end
+    Sld(p, "Width", nil, 200, 700, 10, WS, "width", Px, Re)
+    Sld(p, "Height", nil, 110, 600, 10, WS, "height", Px, Re)
+    Sld(p, "Text size", nil, 8, 20, 1, WS, "fontsize", Px, Re)
+    Sld(p, "Lines kept per person", "Shown again when their window opens.", 0, 200, 10, WS, "history")
+    W.Live(p, function()
+      return "|cffffd100/whispers|r reopens everyone you talked to   |cffffd100/whispers close|r closes them   "
+        .. "|cffffd100/whispers test|r a test window"
+    end)
+  end
+
   local function BuildTools(p)
     W.Heading(p, "Tools", { about = "Handy extras: invites, scrolling, searching and commands." })
     Preview(p)
@@ -694,6 +747,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   O.replaced[T["Chat"]] = true
   O:AddPage("Chat", "chwindows", "Windows", BuildWindows)
   O:AddPage("Chat", "chmessages", "Messages", BuildMessages)
+  O:AddPage("Chat", "chwhispers", "Whispers", BuildWhispers)
   O:AddPage("Chat", "chinput", "Typing and bubbles", BuildInput)
   O:AddPage("Chat", "chtools", "Tools", BuildTools)
 end)

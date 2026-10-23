@@ -111,7 +111,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus",
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers",
   "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
@@ -1912,6 +1912,48 @@ do
       _G.InviteByName = invWas
       pl.tags, pl.hide, pl.throttle, pl.words, pl.mention, pl.levels, pl.sound_guild, pl.autoinvite =
         keep[1], keep[2], keep[3], keep[4], keep[5], keep[6], keep[7], keep[8]
+    end
+    -- chat phase 3: whisper windows
+    local WHm = pfUI.whispers
+    ok(WHm and O:Select("o:chwhispers") == nil and O.pages.chwhispers, "whisper windows loaded, Whispers page built")
+    if WHm then
+      local ws = pfUI_config.chat.whisper
+      local keepMode, keepCombat = ws.mode, ws.combat
+      ws.mode = "window"
+      WHm.OnEvent("CHAT_MSG_WHISPER", "hello there", "Jaina")
+      local wf = WHm.windows.Jaina
+      ok(wf and wf:IsShown() and wf.unread == 1, "a whisper opens a window, one unread")
+      WHm.OnEvent("CHAT_MSG_WHISPER_INFORM", "hi!", "Jaina")
+      local kept = pfUI_cache.whispers
+      local n = 0
+      for _, list in pairs(kept) do if list.Jaina then n = table.getn(list.Jaina) end end
+      ok(n == 2, "both lines kept for next time (" .. n .. ")")
+      WHm.Seen(wf)
+      ok(wf.unread == 0, "looking at it clears the count")
+      WHm.Fold(wf, true)
+      ok(wf.folded and not wf.msg:IsShown(), "it folds")
+      WHm.Fold(wf, false)
+      WHm.Close("Jaina")
+      ok(not wf:IsShown(), "and closes")
+      -- in combat: waits until the fight ends
+      ws.combat = "wait"
+      local combatWas = UnitAffectingCombat
+      _G.UnitAffectingCombat = function() return true end
+      WHm.OnEvent("CHAT_MSG_WHISPER", "inc!", "Garrosh")
+      ok(not WHm.windows.Garrosh and WHm.queue.Garrosh, "a whisper in a fight waits")
+      _G.UnitAffectingCombat = combatWas
+      WHm.OnEvent("PLAYER_REGEN_ENABLED")
+      ok(WHm.windows.Garrosh and WHm.windows.Garrosh:IsShown(), "and opens when it ends")
+      -- the test window talks only to itself
+      local sent
+      local sendWas = _G.SendChatMessage
+      _G.SendChatMessage = function() sent = true end
+      local tf = WHm.Test()
+      WHm.Send(WHm.TEST, "testing")
+      ok(tf and tf.test and not sent, "the test window sends nothing")
+      _G.SendChatMessage = sendWas
+      WHm.CloseAll()
+      ws.mode, ws.combat = keepMode, keepCombat
     end
     -- the minimap pages: a preview whose parts are picked, moved and sized
     local MMO = pfUI.minimapOcto

@@ -64,3 +64,12 @@ words, spam throttle, own channel tags; after it (frame.HookAddMessage) levels n
 mention sound + popup (pfChatMention), whispered invite word; Alt-click name = invite (SetItemRef wrapped, re-wrapped
 every 2 s if replaced); Shift / Ctrl + wheel jumps; /tt, /find, /clear. Cards on Messages (Highlights, Sounds,
 Filters, own tags, levels) and page Tools. Not possible on 1.12: item icons in links (no |T escapes).
+
+## Phase 3 done (23 Oct 2026, not seen in game)
+modules/chat-whispers.lua (`pfUI.whispers`, settings C.chat.whisper): a window per person (header: class icon,
+name in class colour, level / guild from GetUnitData + chatPlus.levels; buttons invite / target / who / fold /
+close; ScrollingMessageFrame with times; edit box sends SendChatMessage WHISPER; corner grip; edge flashes while
+unread - focus tracked by hand, 1.12 has no HasFocus). Windows cascade from the first one's saved place. Combat:
+pop | fold | wait (queue opened on PLAYER_REGEN_ENABLED). Last lines per person in pfUI_cache.whispers[char-realm].
+"Also in chat" off removes the WHISPER group from chat windows (put back when on). Mode tab = phase 1's Whispers
+tab. /whispers [close|test]; WH.Test() talks only to itself. Page Chat > Whispers.
