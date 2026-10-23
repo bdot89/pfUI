@@ -367,6 +367,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     menu:Show()
   end
   M.ShowMenu = ShowMenu
+  M.SegmentName = SegmentName
+  M.Clock = Clock
 
   -- ---------------------------------------------------------------- report
 

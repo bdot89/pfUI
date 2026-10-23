@@ -109,7 +109,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options" }
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown" }
 
 -- ---------------------------------------------------------------- load
 
@@ -654,13 +654,48 @@ if ME then
     ok(w1.menu:GetFrameLevel() > lvl and w1.reset:GetFrameLevel() > lvl and w1.titlebtn:GetFrameLevel() > lvl
       and w1.bars[1]:GetFrameLevel() > lvl, "header buttons and bars above a raised window")
     w1.bars[1]:Click()
-    ok(pfMeterDetails:IsShown(), "click opens the breakdown")
+    -- phase 3: the player breakdown
+    local BD = ME.breakdown
+    ok(pfMeterBreakdown and pfMeterBreakdown:IsShown() and BD.actor and BD.actor.name == "Tester", "click opens the player breakdown")
     local found
-    for _, l in ipairs(pfMeterDetails.lines) do
-      if l:IsShown() and l.cells[1].text == "Fireball" then found = true end
+    for _, e in ipairs(BD.listShown or {}) do if e.name == "Fireball" then found = e end end
+    ok(found, "Spells lists Fireball")
+    -- a spell in detail: hits, normal and critical, its targets
+    if found then found.onclick() end
+    local lines = {}
+    for _, l in ipairs(BD.linesShown or {}) do lines[l[1]] = l[2] end
+    ok(BD.spell == "Fireball" and lines["Hits"] == 1 and lines["  Critical"] and lines["Targets"], "a spell in detail")
+    BD.spell = pfUI.env.T["Melee"]
+    BD.Draw()
+    lines = {}
+    for _, l in ipairs(BD.linesShown or {}) do lines[l[1]] = l[2] end
+    ok(lines["Hits"] == 3 and string.find(lines["  Critical"] or "", "^1 ") and string.find(lines["  Critical"], "avg 240"),
+      "melee: 3 hits, 1 crit averaging 240 (" .. tostring(lines["  Critical"]) .. ")")
+    -- every tab draws
+    for _, t in ipairs(BD.TABS) do
+      BD.tab = t[1]
+      local good, err = pcall(BD.Draw)
+      ok(good, "breakdown tab " .. t[1] .. " draws: " .. tostring(err))
     end
-    ok(found, "breakdown lists Fireball")
-    pfMeterDetails:Hide()
+    BD.tab = "targets"
+    BD.Draw()
+    ok(BD.listShown[1] and BD.listShown[1].name == "Hogger", "Targets: Hogger first")
+    BD.tab = "compare"
+    BD.Draw()
+    ok(BD.other == "Healbot", "Compare picks another player (" .. tostring(BD.other) .. ")")
+    -- the next player of the window (damage taken: both players are in it)
+    BD.mode = "taken"
+    BD.Step(1)
+    ok(BD.actor and BD.actor.name ~= "Tester", "> shows the next player (" .. tostring(BD.actor and BD.actor.name) .. ")")
+    BD.Step(-1)
+    ok(BD.actor and BD.actor.name == "Tester", "< back")
+    BD.mode = "damage"
+    -- report the open tab
+    BD.tab = "spells"
+    BD.Draw()
+    local rl = BD.ReportLines()
+    ok(rl[1] and string.find(rl[1], "Tester") and rl[2] and string.find(rl[2], "^1%. "), "report the tab (" .. tostring(rl[2]) .. ")")
+    pfMeterBreakdown:Hide()
     -- each mode and its breakdown builds
     for _, m in ipairs(ME.MODES) do
       w1.mode = m.key

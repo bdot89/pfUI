@@ -453,3 +453,14 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    tests\globalstrings.lua gained the power / aura templates and MANA / RAGE / ENERGY.
    Unverified in game: UNIT_CASTEVENT arg order, SpellInfo, aura fade lines for other players
    (range), boss check, the "gains X from Y" templates' source roles.
+   Phase 3 (23 Oct, NOT seen in game): modules/meters-breakdown.lua (`pfUI.meters.breakdown`, frame
+   pfMeterBreakdown, 720 x 470, DIALOG) replaces M.ShowDetails for player rows (enemy / spell rows
+   keep the old pfMeterDetails). Header: class icon, name in class colour, display - fight, < >
+   (B.Step: next / previous player of the window's rows), Report (B.ReportLines: the open tab, top
+   10, to say / party / raid / guild / officer / whisper target). Tabs: Summary (all stats + top
+   spells), Spells (bars; click = detail: hits, normal / critical count and average, biggest crit,
+   min / max, ticks, misses by kind, glancing / crushing, overhealing, targets), Targets, Compare
+   (another player - same class first - each spell side by side with the gap %; "Pick player..."),
+   Deaths (each death; its last hits / heals with health %). Wheel scrolls the list. meters.lua
+   spells gained ctotal / cmax / cmin (crits), ttotal (ticks) and targets per spell; M.Merge keeps
+   cmax / cmin as max / min. meters-window exports M.SegmentName, M.Clock.

@@ -471,8 +471,8 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       if SKIP[k] then
         if d == nil then dst[k] = v end
       elseif type(v) == "number" then
-        if k == "max" then dst[k] = max(d or 0, v)
-        elseif k == "min" then dst[k] = d and min(d, v) or v
+        if k == "max" or k == "cmax" then dst[k] = max(d or 0, v)
+        elseif k == "min" or k == "cmin" then dst[k] = d and min(d, v) or v
         else dst[k] = (d or 0) + v end
       elseif type(v) == "table" then
         if not d then d = {} dst[k] = d end
@@ -687,13 +687,29 @@ pfUI:RegisterModule("meters", "vanilla", function ()
           Active(a, now)
           local s = Spell(a.spells, label)
           s.total = s.total + r.amt
-          if r.dot then s.ticks = s.ticks + 1 else s.hits = s.hits + 1 end
-          if r.crit then s.crits = s.crits + 1 end
+          if r.dot then
+            s.ticks = s.ticks + 1
+            s.ttotal = (s.ttotal or 0) + r.amt
+          else
+            s.hits = s.hits + 1
+          end
+          if r.crit then
+            s.crits = s.crits + 1
+            -- (crits apart: their total, max and min, for the breakdown)
+            s.ctotal = (s.ctotal or 0) + r.amt
+            if r.amt > (s.cmax or 0) then s.cmax = r.amt end
+            if not s.cmin or r.amt < s.cmin then s.cmin = r.amt end
+          end
           if r.glancing then s.how.glancing = (s.how.glancing or 0) + 1 end
           if r.crushing then s.how.crushing = (s.how.crushing or 0) + 1 end
           if r.amt > s.max then s.max = r.amt end
           if not r.dot and (not s.min or r.amt < s.min) then s.min = r.amt end
-          if r.tgt then a.targets[r.tgt] = (a.targets[r.tgt] or 0) + r.amt end
+          if r.tgt then
+            a.targets[r.tgt] = (a.targets[r.tgt] or 0) + r.amt
+            -- (each spell's targets, for the breakdown)
+            s.targets = s.targets or {}
+            s.targets[r.tgt] = (s.targets[r.tgt] or 0) + r.amt
+          end
           if not tgtname and r.tgt then seg.enemies[r.tgt] = (seg.enemies[r.tgt] or 0) + r.amt end
         end)
         -- a direct hit of a spell that began casting counts as its cast
@@ -730,11 +746,25 @@ pfUI:RegisterModule("meters", "vanilla", function ()
           local s = Spell(a.hspells, label)
           s.total = s.total + effective
           s.over = s.over + (r.amt - effective)
-          if r.dot then s.ticks = s.ticks + 1 else s.hits = s.hits + 1 end
-          if r.crit then s.crits = s.crits + 1 end
+          if r.dot then
+            s.ticks = s.ticks + 1
+            s.ttotal = (s.ttotal or 0) + effective
+          else
+            s.hits = s.hits + 1
+          end
+          if r.crit then
+            s.crits = s.crits + 1
+            s.ctotal = (s.ctotal or 0) + effective
+            if r.amt > (s.cmax or 0) then s.cmax = r.amt end
+            if not s.cmin or r.amt < s.cmin then s.cmin = r.amt end
+          end
           if r.amt > s.max then s.max = r.amt end
           if not r.dot and (not s.min or r.amt < s.min) then s.min = r.amt end
-          if r.tgt then a.htargets[r.tgt] = (a.htargets[r.tgt] or 0) + effective end
+          if r.tgt then
+            a.htargets[r.tgt] = (a.htargets[r.tgt] or 0) + effective
+            s.targets = s.targets or {}
+            s.targets[r.tgt] = (s.targets[r.tgt] or 0) + effective
+          end
         end)
         if r.spl then lastCaster[r.spl] = { name = srcname, t = now } end
         if not r.dot and r.spl then
