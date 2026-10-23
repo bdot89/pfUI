@@ -153,34 +153,13 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     return calculated_scale > 1 and 1 or calculated_scale
   end
 
-  -- octo (23 Oct 2026, a button left floating on the map): some addons make
-  -- their minimap button on UIParent or MinimapCluster and only anchor it to
-  -- the map - those are found by their anchor
-  local MAPFRAMES = { Minimap = true, MinimapBackdrop = true, MinimapCluster = true, pfMinimap = true }
-  local function OnTheMap(frame)
-    if not frame.GetPoint or not frame.GetNumPoints then return end
-    for i = 1, (frame:GetNumPoints() or 0) do
-      local _, rel = frame:GetPoint(i)
-      if type(rel) == "table" and rel.GetName and rel:GetName() and MAPFRAMES[rel:GetName()] then return true end
-    end
-  end
-  local function FindAnchored(parent)
-    for _, child in ipairs({ parent:GetChildren() }) do
-      -- (pfUI's own parts round the map - tracking, panels - stay where they are)
-      -- 23 Oct 2026: GetPoint only on named, button-like frames (IsButtonValid
-      -- first): asking every UIParent child for its anchors crashed the client
-      -- at login (ACCESS_VIOLATION in the Lua core, #132)
-      if child ~= pfUI.minimap and child:GetName() and IsButtonValid(child) and not string.find(child:GetName(), "^pf")
-        and OnTheMap(child) and not TableMatch(pfUI.addonbuttons.buttons, child:GetName()) then
-        table.insert(pfUI.addonbuttons.buttons, child:GetName())
-      end
-    end
-  end
-
+  -- (23 Oct 2026: a scan for buttons only anchored to the map, made on
+  -- UIParent / MinimapCluster, crashed the client at login when it walked
+  -- UIParent; the user found the button by hand, so it is gone - such a
+  -- button is added with /abp add)
   local function ScanForButtons()
     FindButtons(Minimap)
     FindButtons(MinimapBackdrop)
-    if MinimapCluster then FindAnchored(MinimapCluster) end
   end
 
   local function SetupMainFrame()

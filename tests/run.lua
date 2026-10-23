@@ -1908,7 +1908,8 @@ do
       loose:SetScript("OnClick", function() end)
       local foundLoose
       for _, n in ipairs(pfUI.addonbuttons:List()) do if n == "OctoLooseMapButton" then foundLoose = true end end
-      ok(foundLoose, "a button on MinimapCluster anchored to the map is gathered")
+      ok(not foundLoose, "a button made elsewhere and anchored to the map is not searched for")
+      loose:Hide()
       local ownSpot
       for _, n in ipairs(pfUI.addonbuttons:List()) do if string.find(n, "^pf") then ownSpot = n end end
       ok(not ownSpot, "pfUI's own parts are left alone (" .. tostring(ownSpot) .. ")")
