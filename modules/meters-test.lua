@@ -68,7 +68,10 @@ pfUI:RegisterModule("meters-test", "vanilla:tbc", function ()
       for _, n in ipairs(everyone) do Rec({ kind = "aura", tgt = n, aura = "Power Word: Fortitude", up = true }) end
       for _, n in ipairs({ "Garrosh", "Valeera", "Uther" }) do Rec({ kind = "aura", tgt = n, aura = "Battle Shout", up = true }) end
     end)
-    for t = 0, LENGTH - 1 do
+    -- (Lua 5.0: a function made in a for loop shares the loop counter -
+    -- every second would see the last one; each gets its own copy)
+    for tt = 0, LENGTH - 1 do
+      local t = tt
       local add = t >= 40 and t < 75   -- the whelps' phase
       local target = add and (math.mod(t, 3) == 0 and WARDER or WHELP) or BOSS
       At(t, function()
@@ -131,7 +134,8 @@ pfUI:RegisterModule("meters-test", "vanilla:tbc", function ()
       Rec({ kind = "aura", tgt = "Jaina", aura = "Arcane Power", up = true }) end)
     At(12, function() Rec({ kind = "cast", src = "Valeera", spl = "Adrenaline Rush" }) end)
     At(25, function() Rec({ kind = "aura", tgt = "Jaina", aura = "Arcane Power" }) end)
-    for t = 4, LENGTH - 1, 4 do
+    for tt = 4, LENGTH - 1, 4 do
+      local t = tt
       At(t, function()
         Rec({ kind = "power", tgt = "Valeera", spl = "Relentless Strikes", amt = 25, pow = ENERGY_ })
         Rec({ kind = "power", tgt = "Garrosh", spl = "Unbridled Wrath", amt = Rand(2, 6), pow = RAGE_ })

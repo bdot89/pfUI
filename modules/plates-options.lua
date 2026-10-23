@@ -228,13 +228,15 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
         U()
         W.Refresh(p)
       end, 120, "Everything you dragged goes back to its first place." },
-      { "Test on real nameplates", function() P.Test(60) end, 180,
-        "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city." },
-      { "Stop test", function() P.Test(0) end, 80, "Ends the test." },
+      -- (lit while it runs; a second click stops it)
+      { "Test on real nameplates", function() if P.Testing() then P.Test(0) else P.Test(60) end end, 180,
+        "For a minute every nameplate you can see gets pretend threat colours and casts (every other one interrupted by Bob). V shows enemy plates, Shift-V friendly ones, e.g. in a city. Click again to stop.",
+        on = function() return P.Testing() end },
       { "Grid", function()
         C.plates.previewgrid = (C.plates.previewgrid == "0") and "1" or "0"
         U()
-      end, 60, "Grid lines in the preview on or off, with a yellow middle line across and down each sample to line parts up." },
+      end, 60, "Grid lines in the preview on or off, with a yellow middle line across and down each sample to line parts up.",
+        on = function() return C.plates.previewgrid ~= "0" end },
     })
     end)
   end
@@ -820,11 +822,12 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Drop(p, "When it becomes your target", nil, L(Fx and Fx.ANIMS), S, "animtarget")
     Sld(p, "How much it grows", "For Pop and Bounce.", 5, 60, 1, S, "animsize", Pct)
     W.Buttons(p, { { "Play on the preview", function()
+      P.playAt = GetTime()
       for _, game in ipairs(P.previews or {}) do
         local o = game.nameplate and game.nameplate.octo
         if o and Fx then Fx.Play(o, S().animcrit ~= "none" and S().animcrit or "pop") end
       end
-    end } })
+    end, nil, nil, on = function() return P.playAt and GetTime() - P.playAt < 1.5 end } })
     for i = 1, (Fx and Fx.RULES or 6) do
       local n = i
       local function R() return C.plates["rule" .. n] end

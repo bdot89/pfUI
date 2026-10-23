@@ -65,18 +65,32 @@ local function AllOut(where)
   local ev = B.db.sct.events
   for _, k in ipairs({ "outMelee", "outSpell", "outDot", "outPet", "outShield", "outMiss" }) do ev[k].area = where end
 end
+-- (the buttons light up for the place your damage goes now)
+local function AllOutIs(where)
+  local ev = B.db.sct.events
+  for _, k in ipairs({ "outMelee", "outSpell", "outDot", "outPet", "outShield", "outMiss" }) do
+    if not ev[k] or ev[k].area ~= where then return false end
+  end
+  return true
+end
+local function OnPlates() return AllOutIs("plate") end
+local function OnScreen() return AllOutIs("out") end
+-- one-shot tests light up for a moment after the click
+local shotAt = {}
+local function Shot(key, fn) return function() shotAt[key] = GetTime() fn() end end
+local function Shooting(key) return function() return shotAt[key] and GetTime() - shotAt[key] < 2.5 end end
 
 -- The combat text test (it used to sit in the window's top bar; user 17 Oct 2026:
 -- "test mode is only for combat text ? this could be moved").
 local TEST = { "Test combat text", function() CT:TestMode(not CT:Testing()) end, 130,
   "For a minute, sample texts keep coming in every area and on every nameplate on screen (V shows enemy "
-    .. "nameplates, Shift-V friendly ones). Click again to stop." }
+    .. "nameplates, Shift-V friendly ones). Click again to stop.", on = function() return CT:Testing() end }
 
 local function DamageButtons(p)
   W.Buttons(p, {
     TEST,
-    { "Your damage on nameplates", function() AllOut("plate") end, 180, "Melee, spells, damage over time, pet, damage shields and misses rise from the enemy you hit." },
-    { "Your damage on screen", function() AllOut("out") end, 160, "The same messages scroll in the Outgoing area (SCT - Damage)." },
+    { "Your damage on nameplates", function() AllOut("plate") end, 180, "Melee, spells, damage over time, pet, damage shields and misses rise from the enemy you hit.", on = OnPlates },
+    { "Your damage on screen", function() AllOut("out") end, 160, "The same messages scroll in the Outgoing area (SCT - Damage).", on = OnScreen },
   })
 end
 
@@ -291,10 +305,10 @@ BUILD.ctareas = function(p)
   W.Live(p, function()
     return "|cffffd100" .. CT.AREA_LABEL[AREA.cur] .. "|r - " .. AREA_INFO[AREA.cur]
   end)
-  W.Buttons(p, { TEST, { "Test this area", function()
+  W.Buttons(p, { TEST, { "Test this area", Shot("area", function()
     CT:Show("1234", 1, 1, 1, AREA.cur, {})
     CT:Show("5678", 1, 0.3, 0.3, AREA.cur, { crit = true })
-  end, 120, "A hit and a crit in the area picked above." } })
+  end), 120, "A hit and a crit in the area picked above.", on = Shooting("area") } })
   Preview(p)
   W.Card(p, "Movement", { text = "How text moves in this area. The switch turns the area on or off.", on = { function() return A().enabled end, function(v) A().enabled = v end,
     "Use this area. Off: messages sent here are not shown." } })
@@ -340,8 +354,8 @@ BUILD.ctplates = function(p)
       .. "damage is never shown twice, and teammates' text never goes to the screen areas." })
   W.Buttons(p, {
     TEST,
-    { "Your damage on nameplates", function() AllOut("plate") end, 180, "Melee, spells, damage over time, pet, damage shields and misses." },
-    { "Test on nameplates", function() CT:TestPlates() end, 140, "A hit, a crit, a miss and a heal on every nameplate on screen." },
+    { "Your damage on nameplates", function() AllOut("plate") end, 180, "Melee, spells, damage over time, pet, damage shields and misses.", on = OnPlates },
+    { "Test on nameplates", Shot("plates", function() CT:TestPlates() end), 140, "A hit, a crit, a miss and a heal on every nameplate on screen.", on = Shooting("plates") },
   })
   Preview(p)
   W.Card(p, "Basics", { text = "Which nameplates get text, and what happens when there is no nameplate." })
@@ -434,10 +448,13 @@ BUILD.ctcrits = function(p)
       .. "Messages and sounds." })
   W.Buttons(p, {
     TEST,
-    { "Show a crit", SampleCrit, 100, "A crit in the Outgoing area and on your target's nameplate." },
-    { "Loud", function() CritPreset("loud") end, 70, "Thick gold numbers that slam in with a flash and a !" },
-    { "Clean", function() CritPreset("clean") end, 70, "Just bigger, no flash." },
-    { "Blizzard", function() CritPreset("blizzard") end, 80, "The game's crit: the number pops and moves on." },
+    { "Show a crit", Shot("crit", SampleCrit), 100, "A crit in the Outgoing area and on your target's nameplate.", on = Shooting("crit") },
+    { "Loud", function() CritPreset("loud") end, 70, "Thick gold numbers that slam in with a flash and a !",
+      on = function() return B.db.sct.plates.crit == "pow" and B.db.sct.critLook.mark == "bang" end },
+    { "Clean", function() CritPreset("clean") end, 70, "Just bigger, no flash.",
+      on = function() return B.db.sct.plates.crit == "normal" and not B.db.sct.critLook.glow end },
+    { "Blizzard", function() CritPreset("blizzard") end, 80, "The game's crit: the number pops and moves on.",
+      on = function() return B.db.sct.plates.crit == "blizzard" end },
   })
   Preview(p)
   W.Card(p, "Crit look", { text = "Make crits stand out: their own letters, colour, a flash and a mark." })
@@ -586,8 +603,8 @@ BUILD.ctevents = function(p)
       .. "much). Sound: picking one plays it.\n\nThe sound lists hold the game's alerts, gunshots and explosions, boss "
       .. "kill lines (\"Die, insect!\"), crowd cheers and victory horns, BigWigs' voices and four files of your own." })
   W.Buttons(p, {
-    { "Your damage on nameplates", function() AllOut("plate") end, 180 },
-    { "Your damage on screen", function() AllOut("out") end, 150 },
+    { "Your damage on nameplates", function() AllOut("plate") end, 180, nil, on = OnPlates },
+    { "Your damage on screen", function() AllOut("out") end, 150, nil, on = OnScreen },
     { "Defaults", function()
       B.db.sct.events = {}
       Fill(B.db.sct.events, B.DEFAULTS.sct.events)

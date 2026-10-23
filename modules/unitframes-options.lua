@@ -103,15 +103,24 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   -- what a click on each part opens (card titles on Frames)
   UF.GO = {
     frame = "Frame", hp = "Health bar", power = "Power bar", portrait = "Portrait",
-    hptext = "Health text", powertext = "Power text", buffs = "Buffs", debuffs = "Debuffs",
+    buffs = "Buffs", debuffs = "Debuffs",
     icons = "Icons", glow = "Glow and indicators", class = "Class and status", border = "Border and background",
   }
+  -- each of the six texts opens the Texts card on its own tab (user, 23 Oct
+  -- 2026: "Both called health text when clicked take to same menu")
+  UF.TEXTS = { { "hpleft", "Health left" }, { "hpcenter", "Health middle" }, { "hpright", "Health right" },
+    { "powerleft", "Power left" }, { "powercenter", "Power middle" }, { "powerright", "Power right" } }
+  UF.text = "hpleft"
   UF.HOTLABEL = {
     class = "Class icon, badge or status", border = "Border and background", castbar = "Cast bar (opens Cast bars)",
     frame = "The frame", hp = "Health bar", power = "Power bar", portrait = "Portrait",
     hptext = "Health text", powertext = "Power text", buffs = "Buffs", debuffs = "Debuffs",
     icons = "Icon", glow = "Glow and indicators",
   }
+  for _, t in ipairs(UF.TEXTS) do
+    UF.GO[t[1]] = "Texts"
+    UF.HOTLABEL[t[1]] = t[2] .. " text"
+  end
   -- Shift + wheel: these sizes go up / down a pixel
   UF.SIZE = {
     hp = { "height", 4, 80 }, power = { "pheight", 0, 40 }, buffs = { "buffsize", 8, 40 },
@@ -120,6 +129,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
 
   function UF.Open(what)
     local title = UF.GO[what] or "Frame"
+    if title == "Texts" then
+      UF.text = what
+      if O.Refresh then O:Refresh() end
+    end
     if pfUI.plates and pfUI.plates.OpenSection then
       pfUI.plates.OpenSection("ufframes", title)
     else
@@ -536,9 +549,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         Hot(set, f.octoEliteText, "class", 29, f, UF.PLACES.elite)
         for _, r in ipairs({ f.octoStatus, f.octoStatusText }) do Hot(set, r, "class", 29, f) end
         if f.octoSkin then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
-        for _, t in ipairs({ { f.hpLeftText, "hptext", "LEFT", "hpLeftText" }, { f.hpCenterText, "hptext", "CENTER", "hpCenterText" },
-            { f.hpRightText, "hptext", "RIGHT", "hpRightText" }, { f.powerLeftText, "powertext", "LEFT", "powerLeftText" },
-            { f.powerCenterText, "powertext", "CENTER", "powerCenterText" }, { f.powerRightText, "powertext", "RIGHT", "powerRightText" } }) do
+        for _, t in ipairs({ { f.hpLeftText, "hpleft", "LEFT", "hpLeftText" }, { f.hpCenterText, "hpcenter", "CENTER", "hpCenterText" },
+            { f.hpRightText, "hpright", "RIGHT", "hpRightText" }, { f.powerLeftText, "powerleft", "LEFT", "powerLeftText" },
+            { f.powerCenterText, "powercenter", "CENTER", "powerCenterText" }, { f.powerRightText, "powerright", "RIGHT", "powerRightText" } }) do
           local h = Hot(set, nil, t[2], 30, f, D[t[4]])
           table.insert(set.texts, { h, t[1], t[3] })
         end
@@ -838,12 +851,21 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
           bt:SetPoint("LEFT", trow, "LEFT", x, 0)
           bt.run = tt[3]
           bt:SetScript("OnClick", function()
+            this.litUntil = GetTime() + 3
             local set = mini.sets[UF.cur]
             for _, f in ipairs(set and set.frames or {}) do this.run(f) end
           end)
           W.Tip(bt, "Test: " .. tt[1], tt[2])
           x = x + 128
         end
+        -- (each test is lit while it shows)
+        trow:SetScript("OnUpdate", function()
+          if (this.tick or 0) > GetTime() then return end
+          this.tick = GetTime() + .2
+          for _, b in ipairs({ this:GetChildren() }) do
+            if b.run then W.Lit(b, GetTime() < (b.litUntil or 0)) end
+          end
+        end)
       end
       -- every mouse control, spelled out (user: "add how to do this so
       -- people know on the screens")
@@ -882,7 +904,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   UF.FontNow = FontNow
 
   local function SharedTop(p)
-    W.Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Health text." })
+    W.Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Text colours and font." })
     Drop(p, "Font", nil, DD("fonts", "font"), GL, "font_unit", FontNow)
     Sld(p, "Size", nil, 6, 24, 1, GL, "font_unit_size", Px, UF.ApplyAll)
     Drop(p, "Outline", nil, DD("fontstyle"), GL, "font_unit_style", UF.ApplyAll)
@@ -965,16 +987,48 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Fade time", nil, .1, 3, .1, U, "o_fadetime", Sec)
     Color(p, "Fading part", nil, U, "o_fadecolor")
 
-    W.Card(p, "Health text", { tip = "Three texts on the health bar, and the font of this frame." })
-    Drop(p, "Left", nil, DD("uf_texts"), U, "txthpleft")
-    Drop(p, "Middle", nil, DD("uf_texts"), U, "txthpcenter")
-    Drop(p, "Right", nil, DD("uf_texts"), U, "txthpright")
-    Sld(p, "Left: across", nil, -50, 50, 1, U, "txthpleftoffx", Px)
-    Sld(p, "Left: up / down", nil, -50, 50, 1, U, "txthpleftoffy", Px)
-    Sld(p, "Middle: across", nil, -50, 50, 1, U, "txthpcenteroffx", Px)
-    Sld(p, "Middle: up / down", nil, -50, 50, 1, U, "txthpcenteroffy", Px)
-    Sld(p, "Right: across", nil, -50, 50, 1, U, "txthprightoffx", Px)
-    Sld(p, "Right: up / down", nil, -50, 50, 1, U, "txthprightoffy", Px)
+    -- the six texts: one tab each (a click on a text in the preview picks it)
+    W.Card(p, "Texts", { tip = "Three texts on the health bar and three on the power bar. Pick one with the tabs, "
+      .. "or click it in the preview." })
+    local trows, tbtns = { W.Row(p, 24, 0, 4), W.Row(p, 24, 0, 4) }, {}
+    for i, t in ipairs(UF.TEXTS) do
+      local b = W.Button(trows[i <= 3 and 1 or 2], t[2], 150, 22)
+      b:SetPoint("LEFT", b:GetParent(), "LEFT", math.mod(i - 1, 3) * 156, 0)
+      b.key = t[1]
+      b:SetScript("OnClick", function() UF.text = this.key O:Refresh() end)
+      tbtns[i] = b
+    end
+    local function PaintTabs() for _, b in ipairs(tbtns) do W.Pick(b, b.key == UF.text) end end
+    PaintTabs()
+    table.insert(p.items, { Refresh = PaintTabs })
+    local function TK(suffix) return "txt" .. UF.text .. (suffix or "") end
+    local function TNAME() for _, t in ipairs(UF.TEXTS) do if t[1] == UF.text then return t[2] end end return UF.text end
+    W.Live(p, function() return "Editing: |cffffffff" .. TNAME() .. " text|r" end)
+    W.Dropdown(p, "Shows", "What this text says.", DD("uf_texts"), function() return U()[TK()] end,
+      function(v) U()[TK()] = v Up() end)
+    W.Dropdown(p, "Colour", "Its own colours: as the tick boxes below say (health, power, class...).",
+      { { key = "", label = "Its own colours" }, { key = "class", label = "Class colour" }, { key = "custom", label = "One colour" } },
+      function() return U()["o_tc_" .. UF.text] or "" end, function(v) U()["o_tc_" .. UF.text] = v Up() end)
+    W.Color(p, "Pick a colour", "Picking one switches Colour to One colour.", function()
+      local r, g, b, a = GetStringColor(U()["o_tcc_" .. UF.text] or "1,1,1,1")
+      return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+    end, function(r, g, b, a)
+      U()["o_tcc_" .. UF.text] = string.format("%.2f,%.2f,%.2f,%.2f", r, g, b, a or 1)
+      U()["o_tc_" .. UF.text] = "custom"
+      Up()
+      O:Refresh()
+    end)
+    W.Slider(p, "Across", "Or drag it in the preview.", -50, 50, 1, function() return tonumber(U()[TK("offx")]) or 0 end,
+      function(v) U()[TK("offx")] = tostring(v) Up() end, Px)
+    W.Slider(p, "Up / down", nil, -50, 50, 1, function() return tonumber(U()[TK("offy")]) or 0 end,
+      function(v) U()[TK("offy")] = tostring(v) Up() end, Px)
+    W.Buttons(p, { { "Put it back", function()
+      U()[TK("offx")], U()[TK("offy")], U()["o_tc_" .. UF.text] = "0", "0", ""
+      Up()
+      O:Refresh()
+    end, 110, "Its place and its own colours again." } })
+
+    W.Card(p, "Text colours and font", { tip = "What \"its own colours\" means for this frame, and its font." })
     Chk(p, "Health in its colour", nil, U, "healthcolor")
     Chk(p, "Power in its colour", nil, U, "powercolor")
     Chk(p, "Level in its colour", nil, U, "levelcolor")
@@ -992,17 +1046,6 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Up / down", nil, -50, 50, 1, U, "poffy", Px)
     Sld(p, "Gap to the health bar", "Below 0 the bars overlap.", -10, 20, 1, U, "pspace", Px)
     Drop(p, "Texture", nil, DD("uf_bartexture", "texture"), U, "pbartexture")
-
-    W.Card(p, "Power text")
-    Drop(p, "Left", nil, DD("uf_texts"), U, "txtpowerleft")
-    Drop(p, "Middle", nil, DD("uf_texts"), U, "txtpowercenter")
-    Drop(p, "Right", nil, DD("uf_texts"), U, "txtpowerright")
-    Sld(p, "Left: across", nil, -50, 50, 1, U, "txtpowerleftoffx", Px)
-    Sld(p, "Left: up / down", nil, -50, 50, 1, U, "txtpowerleftoffy", Px)
-    Sld(p, "Middle: across", nil, -50, 50, 1, U, "txtpowercenteroffx", Px)
-    Sld(p, "Middle: up / down", nil, -50, 50, 1, U, "txtpowercenteroffy", Px)
-    Sld(p, "Right: across", nil, -50, 50, 1, U, "txtpowerrightoffx", Px)
-    Sld(p, "Right: up / down", nil, -50, 50, 1, U, "txtpowerrightoffy", Px)
 
     W.Card(p, "Portrait")
     Drop(p, "Where", nil, DD("uf_portrait_position"), U, "portrait")

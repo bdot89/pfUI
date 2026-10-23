@@ -827,6 +827,22 @@ if ME then
     w1.mode = "damage"
     -- menus of everyone / every enemy
     ok(pcall(BD.PeopleMenu, pfMeterBreakdown.who) and pcall(BD.FoeMenu, pfMeterBreakdown.foes), "people and enemy menus")
+    -- the displays at the top: pick another one inside the breakdown
+    ok(table.getn(BD.GROUPS) >= 4 and pfMeterBreakdown.groups[1], "a display picker per group (" .. table.getn(BD.GROUPS) .. ")")
+    BD.actor, BD.foe, BD.bspell = ga, nil, nil
+    BD.SetMode("heal")
+    ok(BD.mode == "heal" and BD.kind == "heal" and BD.actor, "healing picked: healing spells")
+    local litGroup
+    for _, b in ipairs(pfMeterBreakdown.groups) do if b.lit then litGroup = b.group end end
+    ok(litGroup == "Healing", "its group is lit (" .. tostring(litGroup) .. ")")
+    BD.SetMode("interrupts")
+    ok(BD.tab == "utility", "interrupts open Utility")
+    BD.SetMode("enemytaken")
+    ok(BD.foe and not BD.actor, "an enemy display opens its top enemy (" .. tostring(BD.foe) .. ")")
+    BD.SetMode("damage")
+    ok(BD.actor and not BD.foe, "back to a player for damage")
+    ok(pcall(BD.ModeMenu, pfMeterBreakdown.groups[1], BD.GROUPS[1]), "a group's menu opens")
+    if pfMeterMenu then pfMeterMenu:Hide() end
     if pfMeterMenu then pfMeterMenu:Hide() end
     ME.TestMode(false)
     ok(not ME.testOn and ME.Segment("current") == realHistory[1] and not pfMeterBreakdown:IsShown(), "test mode off: the real fight is back")
@@ -1880,6 +1896,28 @@ do
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "hide" and fake.alpha == 0, "and can be hidden")
       pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
+      -- a button made on UIParent but anchored to the map is found too
+      local loose = CreateFrame("Button", "OctoLooseMapButton", UIParent)
+      loose:SetWidth(24)
+      loose:SetHeight(24)
+      loose:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", 0, 0)
+      loose:SetScript("OnClick", function() end)
+      local foundLoose
+      for _, n in ipairs(pfUI.addonbuttons:List()) do if n == "OctoLooseMapButton" then foundLoose = true end end
+      ok(foundLoose, "a button anchored to the map from elsewhere is gathered")
+      local ownSpot
+      for _, n in ipairs(pfUI.addonbuttons:List()) do if string.find(n, "^pf") then ownSpot = n end end
+      ok(not ownSpot, "pfUI's own parts are left alone (" .. tostring(ownSpot) .. ")")
+      -- a lit button row: on while its check says so
+      local litOn = false
+      local litPage = { items = {}, cur = { parent = UIParent, x0 = 0, y0 = 0, lastX = 0, width = 600 } }
+      local okRow, litRow = pcall(pfUI.octoui.W.Buttons, litPage, { { "Try", function() litOn = not litOn end, nil, nil, on = function() return litOn end } })
+      local lb = okRow and litRow and ({ litRow:GetChildren() })[1]
+      ok(lb and not lb.picked, "a toggle button starts off")
+      if lb then
+        Mock.Run(lb, "OnClick")
+        ok(lb.picked, "and is lit once on")
+      end
       pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "panel")
     end
     pfUI.gui:Hide()
@@ -1983,6 +2021,18 @@ do
     O:Select("o:ufframes")
     local M = UF.mini
     ok(M and M.sets.player and table.getn(M.sets.player.frames) == 1, "the preview shows the player frame")
+    -- a text's own colour, over its colour codes
+    if M and M.sets.player then
+      local pf = M.sets.player.frames[1]
+      local pc = pfUI_config.unitframes.player
+      pc.o_tc_hpleft, pc.o_tcc_hpleft = "custom", "1,0,0,1"
+      local s = pfUI.uf:GetStatusValue(pf, "hpleft")
+      ok(not s or s == "" or string.find(s, "^|cffff0000") and not string.find(string.sub(s, 11), "|c", 1, true), "one colour on a text (" .. tostring(s) .. ")")
+      pc.o_tc_hpleft = ""
+      UF.Open("hpright")
+      ok(UF.text == "hpright", "clicking the right health text opens its own tab")
+      UF.text = "hpleft"
+    end
     if M and M.sets.player then
       local f = M.sets.player.frames[1]
       ok(f.octoPreview and f.label == "player" and f:GetParent() == M.sets.player, "a real pfUI frame, on your character, inside the box")

@@ -568,6 +568,30 @@ pfUI:RegisterModule("unitframes-octo", "vanilla:tbc", function ()
     UO.Configure(f)
   end
 
+  -- each text's own colour (user, 23 Oct 2026: "EVERYTHING that can change
+  -- colour can and has a clear and simple selector"): o_tc_<pos> = "" (the
+  -- text's own colour codes), "class" or "custom" (o_tcc_<pos>)
+  local GetStatusValue = pfUI.uf.GetStatusValue
+  pfUI.uf.GetStatusValue = function(self, unit, pos)
+    local text = GetStatusValue(self, unit, pos)
+    local cfg = unit and unit.config
+    local mode = cfg and pos and cfg["o_tc_" .. pos]
+    if not text or text == "" or not mode or mode == "" then return text end
+    local r, g, b
+    if mode == "class" then
+      local _, class = UnitClass((unit.label or "") .. (unit.id or ""))
+      local cc = class and RAID_CLASS_COLORS[class]
+      if not cc then return text end
+      r, g, b = cc.r, cc.g, cc.b
+    else
+      local cr, cg, cb = GetStringColor(cfg["o_tcc_" .. pos] or "1,1,1,1")
+      r, g, b = tonumber(cr) or 1, tonumber(cg) or 1, tonumber(cb) or 1
+    end
+    text = gsub(gsub(text, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+    return string.format("|cff%02x%02x%02x", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255)) .. text .. "|r"
+  end
+  UO.TEXTS = { "hpleft", "hpcenter", "hpright", "powerleft", "powercenter", "powerright" }
+
   local RefreshUnit = pfUI.uf.RefreshUnit
   pfUI.uf.RefreshUnit = function(self, unit, component)
     RefreshUnit(self, unit, component)

@@ -683,6 +683,11 @@ function pfUI:LoadConfig()
     pfUI:UpdateConfig("unitframes", unit,      "customfont_style", "OUTLINE")
     -- octo (unitframes-octo.lua): TPerl's ideas on pfUI's frames
     pfUI:UpdateConfig("unitframes", unit,      "o_skin",           "pfui")
+    -- each text's own colour: "" = its own colours, "class", "custom" (o_tcc_)
+    for _, pos in pairs({ "hpleft", "hpcenter", "hpright", "powerleft", "powercenter", "powerright" }) do
+      pfUI:UpdateConfig("unitframes", unit,    "o_tc_" .. pos,     "")
+      pfUI:UpdateConfig("unitframes", unit,    "o_tcc_" .. pos,    "1,1,1,1")
+    end
     pfUI:UpdateConfig("unitframes", unit,      "o_grad",           "none")
     pfUI:UpdateConfig("unitframes", unit,      "o_gradstart",      ".1,.1,.1,.8")
     pfUI:UpdateConfig("unitframes", unit,      "o_gradend",        ".3,.3,.3,.8")

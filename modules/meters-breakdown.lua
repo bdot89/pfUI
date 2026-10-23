@@ -31,7 +31,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
 
   -- ---------------------------------------------------------------- the frame
 
-  local W, H = 900, 500
+  local W, H = 900, 530
   local f = CreateFrame("Frame", "pfMeterBreakdown", UIParent)
   f:SetWidth(W)
   f:SetHeight(H)
@@ -84,7 +84,14 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       end
     end)
     b:SetScript("OnLeave", function()
-      if this.backdrop then this.backdrop:SetBackdropBorderColor(0, 0, 0, 1) end
+      if this.backdrop then
+        if this.lit then
+          local r, g, bb = GetAccentColor()
+          this.backdrop:SetBackdropBorderColor(r, g, bb, 1)
+        else
+          this.backdrop:SetBackdropBorderColor(0, 0, 0, 1)
+        end
+      end
       GameTooltip:Hide()
     end)
     b.tip = tip
@@ -124,6 +131,78 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   B.FOETABS = { { "fsummary", "Summary" }, { "fhitby", "Hit by" }, { "ftaken", "Spells on it" }, { "fhit", "It hit" },
                 { "fspells", "Its spells" } }
   B.SPELLTABS = { { "ssummary", "Who it hit" }, { "sfrom", "Who cast it" } }
+  -- what is shown: every display of the windows, by group (user, 23 Oct
+  -- 2026: "add in here at the top selectors for all the options so we can
+  -- quickly look all in this window"); the group in use is lit
+  B.GROUPS = {}
+  local seenGroup = {}
+  for _, m in ipairs(M.MODES) do
+    if m.group and not seenGroup[m.group] and m.key ~= "threat" then
+      seenGroup[m.group] = true
+      table.insert(B.GROUPS, m.group)
+    end
+  end
+  f.showing = Text(f, C.global.font_size)
+  f.showing:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -42)
+  f.showing:SetText("Showing")
+  f.showing:SetTextColor(.6, .6, .6)
+  f.groups = {}
+  for i, g in ipairs(B.GROUPS) do
+    local group = g
+    local b = Button(f, group, 150, function() B.ModeMenu(this, group) end, "Pick a " .. string.lower(group) .. " display")
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 70 + (i - 1) * 156, -38)
+    b.group = group
+    f.groups[i] = b
+  end
+  function B.ModeMenu(anchor, group)
+    local items = { { group, head = true } }
+    for _, m in ipairs(M.MODES) do
+      if m.group == group and m.key ~= "threat" and (not m.shown or m.shown()) then
+        local key = m.key
+        table.insert(items, { m.name, function() B.SetMode(key) end, checked = key == B.mode })
+      end
+    end
+    M.ShowMenu(anchor, items)
+  end
+  -- a new display: players keep the one open (or the top one); enemy and
+  -- spell displays open their top row
+  function B.SetMode(key)
+    local mode = MODE[key]
+    if not mode then return end
+    B.mode, B.kind = key, nil
+    B.offset, B.lineOffset, B.spell, B.target, B.death = 0, 0, nil, nil, nil
+    local rows = M.Rows(key, B.segment)
+    if mode.rows then
+      local r = rows[1]
+      if r and r.foe then B.actor, B.foe, B.bspell, B.tab = nil, r.name, nil, key == "enemydone" and "fhit" or "fsummary"
+      elseif r and r.byspell then B.actor, B.foe, B.bspell, B.tab = nil, nil, r.name, "ssummary" end
+    else
+      if not B.actor and rows[1] and rows[1].actor then B.actor = rows[1].actor end
+      B.foe, B.bspell = nil, nil
+      B.tab = B.FIRSTTAB and B.FIRSTTAB[key] or "spells"
+    end
+    B.Draw()
+  end
+  local function PaintGroups()
+    local cur = MODE[B.mode]
+    for _, b in ipairs(f.groups) do
+      local on = cur and cur.group == b.group
+      b.lit = on
+      b.text:SetText(on and (cur.name .. "  v") or (b.group .. "  v"))
+      if b.backdrop then
+        if on then
+          local ar, ag, ab = GetAccentColor()
+          b.backdrop:SetBackdropBorderColor(ar, ag, ab, 1)
+          b.backdrop:SetBackdropColor(ar * .45, ag * .45, ab * .45, .9)
+        else
+          b.backdrop:SetBackdropBorderColor(0, 0, 0, 1)
+          b.backdrop:SetBackdropColor(0, 0, 0, .8)
+        end
+      end
+    end
+  end
+  B.PaintGroups = PaintGroups
+
   f.tabs = {}
   for i = 1, 10 do
     local b = Button(f, "", 84, function()
@@ -131,7 +210,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       B.offset = 0
       B.Draw()
     end)
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 88, -38)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 88, -64)
     b.line = b:CreateTexture(nil, "OVERLAY")
     b.line:SetTexture("Interface\\Buttons\\WHITE8X8")
     b.line:SetHeight(2)
@@ -146,14 +225,14 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   for i, k in ipairs(B.KINDS) do
     local key = k[1]
     local b = Button(f, k[2], 96, function() B.kind = key B.spell = nil B.offset = 0 B.Draw() end)
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 100, -64)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 100, -90)
     b.key = key
     f.kinds[i] = b
   end
   local KINDTABS = { spells = true, targets = true, chart = true, compare = true }
 
   -- the body: a list of bars on the left, a panel of lines on the right
-  local BODY_TOP, ROWH = -90, 18
+  local BODY_TOP, ROWH = -116, 18
   local LIST_W = 470
   f.list = CreateFrame("Frame", nil, f)
   f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP)
@@ -895,6 +974,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     local seg = M.Segment(B.segment)
     B.seg = seg
     Look()
+    PaintGroups()
     local mode = MODE[B.mode] or MODE.damage
     local segname = gsub(M.SegmentName and M.SegmentName(B.segment) or "", "|c%x%x%x%x%x%x%x%x", "")
     segname = gsub(segname, "|r", "")
@@ -1005,6 +1085,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   local FIRSTTAB = { deaths = "deaths", taken = "taken", htaken = "taken", interrupts = "utility", dispels = "utility",
     frags = "utility", ress = "casts", cooldowns = "casts", buffs = "auras", debuffs = "auras", mana = "utility",
     rage = "utility", energy = "utility" }
+  B.FIRSTTAB = FIRSTTAB
 
   -- a click on a bar opens it
   local ShowSimple = M.ShowDetails

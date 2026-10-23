@@ -752,6 +752,9 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
     Sld(p, "Buttons a row", nil, 1, 20, 1, AB, "rowsize", nil, ABU)
     Sld(p, "Gap", nil, 0, 10, 1, AB, "spacing", Px, ABU)
     ButtonList(p)
+    W.Live(p, function()
+      return "|cff888888A button still on the map? Hold the mouse over it and type |r/abp add|cff888888 - it joins the list.|r"
+    end)
   end
 
   -- (replaced first: AddPage rebuilds the topic list, which must not see

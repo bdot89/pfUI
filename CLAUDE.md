@@ -15,6 +15,10 @@ see "Roadmap" below.
   options title and the About page.
 - Lua 5.0: no `#`, `%`, `...` as an expression, string.gfind not gmatch, table.getn. Write Lua with
   Edit/Write, never a shell heredoc (apostrophes and backslashes get mangled).
+- Lua 5.0 (the game) shares a for loop's counter between functions made inside the loop; the test
+  host (LuaJIT) gives each its own, so tests pass and the game breaks. Copy it first:
+  `for tt = 1, n do local t = tt ... function() use(t) end end` (23 Oct 2026: the meter test fight
+  only ever recorded Melee in game).
 - Never assign a client global like `this`, `event` or `arg1` from pfUI code: modules run in
   pfUI's environment, so `this = f` creates a pfUI-only `this` that hides the real one from every
   pfUI script afterwards. Use `_G.this` (22 Oct 2026: broke every pfUI script and blanked the

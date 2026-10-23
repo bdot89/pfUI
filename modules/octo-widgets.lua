@@ -276,8 +276,12 @@ function W.Pick(b, on)
   local l = on and C.accent or C.line
   b:SetBackdropBorderColor(l[1], l[2], l[3], 1)
   if on then b.label:SetTextColor(1, 1, 1) else b.label:SetTextColor(C.dim[1], C.dim[2], C.dim[3]) end
-  local f = on and C.head or C.btn
-  b:SetBackdropColor(f[1], f[2], f[3], 1)
+  -- (the picked one is filled with the accent too: clear at a glance)
+  if on then
+    b:SetBackdropColor(C.accent[1] * .45, C.accent[2] * .45, C.accent[3] * .45, 1)
+  else
+    b:SetBackdropColor(C.btn[1], C.btn[2], C.btn[3], 1)
+  end
 end
 
 -- A square tick box: blue inside when ticked.
@@ -1321,21 +1325,62 @@ function W.Color(p, label, desc, get, set)
 end
 
 -- list: { { text, fn, width, tip }, ... } in one row
+-- A button that is on (a test running, the look in use, the choice made):
+-- accent edge, accent-tinted fill and white text, so what is in use is clear
+-- everywhere (user, 23 Oct 2026). Off: a plain button again.
+function W.Lit(b, on)
+  b.picked = on
+  if on then
+    b:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], 1)
+    b:SetBackdropColor(C.accent[1] * .45, C.accent[2] * .45, C.accent[3] * .45, 1)
+    b.label:SetTextColor(1, 1, 1)
+  else
+    b:SetBackdropBorderColor(C.line[1], C.line[2], C.line[3], 1)
+    b:SetBackdropColor(C.btn[1], C.btn[2], C.btn[3], 1)
+    b.label:SetTextColor(C.text[1], C.text[2], C.text[3])
+  end
+end
+
+-- A row of buttons: { label, func, width, tip, on = function } - `on` (or
+-- the 5th field) lights the button while it returns true. Buttons grow to
+-- fit their words.
 function W.Buttons(p, list)
   local row = W.Row(p, 24, 0, 6)
   local x = 0
+  local lit = {}
   for i = 1, table.getn(list) do
     local d = list[i]
-    local b = W.Button(row, d[1], d[3] or 130, 22, Name("Btn"))
+    local w = d[3] or 130
+    local b = W.Button(row, d[1], w, 22, Name("Btn"))
+    local tw = b.label.GetStringWidth and b.label:GetStringWidth()
+    if tw and tw + 20 > w then w = math.floor(tw + 20) b:SetWidth(w) end
     b:SetPoint("LEFT", row, "LEFT", x, 0)
     b.fn = d[2]
+    b.on = d.on or d[5]
     b:SetScript("OnClick", function()
       this.fn()
+      if this.on then W.Lit(this, this.on() and true or false) end
       Changed()
     end)
     W.Tip(b, d[4] and d[1], d[4])
     Index(p, d[1], d[4], row)
-    x = x + (d[3] or 130) + 6
+    if b.on then table.insert(lit, b) end
+    x = x + w + 6
+  end
+  if table.getn(lit) > 0 then
+    local function Paint()
+      for _, b in ipairs(lit) do
+        local on = b.on() and true or false
+        if on ~= b.picked then W.Lit(b, on) end
+      end
+    end
+    for _, b in ipairs(lit) do W.Lit(b, b.on() and true or false) end
+    row:SetScript("OnUpdate", function()
+      if (this.tick or 0) > GetTime() then return end
+      this.tick = GetTime() + .25
+      Paint()
+    end)
+    if p.items then table.insert(p.items, { Refresh = Paint }) end
   end
   return row
 end

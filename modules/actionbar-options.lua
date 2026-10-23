@@ -514,14 +514,23 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
           local bt = W.Button(row, "Test: " .. tt[2], 118, 22)
           bt:SetPoint("LEFT", row, "LEFT", x, 0)
           bt.kind = tt[1]
-          bt:SetScript("OnClick", function() mini.Play(this.kind) end)
+          -- (lit while its effect plays)
+          bt:SetScript("OnClick", function() this.litUntil = GetTime() + 3 mini.Play(this.kind) end)
           W.Tip(bt, "Test " .. string.lower(tt[2]), tt[3] .. " Plays on the sample button.")
           x = x + 122
         end
         local mine = W.Button(row, "Test on my bars", 140, 22)
         mine:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        mine:SetScript("OnClick", function() AB.Test(6) end)
-        W.Tip(mine, "Test on my bars", "For 6 seconds every button on your bars glows, runs a cooldown and flashes its press look.")
+        mine:SetScript("OnClick", function() if GetTime() < (AB.testUntil or 0) then AB.testUntil = 0 else AB.Test(6) end end)
+        W.Tip(mine, "Test on my bars", "For 6 seconds every button on your bars glows, runs a cooldown and flashes its press look. Click again to stop.")
+        row:SetScript("OnUpdate", function()
+          if (this.tick or 0) > GetTime() then return end
+          this.tick = GetTime() + .2
+          for _, b in ipairs({ this:GetChildren() }) do
+            if b.kind then W.Lit(b, GetTime() < (b.litUntil or 0)) end
+          end
+          W.Lit(mine, GetTime() < (AB.testUntil or 0))
+        end)
       end
       local band = W.Row(p, 20, 0, 3)
       local bg = band:CreateTexture(nil, "BACKGROUND")

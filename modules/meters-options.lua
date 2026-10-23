@@ -651,11 +651,16 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     ThreatPreview(p)
     W.Live(p, function() return "Status: " .. TH.StatusLine() end)
     W.Buttons(p, {
-      { "Sample on my target (8 s)", function() TH.Sample(8) end },
-      { "Test the popup", function() TH.Alert(C.meters.threatpopup or "THREAT", 1, .25, .2) TH.Sound() end },
+      { "Sample on my target (8 s)", function() if TH.sampleUntil and GetTime() < TH.sampleUntil then TH.sampleUntil = 0 else TH.Sample(8) end end,
+        nil, "Your threat label shows a made-up reading on your target for 8 seconds. Click again to stop.",
+        on = function() return TH.sampleUntil and GetTime() < TH.sampleUntil end },
+      { "Test the popup", function() TH.Alert(C.meters.threatpopup or "THREAT", 1, .25, .2) TH.Sound() end, nil, nil,
+        on = function() return pfThreatAlert and pfThreatAlert:IsShown() end },
       { "Open a threat window", function()
         local w = M.AddWindow()
         if w then M.SetMode(w, "threat") end
+      end, nil, nil, on = function()
+        for _, w in ipairs(M.windows or {}) do if w.mode == "threat" and w:IsShown() then return true end end
       end },
     })
 
@@ -669,9 +674,12 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       List(TH.REFS), G, "threatref", function() end)
     Sld(p, "Yellow from", "The label turns yellow at this share of your cap.", 50, 95, 5, G, "tnear", Pct2, function() end)
     W.Buttons(p, {
-      { "Safe 70%", function() C.meters.threatwarn, C.meters.threatref = "70", "1" O:Refresh() end },
-      { "Push 90%", function() C.meters.threatwarn, C.meters.threatref = "90", "1" O:Refresh() end },
-      { "Edge 100%", function() C.meters.threatwarn, C.meters.threatref = "100", "1" O:Refresh() end },
+      { "Safe 70%", function() C.meters.threatwarn, C.meters.threatref = "70", "1" O:Refresh() end,
+        on = function() return C.meters.threatwarn == "70" and C.meters.threatref == "1" end },
+      { "Push 90%", function() C.meters.threatwarn, C.meters.threatref = "90", "1" O:Refresh() end,
+        on = function() return C.meters.threatwarn == "90" and C.meters.threatref == "1" end },
+      { "Edge 100%", function() C.meters.threatwarn, C.meters.threatref = "100", "1" O:Refresh() end,
+        on = function() return C.meters.threatwarn == "100" and C.meters.threatref == "1" end },
     })
 
     W.Card(p, "Label", { tip = "The label by your target's nameplate (or in a box you place)." })
