@@ -33,7 +33,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     return string.format("%d:%02d", floor(t / 60), math.mod(t, 60))
   end
 
-  local function ActiveTime(a) return max(1, a.active or 0) end
+  -- the time per-second values divide by: the actor's own active time
+  -- (Details' "activity"), or the whole fight ("effective")
+  local timeSeg
+  local function ActiveTime(a)
+    if C.meters.timemeasure == "effective" and timeSeg then return M.Duration(timeSeg) end
+    return max(1, a.active or 0)
+  end
 
   -- ---------------------------------------------------------------- per window
   -- (user, 22 Oct 2026, Details! as the model: "able to add windows and set
@@ -135,27 +141,75 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   -- ---------------------------------------------------------------- modes
 
+  local function Power(a, pow) return (a.power and a.power[pow]) or 0 end
+  local MANA_, RAGE_, ENERGY_ = MANA or "Mana", RAGE or "Rage", ENERGY or "Energy"
+  local function Secs(v) return Clock(v) end
+
+  -- What a window can show, in Details' groups. value(a) for your group's
+  -- players; rows(seg) for lists that are not players (enemies, spells);
+  -- list(a) = the breakdown table for the tooltip (name -> amount).
   local MODES = {
-    { key = "damage", name = T["Damage Done"], value = function(a) return a.damage end,
-      extra = function(a) return Num(a.damage / ActiveTime(a)) end },
-    { key = "dps", name = T["DPS"], value = function(a) return a.damage > 0 and a.damage / ActiveTime(a) or 0 end,
-      extra = function(a) return Num(a.damage) end },
-    { key = "heal", name = T["Healing Done"], value = function(a) return a.heal end,
-      extra = function(a) return Num(a.heal / ActiveTime(a)) end },
-    { key = "hps", name = T["HPS"], value = function(a) return a.heal > 0 and a.heal / ActiveTime(a) or 0 end,
-      extra = function(a) return Num(a.heal) end },
-    { key = "overheal", name = T["Overhealing"], value = function(a) return a.overheal end,
+    { key = "damage", group = "Damage", name = T["Damage Done"], value = function(a) return a.damage end,
+      extra = function(a) return Num(a.damage / ActiveTime(a)) end, list = function(a) return a.spells, a.damage end },
+    { key = "dps", group = "Damage", name = T["DPS"], value = function(a) return a.damage > 0 and a.damage / ActiveTime(a) or 0 end,
+      extra = function(a) return Num(a.damage) end, list = function(a) return a.spells, a.damage end },
+    { key = "taken", group = "Damage", name = T["Damage Taken"], value = function(a) return a.taken end,
+      list = function(a) return a.tspells, a.taken end },
+    { key = "ff", group = "Damage", name = T["Friendly Fire"], value = function(a) return a.ff or 0 end,
+      list = function(a) return a.ffspells, a.ff end },
+    { key = "enemytaken", group = "Damage", name = T["Enemy Damage Taken"], rows = function(seg)
+        local out = {}
+        for name, f in pairs(seg.foes or {}) do
+          if f.taken > 0 then table.insert(out, { name = name, value = f.taken, foe = f, tlist = f.from }) end
+        end
+        return out
+      end },
+    { key = "enemydone", group = "Damage", name = T["Enemy Damage Done"], rows = function(seg)
+        local out = {}
+        for name, f in pairs(seg.foes or {}) do
+          if f.done > 0 then table.insert(out, { name = name, value = f.done, foe = f, tlist = f.to }) end
+        end
+        return out
+      end },
+    { key = "byspell", group = "Damage", name = T["Damage Taken By Spell"], rows = function(seg)
+        local out = {}
+        for name, b in pairs(seg.byspell or {}) do
+          table.insert(out, { name = name, value = b.total, byspell = b, tlist = b.targets })
+        end
+        return out
+      end },
+    { key = "frags", group = "Damage", name = T["Frags"], value = function(a) return a.frags or 0 end },
+    { key = "heal", group = "Healing", name = T["Healing Done"], value = function(a) return a.heal end,
+      extra = function(a) return Num(a.heal / ActiveTime(a)) end, list = function(a) return a.hspells, a.heal end },
+    { key = "hps", group = "Healing", name = T["HPS"], value = function(a) return a.heal > 0 and a.heal / ActiveTime(a) or 0 end,
+      extra = function(a) return Num(a.heal) end, list = function(a) return a.hspells, a.heal end },
+    { key = "overheal", group = "Healing", name = T["Overhealing"], value = function(a) return a.overheal end,
       extra = function(a)
         local all = a.heal + a.overheal
         return all > 0 and floor(a.overheal / all * 100) .. "%" or "0%"
-      end },
-    { key = "taken", name = T["Damage Taken"], value = function(a) return a.taken end },
-    { key = "interrupts", name = T["Interrupts"], value = function(a) return a.interrupts end },
-    { key = "dispels", name = T["Dispels"], value = function(a) return a.dispels end },
-    { key = "deaths", name = T["Deaths"], value = function(a) return a.deaths end },
-    { key = "casts", name = T["Casts"], value = function(a) return a.ncasts end },
-    { key = "threat", name = T["Threat"] },
+      end, list = function(a) return a.hspells, a.heal end },
+    { key = "htaken", group = "Healing", name = T["Healing Taken"], value = function(a) return a.htaken or 0 end,
+      plain = function(a) return a.hsources, a.htaken end },
+    { key = "mana", group = "Resources", name = T["Mana Restored"], value = function(a) return Power(a, MANA_) end,
+      plain = function(a) return a.psources and a.psources[MANA_], Power(a, MANA_) end },
+    { key = "rage", group = "Resources", name = T["Rage Generated"], value = function(a) return Power(a, RAGE_) end,
+      plain = function(a) return a.psources and a.psources[RAGE_], Power(a, RAGE_) end },
+    { key = "energy", group = "Resources", name = T["Energy Generated"], value = function(a) return Power(a, ENERGY_) end,
+      plain = function(a) return a.psources and a.psources[ENERGY_], Power(a, ENERGY_) end },
+    { key = "interrupts", group = "Misc", name = T["Interrupts"], value = function(a) return a.interrupts end },
+    { key = "dispels", group = "Misc", name = T["Dispels"], value = function(a) return a.dispels end },
+    { key = "deaths", group = "Misc", name = T["Deaths"], value = function(a) return a.deaths end },
+    { key = "ress", group = "Misc", name = T["Resurrects"], value = function(a) return a.ress or 0 end },
+    { key = "cooldowns", group = "Misc", name = T["Cooldowns"], value = function(a) return a.cds or 0 end },
+    { key = "buffs", group = "Misc", name = T["Buff Uptime"], value = function(a) return a.buffsum or 0 end,
+      text = Secs, plain = function(a) return a.buffs, a.buffsum end },
+    { key = "debuffs", group = "Misc", name = T["Debuff Uptime"], value = function(a) return a.debuffsum or 0 end,
+      text = Secs, plain = function(a) return a.debuffs, a.debuffsum end },
+    { key = "casts", group = "Misc", name = T["Casts"], value = function(a) return a.ncasts end,
+      plain = function(a) return a.casts, a.ncasts end },
+    { key = "threat", group = "Misc", name = T["Threat"] },
   }
+  M.GROUPS = { "Damage", "Healing", "Resources", "Misc" }
   local MODE = {}
   for _, m in ipairs(MODES) do MODE[m.key] = m end
   M.MODES = MODES
@@ -180,11 +234,16 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
     local seg = M.Segment(segkey)
     if not seg then return rows end
-    for name, a in pairs(seg.actors) do
-      local v = mode.value(a)
-      if v and v > 0 then
-        table.insert(rows, { name = name, value = v, class = a.class, actor = a,
-                             extra = mode.extra and mode.extra(a) })
+    timeSeg = seg
+    if mode.rows then
+      rows = mode.rows(seg)
+    else
+      for name, a in pairs(seg.actors) do
+        local v = mode.value(a)
+        if v and v > 0 then
+          table.insert(rows, { name = name, value = v, class = a.class, actor = a,
+                               extra = mode.extra and mode.extra(a) })
+        end
       end
     end
     table.sort(rows, function(x, y) return x.value > y.value end)
@@ -192,7 +251,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     for _, r in ipairs(rows) do total = total + r.value end
     for _, r in ipairs(rows) do
       r.max = rows[1].value
-      r.text = Num(r.value)
+      r.text = mode.text and mode.text(r.value) or Num(r.value)
       r.pct = total > 0 and r.value / total * 100 or 0
     end
     return rows
@@ -475,12 +534,34 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   function M.ShowDetails(win, row)
     local a = row.actor
-    if not a then return end
     local seg = M.Segment(win.segment)
     local start = seg and seg.start or 0
     local mode = MODE[win.mode] or MODE.damage
     local rows = {}
+    -- enemies and spells (not players)
+    if row.foe or row.byspell then
+      local title = row.name .. "  |cff888888" .. mode.name .. "  -  " .. SegmentName(win.segment) .. "|r"
+      local f, b = row.foe, row.byspell
+      if f and win.mode == "enemytaken" then
+        table.insert(rows, { wide = T["Damage Taken"] .. ": " .. Num(f.taken) })
+        TableRows(rows, T["Sources"], f.from)
+        SpellRows(rows, f.tspells, f.taken)
+      elseif f then
+        table.insert(rows, { wide = T["Damage Done"] .. ": " .. Num(f.done) })
+        SpellRows(rows, f.dspells, f.done)
+        TableRows(rows, T["Targets"], f.to)
+      elseif b then
+        table.insert(rows, { wide = T["Damage"] .. ": " .. Num(b.total) .. "   " .. T["Hits"] .. ": " .. b.hits ..
+          "   " .. T["Max"] .. ": " .. Num(b.max) })
+        TableRows(rows, T["Targets"], b.targets)
+        TableRows(rows, T["Sources"], b.from)
+      end
+      FillDetails(title, rows)
+      return
+    end
+    if not a then return end
     local title = a.name .. "  |cff888888" .. mode.name .. "  -  " .. SegmentName(win.segment) .. "|r"
+    local fight = seg and M.Duration(seg) or 1
 
     if win.mode == "damage" or win.mode == "dps" then
       table.insert(rows, { wide = T["Damage"] .. ": " .. Num(a.damage) .. "   " .. T["DPS"] .. ": " .. Num(a.damage / ActiveTime(a)) ..
@@ -529,6 +610,36 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       table.sort(sorted, function(x, y) return x.n > y.n end)
       table.insert(rows, { head = true, cells = { T["Spell"], T["Casts"], "%" } })
       for _, e in ipairs(sorted) do table.insert(rows, { cells = { e.name, e.n, Pct(e.n, a.ncasts) } }) end
+    elseif win.mode == "ff" then
+      table.insert(rows, { wide = T["Friendly Fire"] .. ": " .. Num(a.ff or 0) })
+      SpellRows(rows, a.ffspells or {}, a.ff or 0)
+      TableRows(rows, T["Targets"], a.fftargets or {})
+    elseif win.mode == "htaken" then
+      table.insert(rows, { wide = T["Healing Taken"] .. ": " .. Num(a.htaken or 0) })
+      TableRows(rows, T["Healed by"], a.hsources or {})
+    elseif win.mode == "mana" or win.mode == "rage" or win.mode == "energy" then
+      local pow = (win.mode == "mana" and (MANA or "Mana")) or (win.mode == "rage" and (RAGE or "Rage")) or (ENERGY or "Energy")
+      table.insert(rows, { wide = pow .. ": " .. Num(Power(a, pow)) })
+      TableRows(rows, T["From"], a.psources and a.psources[pow] or {})
+    elseif win.mode == "frags" then
+      table.insert(rows, { head = true, cells = { T["Killed"], T["Time"] } })
+      for _, e in ipairs(a.fraglist or {}) do table.insert(rows, { cells = { e.target or "?", Clock(e.t - start) } }) end
+    elseif win.mode == "ress" or win.mode == "cooldowns" then
+      local list = win.mode == "ress" and a.resslist or a.cdlist
+      table.insert(rows, { head = true, cells = { T["Spell"], T["Time"] } })
+      for _, e in ipairs(list or {}) do
+        table.insert(rows, { wide = Clock(e.t - start) .. "   |cffffcc66" .. (e.spell or "?") .. "|r" ..
+          (e.target and ("  >  " .. e.target) or "") })
+      end
+    elseif win.mode == "buffs" or win.mode == "debuffs" then
+      local list = win.mode == "buffs" and a.buffs or a.debuffs
+      local sorted = {}
+      for name, v in pairs(list or {}) do table.insert(sorted, { name = name, v = v }) end
+      table.sort(sorted, function(x, y) return x.v > y.v end)
+      table.insert(rows, { head = true, cells = { win.mode == "buffs" and T["Buff"] or T["Debuff"], T["Time"], T["Uptime"] } })
+      for _, e in ipairs(sorted) do
+        table.insert(rows, { cells = { e.name, Clock(e.v), string.format("%.0f%%", min(100, e.v / fight * 100)) } })
+      end
     end
     FillDetails(title, rows)
   end
@@ -541,20 +652,27 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     GameTooltip:SetOwner(bar, "ANCHOR_LEFT")
     GameTooltip:AddLine(row.name, 1, 1, 1)
     local a = row.actor
-    if a then
-      local list, total
-      local m = bar.win.mode
-      if m == "damage" or m == "dps" then list, total = a.spells, a.damage
-      elseif m == "heal" or m == "hps" or m == "overheal" then list, total = a.hspells, a.heal
-      elseif m == "taken" then list, total = a.tspells, a.taken end
-      if list then
-        local sorted = {}
-        for name, s in pairs(list) do table.insert(sorted, { name = name, v = s.total }) end
-        table.sort(sorted, function(x, y) return x.v > y.v end)
-        for i = 1, min(8, table.getn(sorted)) do
-          local e = sorted[i]
-          GameTooltip:AddDoubleLine(e.name, Num(e.v) .. "  " .. Pct(e.v, total), 1, 1, 1, .8, .8, .8)
-        end
+    local mode = MODE[bar.win.mode] or MODE.damage
+    -- the top entries: spells (with totals), or plain name -> amount lists
+    local sorted, total = {}, 0
+    if a and mode.list then
+      local list
+      list, total = mode.list(a)
+      for name, s in pairs(list or {}) do table.insert(sorted, { name = name, v = s.total }) end
+    elseif a and mode.plain then
+      local list
+      list, total = mode.plain(a)
+      for name, v in pairs(list or {}) do table.insert(sorted, { name = name, v = v }) end
+    elseif row.tlist then
+      total = row.value
+      for name, v in pairs(row.tlist) do table.insert(sorted, { name = name, v = v }) end
+    end
+    if a or row.foe or row.byspell then
+      table.sort(sorted, function(x, y) return x.v > y.v end)
+      for i = 1, min(8, table.getn(sorted)) do
+        local e = sorted[i]
+        local v = mode.text and mode.text(e.v) or Num(e.v)
+        GameTooltip:AddDoubleLine(e.name, v .. "  " .. Pct(e.v, total or 0), 1, 1, 1, .8, .8, .8)
       end
       GameTooltip:AddLine(T["Click for the full breakdown"], .5, .5, .5)
     elseif row.tank then
@@ -1090,15 +1208,21 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.titlebtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     win.titlebtn:SetScript("OnClick", function()
       if win.preview then if M.PreviewClick then M.PreviewClick(win, "title") end return end
-      local items = { { T["Show"], head = true } }
-      for _, m in ipairs(MODES) do
-        local key = m.key
-        table.insert(items, { m.name, function()
-          win.mode = key
-          S(win).mode = key
-          win.offset = 0
-          Refresh(win)
-        end, checked = (key == win.mode) })
+      -- Details' groups, each with its displays
+      local items = {}
+      for _, g in ipairs(M.GROUPS) do
+        table.insert(items, { T[g], head = true })
+        for _, m in ipairs(MODES) do
+          if m.group == g then
+            local key = m.key
+            table.insert(items, { m.name, function()
+              win.mode = key
+              S(win).mode = key
+              win.offset = 0
+              Refresh(win)
+            end, checked = (key == win.mode) })
+          end
+        end
       end
       ShowMenu(this, items)
     end)
@@ -1136,7 +1260,10 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       table.insert(items, { T["Current fight"], Pick("current"), checked = win.segment == "current" })
       table.insert(items, { T["Overall"], Pick("overall"), checked = win.segment == "overall" })
       for i, seg in ipairs(M.history) do
-        table.insert(items, { Clock(M.Duration(seg)) .. "  " .. (seg.name or T["Fight"]), Pick(tostring(i)),
+        -- bosses in red with a skull
+        local mark = seg.boss and "|cffff5555" or ""
+        local skull = seg.boss and " |TInterface\\TargetingFrame\\UI-TargetingFrame-Skull:12|t" or ""
+        table.insert(items, { mark .. Clock(M.Duration(seg)) .. "  " .. (seg.name or T["Fight"]) .. skull, Pick(tostring(i)),
           checked = win.segment == tostring(i) })
       end
       ShowMenu(this, items)
@@ -1250,6 +1377,18 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     return win
   end
   M.CreateWindow = CreateWindow
+
+  -- a fight starts: windows showing an earlier one go back to the current
+  -- one (Details' "auto switch to current")
+  table.insert(M.onStart or {}, function()
+    if C.meters.autocurrent ~= "1" then return end
+    for _, w in ipairs(M.windows) do
+      if w.segment ~= "current" and w.segment ~= "overall" then
+        w.segment = "current"
+        S(w).segment = "current"
+      end
+    end
+  end)
 
   M.windows = {}
   local count = math.max(1, math.min(M.MAXWIN, tonumber(C.meters.windows) or 2))

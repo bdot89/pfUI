@@ -143,6 +143,25 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     { "PERIODICAURAHEALOTHERSELF", "heal", "amt src spl", tgt = "self", dot = true },
     { "PERIODICAURAHEALOTHEROTHER", "heal", "tgt amt src spl", dot = true },
 
+    -- resources gained (octo, phase 2): "You gain 25 Rage from Bloodrage." -
+    -- credited to who gains it; the spell (and caster when told) is the source
+    { "POWERGAINOTHEROTHER", "power", "tgt amt pow src spl" },
+    { "POWERGAINOTHERSELF", "power", "amt pow src spl", tgt = "self" },
+    { "POWERGAINSELFOTHER", "power", "tgt amt pow spl" },
+    { "POWERGAINSELFSELF", "power", "amt pow spl", src = "self", tgt = "self" },
+
+    -- auras gained and lost (buff / debuff uptime, cooldowns used)
+    { "AURAAPPLICATIONADDEDOTHERHELPFUL", "aura", "tgt aura amt", up = true },
+    { "AURAAPPLICATIONADDEDSELFHELPFUL", "aura", "aura amt", tgt = "self", up = true },
+    { "AURAAPPLICATIONADDEDOTHERHARMFUL", "aura", "tgt aura amt", up = true, harm = true },
+    { "AURAAPPLICATIONADDEDSELFHARMFUL", "aura", "aura amt", tgt = "self", up = true, harm = true },
+    { "AURAADDEDOTHERHELPFUL", "aura", "tgt aura", up = true },
+    { "AURAADDEDSELFHELPFUL", "aura", "aura", tgt = "self", up = true },
+    { "AURAADDEDOTHERHARMFUL", "aura", "tgt aura", up = true, harm = true },
+    { "AURAADDEDSELFHARMFUL", "aura", "aura", tgt = "self", up = true, harm = true },
+    { "AURAREMOVEDOTHER", "aura", "aura tgt" },
+    { "AURAREMOVEDSELF", "aura", "aura", tgt = "self" },
+
     -- melee misses and avoidance
     { "MISSEDSELFOTHER", "miss", "tgt", src = "self", spl = MELEE, how = "miss" },
     { "MISSEDOTHERSELF", "miss", "src", tgt = "self", spl = MELEE, how = "miss" },
@@ -209,11 +228,12 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     if strfind(event, "_HITS") then return { dmg = true } end
     if strfind(event, "_MISSES") then return { miss = true } end
     if strfind(event, "DAMAGESHIELDS") then return { dmg = true, miss = true } end
-    if strfind(event, "AURA_GONE") or strfind(event, "BREAK_AURA") then return { dispel = true } end
-    if strfind(event, "PERIODIC") then return { dmg = true, heal = true } end
-    if strfind(event, "_BUFF") then return { heal = true, cast = true, start = true } end
-    if strfind(event, "_DAMAGE") then return { interrupt = true, dmg = true, miss = true, cast = true, start = true } end
-    return { dmg = true, heal = true, miss = true, interrupt = true, cast = true, start = true, dispel = true, death = true }
+    if strfind(event, "AURA_GONE") or strfind(event, "BREAK_AURA") then return { dispel = true, aura = true } end
+    if strfind(event, "PERIODIC") then return { dmg = true, heal = true, power = true, aura = true } end
+    if strfind(event, "_BUFF") then return { heal = true, cast = true, start = true, power = true, aura = true } end
+    if strfind(event, "_DAMAGE") then return { interrupt = true, dmg = true, miss = true, cast = true, start = true, power = true, aura = true } end
+    return { dmg = true, heal = true, miss = true, interrupt = true, cast = true, start = true, dispel = true, death = true,
+             power = true, aura = true }
   end
 
   local EVENTS = {
@@ -239,6 +259,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     "CHAT_MSG_SPELL_PERIODIC_HOSTILEPLAYER_DAMAGE", "CHAT_MSG_SPELL_PERIODIC_HOSTILEPLAYER_BUFFS",
     "CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE",
     "CHAT_MSG_SPELL_BREAK_AURA", "CHAT_MSG_SPELL_AURA_GONE_OTHER", "CHAT_MSG_SPELL_AURA_GONE_SELF",
+    "CHAT_MSG_SPELL_AURA_GONE_PARTY", "CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS",
     "CHAT_MSG_COMBAT_FRIENDLY_DEATH", "CHAT_MSG_COMBAT_HOSTILE_DEATH",
   }
 
@@ -279,6 +300,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
           rec.kind, rec.how, rec.crit, rec.dot = spec[2], spec.how, spec.crit, spec.dot
           rec.glancing, rec.crushing = glancing, crushing
           rec.src, rec.tgt, rec.spl, rec.amt, rec.sch, rec.aura = nil, nil, spec.spl, nil, nil, nil
+          rec.pow, rec.up, rec.harm, rec.amt2, rec.pow2, rec.leech = nil, spec.up, spec.harm, nil, nil, spec.leech
           local values = { a1, a2, a3, a4, a5 }
           for i, role in ipairs(spec.roles) do rec[role] = values[i] end
           if spec.src == "self" then rec.src = player end
@@ -344,8 +366,11 @@ pfUI:RegisterModule("meters", "vanilla", function ()
 
   -- ---------------------------------------------------------------- segments
 
+  -- a segment: actors = your group by name; enemies = damage each enemy took
+  -- (names the fight); foes = enemies in detail (damage taken / done, by
+  -- whom, with what); byspell = what hit your group, by spell
   local function NewSegment(name)
-    return { name = name, start = GetTime(), last = GetTime(), actors = {}, enemies = {} }
+    return { name = name, start = GetTime(), last = GetTime(), actors = {}, enemies = {}, foes = {}, byspell = {} }
   end
 
   M.overall = NewSegment(T["Overall"])
@@ -368,13 +393,28 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       a = { name = name, class = info and info.class, damage = 0, heal = 0, overheal = 0, taken = 0,
             interrupts = 0, interrupted = 0, dispels = 0, deaths = 0, ncasts = 0, active = 0,
             spells = {}, hspells = {}, tspells = {}, targets = {}, htargets = {}, sources = {},
-            casts = {}, avoid = {}, ilist = {}, dlist = {}, deathlogs = {} }
+            casts = {}, avoid = {}, ilist = {}, dlist = {}, deathlogs = {},
+            -- phase 2: friendly fire, healing taken, kills, resources, ress, cooldowns, uptime
+            ff = 0, ffspells = {}, fftargets = {}, htaken = 0, hsources = {}, frags = 0, fraglist = {},
+            power = {}, psources = {}, ress = 0, resslist = {}, cds = 0, cdlist = {},
+            buffs = {}, debuffs = {}, buffsum = 0, debuffsum = 0 }
       seg.actors[name] = a
     end
     if info and info.class and not a.class then a.class = info.class end
     return a
   end
   M.Actor = Actor
+
+  -- an enemy in detail
+  local function Foe(seg, name)
+    local f = seg.foes[name]
+    if not f then
+      f = { name = name, taken = 0, done = 0, from = {}, to = {}, tspells = {}, dspells = {} }
+      seg.foes[name] = f
+    end
+    return f
+  end
+  M.Foe = Foe
 
   -- activity time: gaps longer than 3.5 s count as 1.5 s
   local function Active(a, now)
@@ -410,25 +450,68 @@ pfUI:RegisterModule("meters", "vanilla", function ()
   end
   M.GroupInCombat = GroupInCombat
 
+  M.onStart = {}  -- called with the new segment (windows go back to it)
   function M.StartFight()
     local seg = NewSegment(T["Fight"])
     M.current = seg
     table.insert(M.history, 1, seg)
     local keep = tonumber(C.meters.history) or 10
     while table.getn(M.history) > keep do table.remove(M.history) end
+    for _, fn in pairs(M.onStart) do fn(seg) end
     return seg
   end
+
+  -- one segment added into another (numbers summed, max / min kept, lists
+  -- joined): trash fights merged into one
+  local LISTS = { ilist = true, dlist = true, deathlogs = true, fraglist = true, resslist = true, cdlist = true }
+  local SKIP = { start = true, last = true, lastact = true, name = true, class = true, boss = true, trash = true }
+  local function Merge(dst, src)
+    for k, v in pairs(src) do
+      local d = dst[k]
+      if SKIP[k] then
+        if d == nil then dst[k] = v end
+      elseif type(v) == "number" then
+        if k == "max" then dst[k] = max(d or 0, v)
+        elseif k == "min" then dst[k] = d and min(d, v) or v
+        else dst[k] = (d or 0) + v end
+      elseif type(v) == "table" then
+        if not d then d = {} dst[k] = d end
+        if LISTS[k] then
+          for _, e in ipairs(v) do table.insert(d, e) end
+        else
+          Merge(d, v)
+        end
+      elseif d == nil then
+        dst[k] = v
+      end
+    end
+  end
+  M.Merge = Merge
+
+  -- auras still up when a fight ends count up to its end
+  local CloseAuras
 
   function M.EndFight()
     local seg = M.current
     if not seg then return end
+    if CloseAuras then CloseAuras(seg) end
     M.current = nil
-    -- name it after the enemy that took the most damage
+    -- name it after the boss, else the enemy that took the most damage
     local best, bestv = nil, 0
     for name, v in pairs(seg.enemies) do
       if v > bestv then best, bestv = name, v end
     end
-    seg.name = best or T["Fight"]
+    seg.name = seg.boss or best or T["Fight"]
+    seg.trash = not seg.boss
+    -- trash fights in a row become one "Trash" fight (Details' "merge trash")
+    local prev = M.history[2]
+    if seg.trash and C.meters.mergetrash == "1" and prev and prev.trash and M.history[1] == seg then
+      Merge(prev, seg)
+      prev.last = seg.last
+      prev.merged = (prev.merged or 1) + 1
+      prev.name = T["Trash"] .. " (" .. prev.merged .. ")"
+      table.remove(M.history, 1)
+    end
     M.Changed()
   end
 
@@ -485,7 +568,26 @@ pfUI:RegisterModule("meters", "vanilla", function ()
                       "Tranquilizing Shot", "Poison Cleansing Totem", "Disease Cleansing Totem" }) do
     DISPELS[T[s]] = true
   end
+  -- resurrections and cooldowns worth listing (English names through T[])
+  local RESS, COOLDOWNS = {}, {}
+  for _, s in pairs({ "Resurrection", "Redemption", "Rebirth", "Ancestral Spirit" }) do RESS[T[s]] = true end
+  for _, s in pairs({ "Shield Wall", "Last Stand", "Recklessness", "Retaliation", "Death Wish", "Challenging Shout",
+                      "Evasion", "Vanish", "Sprint", "Adrenaline Rush", "Blade Flurry", "Cold Blood", "Preparation",
+                      "Ice Block", "Arcane Power", "Combustion", "Presence of Mind", "Cold Snap", "Evocation",
+                      "Divine Shield", "Divine Protection", "Blessing of Protection", "Lay on Hands", "Divine Favor",
+                      "Barkskin", "Innervate", "Tranquility", "Nature's Swiftness", "Dash", "Frenzied Regeneration",
+                      "Challenging Roar", "Power Infusion", "Inner Focus", "Desperate Prayer", "Mana Tide Totem",
+                      "Elemental Mastery", "Deterrence", "Rapid Fire", "Bestial Wrath", "Fel Domination", "Amplify Curse",
+                      "Soulstone Resurrection" }) do
+    COOLDOWNS[T[s]] = true
+  end
+  M.RESS, M.COOLDOWNS = RESS, COOLDOWNS
+
   local pendingDispel = {}  -- target -> { src, spell, t }
+  local lastHit = {}        -- enemy -> { actor, t } (who killed it)
+  local lastCaster = {}     -- spell -> { actor, t } (whose debuff it is)
+  local open = {}           -- unit name -> { aura -> { start, caster, harm } } (uptime)
+  local cdSeen = {}         -- actor .. spell -> time (a cooldown counted once)
   local pendingStart = {}   -- src .. spell -> time a cast began
   local lastSpell = {}      -- src -> { spell, t } (what an interrupt was done with)
 
@@ -525,6 +627,59 @@ pfUI:RegisterModule("meters", "vanilla", function ()
 
     if r.kind == "dmg" then
       if not r.amt or r.src == r.tgt then return end
+      -- one of your group hitting another: friendly fire, not damage done
+      -- (Details! counts it apart; with "everyone nearby" on, enemy players
+      -- are tracked too, and are not friends)
+      local sw, tw = srcname and Who(srcname), tgtname and Who(tgtname)
+      if sw and tw and sw.kind ~= "OTHER" and tw.kind ~= "OTHER" and srcname ~= tgtname then
+        Each(function(seg)
+          local a = Actor(seg, srcname, sw)
+          a.ff = a.ff + r.amt
+          local s = Spell(a.ffspells, label)
+          s.total = s.total + r.amt
+          s.hits = s.hits + 1
+          if r.amt > s.max then s.max = r.amt end
+          a.fftargets[tgtname] = (a.fftargets[tgtname] or 0) + r.amt
+          local t = Actor(seg, tgtname, tw)
+          t.taken = t.taken + r.amt
+          t.sources[r.src] = (t.sources[r.src] or 0) + r.amt
+        end)
+        Remember(tgtname, "dmg", r.amt, label, r.src, r.crit)
+        M.Changed()
+        return
+      end
+      -- enemies in detail, what hit your group by spell, who hit last
+      if srcname and r.tgt and not tgtname then
+        lastHit[r.tgt] = { name = srcname, t = now }
+        if r.spl and r.spl ~= MELEE then lastCaster[r.spl] = { name = srcname, t = now } end
+        if M.current and not M.current.boss and M.IsBoss(r.tgt) then M.current.boss = r.tgt end
+        Each(function(seg)
+          local f = Foe(seg, r.tgt)
+          f.taken = f.taken + r.amt
+          f.from[srcname] = (f.from[srcname] or 0) + r.amt
+          local s = Spell(f.tspells, label .. " - " .. srcname)
+          s.total = s.total + r.amt
+          s.hits = s.hits + 1
+        end)
+      elseif tgtname and r.src and not srcname then
+        Each(function(seg)
+          local f = Foe(seg, r.src)
+          f.done = f.done + r.amt
+          f.to[tgtname] = (f.to[tgtname] or 0) + r.amt
+          local s = Spell(f.dspells, label)
+          s.total = s.total + r.amt
+          s.hits = s.hits + 1
+          if r.amt > s.max then s.max = r.amt end
+          local b = seg.byspell[label]
+          if not b then b = { total = 0, hits = 0, max = 0, targets = {}, from = {} } seg.byspell[label] = b end
+          b.total = b.total + r.amt
+          b.hits = b.hits + 1
+          if r.amt > b.max then b.max = r.amt end
+          b.targets[tgtname] = (b.targets[tgtname] or 0) + r.amt
+          b.from[r.src] = (b.from[r.src] or 0) + r.amt
+        end)
+        if M.current and not M.current.boss and M.IsBoss(r.src) then M.current.boss = r.src end
+      end
       if srcname then
         Each(function(seg)
           local a = Actor(seg, srcname, Who(srcname))
@@ -581,12 +736,22 @@ pfUI:RegisterModule("meters", "vanilla", function ()
           if not r.dot and (not s.min or r.amt < s.min) then s.min = r.amt end
           if r.tgt then a.htargets[r.tgt] = (a.htargets[r.tgt] or 0) + effective end
         end)
+        if r.spl then lastCaster[r.spl] = { name = srcname, t = now } end
         if not r.dot and r.spl then
           local key = r.src .. "\031" .. r.spl
           if pendingStart[key] then pendingStart[key] = nil else M.Cast(srcname, r.spl, r.tgt, true) end
         end
       end
-      if tgtname then Remember(tgtname, "heal", effective, label, r.src, r.crit) end
+      if tgtname then
+        Remember(tgtname, "heal", effective, label, r.src, r.crit)
+        -- healing taken, and from whom
+        Each(function(seg)
+          local t = Actor(seg, tgtname, Who(tgtname))
+          t.htaken = t.htaken + effective
+          local from = r.src or "?"
+          t.hsources[from] = (t.hsources[from] or 0) + effective
+        end)
+      end
 
     elseif r.kind == "miss" then
       if srcname then
@@ -654,19 +819,182 @@ pfUI:RegisterModule("meters", "vanilla", function ()
         end
       end
       if r.tgt and M.current then M.current.enemies[r.tgt] = M.current.enemies[r.tgt] or 0 end
+      -- an enemy died: a frag for whoever killed it (the log names the
+      -- killer, else the last of your group to hit it, within 10 s)
+      if r.tgt and not tgtname then
+        local killer = srcname
+        if not killer and lastHit[r.tgt] and now - lastHit[r.tgt].t < 10 then killer = lastHit[r.tgt].name end
+        if killer then
+          Each(function(seg)
+            local a = Actor(seg, killer, Who(killer))
+            a.frags = a.frags + 1
+            table.insert(a.fraglist, { t = now, target = r.tgt })
+          end)
+        end
+        lastHit[r.tgt] = nil
+      end
+      -- whatever was on the dead stops counting
+      if r.tgt then M.AuraGone(r.tgt, nil, now) end
+
+    elseif r.kind == "power" then
+      -- resources gained: mana, rage, energy (and others by their name)
+      if tgtname and r.amt and r.pow then
+        local from = r.spl or "?"
+        if r.src and r.src ~= r.tgt then from = from .. " (" .. r.src .. ")" end
+        Each(function(seg)
+          local a = Actor(seg, tgtname, Who(tgtname))
+          a.power[r.pow] = (a.power[r.pow] or 0) + r.amt
+          a.psources[r.pow] = a.psources[r.pow] or {}
+          a.psources[r.pow][from] = (a.psources[r.pow][from] or 0) + r.amt
+        end)
+      end
+
+    elseif r.kind == "aura" then
+      if not r.tgt or not r.aura then return end
+      if r.up then
+        M.AuraUp(r.tgt, r.aura, r.harm, now)
+        -- a cooldown seen as its buff (cast by the one who has it)
+        if not r.harm and tgtname and COOLDOWNS[r.aura] then M.Cooldown(tgtname, r.aura, r.tgt, now) end
+      else
+        M.AuraGone(r.tgt, r.aura, now)
+      end
+      return
     end
 
     M.Changed()
   end
 
+  -- ---------------------------------------------------------------- uptime
+
+  -- Buffs on your group count for the one who has them; debuffs on enemies
+  -- for the one who cast them (1.12's log does not say who: the last of
+  -- your group seen using that spell, within 30 s).
+  local function Credit(name, aura, harm, t0, now, onlyseg)
+    if not name then return end
+    local function Add(seg)
+      local from = max(t0, seg.start)
+      local dt = now - from
+      if dt <= 0 then return end
+      local a = Actor(seg, name, Who(name))
+      if harm then
+        a.debuffs[aura] = (a.debuffs[aura] or 0) + dt
+        a.debuffsum = a.debuffsum + dt
+      else
+        a.buffs[aura] = (a.buffs[aura] or 0) + dt
+        a.buffsum = a.buffsum + dt
+      end
+    end
+    if onlyseg then Add(onlyseg) else Each(Add) end
+  end
+
+  function M.AuraUp(unit, aura, harm, now)
+    local friend = Owner(unit)
+    local caster
+    if harm then
+      if friend then return end   -- debuffs on your group are not uptime
+      local lc = lastCaster[aura]
+      caster = lc and now - lc.t < 30 and lc.name
+      if not caster then return end
+    else
+      if not friend then return end
+      caster = friend
+    end
+    open[unit] = open[unit] or {}
+    if not open[unit][aura] then open[unit][aura] = { start = now, caster = caster, harm = harm } end
+  end
+
+  -- aura == nil: everything on that unit (it died)
+  function M.AuraGone(unit, aura, now)
+    local list = open[unit]
+    if not list then return end
+    for name, o in pairs(list) do
+      if not aura or name == aura then
+        Credit(o.caster, name, o.harm, o.start, now)
+        list[name] = nil
+      end
+    end
+    if not next(list) then open[unit] = nil end
+    M.Changed()
+  end
+
+  -- a fight ends: what is still up counts for it up to now (the overall
+  -- and the next fight get theirs when it fades)
+  CloseAuras = function(seg)
+    local now = GetTime()
+    for unit, list in pairs(open) do
+      for name, o in pairs(list) do
+        Credit(o.caster, name, o.harm, o.start, now, seg)
+        -- (from here the overall still counts from the start, the next
+        -- fight from its own start)
+      end
+    end
+  end
+
+  -- a cooldown used, counted once (its cast and its buff may both show)
+  function M.Cooldown(name, spell, target, now)
+    local key = name .. "\031" .. spell
+    if cdSeen[key] and now - cdSeen[key] < 3 then return end
+    cdSeen[key] = now
+    Each(function(seg)
+      local a = Actor(seg, name, Who(name))
+      a.cds = a.cds + 1
+      table.insert(a.cdlist, { t = now, spell = spell, target = target })
+    end)
+    M.Changed()
+  end
+
+  -- a boss: the game marks it (skull level or "worldboss") on a unit we can see
+  function M.IsBoss(name)
+    for _, unit in ipairs({ "target", "targettarget", "mouseover", "pettarget", "party1target", "party2target",
+                            "party3target", "party4target" }) do
+      if UnitName(unit) == name then
+        if UnitClassification(unit) == "worldboss" or UnitLevel(unit) == -1 then return true end
+        return false
+      end
+    end
+    return false
+  end
+
   -- a cast by an actor; counted == true when it came from its hit
-  function M.Cast(name, spell, target, counted)
+  -- (with SuperWoW casts also come from its cast events - every cast, with
+  -- its target; a cast seen by both the log and the event counts once)
+  local castSeen = {}
+  function M.Cast(name, spell, target, counted, fromCastEvent)
     if not name or not spell then return end
+    local now = GetTime()
+    local key = name .. "\031" .. spell
+    local seen = castSeen[key]
+    if seen and now - seen.t < 1 and seen.event ~= fromCastEvent then
+      -- the other source already counted it; keep its target if it had none
+      return
+    end
+    castSeen[key] = { t = now, event = fromCastEvent }
     Each(function(seg)
       local a = Actor(seg, name, Who(name))
       a.casts[spell] = (a.casts[spell] or 0) + 1
       a.ncasts = a.ncasts + 1
+      if RESS[spell] then
+        a.ress = a.ress + 1
+        table.insert(a.resslist, { t = now, spell = spell, target = target })
+      end
     end)
+    lastCaster[spell] = { name = name, t = now }
+    if COOLDOWNS[spell] then M.Cooldown(name, spell, target, now) end
+  end
+
+  -- SuperWoW: UNIT_CASTEVENT(caster GUID, target GUID, "START" / "CAST" /
+  -- "CHANNEL" / "FAIL" / "MAINHAND" / "OFFHAND", spell id, duration).
+  -- Names come from UnitName(GUID), spell names from SpellInfo(id).
+  function M.CastEvent(casterGUID, targetGUID, kind, spellId)
+    if kind ~= "CAST" and kind ~= "CHANNEL" then return end
+    local caster = casterGUID and UnitName(casterGUID)
+    local name = caster and Owner(caster)
+    if not name then return end
+    local spell = SpellInfo and spellId and SpellInfo(spellId)
+    if not spell or spell == "" then return end
+    local target = targetGUID and targetGUID ~= "" and UnitName(targetGUID) or nil
+    M.Cast(name, spell, target, nil, true)
+    if M.current then M.current.last = GetTime() end
   end
 
   -- windows refresh at most 5 times a second
@@ -677,9 +1005,21 @@ pfUI:RegisterModule("meters", "vanilla", function ()
   for _, event in pairs(EVENTS) do f:RegisterEvent(event) end
   f:RegisterEvent("PLAYER_REGEN_DISABLED")
   f:RegisterEvent("PLAYER_REGEN_ENABLED")
+  -- SuperWoW's cast events: every cast of everyone near, with its target
+  -- (the combat log misses many instant casts). Without SuperWoW the casts
+  -- come from the log as before.
+  local lc = pfUI.api and pfUI.api.libclient
+  if (lc and lc.HasSuperWoW and lc.HasSuperWoW()) or SUPERWOW_VERSION then
+    f:RegisterEvent("UNIT_CASTEVENT")
+    M.castEvents = true
+  end
   f:SetScript("OnEvent", function()
     if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
       this.check = 0
+      return
+    end
+    if event == "UNIT_CASTEVENT" then
+      M.CastEvent(arg1, arg2, arg3, arg4)
       return
     end
     M.Record(M.Read(event, arg1))
@@ -700,6 +1040,18 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       for k, t in pairs(pendingStart) do if t < old then pendingStart[k] = nil end end
       for k, p in pairs(pendingDispel) do if p.t < old then pendingDispel[k] = nil end end
       for k, p in pairs(lastSpell) do if p.t < old then lastSpell[k] = nil end end
+      local older = GetTime() - 60
+      for k, p in pairs(lastHit) do if p.t < older then lastHit[k] = nil end end
+      for k, p in pairs(lastCaster) do if p.t < older then lastCaster[k] = nil end end
+      for k, t in pairs(cdSeen) do if t < older then cdSeen[k] = nil end end
+      for k, s in pairs(castSeen) do if s.t < older then castSeen[k] = nil end end
+      -- (an aura whose fade was never seen, after 10 minutes)
+      for unit, list in pairs(open) do
+        for name, o in pairs(list) do
+          if GetTime() - o.start > 600 then list[name] = nil end
+        end
+        if not next(list) then open[unit] = nil end
+      end
     end
     if dirty then
       dirty = nil

@@ -169,6 +169,10 @@ function pfUI:LoadConfig()
   -- octo: every meter window has its own settings (meters-window.lua; the
   -- old shared keys above are copied in once, "migrated")
   pfUI:UpdateConfig("meters",     nil,           "migrated",         "0")
+  -- octo phase 2: how fights are kept and timed
+  pfUI:UpdateConfig("meters",     nil,           "mergetrash",       "1")
+  pfUI:UpdateConfig("meters",     nil,           "autocurrent",      "1")
+  pfUI:UpdateConfig("meters",     nil,           "timemeasure",      "active")
   local meterModes = { "damage", "threat", "heal", "taken", "interrupts", "deaths" }
   for i = 1, 6 do
     local w = "win" .. i

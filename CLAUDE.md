@@ -428,3 +428,28 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    pages mtwindows (tabs Window 1-6, + New window, preview, looks, cards Shows / Window / Title bar /
    Bars / Texts / Remove), mtdata, mtthreat; pfUI's Meters category hidden. O:Open(name) of a
    replaced category opens its section's first Octo page.
+   Phase 2 (23 Oct, NOT seen in game). meters.lua reads more log lines: POWERGAIN* ("power":
+   credited to who gains it, by spell (caster)), AURAADDED* / AURAAPPLICATIONADDED* /
+   AURAREMOVED* ("aura"); CHAT_MSG_SPELL_AURA_GONE_PARTY + PERIODIC_CREATURE_BUFFS added. Actor
+   fields: ff / ffspells / fftargets (a hit between two of your group is friendly fire, NOT damage
+   done - kinds PLAYER / PET both sides), htaken / hsources, frags / fraglist (killer named by the
+   log, else the last of your group to hit it within 10 s), power[pow] / psources[pow][from],
+   ress / resslist (RESS spells), cds / cdlist (COOLDOWNS, from casts or the cooldown's buff on the
+   one who has it, once per 3 s), buffs / debuffs / buffsum / debuffsum (uptime seconds: buffs on
+   your group for the one who has them; debuffs on enemies for the last of your group seen using
+   that spell within 30 s - 1.12's log does not name the caster). Segment fields: foes (taken / done
+   / from / to / tspells / dspells), byspell (what hit your group), boss (M.IsBoss: worldboss or
+   skull level on a unit we can see), trash. M.EndFight closes open auras for that fight, names it
+   after the boss, and with C.meters.mergetrash merges trash fights in a row (M.Merge: numbers
+   summed, max / min kept, lists joined; "Trash (n)"). M.onStart -> windows showing an older fight
+   go back to current (C.meters.autocurrent). C.meters.timemeasure active | effective (window's
+   ActiveTime). SuperWoW UNIT_CASTEVENT (CAST / CHANNEL) -> M.CastEvent: casts with targets, names
+   via UnitName(GUID), SpellInfo(id); a cast seen by the log and the event within 1 s counts once.
+   meters-window.lua MODES now have group (Damage / Healing / Resources / Misc, the title menu shows
+   them as heads), value | rows(seg) (enemytaken, enemydone, byspell), list / plain (tooltip),
+   text (uptime as m:ss); new: ff, enemytaken, enemydone, byspell, frags, htaken, mana, rage,
+   energy, ress, cooldowns, buffs, debuffs. Breakdowns for each. Boss fights red with a skull in
+   the fight menu. Data page: Fights card (merge trash, switch to new fight, per second over).
+   tests\globalstrings.lua gained the power / aura templates and MANA / RAGE / ENERGY.
+   Unverified in game: UNIT_CASTEVENT arg order, SpellInfo, aura fade lines for other players
+   (range), boss check, the "gains X from Y" templates' source roles.

@@ -588,9 +588,57 @@ if ME then
   ok(me and me.deaths == 1 and me.deathlogs[1] and table.getn(me.deathlogs[1].log) >= 3, "death with a death log")
   ok(ME.overall.actors.Tester and ME.overall.actors.Tester.damage == 790, "overall has it too")
 
+  -- phase 2 (Details' data): friendly fire, enemies, by spell, healing taken
+  log("CHAT_MSG_COMBAT_PARTY_HITS", "Healbot hits you for 50.")
+  log("CHAT_MSG_COMBAT_CREATURE_VS_PARTY_HITS", "Hogger hits Healbot for 30.")
+  ok(hb and hb.ff == 50 and hb.damage == 0 and hb.fftargets.Tester == 50, "a hit on your own group is friendly fire, not damage done")
+  ok(seg.foes.Hogger and seg.foes.Hogger.taken == 710 and seg.foes.Hogger.from.Tester == 710, "enemy damage taken, and from whom")
+  ok(seg.foes.Hogger.done == 3030 and seg.foes.Hogger.to.Healbot == 30, "enemy damage done (" .. tostring(seg.foes.Hogger.done) .. ")")
+  ok(seg.byspell.Smash and seg.byspell.Smash.total == 2600 and seg.byspell.Smash.targets.Tester == 2600, "damage taken by spell")
+  ok(me and me.htaken == 200 and me.hsources.Healbot == 200, "healing taken, and from whom")
+  -- resources
+  log("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS", "You gain 25 Rage from Bloodrage.")
+  log("CHAT_MSG_SPELL_PERIODIC_PARTY_BUFFS", "Healbot gains 300 Mana from Tester's Innervate.")
+  ok(me and me.power.Rage == 25 and me.psources.Rage.Bloodrage == 25, "rage generated, from what")
+  ok(hb and hb.power.Mana == 300 and hb.psources.Mana["Innervate (Tester)"] == 300, "mana restored, from whose spell")
+  -- buff uptime and a cooldown seen as its buff
+  log("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS", "You gain Arcane Power.")
+  Mock.now = Mock.now + 10
+  log("CHAT_MSG_SPELL_AURA_GONE_SELF", "Arcane Power fades from you.")
+  ok(me and me.buffs["Arcane Power"] and math.abs(me.buffs["Arcane Power"] - 10) < .01, "buff uptime (" .. tostring(me and me.buffs["Arcane Power"]) .. ")")
+  ok(me and me.cds == 1 and me.cdlist[1].spell == "Arcane Power", "a cooldown used")
+  -- debuff uptime, credited to whoever used that spell
+  log("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE", "Hogger is afflicted by Shadow Word: Pain.")
+  Mock.now = Mock.now + 6
+  log("CHAT_MSG_SPELL_AURA_GONE_OTHER", "Shadow Word: Pain fades from Hogger.")
+  ok(me and me.debuffs["Shadow Word: Pain"] and math.abs(me.debuffs["Shadow Word: Pain"] - 6) < .01, "debuff uptime, the caster's (" .. tostring(me and me.debuffs["Shadow Word: Pain"]) .. ")")
+  -- a resurrection
+  log("CHAT_MSG_SPELL_PARTY_BUFF", "Healbot casts Resurrection on Tester.")
+  ok(hb and hb.ress == 1 and hb.resslist[1].target == "Tester", "a resurrection, and on whom")
+  -- SuperWoW cast events: casts with their targets, counted once
+  partyNames["0xA1"], partyNames["0xB2"] = "Tester", "Healbot"
+  ME.CastEvent("0xA1", "0xB2", "CAST", 774)
+  ME.Cast("Tester", "Spell774", nil)
+  ok(me and me.casts.Spell774 == 1, "a SuperWoW cast event counts the cast once (" .. tostring(me and me.casts.Spell774) .. ")")
+  partyNames["0xA1"], partyNames["0xB2"] = nil, nil
+  -- an enemy dies: a frag for the last of your group to hit it (within 10 s)
+  log("CHAT_MSG_COMBAT_SELF_HITS", "You hit Hogger for 10.")
+  log("CHAT_MSG_COMBAT_HOSTILE_DEATH", "Hogger dies.")
+  ok(me and me.frags == 1 and me.fraglist[1].target == "Hogger", "frags")
+  -- the new displays
+  local er = ME.Rows("enemytaken", "current")
+  ok(er[1] and er[1].name == "Hogger" and er[1].foe, "enemy damage taken rows")
+  local br = ME.Rows("byspell", "current")
+  ok(br[1] and br[1].name == "Smash", "damage taken by spell rows")
+  local ur = ME.Rows("buffs", "current")
+  ok(ur[1] and ur[1].name == "Tester" and string.find(ur[1].text, ":"), "buff uptime rows show time (" .. tostring(ur[1] and ur[1].text) .. ")")
+  local groups = {}
+  for _, m in ipairs(ME.MODES) do groups[m.group or "?"] = true end
+  ok(groups.Damage and groups.Healing and groups.Resources and groups.Misc, "displays in Details' four groups")
+
   -- rows, windows, details
   local rows = ME.Rows("damage", "current")
-  ok(rows[1] and rows[1].name == "Tester" and rows[1].text == "790", "damage rows")
+  ok(rows[1] and rows[1].name == "Tester" and rows[1].text == "800", "damage rows (790 + the 10 before the kill)")
   rows = ME.Rows("heal", "current")
   ok(rows[1] and rows[1].name == "Healbot", "healing rows")
   local w1 = pfMeter1
@@ -694,6 +742,26 @@ if ME then
   pfMetersParser.tick, pfMetersParser.check = 0, 0
   Mock.Run(pfMetersParser, "OnUpdate")
   ok(ME.current == nil and ME.history[1] and ME.history[1].name == "Hogger", "fight ended, named Hogger (" .. tostring(ME.history[1] and ME.history[1].name) .. ")")
+  ok(ME.history[1].trash, "no boss: a trash fight")
+
+  -- time measure: per second over each player's active time, or the whole fight
+  local hog = ME.history[1]
+  local a1 = hog.actors.Tester
+  local before = ME.Rows("dps", "current")[1].value
+  pfUI_config.meters.timemeasure = "effective"
+  local after = ME.Rows("dps", "current")[1].value
+  ok(math.abs(after - a1.damage / ME.Duration(hog)) < .01 and after ~= before, "whole-fight DPS (" .. before .. " -> " .. after .. ")")
+  pfUI_config.meters.timemeasure = "active"
+
+  -- trash fights in a row merge into one
+  local n0 = table.getn(ME.history)
+  local s2 = ME.StartFight()
+  ME.Actor(s2, "Tester", { class = "MAGE" }).damage = 100
+  s2.enemies["Gnoll"] = 100
+  ME.EndFight()
+  ok(table.getn(ME.history) == n0 and ME.history[1] == hog and hog.actors.Tester.damage == a1.damage,
+    "the next trash fight merged into the last (" .. tostring(hog.actors.Tester.damage) .. ")")
+  ok(string.find(hog.name, "%(2%)"), "named as merged trash (" .. tostring(hog.name) .. ")")
 
   -- threat: parse, ask, warn
   local TH = ME.threat

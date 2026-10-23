@@ -384,6 +384,11 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Merge pets into their owner", nil, G, "mergepets", function() M.who = {} end)
     Chk(p, "Everyone nearby (battlegrounds)", nil, G, "trackall", function() M.who = {} end)
     Drop(p, "Fights kept", nil, List({ { "5", "5" }, { "10", "10" }, { "20", "20" }, { "30", "30" } }), G, "history", function() end)
+    W.Card(p, "Fights", { tip = "How fights are kept and timed, as in Details!." })
+    Chk(p, "Merge trash", "Trash fights in a row become one \"Trash\" fight; boss fights stay apart.", G, "mergetrash", function() end)
+    Chk(p, "Switch to the new fight", "When a fight starts, windows showing an earlier one show it.", G, "autocurrent", function() end)
+    Drop(p, "Per second over", "Active: each player's own active time (Details' activity). Whole fight: the fight's length "
+      .. "(Details' effective time).", List({ { "active", "Active time" }, { "effective", "Whole fight" } }), G, "timemeasure", Up)
   end
 
   local function BuildThreat(p)
