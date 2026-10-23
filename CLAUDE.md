@@ -531,5 +531,13 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    parts noted in a wrap of pfUI.nameplates.OnCreate before pfUI blanks them), bags, loot,
    combattext (CT:SetEnabled), meters (windows hidden). BZ.GROUPS maps topic list sections to them;
    octo-options shows a strip over the page (O.swap, O:LayoutSwap on Select: content moves to -110)
-   with "pfUI Octo" / "Blizzard" per section, the one in use lit. Not done: chat, tooltip, panels,
-   map (world map), raid (the game has none).
+   with "pfUI Octo" / "Blizzard" per section, the one in use lit. Not done: map (world map), raid
+   (the game has none).
+   Same day: chat (BZ.chat per window: frame / tab / tab text / tab art / scroll buttons snapped,
+   CHAT_FRAME_TEXTURES paths, tab regions, edit box regions and fonts; CHAT_*_GET strings,
+   CHAT_FONT_HEIGHTS, SetItemRef swapped; pfUI's tab SetAlpha and TabFlash.Show noted at BZ.Ready
+   (BZ.chatOcto) and put back; chat.lua RefreshChat returns early while Blizzard's chat is on),
+   tooltip (backdrops, TOOLTIP_DEFAULT_* colours, GameTooltip_SetDefaultAnchor, GameTooltipStatusBar
+   from BZ.snap / BZ.osnap = pfUI's own state noted at BZ.Ready; pfUI.tooltip and its status text
+   away), panels (pfPanelLeft / Right, XP / rep bars away). The chat / tooltip snapshot is in a pcall.
+   Chat does not start in the mock: the chat switch is only checked there when it does.
