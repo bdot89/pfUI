@@ -56,3 +56,11 @@ numbers, class colours, [W] whispers, web links); switches over it (CH.TOGGLES: 
 FCF_OpenNewWindow + WHISPER group, Combat log tab, timestamps, class colours, short channels), looks
 (CH.LOOKS), "Show test lines in my chat" (local AddMessage only). Settings pfUI reads only at login are
 marked "Takes a reload".
+
+## Phase 2 done (23 Oct 2026, not seen in game)
+modules/chat-plus.lua (`pfUI.chatPlus`, settings C.chat.plus): before pfUI's formatter (frame.AddMessage) hidden
+words, spam throttle, own channel tags; after it (frame.HookAddMessage) levels next to names (P.levels from units /
+/who), your name + words highlighted in the message part (not inside links), /find buffer; events: sound per kind,
+mention sound + popup (pfChatMention), whispered invite word; Alt-click name = invite (SetItemRef wrapped, re-wrapped
+every 2 s if replaced); Shift / Ctrl + wheel jumps; /tt, /find, /clear. Cards on Messages (Highlights, Sounds,
+Filters, own tags, levels) and page Tools. Not possible on 1.12: item icons in links (no |T escapes).

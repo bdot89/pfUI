@@ -21,6 +21,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   local function LF() return C.chat.left end
   local function RT() return C.chat.right end
   local function BB() return C.chat.bubbles end
+  local function PL() return C.chat.plus end
   local function Px(v) return v .. " px" end
   local function Reload() if pfUI.gui then pfUI.gui.settingChanged = true end end
   local function Refresh() if pfUI.chat and pfUI.chat.RefreshChat then pcall(pfUI.chat.RefreshChat, pfUI.chat) end end
@@ -152,6 +153,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     { "SAY", "Uther", "PALADIN", "Light be with you" },
     { "GUILD", "Anduin", "PRIEST", "Guide: www.example.com/raid", url = "www.example.com/raid" },
     { "YELL", "Gul'dan", "WARLOCK", "Summons at the stone!" },
+    { "SAY", "Malfurion", "DRUID", "Anyone seen %s? Need a buff", me = true },
     { "SYSTEM", nil, nil, "Malfurion has come online." },
   }
   local SPAM = {
@@ -181,6 +183,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   -- a sample line as pfUI would show it: time, message
   function CH.Format(s)
     local kind, who, class, msg = s[1], s[2], s[3], s[4]
+    if s.me then msg = string.format(msg, UnitName("player") or "you") end
     local br = TX().bracket or "[]"
     local bl, brr = string.sub(br, 1, 1), string.sub(br, 2, 2)
     local r, g, b = TypeColor(kind)
@@ -193,8 +196,13 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
         local c = RAID_CLASS_COLORS[class]
         nc = Hex(c.r, c.g, c.b)
       end
-      name = bl .. nc .. who .. "|r" .. col .. brr
+      -- (chat-plus.lua: the level next to the name)
+      local lv = (PL() and PL().levels == "1") and ("|cff999999:" .. (s.level or 60) .. "|r") or ""
+      name = bl .. nc .. who .. "|r" .. lv .. col .. brr
     end
+    -- your name and your words highlighted in the message
+    local plus = pfUI.chatPlus
+    if plus and plus.Highlight and who then msg = plus.Highlight(msg) .. col end
     local text
     if kind == "WHISPER" or kind == "WHISPER_INFORM" then
       if GL().whispermod == "1" then
@@ -206,6 +214,10 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
       end
     elseif kind == "CHANNEL" then
       local tag = TX().channelnumonly == "1" and string.gsub(s.channel or "", "^(%d+)%..*", "%1") or (s.channel or "")
+      -- (your own tag for that channel wins: chat-plus.lua)
+      local _, _, cname = string.find(s.channel or "", "^%d+%. (.+)$")
+      local own = plus and plus.Tag and plus.Tag(cname)
+      if own then tag = own end
       text = col .. bl .. tag .. brr .. " " .. name .. ": " .. msg
     elseif TAGS[kind] then
       text = col .. bl .. TAGS[kind] .. brr .. " " .. name .. ": " .. msg
@@ -228,6 +240,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     if not frame then return end
     for _, s in ipairs(SAMPLES) do
       local kind, who, msg = s[1], s[2], s[4]
+      if s.me then msg = string.format(msg, UnitName("player") or "you") end
       local r, g, b = TypeColor(kind)
       local text
       local link = who and ("|Hplayer:" .. who .. "|h[" .. who .. "]|h") or nil
@@ -249,7 +262,8 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   end
   function CH.Open(card)
     local page = (card == "Timestamps" or card == "Channel names" or card == "Names" or card == "Links"
-      or card == "Whispers" or card == "Text") and "chmessages"
+      or card == "Whispers" or card == "Text" or card == "Highlights" or card == "Sounds" or card == "Filters") and "chmessages"
+      or ((card == "Invites" or card == "Scrolling" or card == "Search") and "chtools")
       or ((card == "Typing box" or card == "Chat bubbles") and "chinput") or "chwindows"
     if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(page, card) else O:Open(page) end
   end
@@ -593,8 +607,11 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     W.Card(p, "Channel names")
     Chk(p, "Channel numbers only", "[2] instead of [2. Trade].", TX, "channelnumonly")
     Drop(p, "Brackets", "Round the tags and names. Takes a reload.", BRACKETS, TX, "bracket", Reload)
+    Edit(p, "Own tags", "Your own short tag per channel, like: Trade=T, LookingForGroup=LFG, World=W, LocalDefense=LD. "
+      .. "A channel listed here shows its tag instead of its number.", PL, "tags")
     W.Card(p, "Names")
     Chk(p, "Class colours", nil, TX, "classcolor")
+    Chk(p, "Level next to names", "From everyone the game has shown you (group, target, mouse-over, /who).", PL, "levels")
     Chk(p, "Colour unknown classes", nil, TX, "tintunknown")
     Color(p, "Unknown class colour", nil, TX, "unknowncolor")
     Chk(p, "Look up unknown classes", "Asks /who for names it has not seen. Experimental.", TX, "whosearchunknown")
@@ -607,6 +624,55 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     Color(p, "Incoming whisper colour", "Takes a reload.", GL, "whisper", Reload)
     W.Card(p, "Text")
     Chk(p, "Text shadow", "Takes a reload.", TX, "outline", Reload)
+
+    -- chat-plus.lua (Prat's ideas)
+    local CT = pfUI.sctB and pfUI.sctB.SCT
+    local sounds = { { key = "none", label = "No sound" } }
+    for _, s in ipairs(CT and CT.SOUNDS or { { key = "TellMessage", label = "Whisper" }, { key = "RaidWarning", label = "Raid warning" } }) do
+      if s.key and s.key ~= "none" then table.insert(sounds, { key = s.key, label = s.label }) end
+    end
+    local function Sound(p2, label, key)
+      W.Dropdown(p2, label, "Picking one plays it.", sounds, function() return PL()[key] or "none" end, function(v)
+        PL()[key] = v
+        if pfUI.chatPlus then pfUI.chatPlus.Play(v) end
+      end)
+    end
+    W.Card(p, "Highlights", { tip = "Your name and words you pick stand out in chat, with a sound and a popup if you like." })
+    Chk(p, "My name", "Your name in other people's messages.", PL, "mention")
+    Color(p, "Name colour", nil, PL, "mentioncolor")
+    Edit(p, "Words", "Words to highlight, like: Onyxia, summon, guild bank (at least 3 letters each).", PL, "words")
+    Color(p, "Word colour", nil, PL, "wordcolor")
+    Sound(p, "Sound", "mentionsound")
+    Chk(p, "Popup", "The line in big letters at the top of the screen for a few seconds.", PL, "mentionpopup")
+    W.Buttons(p, { { "Try the popup", function()
+      if pfUI.chatPlus then pfUI.chatPlus.Popup("Malfurion: Anyone seen " .. (UnitName("player") or "you") .. "?") pfUI.chatPlus.Play(PL().mentionsound) end
+    end, 120, nil, on = function() return pfChatMention and pfChatMention:IsShown() end } })
+    W.Card(p, "Sounds", { tip = "A sound when a message of that kind comes in (not your own)." })
+    if pfUI.chatPlus then
+      for _, k in ipairs(pfUI.chatPlus.KINDS) do Sound(p, k[2], "sound_" .. k[1]) end
+    end
+    W.Card(p, "Filters", { tip = "Less spam: lines from players that have a word you hide, or say the same thing again too soon." })
+    Edit(p, "Hide lines with", "Words, like: gold, cheap, www (lines from players only).", PL, "hide")
+    Sld(p, "Same line again within", "0 = off.", 0, 120, 5, PL, "throttle", function(v) return v == 0 and "off" or (v .. " s") end)
+  end
+
+  local function BuildTools(p)
+    W.Heading(p, "Tools", { about = "Handy extras: invites, scrolling, searching and commands." })
+    Preview(p)
+    W.Card(p, "Invites")
+    Chk(p, "Alt-click a name to invite", nil, PL, "altinvite")
+    Chk(p, "Invite on a whispered word", "Someone whispering just that word gets an invite (when you can invite).", PL, "autoinvite")
+    Edit(p, "The word", nil, PL, "inviteword")
+    W.Card(p, "Scrolling")
+    Chk(p, "Shift / Ctrl + wheel jumps", "Shift + wheel: top or bottom. Ctrl + wheel: a page.", PL, "wheeljump")
+    W.Card(p, "Search")
+    Sld(p, "Lines kept for /find", nil, 50, 1000, 50, PL, "findlines")
+    W.Live(p, function()
+      return "|cffffd100/find word|r  the last lines with that word, from every window\n"
+        .. "|cffffd100/tt message|r  whisper your target (no message: starts one)\n"
+        .. "|cffffd100/clear|r  empties the window you are looking at (|cffffd100/clear all|r: every window)\n"
+        .. "|cffffd100Copy|r  the small note button on the left chat's tabs copies the chat (pfUI's)"
+    end, 4)
   end
 
   local function BuildInput(p)
@@ -629,4 +695,5 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   O:AddPage("Chat", "chwindows", "Windows", BuildWindows)
   O:AddPage("Chat", "chmessages", "Messages", BuildMessages)
   O:AddPage("Chat", "chinput", "Typing and bubbles", BuildInput)
+  O:AddPage("Chat", "chtools", "Tools", BuildTools)
 end)

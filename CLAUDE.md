@@ -15,6 +15,8 @@ see "Roadmap" below.
   options title and the About page.
 - Lua 5.0: no `#`, `%`, `...` as an expression, string.gfind not gmatch, table.getn. Write Lua with
   Edit/Write, never a shell heredoc (apostrophes and backslashes get mangled).
+- Lua 5.0 (the game): a function given to string.gsub that returns nil REMOVES the match (5.1 /
+  LuaJIT, the test host, keeps it). Every branch must return the text it wants (chat-plus.lua).
 - Lua 5.0 (the game) shares a for loop's counter between functions made inside the loop; the test
   host (LuaJIT) gives each its own, so tests pass and the game breaks. Copy it first:
   `for tt = 1, n do local t = tt ... function() use(t) end end` (23 Oct 2026: the meter test fight

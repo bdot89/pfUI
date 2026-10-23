@@ -111,7 +111,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options",
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus",
   "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
@@ -1824,7 +1824,7 @@ do
     -- the chat pages: a preview with a line of every kind, cards for each part
     local CHO = pfUI.chatOcto
     if CHO then
-      for _, k in ipairs({ "o:chwindows", "o:chmessages", "o:chinput" }) do O:Select(k) end
+      for _, k in ipairs({ "o:chwindows", "o:chmessages", "o:chinput", "o:chtools" }) do O:Select(k) end
       ok(O.pages.chwindows and O.pages.chmessages and O.pages.chinput, "Chat: Windows, Messages, Typing and bubbles")
       local tx = pfUI_config.chat.text
       local was = { tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor }
@@ -1864,6 +1864,54 @@ do
       ok(CHO.CurrentLook() == "clean", "a look picked is the look in use")
       tx.time, tx.timeformat, tx.channelnumonly, tx.classcolor, gl.custombg, gl.background, gl.border, gl.tabdock, gl.frameshadow =
         keep[1], keep[2], keep[3], keep[4], keep[5], keep[6], keep[7], keep[8], keep[9]
+    end
+    -- chat phase 2: tags, filters, highlights, levels, /find, sounds, invites
+    local CP = pfUI.chatPlus
+    ok(CP and O.pages.chtools, "chat features loaded, Tools page built")
+    if CP then
+      local pl = pfUI_config.chat.plus
+      local keep = { pl.tags, pl.hide, pl.throttle, pl.words, pl.mention, pl.levels, pl.sound_guild, pl.autoinvite }
+      pl.tags = "Trade=T, World=W"
+      ok(CP.Pre("[2. Trade] |Hplayer:Bob|h[Bob]|h: wts") == "[T] |Hplayer:Bob|h[Bob]|h: wts", "own channel tag")
+      ok(CP.Pre("[4. LookingForGroup] |Hplayer:Bob|h[Bob]|h: lfg") == "[4. LookingForGroup] |Hplayer:Bob|h[Bob]|h: lfg",
+        "a channel without a tag stays as it was")
+      pl.hide = "gold, cheap"
+      ok(CP.Pre("|Hplayer:Spam|h[Spam]|h: CHEAP GOLD") == nil and CP.Pre("You receive gold.") == "You receive gold.",
+        "hidden words drop player lines only")
+      pl.hide, pl.throttle = "", "10"
+      local line = "|Hplayer:Rex|h[Rex]|h: LFM MC"
+      ok(CP.Pre(line) == line and CP.Pre(line) == nil, "the same line again too soon is dropped")
+      pl.throttle, pl.words, pl.mention = "0", "onyxia", "1"
+      local me = UnitName("player") or "Tester"
+      local out = CP.Post(nil, "|Hplayer:Malf|h[Malf]|h: " .. me .. " are we doing onyxia?")
+      ok(string.find(out, "|Hplayer:Malf|h[Malf]|h: ", 1, true) and string.find(out, "|r are we doing ", 1, true)
+        and string.find(out, "onyxia|r", 1, true), "your name and words highlighted, the name link untouched")
+      CP.levels.Malf = 60
+      pl.levels = "1"
+      ok(string.find(CP.Post(nil, "|Hplayer:Malf|h[Malf]|h: hi"), ":60", 1, true)
+        and CP.Post(nil, "|Hplayer:Nobody|h[Nobody]|h: hi") == "|Hplayer:Nobody|h[Nobody]|h: hi", "levels next to known names only")
+      CP.buffer = { [1] = { "|Hplayer:A|h[A]|h: hello world", "nothing here" } }
+      ok(table.getn(CP.Find("WORLD")) == 1, "/find finds a word in any case")
+      -- a sound for guild, a popup and invite on a keyword
+      local played
+      local playWas = CP.Play
+      CP.Play = function(k) played = k end
+      pl.sound_guild, pl.words, pl.mention = "RaidWarning", "", "0"
+      CP.OnMessage("CHAT_MSG_GUILD", "hi all", "Thrall")
+      ok(played == "RaidWarning", "a sound for guild messages")
+      CP.Play = playWas
+      local invited
+      local invWas = _G.InviteByName
+      _G.InviteByName = function(n) invited = n end
+      pl.autoinvite, pl.inviteword = "1", "inv"
+      local partyWas = Mock.party
+      Mock.party = 0
+      CP.OnMessage("CHAT_MSG_WHISPER", "INV", "Jaina")
+      Mock.party = partyWas
+      ok(invited == "Jaina", "a whispered invite word invites")
+      _G.InviteByName = invWas
+      pl.tags, pl.hide, pl.throttle, pl.words, pl.mention, pl.levels, pl.sound_guild, pl.autoinvite =
+        keep[1], keep[2], keep[3], keep[4], keep[5], keep[6], keep[7], keep[8]
     end
     -- the minimap pages: a preview whose parts are picked, moved and sized
     local MMO = pfUI.minimapOcto
