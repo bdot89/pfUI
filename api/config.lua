@@ -181,6 +181,12 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("meters",     nil,           "tooltiplines",     "8")
   pfUI:UpdateConfig("meters",     nil,           "snap",             "1")
   pfUI:UpdateConfig("meters",     nil,           "recent",           "")
+  -- custom displays: a spell's damage / healing / casts / damage taken, a buff's or debuff's uptime
+  for i = 1, 5 do
+    pfUI:UpdateConfig("meters", "custom" .. i, "name",  "")
+    pfUI:UpdateConfig("meters", "custom" .. i, "kind",  "dmgspell")
+    pfUI:UpdateConfig("meters", "custom" .. i, "spell", "")
+  end
   for i = 1, 6 do
     pfUI:UpdateConfig("meters", "win" .. i, "status",      "0")
     pfUI:UpdateConfig("meters", "win" .. i, "statusleft",  "time")

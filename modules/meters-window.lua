@@ -120,6 +120,35 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     end
   end
 
+  -- a window's look as text to share (Details' skin export): every setting
+  -- but what it shows, which fight and its lock, as "OCTOMETER1:key=value|..."
+  local NOTLOOK = { mode = true, segment = true, lock = true }
+  function M.ExportLook(win)
+    local s = S(win)
+    local keys = {}
+    for k in pairs(s) do if not NOTLOOK[k] then table.insert(keys, k) end end
+    table.sort(keys)
+    local parts = {}
+    for _, k in ipairs(keys) do table.insert(parts, k .. "=" .. tostring(s[k])) end
+    return "OCTOMETER1:" .. table.concat(parts, "|")
+  end
+  -- returns how many settings it took (0: not a look string)
+  function M.ImportLook(win, text)
+    if type(text) ~= "string" then return 0 end
+    local _, _, body = string.find(text, "^%s*OCTOMETER1:(.*)$")
+    if not body then return 0 end
+    local s, n = S(win), 0
+    for pair in string.gfind(body, "[^|]+") do
+      local _, _, k, v = string.find(pair, "^([%w_]+)=(.*)$")
+      -- only settings a window has (nothing else gets in)
+      if k and not NOTLOOK[k] and s[k] ~= nil and v then
+        s[k] = v
+        n = n + 1
+      end
+    end
+    return n
+  end
+
   -- a made-up fight for the options' preview window
   local SAMPLE = {
     { "Thrall", "SHAMAN", 48210, 512, 2100, 3, 1, 4 }, { "Jaina", "MAGE", 45800, 0, 0, 2, 0, 0 },
@@ -224,7 +253,55 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       plain = function(a) return a.casts, a.ncasts end },
     { key = "threat", group = "Misc", name = T["Threat"] },
   }
-  M.GROUPS = { "Damage", "Healing", "Resources", "Misc" }
+  M.GROUPS = { "Damage", "Healing", "Resources", "Misc", "Custom" }
+
+  -- custom displays (Details' "custom" tab): C.meters.customN = { name, kind,
+  -- spell }; shown in the menu once a spell is set
+  M.CUSTOMKINDS = {
+    { "dmgspell", "Damage of a spell" }, { "healspell", "Healing of a spell" }, { "casts", "Casts of a spell" },
+    { "taken", "Damage taken from a spell" }, { "buff", "Uptime of a buff" }, { "debuff", "Uptime of a debuff" },
+  }
+  local function CustomValue(c, a)
+    local spell = c.spell
+    if c.kind == "healspell" then return a.hspells[spell] and a.hspells[spell].total or 0 end
+    if c.kind == "casts" then return a.casts[spell] or 0 end
+    if c.kind == "buff" then return a.buffs and a.buffs[spell] or 0 end
+    if c.kind == "debuff" then return a.debuffs and a.debuffs[spell] or 0 end
+    if c.kind == "taken" then
+      -- (taken spells are kept as "spell - source")
+      local total = 0
+      local prefix = spell .. " - "
+      for key, s in pairs(a.tspells) do
+        if key == spell or string.sub(key, 1, string.len(prefix)) == prefix then total = total + s.total end
+      end
+      return total
+    end
+    return a.spells[spell] and a.spells[spell].total or 0
+  end
+  M.CustomValue = CustomValue
+  for i = 1, 5 do
+    local n = i
+    local function Cfg() return C.meters["custom" .. n] end
+    table.insert(MODES, { key = "custom" .. n, group = "Custom", custom = n,
+      name = "Custom " .. n,
+      value = function(a) return CustomValue(Cfg(), a) end,
+      text = function(v)
+        local k = Cfg().kind
+        if k == "buff" or k == "debuff" then return Clock(v) end
+        return Num(v)
+      end,
+      shown = function() return (Cfg().spell or "") ~= "" end })
+  end
+  -- a custom display's name follows its settings
+  function M.CustomNames()
+    for _, m in ipairs(MODES) do
+      if m.custom then
+        local c = C.meters["custom" .. m.custom]
+        m.name = (c.name ~= "" and c.name) or (c.spell ~= "" and c.spell) or ("Custom " .. m.custom)
+      end
+    end
+  end
+  M.CustomNames()
   local MODE = {}
   for _, m in ipairs(MODES) do MODE[m.key] = m end
   M.MODES = MODES
@@ -943,6 +1020,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     local s = S(win)
     if win.styled ~= s then ApplyStyle(win) win.styled = s end
     local mode = MODE[win.mode] or MODE.damage
+    if mode.custom then M.CustomNames() end
     win.title:SetText(mode.name)
     win.titlebtn:SetWidth(win.title:GetStringWidth() + 10)
     if win.mode == "threat" then
@@ -1351,10 +1429,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       end
       -- Details' groups, each with its displays
       local items = {}
+      M.CustomNames()
       for _, g in ipairs(M.GROUPS) do
-        table.insert(items, { T[g], head = true })
+        -- (a group shows when one of its displays does: Custom only once set)
+        local any
+        for _, m in ipairs(MODES) do if m.group == g and (not m.shown or m.shown()) then any = true end end
+        if any then table.insert(items, { T[g], head = true }) end
         for _, m in ipairs(MODES) do
-          if m.group == g then
+          if m.group == g and (not m.shown or m.shown()) then
             local key = m.key
             table.insert(items, { m.name, function() M.SetMode(win, key) end, checked = (key == win.mode) })
           end

@@ -464,7 +464,9 @@ pfUI:RegisterModule("meters", "vanilla", function ()
   -- one segment added into another (numbers summed, max / min kept, lists
   -- joined): trash fights merged into one
   local LISTS = { ilist = true, dlist = true, deathlogs = true, fraglist = true, resslist = true, cdlist = true }
-  local SKIP = { start = true, last = true, lastact = true, name = true, class = true, boss = true, trash = true }
+  -- (a merged fight keeps the first fight's chart: times count from each start)
+  local SKIP = { start = true, last = true, lastact = true, name = true, class = true, boss = true, trash = true,
+                 timeline = true }
   local function Merge(dst, src)
     for k, v in pairs(src) do
       local d = dst[k]
@@ -1034,6 +1036,39 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     if M.current then M.current.last = GetTime() end
   end
 
+  -- a sample of the fight: { t = seconds in, d = { name = damage }, h = { name = healing } }
+  function M.Sample(seg)
+    seg.timeline = seg.timeline or {}
+    if table.getn(seg.timeline) >= 3600 then return end
+    local d, h = {}, {}
+    for name, a in pairs(seg.actors) do
+      d[name], h[name] = a.damage, a.heal
+    end
+    table.insert(seg.timeline, { t = GetTime() - seg.start, d = d, h = h })
+  end
+
+  -- per second over time for one actor (or everyone: name nil), smoothed over
+  -- `span` seconds: a list of values, one per sample
+  function M.Curve(seg, name, heal, span)
+    local line = seg and seg.timeline or {}
+    span = span or 5
+    local out = {}
+    local n = table.getn(line)
+    for i = 1, n do
+      local j = max(1, i - span)
+      local function Sum(e)
+        local list = heal and e.h or e.d
+        if name then return list[name] or 0 end
+        local total = 0
+        for _, v in pairs(list) do total = total + v end
+        return total
+      end
+      local dt = line[i].t - line[j].t
+      out[i] = dt > 0 and (Sum(line[i]) - Sum(line[j])) / dt or 0
+    end
+    return out
+  end
+
   -- windows refresh at most 5 times a second
   local dirty
   function M.Changed() dirty = true end
@@ -1065,6 +1100,12 @@ pfUI:RegisterModule("meters", "vanilla", function ()
   f:SetScript("OnUpdate", function()
     if (this.tick or 0) > GetTime() then return end
     this.tick = GetTime() + .2
+    -- once a second: everyone's damage and healing so far, for the charts
+    -- (Details' "timed data for charts"); an hour at most
+    if M.current and (this.sample or 0) <= GetTime() then
+      this.sample = GetTime() + 1
+      M.Sample(M.current)
+    end
     -- the fight ends a second after the whole group left combat
     if (this.check or 0) <= GetTime() then
       this.check = GetTime() + 1

@@ -690,6 +690,43 @@ if ME then
     BD.Step(-1)
     ok(BD.actor and BD.actor.name == "Tester", "< back")
     BD.mode = "damage"
+    -- the chart: drawn from the fight's samples, one a second
+    local cseg = ME.Segment("current")
+    local tester = cseg.actors.Tester
+    local d0 = tester.damage
+    for i = 1, 6 do
+      Mock.now = Mock.now + 1
+      tester.damage = tester.damage + 100
+      ME.Sample(cseg)
+    end
+    BD.tab = "chart"
+    BD.Draw()
+    ok(BD.chartPoints and BD.chartPoints >= 6 and pfMeterBreakdown.chart:IsShown(), "the Chart tab draws the fight (" .. tostring(BD.chartPoints) .. ")")
+    local curve = ME.Curve(cseg, "Tester", false, 1)
+    ok(curve[table.getn(curve)] and math.abs(curve[table.getn(curve)] - 100) < .01, "damage per second from the samples")
+    tester.damage = d0
+    -- custom displays: one spell's damage per player
+    local cu = pfUI_config.meters.custom1
+    cu.kind, cu.spell = "dmgspell", "Fireball"
+    local crow = ME.Rows("custom1", "current")
+    ok(crow[1] and crow[1].name == "Tester" and crow[1].value == 300, "a custom display: Fireball damage (" .. tostring(crow[1] and crow[1].value) .. ")")
+    ME.CustomNames()
+    local cm
+    for _, m in ipairs(ME.MODES) do if m.key == "custom1" then cm = m end end
+    ok(cm and cm.name == "Fireball" and cm.shown(), "named after its spell and in the menu")
+    cu.spell = ""
+    ok(not cm.shown(), "not in the menu without a spell")
+    -- a window's look as text, taken by another window
+    local mc2 = pfUI_config.meters
+    local tex2 = mc2.win2.texture
+    mc2.win1.texture = "Interface\\AddOns\\pfUI\\img\\bars\\bar-steel"
+    local str = ME.ExportLook({ cfg = 1 })
+    ok(string.find(str, "^OCTOMETER1:") and not string.find(str, "mode="), "look exported without what it shows")
+    local took = ME.ImportLook({ cfg = 2 }, str)
+    ok(took > 10 and mc2.win2.texture == mc2.win1.texture, "another window takes the look (" .. took .. " settings)")
+    ok(ME.ImportLook({ cfg = 2 }, "hello") == 0, "not a look: nothing taken")
+    mc2.win2.texture = tex2
+    mc2.win1.texture = "Interface\\AddOns\\pfUI\\img\\bar_elvui"
     -- report the open tab
     BD.tab = "spells"
     BD.Draw()

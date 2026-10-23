@@ -374,6 +374,21 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Drop(p, "Middle", nil, List(M.SLOTS), S, "statusmid")
     Drop(p, "Right", nil, List(M.SLOTS), S, "statusright")
 
+    W.Card(p, "Share this look", { tip = "Copy this window's look as text to give to a friend, or paste one in. What the "
+      .. "window shows, its fight and its lock are not part of it." })
+    W.Edit(p, "This window's look", "Click, then Ctrl+A and Ctrl+C to copy.", function() return M.ExportLook({ cfg = MO.cur }) end,
+      function() end)
+    W.Edit(p, "Paste a look here", "Paste (Ctrl+V) and press Enter: this window takes it.", function() return "" end, function(v)
+      local n = M.ImportLook({ cfg = MO.cur }, v)
+      if n > 0 then
+        MO.Apply()
+        O:Refresh()
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: window " .. MO.cur .. " took " .. n .. " settings of the look.")
+      elseif v and v ~= "" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: that is not a meter look (it starts with OCTOMETER1:).")
+      end
+    end)
+
     W.Card(p, "Remove this window")
     W.Buttons(p, { { "Remove window", function()
       if MO.cur <= 1 then return end
@@ -420,6 +435,20 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Tooltips on the bars", nil, G, "tooltip", function() end)
     Drop(p, "Tooltip lines", nil, List({ { "5", "5" }, { "8", "8" }, { "12", "12" }, { "20", "20" } }), G, "tooltiplines", function() end)
     Chk(p, "Windows snap together", "A window dropped near another sits flush against it.", G, "snap", function() end)
+
+    -- custom displays (Details' custom tab, without code)
+    W.Card(p, "Custom displays", { tip = "Your own displays: one spell's damage, healing, casts or damage taken, or one buff's "
+      .. "or debuff's uptime, per player. They show under Custom in a window's title menu once a spell is set." })
+    for i = 1, 5 do
+      local n = i
+      local function CU() return C.meters["custom" .. n] end
+      local function Changed() if M.CustomNames then M.CustomNames() end MO.Apply() end
+      W.Edit(p, "Display " .. n .. ": name", "Leave empty to use the spell's name.", function() return CU().name or "" end,
+        function(v) CU().name = v or "" Changed() end)
+      Drop(p, "Display " .. n .. ": shows", nil, List(M.CUSTOMKINDS or {}), CU, "kind", Changed)
+      W.Edit(p, "Display " .. n .. ": spell or aura", "Exactly as the game writes it, e.g. Sunder Armor.",
+        function() return CU().spell or "" end, function(v) CU().spell = v or "" Changed() end)
+    end
   end
 
   local function BuildThreat(p)

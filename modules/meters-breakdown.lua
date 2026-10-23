@@ -102,7 +102,8 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   f.prev:SetPoint("RIGHT", f.next, "LEFT", -2, 0)
 
   -- tabs
-  B.TABS = { { "summary", "Summary" }, { "spells", "Spells" }, { "targets", "Targets" }, { "compare", "Compare" }, { "deaths", "Deaths" } }
+  B.TABS = { { "summary", "Summary" }, { "spells", "Spells" }, { "targets", "Targets" }, { "chart", "Chart" },
+             { "compare", "Compare" }, { "deaths", "Deaths" } }
   f.tabs = {}
   for i, t in ipairs(B.TABS) do
     local key = t[1]
@@ -403,6 +404,91 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     B.compareChoices = others
   end
 
+  -- Chart: the player's damage (or healing) per second through the fight,
+  -- as columns, with the group's in grey behind (Details' charts)
+  f.chart = CreateFrame("Frame", nil, f)
+  f.chart:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP)
+  f.chart:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
+  CreateBackdrop(f.chart, nil, true, .5)
+  f.chart.cols, f.chart.back = {}, {}
+  f.chart.top = Text(f.chart, C.global.font_size - 1)
+  f.chart.top:SetPoint("TOPLEFT", f.chart, "TOPLEFT", 6, -4)
+  f.chart.right = Text(f.chart, C.global.font_size - 1, "RIGHT")
+  f.chart.right:SetPoint("TOPRIGHT", f.chart, "TOPRIGHT", -6, -4)
+  f.chart.bottom = Text(f.chart, C.global.font_size - 1)
+  f.chart.bottom:SetPoint("BOTTOMLEFT", f.chart, "BOTTOMLEFT", 6, 4)
+  f.chart.endtime = Text(f.chart, C.global.font_size - 1, "RIGHT")
+  f.chart.endtime:SetPoint("BOTTOMRIGHT", f.chart, "BOTTOMRIGHT", -6, 4)
+  f.chart:Hide()
+  local CHART_W, CHART_H = W - 20 - 16, H + BODY_TOP - 10 - 40
+
+  local function Column(list, i, parent)
+    local c = list[i]
+    if c then return c end
+    c = parent:CreateTexture(nil, "ARTWORK")
+    c:SetTexture("Interface\\Buttons\\WHITE8X8")
+    list[i] = c
+    return c
+  end
+
+  local function Chart(a, seg)
+    local heal = HEALMODES[B.mode]
+    local mine = M.Curve and M.Curve(seg, a.name, heal) or {}
+    local all = M.Curve and M.Curve(seg, nil, heal) or {}
+    local n = table.getn(mine)
+    local ch = f.chart
+    for _, c in pairs(ch.cols) do c:Hide() end
+    for _, c in pairs(ch.back) do c:Hide() end
+    if n < 2 then
+      ch.top:SetText("No chart for this fight yet (it is drawn from the fight's samples, one a second).")
+      ch.right:SetText("")
+      ch.bottom:SetText("")
+      ch.endtime:SetText("")
+      B.chartPoints = 0
+      return
+    end
+    -- at most one column per 2 pixels: samples are bunched together
+    local cols = min(n, floor(CHART_W / 2))
+    local per = n / cols
+    local top, peak, sum = 1, 0, 0
+    local vm, va = {}, {}
+    for i = 1, cols do
+      local from, to = floor((i - 1) * per) + 1, max(floor((i - 1) * per) + 1, floor(i * per))
+      local m, g = 0, 0
+      for j = from, to do m, g = m + (mine[j] or 0), g + (all[j] or 0) end
+      m, g = m / (to - from + 1), g / (to - from + 1)
+      vm[i], va[i] = m, g
+      top = max(top, m, g)
+      peak = max(peak, m)
+      sum = sum + m
+    end
+    local w = CHART_W / cols
+    local r, g, b = cr, cg, cb
+    for i = 1, cols do
+      local bk = Column(ch.back, i, ch)
+      bk:ClearAllPoints()
+      bk:SetPoint("BOTTOMLEFT", ch, "BOTTOMLEFT", 8 + (i - 1) * w, 20)
+      bk:SetWidth(max(1, w - 1))
+      bk:SetHeight(max(1, va[i] / top * CHART_H))
+      bk:SetVertexColor(1, 1, 1, .12)
+      bk:Show()
+      local col = Column(ch.cols, i, ch)
+      col:ClearAllPoints()
+      col:SetPoint("BOTTOMLEFT", ch, "BOTTOMLEFT", 8 + (i - 1) * w, 20)
+      col:SetWidth(max(1, w - 1))
+      col:SetHeight(max(1, vm[i] / top * CHART_H))
+      col:SetVertexColor(r, g, b, .9)
+      col:Show()
+    end
+    local what = heal and "healing" or "damage"
+    ch.top:SetText(a.name .. ": " .. what .. " per second  (grey: the whole group)")
+    ch.right:SetText("peak " .. Num(peak) .. "   average " .. Num(sum / cols) .. "   scale " .. Num(top))
+    ch.bottom:SetText("0:00")
+    ch.endtime:SetText(Clock(seg.timeline[n].t))
+    B.chartPoints = cols
+  end
+  B.Chart = Chart
+
   local function Deaths(a, seg)
     local start = seg and seg.start or 0
     local deaths = a.deathlogs or {}
@@ -459,7 +545,18 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       local ar, ag, ab = GetAccentColor()
       if t.key == B.tab then t.text:SetTextColor(ar, ag, ab) else t.text:SetTextColor(1, 1, 1) end
     end
+    -- the chart takes the whole body
+    if B.tab == "chart" then
+      f.list:Hide()
+      f.panel:Hide()
+      f.chart:Show()
+    else
+      f.chart:Hide()
+      f.list:Show()
+      f.panel:Show()
+    end
     if B.tab == "summary" then Summary(a, seg)
+    elseif B.tab == "chart" then Chart(a, seg)
     elseif B.tab == "targets" then Targets(a)
     elseif B.tab == "compare" then Compare(a, seg)
     elseif B.tab == "deaths" then Deaths(a, seg)
