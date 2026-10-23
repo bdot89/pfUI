@@ -1089,7 +1089,7 @@ if MAP and MAP.ApplyStyle then
   MS.autozoom = "0"
 
   -- every part has a place of its own: move, size, put back
-  ok(MAP.PARTS and table.getn(MAP.PARTS) == 9, "nine parts around the map")
+  ok(MAP.PARTS and table.getn(MAP.PARTS) == 10, "ten parts around the map")
   MAP.MovePart("mail", -20, -12)
   local mp = MiniMapMailFrame.point or {}
   ok(MS.mailx == "-20" and MS.maily == "-12" and MS.mailpt == "TOPRIGHT", "a moved part keeps its place")
@@ -1726,19 +1726,18 @@ do
       Mock.Run(l, "OnMouseUp", "RightButton")
       ok(mc.tx == "0" and mc.ty == "2" and mc.tsize == "13", "right-click puts it back")
     end
-    -- the minimap pages: a preview whose parts open their cards and move
+    -- the minimap pages: a preview whose parts are picked, moved and sized
     local MMO = pfUI.minimapOcto
+    O:Select("o:mmmap")
     O:Select("o:mmparts")
-    ok(MMO and MMO.hots and MMO.hots.mail and MMO.hots.map and MMO.hots.bar, "the Minimap pages have a preview with every part")
-    if MMO and MMO.hots then
-      local missing = {}
-      for what, g in pairs(MMO.GO) do
-        if not pfUI.plates.OpenSection(g[1], g[2]) then table.insert(missing, what .. " -> " .. g[2]) end
-      end
-      ok(table.getn(missing) == 0, "every part of the map preview opens its own card (" .. table.concat(missing, ", ") .. ")")
+    ok(MMO and MMO.Current().hots and MMO.Current().hots.mail and MMO.Current().hots.map and MMO.Current().hots.bar, "the Minimap pages have a preview with every part")
+    ok(O.pages.mmmap and O.pages.mmparts and not O.pages.mmart, "two Minimap pages: Map, Buttons and text")
+    if MMO and MMO.Current().hots then
       local ms = pfUI_config.mapstyle
-      O:Select("o:mmparts")
-      local h = MMO.hots.tracking
+      -- clicking a part picks it: the Part card follows
+      Mock.Run(MMO.Current().hots.mail, "OnClick", "LeftButton")
+      ok(MMO.sel == "mail" and O.current == "o:mmparts", "clicking a part picks it")
+      local h = MMO.Current().hots.tracking
       local x0, y0 = pfUI.minimap.PartOffset(pfUI.minimap.Part("tracking"))
       Mock.cx, Mock.cy = 300, 300
       _G.arg1 = "LeftButton"
@@ -1748,11 +1747,8 @@ do
       _G.arg1 = "LeftButton"
       Mock.Run(h, "OnMouseUp", "LeftButton")
       ok(tonumber(ms.trackingx) and tonumber(ms.trackingx) > x0 and tonumber(ms.trackingy) == y0, "dragging a part in the preview moves it (" .. tostring(ms.trackingx) .. ")")
-      O:Select("o:mmart")
-      local selected = O.current
       Mock.Run(h, "OnClick", "LeftButton")
-      ok(selected == "o:mmart", "Art page selected (" .. tostring(selected) .. ")")
-      ok(O.current == "o:mmart", "a drag is not a click (" .. tostring(O.current) .. ")")
+      ok(MMO.sel == "mail", "a drag is not a click")
       Mock.shift = true
       _G.arg1 = 1
       Mock.Run(h, "OnMouseWheel", 1)
@@ -1761,18 +1757,54 @@ do
       _G.arg1 = "RightButton"
       Mock.Run(h, "OnClick", "RightButton")
       ok(ms.trackingx == "" and ms.trackingscale == "100", "right-click puts it back")
+      -- Never: left out of the preview (unless picked) and off in game
+      MMO.SetMode("zone", "hide")
+      MMO.Layout()
+      ok(pfUI_config.appearance.minimap.zonetext == "off" and not MMO.Current().hots.zone:IsShown() and not pfMinimapZone:IsShown(), "zone name off: gone from the preview and the map")
+      MMO.SetMode("bar", "hide")
+      ok(pfUI_config.panel.other.minimap == "none" and pfPanelMinimap and not pfPanelMinimap:IsShown(), "the bar under the map hides at once")
+      MMO.SetMode("bar", "show")
+      ok(pfUI_config.panel.other.minimap ~= "none" and pfPanelMinimap:IsShown(), "and comes back with its words")
+      MMO.SetMode("zone", "hover")
+      -- the bar under the map moves like any part
+      pfUI.minimap.MovePart("bar", 10, -20)
+      ok(pfPanelMinimap.point and pfPanelMinimap.point[1] == "TOP" and pfPanelMinimap.point[3] == "BOTTOM", "the bar hangs under the map where you put it")
+      pfUI.minimap.ResetPart("bar")
+      -- the map itself: Shift + wheel = size, drag = move on screen
       local was = pfUI_config.appearance.minimap.size
       Mock.shift = true
       _G.arg1 = 1
-      Mock.Run(MMO.hots.map, "OnMouseWheel", 1)
+      Mock.Run(MMO.Current().hots.map, "OnMouseWheel", 1)
       Mock.shift = nil
       ok(pfUI_config.appearance.minimap.size == tostring((tonumber(was) or 140) + 5), "Shift + wheel over the map: bigger map")
       pfUI_config.appearance.minimap.size = was
       pfUI.minimap:UpdateConfig()
+      Mock.cx, Mock.cy = 300, 300
+      _G.arg1 = "LeftButton"
+      Mock.Run(MMO.Current().hots.map, "OnMouseDown", "LeftButton")
+      Mock.cx, Mock.cy = 280, 290
+      Mock.Run(MMO.Current().hots.map:GetParent(), "OnUpdate", .05)
+      Mock.Run(MMO.Current().hots.map, "OnMouseUp", "LeftButton")
+      ok(pfUI_config.position.pfMinimap and pfUI_config.position.pfMinimap.anchor == "TOPLEFT", "dragging the map moves it and saves its place")
+      pfUI_config.position.pfMinimap = nil
     end
-    O:Select("o:mmmap")
-    O:Select("o:mmart")
-    ok(O.pages.mmmap and O.pages.mmart and O.pages.mmparts, "Map, Art and Buttons and text pages built")
+    -- addon buttons: each one in the panel, on the map or hidden
+    if pfUI.addonbuttons and pfUI.addonbuttons.SetPlace then
+      local fake = CreateFrame("Button", "OctoTestMinimapButton", Minimap)
+      fake:SetWidth(20)
+      fake:SetHeight(20)
+      fake:SetScript("OnClick", function() end)
+      fake:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
+      pfUI.addonbuttons:ProcessButtons()
+      local found
+      for _, n in ipairs(pfUI.addonbuttons:List()) do if n == "OctoTestMinimapButton" then found = true end end
+      ok(found and pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "panel", "a new addon button is gathered")
+      pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "hide")
+      ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "hide" and fake.alpha == 0, "and can be hidden")
+      pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
+      ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
+      pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "panel")
+    end
     pfUI.gui:Hide()
   end
 end

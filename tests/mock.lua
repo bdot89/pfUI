@@ -96,6 +96,8 @@ function methods:SetParent(p)
 end
 function methods:GetChildren() return unpack(self._kids) end
 function methods:GetNumChildren() return table.getn(self._kids) end
+function methods:IsFrameType(t) return self.kind == t end
+function methods:HasScript(s) return true end
 function methods:IsShown() return self.shown end
 function methods:IsVisible()
   local w = self

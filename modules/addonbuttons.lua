@@ -384,6 +384,77 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     end
   end
 
+  -- octo (23 Oct 2026): each addon button's place, set from the Minimap
+  -- options: "panel" (gathered), "map" (left on the minimap) or "hide"
+  pfUI_cache["abuttons"]["hide"] = pfUI_cache["abuttons"]["hide"] or {}
+  function pfUI.addonbuttons:GetPlace(name)
+    if pfUI_cache["abuttons"]["hide"][name] then return "hide" end
+    if TableMatch(pfUI_cache["abuttons"]["del"], name) then return "map" end
+    return "panel"
+  end
+
+  function pfUI.addonbuttons:SetPlace(name, where)
+    local add, del, hide = pfUI_cache["abuttons"]["add"], pfUI_cache["abuttons"]["del"], pfUI_cache["abuttons"]["hide"]
+    local f = _G[name]
+    local function Drop(t) local i = TableMatch(t, name) if i then table.remove(t, i) end end
+    if where == "panel" then
+      Drop(del)
+      hide[name] = nil
+      if not TableMatch(add, name) then table.insert(add, name) end
+      if f then f:SetAlpha(1) if f.EnableMouse then f:EnableMouse(true) end end
+    else
+      Drop(add)
+      if not TableMatch(del, name) then table.insert(del, name) end
+      local i = TableMatch(self.buttons, name)
+      if i then
+        table.remove(self.buttons, i)
+        if f then RestoreButton(f) end
+      end
+      hide[name] = (where == "hide") or nil
+      if f then
+        f:SetAlpha(where == "hide" and 0 or 1)
+        if f.EnableMouse then f:EnableMouse(where ~= "hide") end
+      end
+    end
+    self:ProcessButtons()
+  end
+
+  -- every addon button found: gathered ones and those left on the map
+  function pfUI.addonbuttons:List()
+    self:ProcessButtons()
+    local out, seen = {}, {}
+    for _, list in ipairs({ self.buttons, pfUI_cache["abuttons"]["del"] }) do
+      for _, name in ipairs(list) do
+        if _G[name] and not seen[name] then
+          seen[name] = true
+          table.insert(out, name)
+        end
+      end
+    end
+    table.sort(out)
+    return out
+  end
+
+  -- Buttons an addon makes after login were only gathered once the panel
+  -- was opened (user, 23 Oct 2026: "why is this button still there"): look
+  -- again now and then while the panel is shut, and keep hidden ones hidden.
+  local watch = CreateFrame("Frame", nil, UIParent)
+  watch:SetScript("OnUpdate", function()
+    if (this.tick or 0) > GetTime() then return end
+    this.tick = GetTime() + 3
+    this.count = (this.count or 0) + 1
+    if not pfUI.addonbuttons:IsShown() and math.mod(this.count, 3) == 1 then
+      pfUI.addonbuttons:ProcessButtons()
+    end
+    for name in pairs(pfUI_cache["abuttons"]["hide"]) do
+      local f = _G[name]
+      if f and f:GetAlpha() > 0 then
+        f:SetAlpha(0)
+        if f.EnableMouse then f:EnableMouse(false) end
+      end
+    end
+  end)
+
   function pfUI.addonbuttons:ProcessButtons()
     UpdatePanel()
 

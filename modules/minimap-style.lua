@@ -223,6 +223,10 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
       point = function() return "BOTTOMRIGHT" end, def = function() return -5, 5 end },
     { key = "abutton", label = T["Addon buttons arrow"], get = function() return pfMinimapButton end,
       point = ButtonPoint, def = function() return Inset(ButtonPoint(), 4) end },
+    -- the panel under the map: its top against the map's bottom
+    { key = "bar", label = T["Bar under the map"], get = function() return pfUI.panel and pfUI.panel.minimap end,
+      point = function() return "TOP" end, rel = "BOTTOM",
+      def = function() local _, b = GetBorderSize() return 0, -(tonumber(b) or 1) * 3 end },
   }
   map.PARTS = PARTS
   function map.Part(key)
@@ -251,7 +255,7 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
     if f and not p.always and f:GetLeft() and Minimap:GetLeft() then
       local pt = p.point()
       local fx, fy = PointXY(f, pt)
-      local mx, my = PointXY(Minimap, pt)
+      local mx, my = PointXY(Minimap, map.Rel(p, pt))
       local fs, ms = f:GetEffectiveScale() or 1, Minimap:GetEffectiveScale() or 1
       if fx and mx then
         return math.floor((fx * fs - mx * ms) / ms + .5), math.floor((fy * fs - my * ms) / ms + .5)
@@ -259,6 +263,9 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
     end
     return p.def()
   end
+
+  -- the map's point a part hangs from (the bar: its top from the map's bottom)
+  function map.Rel(p, pt) return (p.rel and pt == p.point()) and p.rel or pt end
 
   function map.PartScale(p) return (tonumber(S[p.key .. "scale"]) or 100) / 100 end
 
@@ -280,7 +287,8 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
     -- offsets are in the frame's own scale
     local k = (Minimap:GetEffectiveScale() or 1) / (f:GetEffectiveScale() or 1)
     f:ClearAllPoints()
-    f:SetPoint(pt, Minimap, pt, sx * k, sy * k)
+    f:SetPoint(pt, Minimap, map.Rel(p, pt), sx * k, sy * k)
+    if p.key == "bar" then f:SetWidth(Minimap:GetWidth()) end
     -- the text lines are as wide as the map; their words line up with the point
     if p.key == "zone" or p.key == "coords" or p.key == "ping" then
       f:SetWidth(Minimap:GetWidth() - 6)
@@ -310,6 +318,11 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
     if c then
       local mode = C.appearance.minimap.coordstext
       if mode == "on" or (mode == "mouseover" and over) then c:Show() elseif c:IsShown() then c:Hide() end
+    end
+    -- the bar under the map: "none" hides it at once (its words need a reload)
+    local bar = pfUI.panel and pfUI.panel.minimap
+    if bar then
+      if C.panel.other.minimap == "none" then bar:Hide() else bar:Show() end
     end
   end
 
@@ -348,10 +361,16 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
       PlacePart(p)
     elseif key == "abutton" and pfUI.addonbuttons and pfUI.addonbuttons.ProcessButtons then
       pfUI.addonbuttons:ProcessButtons()
+    elseif key == "bar" then
+      -- pfUI's own: as wide as the map, right under it
+      local _, y = p.def()
+      f:ClearAllPoints()
+      f:SetPoint("TOPLEFT", pfUI.minimap, "BOTTOMLEFT", 0, y)
+      f:SetPoint("TOPRIGHT", pfUI.minimap, "BOTTOMRIGHT", 0, y)
     else
       local pt, x, y = p.point(), p.def()
       f:ClearAllPoints()
-      f:SetPoint(pt, Minimap, pt, x, y)
+      f:SetPoint(pt, Minimap, map.Rel(p, pt), x, y)
     end
   end
 

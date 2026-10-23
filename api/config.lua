@@ -298,7 +298,8 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("mapstyle",   nil,           "alpha",            "1")
   pfUI:UpdateConfig("mapstyle",   nil,           "combatalpha",      "1")
   -- each part's place on the map ("" = pfUI's own) and size in %
-  for _, k in pairs({ "zone", "coords", "clock", "ping", "tracking", "mail", "battlefield", "pvp", "abutton" }) do
+  pfUI:UpdateConfig("mapstyle",   nil,           "barwas",           "zone")
+  for _, k in pairs({ "zone", "coords", "clock", "ping", "tracking", "mail", "battlefield", "pvp", "abutton", "bar" }) do
     pfUI:UpdateConfig("mapstyle", nil,           k .. "x",           "")
     pfUI:UpdateConfig("mapstyle", nil,           k .. "y",           "")
     pfUI:UpdateConfig("mapstyle", nil,           k .. "pt",          "")
