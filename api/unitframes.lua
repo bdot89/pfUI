@@ -781,9 +781,11 @@ function pfUI.uf:UpdateConfig()
         anchor = f.power
       end
       local multiply = C.appearance.border.force_blizz == "1" and 1 or 2
-      f.buffs[i]:SetPoint(af, anchor, f.config.buffs,
+      -- (octo: o_buffx / o_buffy move the whole row; dragged in the options preview)
+      f.buffs[i]:SetPoint(af, anchor, f.config.buffs, (tonumber(f.config.o_buffx) or 0) +
       invert_v * (i-1-row*perrow)*(multiply*default_border + f.config.buffsize + 1),
-      invert_h * (row*(multiply*default_border + f.config.buffsize + 1) + (multiply*default_border + 1)))
+      invert_h * (row*(multiply*default_border + f.config.buffsize + 1) + (multiply*default_border + 1))
+        + (tonumber(f.config.o_buffy) or 0))
 
       f.buffs[i]:SetWidth(f.config.buffsize)
       f.buffs[i]:SetHeight(f.config.buffsize)
@@ -1588,9 +1590,11 @@ function pfUI.uf:RefreshUnit(unit, component)
           anchor = unit.power
         end
         local multiply = C.appearance.border.force_blizz == "1" and 1 or 2
-        unit.debuffs[i]:SetPoint(af, anchor, unit.config.debuffs,
+        -- (octo: o_debuffx / o_debuffy move the whole row)
+        unit.debuffs[i]:SetPoint(af, anchor, unit.config.debuffs, (tonumber(unit.config.o_debuffx) or 0) +
         invert_v * (i-1-row*perrow)*(multiply*default_border + unit.config.debuffsize + 1),
-        invert_h * ((row+buffrow)*(multiply*default_border + unit.config.debuffsize + 1) + (multiply*default_border + 1)))
+        invert_h * ((row+buffrow)*(multiply*default_border + unit.config.debuffsize + 1) + (multiply*default_border + 1))
+          + (tonumber(unit.config.o_debuffy) or 0))
       end
 
       if unit.label == "player" then

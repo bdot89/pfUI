@@ -277,6 +277,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       powerLeftText = { "txtpowerleftoffx", "txtpowerleftoffy", .5, 1, "0", "0" },
       powerCenterText = { "txtpowercenteroffx", "txtpowercenteroffy", 1, 1, "0", "0" },
       powerRightText = { "txtpowerrightoffx", "txtpowerrightoffy", -.5, 1, "0", "0" },
+      -- (buffs / debuffs: the corner is picked on their card; dragging moves the row
+      -- freely - user, 23 Oct 2026: "i cant move the buffs")
+      buffs = { "o_buffx", "o_buffy", 1, 1, "0", "0" },
+      debuffs = { "o_debuffx", "o_debuffy", 1, 1, "0", "0" },
     }
 
     -- Parts that only come in set places (buffs in a corner, the portrait
@@ -538,7 +542,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
         Hot(set, f.power, "power", 22, f, D.power)
         Hot(set, f.portrait, "portrait", 23, f, UF.PLACES.portrait)
         for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
-          for _, b in pairs(list[1] or {}) do b.octoHot = Hot(set, b, list[2], 26, f, UF.PLACES[list[2]]) end
+          for _, b in pairs(list[1] or {}) do b.octoHot = Hot(set, b, list[2], 26, f, UF.DRAG[list[2]]) end
         end
         Hot(set, f.raidIcon, "icons", 28, f, D.raidIcon)
         Hot(set, f.pvpIcon, "icons", 28, f, D.pvpIcon)
@@ -632,7 +636,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
             -- (buffs made by this update need their spots)
             for _, list in ipairs({ { f.buffs, "buffs" }, { f.debuffs, "debuffs" } }) do
               for _, b in pairs(list[1] or {}) do
-                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26, f, UF.PLACES[list[2]]) end
+                if not b.octoHot then b.octoHot = Hot(set, b, list[2], 26, f, UF.DRAG[list[2]]) end
               end
             end
             if f.octoSkin and not f.octoSkin.octoHot then f.octoSkin.octoHot = Hot(set, f.octoSkin, "border", 19, f) end
@@ -1053,7 +1057,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Height", "-1 = as tall as the frame.", -1, 200, 1, U, "portraitheight", Px)
 
     W.Card(p, "Buffs")
-    Drop(p, "Where", nil, DD("uf_buff_position"), U, "buffs")
+    Drop(p, "Where", "The corner they start from; drag them in the preview to move them from there.", DD("uf_buff_position"), U, "buffs")
+    Sld(p, "Across", "Or drag them in the preview.", -200, 200, 1, U, "o_buffx", Px)
+    Sld(p, "Up / down", nil, -200, 200, 1, U, "o_buffy", Px)
     Sld(p, "Size", nil, 6, 50, 1, U, "buffsize", Px)
     Sld(p, "How many", nil, 0, 32, 1, U, "bufflimit")
     Sld(p, "Per row", nil, 1, 32, 1, U, "buffperrow")
@@ -1064,7 +1070,9 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Frame enemy buffs you can purge", "Magic buffs on enemies get a blue frame. Needs ClassicAPI (the plain game does not say a buff's type); with it others' buffs also show their time left.", U, "o_purge")
 
     W.Card(p, "Debuffs")
-    Drop(p, "Where", nil, DD("uf_buff_position"), U, "debuffs")
+    Drop(p, "Where", "The corner they start from; drag them in the preview to move them from there.", DD("uf_buff_position"), U, "debuffs")
+    Sld(p, "Across", "Or drag them in the preview.", -200, 200, 1, U, "o_debuffx", Px)
+    Sld(p, "Up / down", nil, -200, 200, 1, U, "o_debuffy", Px)
     Sld(p, "Size", nil, 6, 50, 1, U, "debuffsize", Px)
     Sld(p, "How many", nil, 0, 32, 1, U, "debufflimit")
     Sld(p, "Per row", nil, 1, 32, 1, U, "debuffperrow")
