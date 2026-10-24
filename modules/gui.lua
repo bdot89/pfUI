@@ -1704,6 +1704,10 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         "None:"..T["None"],
         "Gryphon:"..T["Gryphon"],
         "Lion:"..T["Lion"],
+        "Dragon:Gold dragon",
+        "Dragon2:Rising dragon",
+        "Elite:Elite dragon",
+        "Rare:Silver dragon",
       }
     }
 

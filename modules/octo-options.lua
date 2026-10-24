@@ -193,11 +193,11 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     W.Flat(swap, K.panel, 1, K.line)
     swap:Hide()
     swap.parts = {}
-    for i = 1, 2 do
+    for i = 1, 3 do
       local part = {}
       part.label = W.Font(swap:CreateFontString(nil, "OVERLAY"), 12, K.text[1], K.text[2], K.text[3])
-      part.octo = W.Button(swap, "pfUI Octo", 92, 22)
-      part.blizz = W.Button(swap, "Blizzard", 82, 22)
+      part.octo = W.Button(swap, "pfUI Octo", 76, 22)
+      part.blizz = W.Button(swap, "Blizzard", 68, 22)
       part.octo.which, part.blizz.which = "octo", "blizz"
       for _, b in ipairs({ part.octo, part.blizz }) do
         b:SetScript("OnClick", function()
@@ -811,18 +811,20 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
         part.label:ClearAllPoints()
         part.label:SetPoint("LEFT", swap, "LEFT", x, 0)
         part.label:SetText(s.label)
-        local lw = math.max(70, (part.label:GetStringWidth() or 70) + 10)
+        local lw = math.max(60, (part.label:GetStringWidth() or 60) + 10)
         part.octo:ClearAllPoints()
         part.octo:SetPoint("LEFT", swap, "LEFT", x + lw, 0)
         part.blizz:ClearAllPoints()
         part.blizz:SetPoint("LEFT", part.octo, "RIGHT", 2, 0)
         part.octo.id, part.blizz.id = id, id
         part.label:Show() part.octo:Show() part.blizz:Show()
-        x = x + lw + 92 + 2 + 82 + 26
+        x = x + lw + 76 + 2 + 68 + 20
       else
         part.label:Hide() part.octo:Hide() part.blizz:Hide()
       end
     end
+    -- (three sections fill the strip: no room for the note)
+    if ids[3] then swap.note:Hide() else swap.note:Show() end
     swap:Show()
     self:PaintSwap()
   end

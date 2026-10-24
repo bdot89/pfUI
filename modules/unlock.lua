@@ -32,7 +32,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["FocusTarget"]        = { "ufframes", "focustarget" },
 
     -- octo: more boxes with a page of their own
-    ["Totems"]             = { T["Buffs"], T["Totem Icons"] },
+    ["Totems"]             = { "bfbuffs", "totems" },
     ["TooltipAnchor"]      = { T["Tooltip"], nil },
     ["Group%dTarget"]      = { "ufframes", "grouptarget" },
     ["GroupPet%d"]         = { "ufframes", "grouppet" },
@@ -90,13 +90,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["UITracking"]     = { "mmparts" },
 
     -- buffs
-    ["BuffFrame"]      = { T["Buffs"], T["Buff/Debuff Icons"] },
-    ["DebuffFrame"]    = { T["Buffs"], T["Buff/Debuff Icons"] },
+    ["BuffFrame"]      = { "bfbuffs" },
+    ["DebuffFrame"]    = { "bfbuffs" },
 
     -- buffbars
-    ["PlayerBuffBar"]   = { T["Buffs"], T["Player Buff Bar"] },
-    ["PlayerDebuffBar"] = { T["Buffs"], T["Player Debuff Bar"] },
-    ["TargetDebuffBar"] = { T["Buffs"], T["Target Debuff Bar"] },
+    ["PlayerBuffBar"]   = { "bfbuffs", "pbuff" },
+    ["PlayerDebuffBar"] = { "bfbuffs", "pdebuff" },
+    ["TargetDebuffBar"] = { "bfbuffs", "tdebuff" },
   }
 
   local function GetFrames()

@@ -224,6 +224,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
     Chk(p, "Texts", "The shot's name and the time left.", G("cast"), "text")
     Chk(p, "Latency", "A red part at the cast's end as long as your latency: you can move once the bar reaches it.", G("cast"), "latency")
     Color(p, "Bar", nil, G("cast"), "castcolor")
+    Color(p, "Latency part", nil, G("cast"), "latencycolor")
 
     W.Card(p, "Warrior: Slam", { tip = "Marks on your main hand bar for Slam (warriors who know it)." })
     Chk(p, "Show Slam marks", nil, G("warrior"), "slam")
@@ -231,11 +232,14 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
       function(v) return string.format("%.2f s", v) end)
     Color(p, "Slam window", nil, G("warrior"), "slamcolor")
     Chk(p, "GCD mark", "A spark 1.5 s before the swing: an attack after it still leaves the global cooldown done in time for Slam.", G("warrior"), "slamgcd")
+    Color(p, "GCD mark", nil, G("warrior"), "gcdcolor")
     Chk(p, "With one-handers too", "Off: only with a two-hander.", G("warrior"), "slamonehand")
 
     W.Card(p, "Paladin: seal twisting", { tip = "Lines on your main hand bar for seal twisting (paladins)." })
     Chk(p, "Twist line", "0.4 s before the swing: change seal after it and both seals hit.", G("paladin"), "twist")
     Chk(p, "GCD line", "1.5 s before the swing: the last moment to start a 1.5 s global cooldown that ends in time.", G("paladin"), "gcd")
+    Color(p, "Twist line", nil, G("paladin"), "twistcolor")
+    Color(p, "GCD line", nil, G("paladin"), "gcdcolor")
     Sld(p, "Line height", "How far the lines stand out above and below the bar.", 0, 20, 1, G("paladin"), "offset", Px)
   end
 

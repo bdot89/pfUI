@@ -392,7 +392,8 @@ pfUI:RegisterModule("swing", "vanilla", function ()
           f.main.slam:Hide()
         end
         if wa.slamgcd == "1" then
-          Mark(f.main, f.main.gcd, 1.5, nil, st.mhSpeed, fills, 1, 1, 1, 1, true, 4)
+          local gr, gg, gb, ga = Col(wa.gcdcolor)
+          Mark(f.main, f.main.gcd, 1.5, nil, st.mhSpeed, fills, gr, gg, gb, ga, true, 4)
           f.main.gcd:SetWidth(10)
         else
           f.main.gcd:Hide()
@@ -404,9 +405,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       -- paladin: the seal twist line 0.4 s before the swing, the GCD line 1.5 s before
       local pa = C.swing.paladin
       local pad = tonumber(pa.offset) or 6
-      if ST.PaladinShown(st, "twist") then Mark(f.main, f.main.mark1, .4, nil, st.mhSpeed, fills, 1, .996, .722, 1, true, pad)
+      if ST.PaladinShown(st, "twist") then local r1, g1, b1, a1 = Col(pa.twistcolor) Mark(f.main, f.main.mark1, .4, nil, st.mhSpeed, fills, r1, g1, b1, a1, true, pad)
       else f.main.mark1:Hide() end
-      if ST.PaladinShown(st, "gcd") then Mark(f.main, f.main.mark2, 1.5, nil, st.mhSpeed, fills, 1, 0, 0, .8, true, pad)
+      if ST.PaladinShown(st, "gcd") then local r2, g2, b2, a2 = Col(pa.gcdcolor) Mark(f.main, f.main.mark2, 1.5, nil, st.mhSpeed, fills, r2, g2, b2, a2, true, pad)
       else f.main.mark2:Hide() end
       if f.off:IsShown() then
         local ohp = (t - st.ohStart) / st.ohSpeed
@@ -461,7 +462,8 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       Draw(f.main, p, r, g, b, a, text and c.name or "", text and Left(c.dur - (t - c.start)) or "", true)
       if set.latency == "1" then
         local lag = ST.Latency()
-        Mark(f.main, f.main.lag, 0, math.min(c.dur, lag), c.dur, true, 1, 0, 0, .75)
+        local lr, lg, lb, la = Col(set.latencycolor)
+        Mark(f.main, f.main.lag, 0, math.min(c.dur, lag), c.dur, true, lr, lg, lb, la)
       else
         f.main.lag:Hide()
       end

@@ -10,8 +10,9 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
   -- listens to, read from the client's patch-4 FrameXML); pfUI's frames go
   -- under a hidden parent. Switching back undoes that the way pfUI's
   -- modules do it. Settings: C.blizz[id] = "1" -> Blizzard's.
-  -- Sections: unit frames, cast bar, action bars, minimap, buffs,
-  -- nameplates, bags, loot, combat text, meters.
+  -- Sections: unit frames, cast bar, raid frames, action bars, minimap,
+  -- buffs, world map, nameplates, bags, loot, combat text, meters, chat,
+  -- tooltip, panels.
   local BZ = { snap = {}, globals = {}, state = {} }
   pfUI.blizz = BZ
   C.blizz = C.blizz or {}
@@ -751,10 +752,207 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     octo = function() for _, f in ipairs(PanelFrames()) do Back(f) end end,
   }
 
+  -- raid frames: the game has none on screen; its own are the Raid tab's
+  -- pull-out groups (Blizzard_RaidUI, loaded so they can be dragged out)
+  S.raid = {
+    label = "Raid frames",
+    blizz = function()
+      Away(_G.pfRaidCluster)
+      Away(_G.pfRaidUpdater)
+      if LoadAddOn and not (IsAddOnLoaded and IsAddOnLoaded("Blizzard_RaidUI")) then pcall(LoadAddOn, "Blizzard_RaidUI") end
+    end,
+    octo = function()
+      Back(_G.pfRaidCluster)
+      Back(_G.pfRaidUpdater)
+    end,
+  }
+
+  -- the world map: pfUI's map.lua moves, scales and skins it at the first
+  -- PLAYER_ENTERING_WORLD; Blizzard's is full screen with its own art. Its
+  -- parts as the game made them, noted now (before map.lua)
+  local MAPBUTTONS = { "WorldMapZoomOutButton", "WorldMapFrameCloseButton" }
+  local MAPDROPS = { "WorldMapContinentDropDown", "WorldMapZoneDropDown", "WorldMapZoneMinimapDropDown" }
+  local BTEX = { "Normal", "Pushed", "Highlight", "Disabled" }
+  local function RegionsOf(f)
+    local out = {}
+    for _, v in ipairs({ f:GetRegions() }) do
+      if v.SetTexture then table.insert(out, { r = v, tex = Tex(v), shown = v:IsShown() }) end
+    end
+    return out
+  end
+  local function PutRegions(list)
+    for _, v in ipairs(list or {}) do
+      v.r:SetTexture(v.tex)
+      if v.shown then v.r:Show() end
+    end
+  end
+  local function ButtonTex(b)
+    local t = {}
+    for _, k in ipairs(BTEX) do
+      local get = b["Get" .. k .. "Texture"]
+      t[k] = get and Tex(get(b)) or false
+    end
+    t.font = b.GetFontString and FontOf(b:GetFontString())
+    return t
+  end
+  local function PutButton(b, t)
+    for _, k in ipairs(BTEX) do
+      local set = b["Set" .. k .. "Texture"]
+      if set then set(b, t[k] or "") end
+    end
+    local fs = b.GetFontString and b:GetFontString()
+    if fs and t.font and t.font[1] then fs:SetFont(t.font[1], t.font[2], t.font[3]) end
+    if b.backdrop then b.backdrop:Hide() end
+    if b.texture then b.texture:Hide() end
+    if b.icon then b.icon:Hide() end
+  end
+  local function Size(f)
+    local s = f and BZ.snap[f]
+    if s and s.w and s.w > 0 then f:SetWidth(s.w) f:SetHeight(s.h) end
+  end
+  BZ.map = {}
+  pcall(function()
+    local f = WorldMapFrame
+    if not f or not f.GetRegions then return end
+    local m = BZ.map
+    Snap(f)
+    m.regions = RegionsOf(f)
+    m.toggle = ToggleWorldMap
+    m.panel = UIPanelWindows and UIPanelWindows["WorldMapFrame"]
+    m.blackout = BlackoutWorld and BlackoutWorld:IsShown()
+    m.scripts = {}
+    for _, sc in ipairs({ "OnDragStart", "OnDragStop" }) do m.scripts[sc] = f:GetScript(sc) end
+    m.buttons = {}
+    for _, n in ipairs(MAPBUTTONS) do
+      if _G[n] then Snap(_G[n]) m.buttons[n] = ButtonTex(_G[n]) end
+    end
+    m.drops = {}
+    for _, n in ipairs(MAPDROPS) do
+      local d, btn = _G[n], _G[n .. "Button"]
+      if d then
+        Snap(d)
+        if btn then Snap(btn) end
+        m.drops[n] = { regions = RegionsOf(d), button = btn and ButtonTex(btn) }
+      end
+    end
+  end)
+  -- pfUI's map is in use (not with Cartographer / MetaMap, which pfUI leaves alone)
+  local function MapOurs() return pfUI.map and BZ.map.regions and not rawget(_G, "Cartographer") and not rawget(_G, "METAMAP_TITLE") end
+  local function ShownMap()
+    local was = WorldMapFrame:IsShown()
+    if was then HideUIPanel(WorldMapFrame) end
+    return was
+  end
+  S.worldmap = {
+    label = "World map",
+    blizz = function()
+      if not MapOurs() then return end
+      local m, f = BZ.map, WorldMapFrame
+      local was = ShownMap()
+      -- pfUI's way, noted the first time (map.lua set it up after this module)
+      if not m.octo then
+        m.octo = { toggle = ToggleWorldMap, panel = UIPanelWindows and UIPanelWindows["WorldMapFrame"], scripts = {} }
+        for _, sc in ipairs({ "OnShow", "OnMouseWheel", "OnDragStart", "OnDragStop" }) do m.octo.scripts[sc] = f:GetScript(sc) end
+      end
+      _G.ToggleWorldMap = m.toggle
+      if UIPanelWindows then UIPanelWindows["WorldMapFrame"] = m.panel end
+      Restore(f, false)
+      Size(f)
+      local s = BZ.snap[f]
+      f:SetScript("OnMouseWheel", s and s.OnMouseWheel or nil)
+      f:SetScript("OnDragStart", m.scripts.OnDragStart)
+      f:SetScript("OnDragStop", m.scripts.OnDragStop)
+      f:SetMovable(false)
+      f:EnableKeyboard(true)
+      PutRegions(m.regions)
+      if f.backdrop then f.backdrop:Hide() end
+      if f.backdrop_shadow then f.backdrop_shadow:Hide() end
+      if m.blackout and BlackoutWorld then BlackoutWorld:Show() end
+      for n, t in pairs(m.buttons) do
+        local b = _G[n]
+        Restore(b, nil)
+        Size(b)
+        PutButton(b, t)
+      end
+      for n, d in pairs(m.drops) do
+        local dd, btn = _G[n], _G[n .. "Button"]
+        Restore(dd, nil)
+        PutRegions(d.regions)
+        if dd.backdrop then dd.backdrop:Hide() end
+        if btn and d.button then
+          Restore(btn, nil)
+          Size(btn)
+          PutButton(btn, d.button)
+        end
+      end
+      Away(_G.pfWorldMapButtonCoords)
+      if was then ShowUIPanel(f) end
+    end,
+    octo = function()
+      -- (never switched to Blizzard's this session: pfUI's is as map.lua left it)
+      local m, f = BZ.map, WorldMapFrame
+      if not MapOurs() or not m.octo then return end
+      local was = ShownMap()
+      _G.ToggleWorldMap = m.octo.toggle
+      if UIPanelWindows then UIPanelWindows["WorldMapFrame"] = m.octo.panel end
+      for sc, fn in pairs(m.octo.scripts) do f:SetScript(sc, fn) end
+      f:SetMovable(true)
+      f:EnableMouse(true)
+      StripTextures(f)
+      if f.backdrop then f.backdrop:Show() end
+      if f.backdrop_shadow then f.backdrop_shadow:Show() end
+      if BlackoutWorld then BlackoutWorld:Hide() end
+      local pos = C.position["WorldMapFrame"] or {}
+      f:SetScale(tonumber(pos.scale) or .7)
+      f:SetAlpha(tonumber(pos.alpha) or 1)
+      f:ClearAllPoints()
+      f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+      if WorldMapButton then
+        f:SetWidth(WorldMapButton:GetWidth() + 15)
+        f:SetHeight(WorldMapButton:GetHeight() + 55)
+      end
+      if LoadMovable then LoadMovable(f) end
+      for n in pairs(m.buttons) do
+        local b = _G[n]
+        for _, k in ipairs(BTEX) do b["Set" .. k .. "Texture"](b, "") end
+        if b.backdrop then b.backdrop:Show() end
+        if b.texture then b.texture:Show() end
+        if b.SetFont then b:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE") end
+      end
+      local close = WorldMapFrameCloseButton
+      if close then
+        close:SetWidth(15)
+        close:SetHeight(15)
+        close:ClearAllPoints()
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -3, -3)
+      end
+      for n in pairs(m.drops) do
+        local dd, btn = _G[n], _G[n .. "Button"]
+        StripTextures(dd)
+        if dd.backdrop then dd.backdrop:Show() end
+        if btn then
+          for _, k in ipairs(BTEX) do btn["Set" .. k .. "Texture"](btn, nil) end
+          if dd.backdrop then btn:ClearAllPoints() btn:SetAllPoints(dd.backdrop) end
+          if btn.backdrop then btn.backdrop:Show() end
+          if btn.icon then btn.icon:Show() end
+        end
+      end
+      -- (map.lua moves the zone menu 8 px right)
+      local zs = WorldMapZoneDropDown and BZ.snap[WorldMapZoneDropDown]
+      local p = zs and zs.points[1]
+      if p and p[1] then
+        WorldMapZoneDropDown:ClearAllPoints()
+        WorldMapZoneDropDown:SetPoint(p[1], p[2], p[3], (p[4] or 0) + 8, p[5] or 0)
+      end
+      Back(_G.pfWorldMapButtonCoords)
+      if was then ShowUIPanel(f) end
+    end,
+  }
+
   -- which sections each topic of the options window has
   BZ.GROUPS = {
-    ["Unit Frames"] = { "unitframes", "castbar" }, ["Action Bars"] = { "actionbars" }, ["Nameplates"] = { "nameplates" },
-    ["Combat Text"] = { "combattext" }, ["Meters"] = { "meters" }, ["Minimap & Buffs"] = { "minimap", "buffs" },
+    ["Unit Frames"] = { "unitframes", "castbar", "raid" }, ["Action Bars"] = { "actionbars" }, ["Nameplates"] = { "nameplates" },
+    ["Combat Text"] = { "combattext" }, ["Meters"] = { "meters" }, ["Minimap & Buffs"] = { "minimap", "buffs", "worldmap" },
     ["Bags & Loot"] = { "bags", "loot" }, ["Chat & Panels"] = { "chat", "panels" }, ["Tooltip"] = { "tooltip" },
   }
 

@@ -533,8 +533,11 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    parts noted in a wrap of pfUI.nameplates.OnCreate before pfUI blanks them), bags, loot,
    combattext (CT:SetEnabled), meters (windows hidden). BZ.GROUPS maps topic list sections to them;
    octo-options shows a strip over the page (O.swap, O:LayoutSwap on Select: content moves to -110)
-   with "pfUI Octo" / "Blizzard" per section, the one in use lit. Not done: map (world map), raid
-   (the game has none).
+   with "pfUI Octo" / "Blizzard" per section, the one in use lit. 24 Oct (NOT seen in game): raid
+   (pfRaidCluster / pfRaidUpdater away, Blizzard_RaidUI loaded for the Raid tab's pull-outs) and
+   worldmap (BZ.map: WorldMapFrame regions, ToggleWorldMap, UIPanelWindows entry, BlackoutWorld, the
+   zoom / close buttons' and zone menus' textures noted at load; pfUI's scripts noted at the first
+   switch, m.octo; does nothing under Cartographer / MetaMap). The strip has 3 slots now.
    Same day: chat (BZ.chat per window: frame / tab / tab text / tab art / scroll buttons snapped,
    CHAT_FRAME_TEXTURES paths, tab regions, edit box regions and fonts; CHAT_*_GET strings,
    CHAT_FONT_HEIGHTS, SetItemRef swapped; pfUI's tab SetAlpha and TabFlash.Show noted at BZ.Ready
@@ -563,3 +566,18 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    Slam window + GCD spark (C.swing.warrior slam*, only for WARRIOR who knows Slam, ST.ScanSpells; two-hander unless
    slamonehand), paladin twist .4 s / GCD 1.5 s lines (C.swing.paladin). The preview state has preview = true so
    every mark shows there for any class.
+15. 24 Oct 2026 (NOT seen in game). Colours: tests\run.lua wraps W.Color right after load and, near the end,
+   sets every colour string in pfUI_config to an odd value in turn: some Octo picker (or a colour box on a pfUI
+   page whose category is not replaced) must show it. PICKED there covers pickers that follow a choice on the
+   page (unit frame text UF.text, minimap art MO.layer); meters.background is the old pre-window key. Swing
+   mark colours became settings (warrior.gcdcolor, paladin.twistcolor / gcdcolor, cast.latencycolor).
+   End art (gryphons.lua): pfUI.gryphons.art = Gryphon, Lion + the client's gold dragons (DialogFrame
+   UI-DialogBox-Gold-Dragon / -Dragon2) and the elite / rare target frame dragons (cropped, coords); size =
+   height, width from the crop's shape; C.bars.gryphons.sides (both / left / right), mirror. Gryphons page:
+   preview of a bar with both ends + one button per picture. Retail art (DF gryphon / wyvern) would need
+   the CASC file ids (no name lookup in ~/tools/wowport yet).
+   Buffs section: modules/buffs-options.lua (`pfUI.buffsOcto`), page bfbuffs replaces pfUI's Buffs category
+   (all its settings: icons, weapon buffs, buff bars with tabs BO.bar pbuff / pdebuff / tdebuff, totems).
+   Preview: sample icons with buff.lua's spacing formulas, a sample buff bar in the tab's colours, totems;
+   click = card, Shift + wheel = icon size. Buff bars need a reload (button lit once changed). Layout mode
+   boxes for buffs / buff bars / totems open it (unlock.lua frame_configs, O.tabs.bfbuffs).

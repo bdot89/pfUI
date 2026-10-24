@@ -776,16 +776,119 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- gryphons
 
+  -- the end art: a sample bar with both ends drawn from the settings, and
+  -- one click per picture (the one in use lit)
+  local GR = pfUI.gryphons
+  local function ArtList()
+    local out = { { key = "None", label = "None" } }
+    for _, a in ipairs(GR and GR.art or {}) do table.insert(out, { key = a.key, label = a.label, texture = a.tex }) end
+    return out
+  end
+  AB.ArtList = ArtList
+  local function GryPreview(p)
+    W.Pin(p, "Preview", "A bar with your end art, as it will look. Click a picture under it to use it; hold Shift and "
+      .. "scroll the mouse wheel over the art for a bigger or smaller one. Click this bar to fold it away.", function(pp)
+      local box = W.Box(pp, 130)
+      local holder = CreateFrame("Frame", nil, box)
+      holder:SetAllPoints(box)
+      holder:SetFrameStrata("FULLSCREEN")
+      local bar = CreateFrame("Frame", nil, holder)
+      bar:SetWidth(12 * 30 + 11 * 2)
+      bar:SetHeight(30)
+      bar:SetPoint("BOTTOM", box, "BOTTOM", 0, 14)
+      for i = 1, 12 do
+        local b = bar:CreateTexture(nil, "ARTWORK")
+        b:SetTexture("Interface\\Buttons\\WHITE8X8")
+        b:SetVertexColor(.12, .12, .14, 1)
+        b:SetWidth(30)
+        b:SetHeight(30)
+        b:SetPoint("LEFT", bar, "LEFT", (i - 1) * 32, 0)
+      end
+      local ends = {}
+      for _, side in ipairs({ "left", "right" }) do
+        local e = CreateFrame("Button", nil, holder)
+        e:SetFrameLevel(bar:GetFrameLevel() + 4)
+        e.tex = e:CreateTexture(nil, "OVERLAY")
+        e.tex:SetAllPoints(e)
+        e.side = side
+        e:EnableMouseWheel(true)
+        e:SetScript("OnMouseWheel", function()
+          if IsShiftKeyDown() then
+            GRY().size = tostring(math.max(16, math.min(160, (tonumber(GRY().size) or 64) + 4 * (arg1 or 0))))
+            UG()
+            O:Refresh()
+          elseif pfUI.plates and pfUI.plates.PassWheel then
+            pfUI.plates.PassWheel(this)
+          end
+        end)
+        e:SetScript("OnEnter", function()
+          GameTooltip:SetOwner(this, "ANCHOR_TOP")
+          GameTooltip:AddLine("End art")
+          GameTooltip:AddLine("Shift + mouse wheel: bigger / smaller", 1, 1, 1)
+          GameTooltip:Show()
+        end)
+        e:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        ends[side] = e
+      end
+      AB.gryEnds = ends
+      -- the same drawing as gryphons.lua, scaled to the box
+      local function Paint()
+        local set = GRY()
+        local art = GR and GR.Art(set.texture)
+        local c = art and art.coords or { 0, 1, 0, 1 }
+        local size = math.min(100, tonumber(set.size) or 64)
+        local aspect = math.max(.2, (c[2] - c[1]) / math.max(.01, c[4] - c[3]))
+        local r, g, b, a = GetStringColor(set.color or "1,1,1,1")
+        for side, e in pairs(ends) do
+          local show = art and (set.sides == nil or set.sides == "both" or set.sides == side)
+          e:SetWidth(size * aspect)
+          e:SetHeight(size)
+          e:ClearAllPoints()
+          e:SetPoint(side == "left" and "BOTTOMRIGHT" or "BOTTOMLEFT", bar, side == "left" and "BOTTOMLEFT" or "BOTTOMRIGHT",
+            side == "left" and 14 or -14, -6)
+          e.tex:SetTexture(art and art.tex or nil)
+          e.tex:SetVertexColor(tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1)
+          local mirror = side == "right"
+          if set.mirror == "1" then mirror = not mirror end
+          if mirror then e.tex:SetTexCoord(c[2], c[1], c[3], c[4]) else e.tex:SetTexCoord(c[1], c[2], c[3], c[4]) end
+          if show then e:Show() else e:Hide() end
+        end
+      end
+      AB.PaintGry = Paint
+      Paint()
+      if p.items then table.insert(p.items, { Refresh = Paint }) end
+      -- one click per picture
+      local list = ArtList()
+      local rows = { {}, {} }
+      for i, e in ipairs(list) do
+        local key = e.key
+        table.insert(rows[i <= 4 and 1 or 2], { e.label, function()
+          GRY().texture = key
+          UG()
+          Paint()
+          O:Refresh()
+        end, nil, e.label, on = function() return GRY().texture == key end })
+      end
+      W.Buttons(pp, rows[1])
+      W.Buttons(pp, rows[2])
+    end)
+  end
+
   BUILD.abgryphons = function(p)
-    W.Heading(p, "Gryphons", { about = "The art at the ends of the main bar." })
+    W.Heading(p, "Gryphons", { about = "The art at the ends of the main bar: the game's gryphon, lion and dragons." })
+    GryPreview(p)
+    local function UGP() UG() if AB.PaintGry then AB.PaintGry() end end
     W.Card(p, "Gryphons")
-    Drop(p, "Art", nil, DD("gryphons"), GRY, "texture", UG)
-    Color(p, "Colour", nil, GRY, "color", UG)
-    Sld(p, "Size", nil, 16, 160, 1, GRY, "size", Px, UG)
-    Drop(p, "Left end at", nil, DD("xpanchors"), GRY, "anchor_left", UG)
-    Drop(p, "Right end at", nil, DD("xpanchors"), GRY, "anchor_right", UG)
-    Sld(p, "Left / right", nil, -200, 200, 1, GRY, "offset_h", Px, UG)
-    Sld(p, "Up / down", nil, -100, 100, 1, GRY, "offset_v", Px, UG)
+    Drop(p, "Art", "Each choice shows its picture.", ArtList(), GRY, "texture", UGP)
+    Drop(p, "Ends", nil, { { key = "both", label = "Both ends" }, { key = "left", label = "Left end only" },
+      { key = "right", label = "Right end only" } }, GRY, "sides", UGP)
+    Chk(p, "Mirror", "Turn the art round: it faces away from the bar.", GRY, "mirror", UGP)
+    Color(p, "Colour", nil, GRY, "color", UGP)
+    Sld(p, "Size", "Or Shift + wheel over the art in the preview.", 16, 160, 1, GRY, "size", Px, UGP)
+    Drop(p, "Left end at", nil, DD("xpanchors"), GRY, "anchor_left", UGP)
+    Drop(p, "Right end at", nil, DD("xpanchors"), GRY, "anchor_right", UGP)
+    Sld(p, "Left / right", nil, -200, 200, 1, GRY, "offset_h", Px, UGP)
+    Sld(p, "Up / down", nil, -100, 100, 1, GRY, "offset_v", Px, UGP)
   end
 
   O.replaced[T["Actionbar"]] = true

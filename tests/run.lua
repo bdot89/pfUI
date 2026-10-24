@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -204,6 +204,17 @@ ok(pfUI.bootup == nil, "bootup finished")
 ok(pfUI.version.string == "5.5.4", "upstream version read from the toc (" .. tostring(pfUI.version.string) .. ")")
 ok(pfUI.version.octo == "1.0.0", "octo version read from X-Octo-Version (" .. tostring(pfUI.version.octo) .. ")")
 ok(pfUI_config and pfUI_config.appearance, "config built")
+
+-- (every colour picker the Octo pages make, for the colour check near the end)
+if pfUI.octoui and pfUI.octoui.W then
+  OCTO_COLOR_GETS = {}
+  local W0 = pfUI.octoui.W
+  local made = W0.Color
+  W0.Color = function(p, label, desc, get, set)
+    table.insert(OCTO_COLOR_GETS, { get = get, label = label })
+    return made(p, label, desc, get, set)
+  end
+end
 
 -- ---------------------------------------------------------------- phase 1: Octo look
 local look = pfUI.octo.look
@@ -1512,7 +1523,7 @@ do
     end
     -- right-click lookups: a page in another category still found, any case
     ok(O:FindLegacy("Bars", "Experience Bar") == "l:XP Bar/Experience Bar", "page found outside its old category: " .. tostring(O:FindLegacy("Bars", "Experience Bar")))
-    ok(O:FindLegacy("buffs", "totem icons") == "l:Buffs/Totem Icons", "names match in any case")
+    ok(O:FindLegacy("settings", "cooldown") == "l:Settings/Cooldown", "names match in any case")
     ok(O:FindLegacy("Loot") == "l:Loot", "a category without pages")
     -- an Octo slider takes a typed number (and percent for 0-1 values)
     local ar = O:Page("ctareas")
@@ -3556,6 +3567,26 @@ do
     BZ.Set("panels", "blizz")
     ok(not pfUI.panel or not pfUI.panel.left or pfUI.panel.left:GetParent() == BZ.hider, "Blizzard: no info panels")
     BZ.Set("panels", "octo")
+    -- raid frames: pfUI's away, back
+    if pfRaidCluster then
+      BZ.Set("raid", "blizz")
+      ok(pfRaidCluster:GetParent() == BZ.hider, "Blizzard raid: pfUI's raid frames away")
+      BZ.Set("raid", "octo")
+      ok(pfRaidCluster:GetParent() ~= BZ.hider, "and back")
+    end
+    -- the world map: the game's toggle and art, then pfUI's again
+    if pfUI.map and BZ.map.regions then
+      local carto = rawget(_G, "Cartographer")
+      _G.Cartographer = nil  -- (another test leaves one; pfUI leaves the map to it)
+      local pfToggle = _G.ToggleWorldMap
+      BZ.Set("worldmap", "blizz")
+      ok(_G.ToggleWorldMap == BZ.map.toggle and (not WorldMapFrame.backdrop or not WorldMapFrame.backdrop:IsShown()),
+        "Blizzard world map: the game's toggle, no pfUI frame")
+      BZ.Set("worldmap", "octo")
+      ok(_G.ToggleWorldMap == pfToggle, "and pfUI's map again")
+      _G.Cartographer = carto
+    end
+    ok(BZ.GROUPS["Unit Frames"][3] == "raid" and BZ.GROUPS["Minimap & Buffs"][3] == "worldmap", "raid and world map switches on their topics")
     -- keep it or not: a pick goes back by itself unless kept
     BZ.Pick("panels", "blizz")
     ok(BZ.IsBlizz("panels") and pfOctoBlizzConfirm:IsShown() and BZ.confirm.id == "panels", "a switch to Blizzard's asks to be kept")
@@ -3600,6 +3631,149 @@ do
       end
       pfUI.gui:Hide()
     end
+  end
+end
+
+-- the Buffs section: one page with a preview laid out as buff.lua does it
+do
+  local O = pfUI.octoui and pfUI.octoui.Options
+  local BO = pfUI.buffsOcto
+  ok(BO and O and O.BUILD.bfbuffs and O.replaced[pfUI.env.T["Buffs"]], "Buffs page in place of pfUI's Buffs category")
+  if BO and O then
+    pfUI.gui:Show()
+    local good, err = pcall(function() O:Select("o:bfbuffs") end)
+    ok(good and O.pages.bfbuffs and O.pages.bfbuffs.frame:IsShown(), "the Buffs page builds: " .. tostring(err))
+    ok(BO.parts and BO.parts.buffs and BO.parts.debuffs and BO.parts.weapons and BO.parts.bar and BO.parts.totems,
+      "its preview has buffs, debuffs, weapon buffs, a buff bar and totems")
+    if BO.parts then
+      local s = pfUI_config.buffs
+      local was = { s.size, s.spacing, s.buffrowsize }
+      s.size, s.spacing, s.buffrowsize = "30", "2", "4"
+      BO.Layout()
+      -- 10 sample buffs, 4 per row: 3 rows of (30 + 2 * 2) plus text under each
+      local g = BO.parts.buffs
+      ok(math.abs(g:GetWidth() - 4 * 34) < .5, "buffs per row and spacing as buff.lua (" .. tostring(g:GetWidth()) .. ")")
+      -- Shift + wheel = icon size
+      local isk = IsShiftKeyDown
+      _G.IsShiftKeyDown = function() return true end
+      _G.this, _G.arg1 = g, 1
+      Mock.Run(g, "OnMouseWheel", 1)
+      _G.IsShiftKeyDown = isk
+      ok(s.size == "31", "Shift + wheel over the icons makes them bigger (" .. tostring(s.size) .. ")")
+      s.size, s.spacing, s.buffrowsize = was[1], was[2], was[3]
+      BO.Layout()
+      -- the buff bar tab changes what the cards set
+      BO.bar = "tdebuff"
+      BO.Layout()
+      ok(BO.parts.bar.name:GetText() == "Shadow Word: Pain", "the Target's debuffs tab shows a target debuff on the sample bar")
+      BO.bar = "pbuff"
+    end
+    pfUI.gui:Hide()
+  end
+end
+
+-- the bar end art: the game's dragons too, in their own shape, one side or both
+do
+  local GR = pfUI.gryphons
+  ok(GR and GR.Art("Dragon2") and GR.Art("Elite") and table.getn(GR.art) >= 6, "end art: gryphon, lion and four dragons")
+  if GR then
+    local set = pfUI_config.bars.gryphons
+    local was = { set.texture, set.size, set.sides }
+    set.texture, set.size, set.sides = "Elite", "60", "left"
+    local good, err = pcall(GR.UpdateConfig)
+    ok(good, "end art draws: " .. tostring(err))
+    local l, r = GR.frames.left, GR.frames.right
+    ok(math.abs(l:GetWidth() - 60 * (.44 / .85)) < .5 and l:GetHeight() == 60, "a cropped picture keeps its shape (" .. tostring(l:GetWidth()) .. ")")
+    ok(not r:IsShown(), "left end only: no right one")
+    set.texture, set.size, set.sides = was[1], was[2], was[3]
+    GR.UpdateConfig()
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O then
+      pfUI.gui:Show()
+      O:Select("o:abgryphons")
+      local AB = pfUI.barsOcto
+      ok(AB and AB.gryEnds and AB.PaintGry, "the Gryphons page has a preview of both ends")
+      pfUI.gui:Hide()
+    end
+  end
+end
+
+-- every colour setting has a picker (user, 23 Oct 2026: "EVERYTHING that can
+-- change colour can and has a clear and simple selector"): each colour in
+-- pfUI_config is set to an odd value in turn, and some picker of an Octo page
+-- (W.Color, wrapped before the pages were built) or a colour box on one of
+-- pfUI's own pages still in the list must show it
+do
+  local O = pfUI.octoui and pfUI.octoui.Options
+  if O and OCTO_COLOR_GETS then
+    pfUI.gui:Show()
+    for _, sec in ipairs(O.octo) do
+      for _, pg in ipairs(sec[2]) do pcall(function() O:Select("o:" .. pg[1]) end) end
+    end
+    pfUI.gui:Hide()
+    -- pfUI's own colour boxes, by the category they are in
+    local legacy, cat = {}, nil
+    local fh = io.open(DIR .. "/modules/gui.lua", "r")
+    for line in fh:lines() do
+      local _, _, c = string.find(line, 'CreateGUIEntry%(T%["([^"]+)"%]')
+      if c then cat = c end
+      local _, _, path, key = string.find(line, 'CreateConfig%([^,]*,[^,]*,%s*C%.([%w_%.]+),%s*"([%w_]+)",%s*"color"')
+      if path and cat and not O.replaced[pfUI.env.T[cat]] then legacy[path .. "." .. key] = true end
+    end
+    fh:close()
+    local function Shows(r0, g0)
+      for _, c in ipairs(OCTO_COLOR_GETS) do
+        local good, r, g = pcall(c.get)
+        if good and math.abs((tonumber(r) or 0) - r0) < .003 and math.abs((tonumber(g) or 0) - g0) < .003 then return true end
+      end
+    end
+    local function IsColor(v) return type(v) == "string" and string.find(v, "^%s*[%d%.]+%s*,%s*[%d%.]+%s*,%s*[%d%.]+") end
+    local SKIP = { position = 1, disabled = 1, blizz = 1 }
+    local list = {}
+    for g, gt in pairs(pfUI_config) do
+      if type(gt) == "table" and not SKIP[g] then
+        for s, st in pairs(gt) do
+          if IsColor(st) then table.insert(list, { gt, s, g .. "." .. s })
+          elseif type(st) == "table" then
+            for k, v in pairs(st) do if IsColor(v) then table.insert(list, { st, k, g .. "." .. s .. "." .. k, g, k }) end end
+          end
+        end
+      end
+    end
+    -- one picker for what is picked on the page: the text (unit frames), the art layer (minimap)
+    local PICKED = {
+      { "^unitframes%..-%.o_tcc_(.+)$", function(x) if pfUI.ufOcto then pfUI.ufOcto.text = x end end },
+      { "^mapstyle%.art(%d)color$", function(x) if pfUI.minimapOcto then pfUI.minimapOcto.layer = tonumber(x) end end },
+    }
+    -- copied once into each meter window (meters-window.lua, C.meters.migrated)
+    local OLD = { ["meters.background"] = true }
+    local missing = {}
+    for _, e in ipairs(list) do
+      local t, k, path = e[1], e[2], e[3]
+      local found = legacy[path] or OLD[path]
+      if not found then
+        local was = t[k]
+        t[k] = ".123,.456,.789,.5"
+        for _, pk in ipairs(PICKED) do
+          local _, _, x = string.find(path, pk[1])
+          if x then pk[2](x) end
+        end
+        found = Shows(.123, .456)
+        -- a tabbed page (one unit / window at a time): the same key on every tab
+        if not found and e[4] then
+          local olds = {}
+          for s, st in pairs(pfUI_config[e[4]]) do
+            if type(st) == "table" and IsColor(st[e[5]]) then olds[s] = st[e[5]] st[e[5]] = ".123,.456,.789,.5" end
+          end
+          found = Shows(.123, .456)
+          for s, v in pairs(olds) do pfUI_config[e[4]][s][e[5]] = v end
+        end
+        t[k] = was
+      end
+      if not found then table.insert(missing, path) end
+    end
+    table.sort(missing)
+    ok(table.getn(missing) == 0, "every colour has a picker; none for: " .. table.concat(missing, ", "))
   end
 end
 
