@@ -70,8 +70,40 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     p.border.tex:SetAllPoints(p.border)
     p.border.diaL = p.border:CreateTexture(nil, "OVERLAY")
     p.border.diaR = p.border:CreateTexture(nil, "OVERLAY")
+    -- marks on the bar: Multi-Shot clip zone, latency, Slam window and its
+    -- GCD spark, the paladin's twist and GCD lines
+    for _, k in ipairs({ "clip", "lag", "slam", "gcd", "mark1", "mark2" }) do
+      p[k] = p:CreateTexture(nil, "OVERLAY")
+      p[k]:SetTexture("Interface\\Buttons\\WHITE8X8")
+      p[k]:Hide()
+    end
+    p.gcd:SetTexture(SPARK)
+    p.gcd:SetBlendMode("ADD")
     return p
   end
+
+  -- a mark `secs` long ending `before` seconds before the swing's end (or
+  -- starting there, for a line: secs = nil), on a part `speed` seconds long
+  local function Mark(p, tex, before, secs, speed, fills, r, g, b, a, line, pad)
+    if not speed or speed <= 0 then tex:Hide() return end
+    local w = p:GetWidth() or 1
+    local px = w / speed
+    tex:ClearAllPoints()
+    tex:SetVertexColor(r, g, b, a or 1)
+    local width = line and 2 or math.max(1, (secs or 0) * px)
+    tex:SetWidth(width)
+    local off = before * px
+    local up = pad or 0
+    if fills then
+      tex:SetPoint("TOPRIGHT", p, "TOPRIGHT", -off, up)
+      tex:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -off, -up)
+    else
+      tex:SetPoint("TOPLEFT", p, "TOPLEFT", off, up)
+      tex:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", off, -up)
+    end
+    tex:Show()
+  end
+  ST.Mark = Mark
 
   -- a bar frame (name) with up to two parts (main / off hand, or reload / aim)
   function ST.NewBar(name, parent)
@@ -309,15 +341,18 @@ pfUI:RegisterModule("swing", "vanilla", function ()
   ST.bars.player = ST.NewBar("pfSwingPlayer")
   ST.bars.target = ST.NewBar("pfSwingTarget")
   ST.bars.ranged = ST.NewBar("pfSwingRanged")
+  ST.bars.cast = ST.NewBar("pfSwingCast")
   Mover(ST.bars.player, "player")
   Mover(ST.bars.target, "target")
   Mover(ST.bars.ranged, "ranged")
+  Mover(ST.bars.cast, "cast")
 
   function ST.ApplyLayout()
     Speeds()
     ST.Layout(ST.bars.player, S("player"), s.dual and S("player").offhand == "1")
     ST.Layout(ST.bars.target, S("target"), false)
     ST.Layout(ST.bars.ranged, S("ranged"), S("ranged").onebar ~= "1")
+    ST.Layout(ST.bars.cast, S("cast"), false)
   end
   ST.UpdateConfig = ST.ApplyLayout
 
@@ -347,6 +382,32 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       local tr, tg, tb = Col(set.textcolor)
       Draw(f.main, mhp, r, g, b, a, set.lefttext == "1" and (Hex(tr, tg, tb) .. "Main hand|r") or "",
         set.righttext == "1" and (Hex(tr, tg, tb) .. Left(st.mhSpeed - (t - st.mhStart)) .. "|r") or "", fills)
+      -- warrior: the Slam window at the swing's end and the GCD spark before it
+      local wa = C.swing.warrior
+      if ST.SlamShown(st) then
+        if (tonumber(wa.slamdelay) or 0) > 0 then
+          local sr, sg, sb, sa = Col(wa.slamcolor)
+          Mark(f.main, f.main.slam, 0, tonumber(wa.slamdelay), st.mhSpeed, fills, sr, sg, sb, sa)
+        else
+          f.main.slam:Hide()
+        end
+        if wa.slamgcd == "1" then
+          Mark(f.main, f.main.gcd, 1.5, nil, st.mhSpeed, fills, 1, 1, 1, 1, true, 4)
+          f.main.gcd:SetWidth(10)
+        else
+          f.main.gcd:Hide()
+        end
+      else
+        f.main.slam:Hide()
+        f.main.gcd:Hide()
+      end
+      -- paladin: the seal twist line 0.4 s before the swing, the GCD line 1.5 s before
+      local pa = C.swing.paladin
+      local pad = tonumber(pa.offset) or 6
+      if ST.PaladinShown(st, "twist") then Mark(f.main, f.main.mark1, .4, nil, st.mhSpeed, fills, 1, .996, .722, 1, true, pad)
+      else f.main.mark1:Hide() end
+      if ST.PaladinShown(st, "gcd") then Mark(f.main, f.main.mark2, 1.5, nil, st.mhSpeed, fills, 1, 0, 0, .8, true, pad)
+      else f.main.mark2:Hide() end
       if f.off:IsShown() then
         local ohp = (t - st.ohStart) / st.ohSpeed
         local or2, og, ob, oa = Col(set.offcolor)
@@ -361,7 +422,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       Draw(f.main, p, r, g, b, a, set.lefttext == "1" and (Hex(tr, tg, tb) .. (st.tgName or "Target") .. "|r") or "",
         set.righttext == "1" and (Hex(tr, tg, tb) .. Left(st.tgSpeed - (t - st.tgStart)) .. "|r") or "", fills)
       return t - (st.tgStart or 0) > (st.tgSpeed + 1)
-    else
+    elseif bar == "ranged" then
       -- ranged: the reload (speed - 0.5) then the aim (0.5)
       local speed = st.rgSpeed
       local elapsed = t - st.rgStart
@@ -379,8 +440,70 @@ pfUI:RegisterModule("swing", "vanilla", function ()
         local aim = st.aimStart and (t - st.aimStart) / .5 or (elapsed >= reload and (elapsed - reload) / .5 or 0)
         Draw(f.off, aim, ar, ag, ab, aa, text and "Aim" or "", "", true)
       end
+      -- Multi-Shot clip zone: starting one in the last half second before
+      -- the aim delays the next Auto Shot
+      local cs = C.swing.cast
+      if cs.clip == "1" then
+        local kr, kg, kb, ka = Col(cs.clipcolor)
+        if set.onebar == "1" then Mark(f.main, f.main.clip, .5, .5, speed, true, kr, kg, kb, ka)
+        else Mark(f.main, f.main.clip, 0, .5, reload, true, kr, kg, kb, ka) end
+      else
+        f.main.clip:Hide()
+      end
       return elapsed > speed + 1
+    elseif bar == "cast" then
+      -- Aimed / Multi-Shot: the cast filling, with your latency at its end
+      local c = st.cast
+      if not c then return true end
+      local p = (t - c.start) / c.dur
+      local r, g, b, a = Col(set.castcolor)
+      local text = set.text == "1"
+      Draw(f.main, p, r, g, b, a, text and c.name or "", text and Left(c.dur - (t - c.start)) or "", true)
+      if set.latency == "1" then
+        local lag = ST.Latency()
+        Mark(f.main, f.main.lag, 0, math.min(c.dur, lag), c.dur, true, 1, 0, 0, .75)
+      else
+        f.main.lag:Hide()
+      end
+      return false
     end
+  end
+
+  -- your latency in seconds (1.12: GetNetStats' third return)
+  function ST.Latency()
+    if not GetNetStats then return 0 end
+    local _, _, home, world = GetNetStats()
+    return ((tonumber(world) or tonumber(home) or 0)) / 1000
+  end
+
+  -- the Slam marks: warriors who know Slam, with a two-hander (or always)
+  local _, playerClass = UnitClass("player")
+  function ST.SlamShown(st)
+    local wa = C.swing.warrior
+    if wa.slam ~= "1" then return false end
+    if st and st.preview then return true end
+    if playerClass ~= "WARRIOR" or not s.knowsSlam then return false end
+    return (not s.dual) or wa.slamonehand == "1"
+  end
+  function ST.PaladinShown(st, which)
+    local pa = C.swing.paladin
+    if (which == "twist" and pa.twist ~= "1") or (which == "gcd" and pa.gcd ~= "1") then return false end
+    return (st and st.preview) or playerClass == "PALADIN"
+  end
+  -- does the spellbook have Slam?
+  function ST.ScanSpells()
+    s.knowsSlam = false
+    for i = 1, 300 do
+      local name = GetSpellName(i, BOOKTYPE_SPELL or "spell")
+      if not name then break end
+      if name == "Slam" then s.knowsSlam = true end
+    end
+  end
+
+  -- the shots the cast bar shows
+  ST.CASTS = { ["Aimed Shot"] = "aimed", ["Multi-Shot"] = "multi" }
+  function ST.CastWanted(kind)
+    return kind == "test" or (kind and C.swing.cast[kind] == "1")
   end
 
   local ticker = CreateFrame("Frame")
@@ -408,6 +531,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     Run("target", UnitExists("target") and UnitCanAttack("player", "target") and (s.tgSeen or 0) > 0
       and t - (s.tgSeen or 0) < 10)
     Run("ranged", s.ranged and (s.rgSeen or 0) > 0 and t - (s.rgSeen or 0) < 10)
+    -- the shot being cast (dropped a moment after it should have ended)
+    if s.cast and t > s.cast.start + s.cast.dur + .3 then s.cast = nil end
+    Run("cast", s.cast and ST.CastWanted(s.cast.kind))
   end)
 
   -- ---------------------------------------------------------------- events
@@ -427,13 +553,15 @@ pfUI:RegisterModule("swing", "vanilla", function ()
                        "ACTIONBAR_SLOT_CHANGED", "UNIT_CASTEVENT", "CHAT_MSG_COMBAT_SELF_HITS", "CHAT_MSG_COMBAT_SELF_MISSES",
                        "CHAT_MSG_SPELL_SELF_DAMAGE", "CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", "CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES",
                        "CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS", "CHAT_MSG_COMBAT_HOSTILEPLAYER_MISSES", "START_AUTOREPEAT_SPELL",
-                       "STOP_AUTOREPEAT_SPELL" }) do
+                       "STOP_AUTOREPEAT_SPELL", "SPELLCAST_START", "SPELLCAST_STOP", "SPELLCAST_FAILED",
+                       "SPELLCAST_INTERRUPTED", "SPELLCAST_DELAYED", "LEARNED_SPELL_IN_TAB" }) do
     pcall(ev.RegisterEvent, ev, e)
   end
   function ST.OnEvent(evt, a1, a2, a3, a4)
     if evt == "PLAYER_ENTERING_WORLD" then
       _, playerGUID = UnitExists("player")
       ST.ScanSlots()
+      ST.ScanSpells()
       ST.ApplyLayout()
       return
     end
@@ -454,6 +582,21 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       return
     end
     if evt == "ACTIONBAR_SLOT_CHANGED" then ST.ScanSlots() return end
+    if evt == "LEARNED_SPELL_IN_TAB" then ST.ScanSpells() return end
+    -- your own casts: Aimed Shot and Multi-Shot for the cast bar
+    if evt == "SPELLCAST_START" then
+      local kind = ST.CASTS[a1 or ""]
+      if kind then s.cast = { name = a1, kind = kind, start = now(), dur = math.max(.1, (tonumber(a2) or 0) / 1000) } end
+      return
+    end
+    if evt == "SPELLCAST_DELAYED" then
+      if s.cast then s.cast.dur = s.cast.dur + (tonumber(a1) or 0) / 1000 end
+      return
+    end
+    if evt == "SPELLCAST_STOP" or evt == "SPELLCAST_FAILED" or evt == "SPELLCAST_INTERRUPTED" then
+      s.cast = nil
+      return
+    end
     if evt == "START_AUTOREPEAT_SPELL" then Speeds() s.rgSeen = now() return end
     -- SuperWoW: the exact hand, your target's swings, shots and next-swing attacks
     if evt == "UNIT_CASTEVENT" then
@@ -511,5 +654,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     if s.dual and t - s.ohStart >= s.ohSpeed then s.ohStart = t end
     if t - s.tgStart >= s.tgSpeed then s.tgStart = t s.tgSeen = t end
     if t - s.rgStart >= s.rgSpeed then s.rgStart = t s.rgSeen = t end
+    -- an Aimed Shot every few seconds
+    if not s.cast or s.cast.kind == "test" and t > s.cast.start + s.cast.dur + 1 then
+      s.cast = { name = "Aimed Shot", kind = "test", start = t, dur = 3 }
+    end
   end)
 end)

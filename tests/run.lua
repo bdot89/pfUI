@@ -1996,6 +1996,51 @@ do
       st.rgStart, st.rgSpeed = now0 - 2.7, 3
       SW.Paint(rf, "ranged", now0)
       ok(rf.main.fill:GetWidth() >= 299 and rf.off.fill:GetWidth() > 100, "after the reload the aim fills")
+      ok(rf.main.clip:IsShown() and math.abs(rf.main.clip:GetWidth() - 60) < 1, "the Multi-Shot clip zone: the reload's last half second ("
+        .. tostring(rf.main.clip:GetWidth()) .. ")")
+      -- the cast bar: Aimed Shot from SPELLCAST_START, pushed back, stopped
+      local cf = SW.bars.cast
+      SW.OnEvent("SPELLCAST_START", "Aimed Shot", 3000)
+      ok(st.cast and st.cast.kind == "aimed" and math.abs(st.cast.dur - 3) < .01, "Aimed Shot starts the cast bar")
+      SW.OnEvent("SPELLCAST_DELAYED", 500)
+      ok(math.abs(st.cast.dur - 3.5) < .01, "a push back makes the cast longer")
+      st.cast.start = now0 - 1.75
+      pfUI_config.swing.cast.latency = "1"
+      local gnsWas = _G.GetNetStats
+      _G.GetNetStats = function() return 0, 0, 350 end
+      SW.Paint(cf, "cast", now0)
+      ok(math.abs(cf.main.fill:GetWidth() - 150) < 1, "the cast bar: half way, half the bar")
+      ok(cf.main.lag:IsShown() and math.abs(cf.main.lag:GetWidth() - 30) < 1, "the latency part: 350 ms of 3.5 s ("
+        .. tostring(cf.main.lag:GetWidth()) .. ")")
+      _G.GetNetStats = gnsWas
+      pfUI_config.swing.cast.latency = "0"
+      SW.OnEvent("SPELLCAST_START", "Frostbolt", 3000)
+      ok(st.cast and st.cast.kind == "aimed", "other spells leave the cast bar alone")
+      SW.OnEvent("SPELLCAST_INTERRUPTED")
+      ok(st.cast == nil, "an interrupt ends the cast bar")
+      pfUI_config.swing.cast.multi = "0"
+      SW.OnEvent("SPELLCAST_START", "Multi-Shot", 500)
+      ok(not SW.CastWanted(st.cast and st.cast.kind), "Multi-Shot switched off: no cast bar")
+      st.cast = nil
+      pfUI_config.swing.cast.multi = "1"
+      -- Slam and seal twisting marks (the preview state shows them for every class)
+      local ps = pfUI.swingOcto.state
+      ps.mhStart, ps.mhSpeed = now0 - 1, 3
+      pfUI_config.swing.paladin.twist, pfUI_config.swing.paladin.gcd = "1", "1"
+      local pf = pfUI.swingOcto.bars.player
+      SW.ApplyLayout()
+      pfUI.swingOcto.Layout()
+      SW.Paint(pf, "player", now0, ps)
+      ok(pf.main.slam:IsShown() and math.abs(pf.main.slam:GetWidth() - 10) < 1, "the Slam window: 0.1 s of a 3 s swing ("
+        .. tostring(pf.main.slam:GetWidth()) .. ")")
+      ok(pf.main.gcd:IsShown() and pf.main.mark1:IsShown() and pf.main.mark2:IsShown(), "the GCD spark and both paladin lines")
+      pfUI_config.swing.paladin.twist, pfUI_config.swing.paladin.gcd = "0", "0"
+      pfUI_config.swing.warrior.slam = "0"
+      SW.Paint(pf, "player", now0, ps)
+      ok(not pf.main.slam:IsShown() and not pf.main.mark1:IsShown(), "the marks go when switched off")
+      pfUI_config.swing.warrior.slam = "1"
+      local _, cls = UnitClass("player")
+      ok(not SW.SlamShown(st) or cls == "WARRIOR", "no Slam marks on the real bar for other classes")
       -- every look draws
       for _, b in ipairs(SW.BORDERS) do
         pfUI_config.swing.look.border = b.key

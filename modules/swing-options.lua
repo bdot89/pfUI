@@ -44,7 +44,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
     return out
   end
 
-  local CARD = { player = "Your swing", target = "Target's swing", ranged = "Auto Shot and wand" }
+  local CARD = { player = "Your swing", target = "Target's swing", ranged = "Auto Shot and wand", cast = "Aimed and Multi-Shot" }
   function SO.Open(card)
     if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("stbars", card) else O:Open("stbars") end
   end
@@ -52,21 +52,21 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
   -- ---------------------------------------------------------------- preview
 
   local function Preview(p)
-    W.Pin(p, "Preview", "Your three bars on a made-up fight, drawn by the real bar code with your settings: your swing "
-      .. "(main and off hand; every third swing a Heroic Strike waits on it), your target's swing and Auto Shot. Click "
+    W.Pin(p, "Preview", "Your bars on a made-up fight, drawn by the real bar code with your settings: your swing "
+      .. "(main and off hand; every third swing a Heroic Strike waits on it), your target's swing, Auto Shot and an Aimed Shot cast. Click "
       .. "a bar for its settings, hold Shift and scroll the mouse wheel over it for a taller or shorter bar. Click "
       .. "this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 150)
+      local box = W.Box(pp, 170)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")
       -- a made-up fight with its own clock
       local st = { mhStart = 0, ohStart = -.7, tgStart = -.4, rgStart = 0, mhSpeed = 2.6, ohSpeed = 1.8, tgSpeed = 2.0,
-                   rgSpeed = 2.9, lastSwing = 0, tgName = "Onyxia", n = 0 }
+                   rgSpeed = 2.9, lastSwing = 0, tgName = "Onyxia", n = 0, preview = true }
       SO.state = st
       local bars = {}
-      local ys = { player = -14, target = -64, ranged = -98 }
-      for _, bar in ipairs({ "player", "target", "ranged" }) do
+      local ys = { player = -14, target = -64, ranged = -98, cast = -140 }
+      for _, bar in ipairs({ "player", "target", "ranged", "cast" }) do
         local f = ST.NewBar(nil, holder)
         f:SetFrameStrata("FULLSCREEN")
         f.bar = bar
@@ -127,6 +127,12 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
         if t - st.ohStart >= st.ohSpeed then st.ohStart = t end
         if t - st.tgStart >= st.tgSpeed then st.tgStart = t end
         if t - st.rgStart >= st.rgSpeed then st.rgStart = t end
+        -- an Aimed Shot, a pause, a Multi-Shot, a pause
+        if not st.cast or t > st.cast.start + st.cast.dur + 1 then
+          local aimed = not st.cast or st.cast.name ~= "Aimed Shot"
+          st.cast = { name = aimed and "Aimed Shot" or "Multi-Shot", kind = aimed and "aimed" or "multi", start = t,
+                      dur = aimed and 3 or .5 }
+        end
         for bar, f in pairs(bars) do ST.Paint(f, bar, t, st) end
       end)
 
@@ -208,6 +214,29 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
     Chk(p, "Texts", nil, G("ranged"), "text")
     Color(p, "Reload", nil, G("ranged"), "cooldowncolor")
     Color(p, "Aim", nil, G("ranged"), "castcolor")
+    Chk(p, "Multi-Shot clip zone", "A red zone on the reload: a Multi-Shot started in it pushes your next Auto Shot back.", G("cast"), "clip")
+    Color(p, "Clip zone", nil, G("cast"), "clipcolor")
+
+    W.Card(p, "Aimed and Multi-Shot", { tip = "A cast bar for your Aimed Shot and Multi-Shot." })
+    Common(p, "cast")
+    Chk(p, "Aimed Shot", nil, G("cast"), "aimed")
+    Chk(p, "Multi-Shot", nil, G("cast"), "multi")
+    Chk(p, "Texts", "The shot's name and the time left.", G("cast"), "text")
+    Chk(p, "Latency", "A red part at the cast's end as long as your latency: you can move once the bar reaches it.", G("cast"), "latency")
+    Color(p, "Bar", nil, G("cast"), "castcolor")
+
+    W.Card(p, "Warrior: Slam", { tip = "Marks on your main hand bar for Slam (warriors who know it)." })
+    Chk(p, "Show Slam marks", nil, G("warrior"), "slam")
+    Sld(p, "Slam window", "How much of the swing's end is marked: Slam started in it delays your next swing the least.", 0, .5, .01, G("warrior"), "slamdelay",
+      function(v) return string.format("%.2f s", v) end)
+    Color(p, "Slam window", nil, G("warrior"), "slamcolor")
+    Chk(p, "GCD mark", "A spark 1.5 s before the swing: an attack after it still leaves the global cooldown done in time for Slam.", G("warrior"), "slamgcd")
+    Chk(p, "With one-handers too", "Off: only with a two-hander.", G("warrior"), "slamonehand")
+
+    W.Card(p, "Paladin: seal twisting", { tip = "Lines on your main hand bar for seal twisting (paladins)." })
+    Chk(p, "Twist line", "0.4 s before the swing: change seal after it and both seals hit.", G("paladin"), "twist")
+    Chk(p, "GCD line", "1.5 s before the swing: the last moment to start a 1.5 s global cooldown that ends in time.", G("paladin"), "gcd")
+    Sld(p, "Line height", "How far the lines stand out above and below the bar.", 0, 20, 1, G("paladin"), "offset", Px)
   end
 
   O:AddPage("Swing Timer", "stbars", "Bars", Build)

@@ -557,5 +557,9 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    and IsCurrentAction. Ranged: reload (speed - .5) then aim (.5), moving (map position) restarts the aim.
    Settings C.swing.player / target / ranged / look / warrior. modules/swing-options.lua: section "Swing Timer"
    (after Action Bars), page stbars, preview + Test on my bars (ST.Test).
-   Not done (WeaponSwingTimer has them): Aimed / Multi-Shot cast bar with clip, warrior Slam delay, paladin seal
-   marks, latency bars.
+   Extras (24 Oct, NOT seen in game): pfSwingCast (C.swing.cast) for Aimed Shot / Multi-Shot from SPELLCAST_START
+   (ST.CASTS by name, DELAYED adds, STOP / FAILED / INTERRUPTED clear) with a latency part (GetNetStats 3rd return);
+   Multi-Shot clip zone on the reload (C.swing.cast.clip); marks via ST.Mark on textures made in Part(): warrior
+   Slam window + GCD spark (C.swing.warrior slam*, only for WARRIOR who knows Slam, ST.ScanSpells; two-hander unless
+   slamonehand), paladin twist .4 s / GCD 1.5 s lines (C.swing.paladin). The preview state has preview = true so
+   every mark shows there for any class.
