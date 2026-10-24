@@ -4012,6 +4012,13 @@ do
       GR.Bags = function() return {} end
       ok(GO.TexOf("47204:3025:0", 7) == "Interface\\Icons\\INV_Pants_08", "the worn copy's picture, whatever its enchant")
       GR.Worn, _G.GetInventoryItemTexture, GR.Bags = w, t, b
+      -- worn custom items keep giving the placeholder: GetItemInfo has the real one
+      local gl, gi = GetInventoryItemLink, _G.GetItemInfo
+      _G.GetInventoryItemTexture = function() return "Interface\\Icons\\INV_Robe_02" end
+      _G.GetInventoryItemLink = function() return "|cffa335ee|Hitem:47198:2544:0:0|h[Coronet of Prophecy]|h|r" end
+      _G.GetItemInfo = function(s) if s == "item:47198" then return "Coronet of Prophecy", s, 4, 60, "Armor", "Cloth", 1, "INVTYPE_HEAD", "Interface\\Icons\\INV_Crown_01" end end
+      ok(GR.InvTex(1) == "Interface\\Icons\\INV_Crown_01", "a worn item's picture skips the placeholder (" .. tostring(GR.InvTex(1)) .. ")")
+      _G.GetInventoryItemTexture, _G.GetInventoryItemLink, _G.GetItemInfo = t, gl, gi
     end
     if O and GO then
       pfUI.gui:Show()

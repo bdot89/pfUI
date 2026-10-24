@@ -83,7 +83,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     if inv then
       for _, i in ipairs({ inv, PAIR[inv] }) do
         if WornBase(i) == base then
-          local t = GetInventoryItemTexture("player", i)
+          local t = GR.InvTex(i)
           if GR.GoodTex(t) then return t end
         end
       end
@@ -529,7 +529,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
           s.off:Show()
         else
           -- (not in the set: what you wear there, faded)
-          s.icon:SetTexture(GetInventoryItemTexture("player", s.inv) or EMPTY[s.inv])
+          s.icon:SetTexture(GR.InvTex(s.inv) or EMPTY[s.inv])
           s.icon:SetAlpha(.3)
         end
         local worn = set and e ~= nil and ((e == "empty" and not GR.Worn(s.inv)) or (type(e) == "table" and GR.Worn(s.inv) == e.id))
@@ -582,7 +582,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         local loc = GR.EquipLoc and GR.EquipLoc(link)
         local fits = (i == inv)
         for _, f in ipairs(loc and GR.FITS[loc] or {}) do if f == inv then fits = true end end
-        if fits then Add({ id = id, name = nm or "", tex = GetInventoryItemTexture("player", i), link = link, worn = i }) end
+        if fits then Add({ id = id, name = nm or "", tex = GR.InvTex(i), link = link, worn = i }) end
       end
     end
     for _, it in ipairs(GR.ItemsFor(inv)) do Add(it) end
@@ -678,10 +678,30 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     W.Pin(p, "Preview", "Left: every slot - click one to put it on your bar or take it off (or Alt-click it in your "
       .. "character window). Right: your bar as it will look; Shift + wheel over it for bigger or smaller buttons. "
       .. "Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 150)
+      local box = W.Box(pp, 168)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")
+      -- headings over the two halves (user, 24 Oct 2026: "this is confusing")
+      local function Head(text, x)
+        local fs = holder:CreateFontString(nil, "OVERLAY")
+        fs:SetFont(W.UIFont(), 11, "OUTLINE")
+        fs:SetPoint("TOPLEFT", box, "TOPLEFT", x, -9)
+        local ar, ag, ab = Accent()
+        fs:SetTextColor(ar, ag, ab)
+        fs:SetText(text)
+        return fs
+      end
+      Head("1. Your equipment slots - click one to add it to the bar", 12)
+      Head("2. Your slot bar", 300)
+      local note = holder:CreateFontString(nil, "OVERLAY")
+      note:SetFont(W.UIFont(), 10, "")
+      note:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 12, 8)
+      note:SetPoint("RIGHT", box, "RIGHT", -12, 0)
+      note:SetJustifyH("LEFT")
+      note:SetTextColor(.6, .6, .62)
+      note:SetText("Ticked = on the bar. The bar shows what you wear in those slots: click a button to use the item, "
+        .. "hover it to swap in another from your bags. Shift + wheel over the bar resizes it.")
       GO.picks = {}
       for r, row in ipairs(GO.ROWS) do
         for c, inv in ipairs(row) do
@@ -694,7 +714,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
           s.icon:SetPoint("TOPLEFT", s, "TOPLEFT", 1, -1)
           s.icon:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -1, 1)
           s.icon:SetTexCoord(.07, .93, .07, .93)
-          s:SetPoint("TOPLEFT", box, "TOPLEFT", 12 + (c - 1) * 33 + (table.getn(row) < 8 and (8 - table.getn(row)) * 16 or 0), -12 - (r - 1) * 34)
+          s:SetPoint("TOPLEFT", box, "TOPLEFT", 12 + (c - 1) * 33 + (table.getn(row) < 8 and (8 - table.getn(row)) * 16 or 0), -30 - (r - 1) * 34)
           s:SetScript("OnClick", function() GR.ToggleSlot(this.inv) O:Refresh() end)
           s:SetScript("OnEnter", function()
             GameTooltip:SetOwner(this, "ANCHOR_TOP")
@@ -703,6 +723,13 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
             GameTooltip:Show()
           end)
           s:SetScript("OnLeave", function() GameTooltip:Hide() end)
+          -- (a tick on the slots that are on your bar)
+          s.tick = s:CreateTexture(nil, "OVERLAY")
+          s.tick:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+          s.tick:SetWidth(16)
+          s.tick:SetHeight(16)
+          s.tick:SetPoint("TOPLEFT", s, "TOPLEFT", -5, 5)
+          s.tick:Hide()
           table.insert(GO.picks, s)
         end
       end
@@ -734,20 +761,22 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
       local function Paint()
         local ar, ag, ab = Accent()
         for _, s in ipairs(GO.picks) do
-          s.icon:SetTexture(GetInventoryItemTexture("player", s.inv) or GR.EMPTYTEX[s.inv])
+          s.icon:SetTexture(GR.InvTex(s.inv) or GR.EMPTYTEX[s.inv])
           if GR.HasSlot(s.inv) then
             s:SetBackdropBorderColor(ar, ag, ab, 1)
             s:SetBackdropColor(ar * .45, ag * .45, ab * .45, 1)
             s.icon:SetAlpha(1)
+            s.tick:Show()
           else
             s:SetBackdropBorderColor(.2, .2, .24, 1)
             s:SetBackdropColor(.06, .06, .08, 1)
             s.icon:SetAlpha(.45)
+            s.tick:Hide()
           end
         end
         local n = GR.LayoutSlots(sample, sbtn, GR.SlotList())
         local room = (box:GetWidth() or 600) - 300
-        local scale = math.min(1, room / math.max(1, sample:GetWidth()), 120 / math.max(1, sample:GetHeight()))
+        local scale = math.min(1, room / math.max(1, sample:GetWidth()), 84 / math.max(1, sample:GetHeight()))
         sample:SetScale(scale)
         sample:ClearAllPoints()
         sample:SetPoint("CENTER", box, "LEFT", (290 + room / 2) / scale, 0)

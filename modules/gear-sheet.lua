@@ -102,7 +102,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       for _, f in ipairs(loc and GR.FITS[loc] or {}) do
         if f == inv then
           local _, _, nm = string.find(link, "%[(.-)%]")
-          table.insert(out, { id = id, link = link, name = nm or "", tex = GetInventoryItemTexture("player", other), worn = other })
+          table.insert(out, { id = id, link = link, name = nm or "", tex = GR.InvTex(other), worn = other })
         end
       end
     end
@@ -486,7 +486,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       if i == 1 then b:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
       elseif vertical then b:SetPoint("TOP", bar.slots[1], "BOTTOM", 0, -3)
       else b:SetPoint("LEFT", bar.slots[1], "RIGHT", 3, 0) end
-      local tex = GetInventoryItemTexture("player", b.inv)
+      local tex = GR.InvTex(b.inv)
       b.icon:SetTexture(tex or "Interface\\PaperDoll\\UI-PaperDoll-Slot-Trinket")
       b.icon:SetDesaturated(tex == nil)
     end

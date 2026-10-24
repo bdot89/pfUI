@@ -68,6 +68,21 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     return type(t) == "string" and t ~= "" and not BADTEX[string.lower(t)]
   end
 
+  -- The picture of what is worn in a slot. Seen in game 24 Oct: for this
+  -- server's own items (the Prophecy set, 47xxx) GetInventoryItemTexture keeps
+  -- giving the missing placeholder, while GetItemInfo has the real picture.
+  function GR.InvTex(inv)
+    local t = GetInventoryItemTexture("player", inv)
+    if GR.GoodTex(t) then return t end
+    local link = GetInventoryItemLink("player", inv)
+    local _, _, base = string.find(link or "", "item:(%d+)")
+    if base and _G.GetItemInfo then
+      local _, _, _, _, _, _, _, _, tex = _G.GetItemInfo("item:" .. base)
+      if GR.GoodTex(tex) then return tex end
+    end
+    return nil
+  end
+
   function GR.Worn(inv)
     local link = GetInventoryItemLink("player", inv)
     return GR.IdOf(link), link
@@ -93,7 +108,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       if not only or only[GR.Key(inv)] ~= nil then
         local id, link = GR.Worn(inv)
         if id then
-          slots[GR.Key(inv)] = { id = id, name = NameOf(link) or "", tex = GetInventoryItemTexture("player", inv) or "" }
+          slots[GR.Key(inv)] = { id = id, name = NameOf(link) or "", tex = GR.InvTex(inv) or "" }
         else
           slots[GR.Key(inv)] = "empty"
         end

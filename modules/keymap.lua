@@ -140,7 +140,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       ginv = tonumber(ginv)
       local link = GetInventoryItemLink("player", ginv)
       local _, _, iname = string.find(link or "", "%[(.-)%]")
-      return GetInventoryItemTexture("player", ginv), iname or ((GetBindingText and GetBindingText(action, "BINDING_NAME_")) or action)
+      return (pfUI.gear and pfUI.gear.InvTex and pfUI.gear.InvTex(ginv) or GetInventoryItemTexture("player", ginv)), iname or ((GetBindingText and GetBindingText(action, "BINDING_NAME_")) or action)
     end
     local slot = KM.SlotOf(action)
     if slot then
@@ -633,7 +633,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     local seen = {}
     for _, b in ipairs(GR and GR.bindables or {}) do
       if b.pfBinding and not seen[b.pfBinding] and b:IsVisible() and not GetBindingKey(b.pfBinding)
-        and GetInventoryItemTexture("player", b.inv) then
+        and GR.InvTex(b.inv) then
         seen[b.pfBinding] = true
         table.insert(out, { cmd = b.pfBinding, inv = b.inv })
       end
@@ -789,7 +789,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       if type(slot) == "table" then
         a.slot, a.cmd, a.inv = nil, slot.cmd, slot.inv
         a.payload = { cmd = slot.cmd }
-        a.tex = GetInventoryItemTexture("player", slot.inv)
+        a.tex = pfUI.gear.InvTex(slot.inv)
       else
         a.slot, a.cmd, a.inv = slot, nil, nil
         a.payload = { slot = slot }
