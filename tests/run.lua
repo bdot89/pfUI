@@ -111,7 +111,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 -- modules that must start cleanly (the octo ones, as they are added)
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
-  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers",
+  "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
   "minimap", "minimap-style", "minimap-options" }
 
 -- ---------------------------------------------------------------- load
@@ -1955,6 +1955,59 @@ do
       WHm.CloseAll()
       ws.mode, ws.combat = keepMode, keepCombat
     end
+    -- the swing timer: its page and preview, then the engine
+    local SW = pfUI.swing
+    O:Select("o:stbars")
+    ok(SW and O.pages.stbars and pfUI.swingOcto and pfUI.swingOcto.bars and pfUI.swingOcto.bars.player, "Swing Timer page with a preview")
+    if SW then
+      local st = SW.state
+      local now0 = GetTime()
+      -- SuperWoW tells the hand
+      local _, pg = UnitExists("player")
+      SW.OnEvent("UNIT_CASTEVENT", pg, nil, "OFFHAND", 0)
+      ok(math.abs(st.ohStart - now0) < .01, "SuperWoW: an off hand swing restarts the off hand")
+      st.sw = nil
+      -- the combat log: the hand nearest its end takes the swing
+      st.dual, st.mhSpeed, st.ohSpeed = true, 2, 2
+      st.mhStart, st.ohStart = now0 - 1.9, now0 - .5
+      SW.OnEvent("CHAT_MSG_COMBAT_SELF_HITS", "You hit Ogre for 120.")
+      ok(math.abs(st.mhStart - now0) < .01 and st.ohStart < now0 - .4, "the combat log swing goes to the hand nearest its end")
+      -- parry haste: you parry -> your swing comes sooner, but not under 20% left
+      st.mhStart, st.mhSpeed = now0 - .2, 2
+      SW.OnEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "Ogre attacks. You parry.")
+      local left = st.mhSpeed - (now0 - st.mhStart)
+      ok(math.abs(left - 1.0) < .02, "a parry takes 40% of the swing off (" .. string.format("%.2f", left) .. " s left)")
+      -- the target's swing, by its name
+      local tnWas = UnitName
+      _G.UnitName = function(u) if u == "target" then return "Ogre" end return tnWas(u) end
+      st.tgStart = 0
+      SW.OnEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", "Ogre hits you for 50.")
+      ok(math.abs(st.tgStart - now0) < .01, "the target's swing from the combat log")
+      _G.UnitName = tnWas
+      -- drawing: half way through = half the bar, the queued colour on it
+      local f = SW.bars.player
+      SW.ApplyLayout()
+      st.mhStart, st.mhSpeed, st.queued = now0 - 1, 2, "queue"
+      SW.Paint(f, "player", now0)
+      ok(math.abs((f.main.fill:GetWidth() or 0) - 150) < 1, "half way: half the bar (" .. tostring(f.main.fill:GetWidth()) .. ")")
+      st.queued = nil
+      -- ranged: reload, then the aim
+      local rf = SW.bars.ranged
+      st.rgStart, st.rgSpeed = now0 - 2.7, 3
+      SW.Paint(rf, "ranged", now0)
+      ok(rf.main.fill:GetWidth() >= 299 and rf.off.fill:GetWidth() > 100, "after the reload the aim fills")
+      -- every look draws
+      for _, b in ipairs(SW.BORDERS) do
+        pfUI_config.swing.look.border = b.key
+        local good, err = pcall(SW.ApplyLayout)
+        ok(good, "border " .. b.key .. ": " .. tostring(err))
+      end
+      pfUI_config.swing.look.border = "cdm"
+      SW.Test(5)
+      ok(SW.testUntil and SW.state.tgSeen, "Test on my bars starts a made-up fight")
+      SW.testUntil = nil
+      SW.ApplyLayout()
+    end
     -- the minimap pages: a preview whose parts are picked, moved and sized
     local MMO = pfUI.minimapOcto
     O:Select("o:mmmap")
@@ -3045,7 +3098,7 @@ do
     -- the topic list: most used first, small categories grouped
     local heads = {}
     for _, grp in ipairs(O.groups) do table.insert(heads, grp.header.text.text) end
-    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Nameplates" and heads[table.getn(heads)] == "About",
+    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Swing Timer" and heads[5] == "Nameplates" and heads[table.getn(heads)] == "About",
       "topic list in order of importance (" .. table.concat(heads, ", ") .. ")")
     local castTopic
     for _, grp in ipairs(O.groups) do

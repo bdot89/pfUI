@@ -1,0 +1,515 @@
+pfUI:RegisterModule("swing", "vanilla", function ()
+  -- pfUI Octo :: swing timers (24 Oct 2026). User: WeaponSwingTimer "in its
+  -- own category ... work the same with the same art / bars / colours".
+  -- WeaponSwingTimer is GPL-3 and pfUI MIT (user's choice: built in, written
+  -- fresh): its settings, defaults and colours were matched, none of its code
+  -- or art used. The looks use the game's own art where it copies Blizzard
+  -- (cast bar border, status bar, spark) and pfUI Octo's own (img\bars\swing-*)
+  -- for the rest.
+  --   your swing   main hand and off hand, blue; Heroic Strike / Cleave /
+  --                Maul / Raptor Strike waiting on the next swing colour it
+  --   target       your target's swing at you, red
+  --   ranged       Auto Shot (hunters) and wand Shoot: the reload, white, then
+  --                the half-second aim, red (moving restarts the aim)
+  -- Swings: SuperWoW's UNIT_CASTEVENT (MAINHAND / OFFHAND / CAST, exact hand)
+  -- when it runs, else the combat log (any line of your own white hits /
+  -- misses is a swing; the hand nearest its end takes it). Parries haste the
+  -- one who parried (40% of the swing, never under 20% left).
+  -- Settings C.swing.<bar>.*, C.swing.look.*; options: Swing Timer.
+  local ST = { bars = {}, state = {} }
+  pfUI.swing = ST
+  local function S(bar) return C.swing[bar] end
+  local function L() return C.swing.look end
+  local function Col(str, fb)
+    local r, g, b, a = GetStringColor(str or fb or "1,1,1,1")
+    return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+  end
+
+  -- ---------------------------------------------------------------- looks
+
+  ST.BARS = {
+    { key = "classic", label = "Classic", tex = "Interface\\TargetingFrame\\UI-StatusBar" },
+    { key = "plain", label = "Plain", tex = "Interface\\Buttons\\WHITE8X8" },
+    { key = "minimal", label = "Minimalist", tex = "Interface\\AddOns\\pfUI\\img\\bars\\bar-minimal" },
+    { key = "cdm", label = "Cooldown Manager", tex = "Interface\\AddOns\\pfUI\\img\\bars\\swing-cdm" },
+  }
+  ST.BORDERS = {
+    { key = "classic", label = "Classic cast bar" }, { key = "classicgold", label = "Classic cast bar (gold)" },
+    { key = "cdm", label = "Cooldown Manager" }, { key = "cdmgrey", label = "Cooldown Manager (grey)" },
+    { key = "blizzard", label = "Blizzard swing timer" }, { key = "pixel", label = "Black pixel line" },
+    { key = "none", label = "None" },
+  }
+  function ST.BarTexture()
+    local k = L().bar
+    for _, b in ipairs(ST.BARS) do if b.key == k then return b.tex end end
+    -- (any of pfUI's bar textures can be picked too)
+    return (k and k ~= "") and k or ST.BARS[1].tex
+  end
+  local SPARK = "Interface\\CastingBar\\UI-CastingBar-Spark"
+  local CASTBORDER = "Interface\\CastingBar\\UI-CastingBar-Border"
+  local ART = "Interface\\AddOns\\pfUI\\img\\bars\\"
+
+  -- one bar: back, fill, spark, two texts, and its border
+  local function Part(parent)
+    local p = CreateFrame("Frame", nil, parent)
+    p.back = p:CreateTexture(nil, "BACKGROUND")
+    p.back:SetAllPoints(p)
+    p.fill = p:CreateTexture(nil, "ARTWORK")
+    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
+    p.fill:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
+    p.spark = p:CreateTexture(nil, "OVERLAY")
+    p.spark:SetTexture(SPARK)
+    p.spark:SetBlendMode("ADD")
+    p.left = p:CreateFontString(nil, "OVERLAY")
+    p.left:SetPoint("LEFT", p, "LEFT", 3, 0)
+    p.right = p:CreateFontString(nil, "OVERLAY")
+    p.right:SetPoint("RIGHT", p, "RIGHT", -3, 0)
+    p.border = CreateFrame("Frame", nil, p)
+    p.border:SetFrameLevel(p:GetFrameLevel() + 2)
+    p.border.tex = p.border:CreateTexture(nil, "OVERLAY")
+    p.border.tex:SetAllPoints(p.border)
+    p.border.diaL = p.border:CreateTexture(nil, "OVERLAY")
+    p.border.diaR = p.border:CreateTexture(nil, "OVERLAY")
+    return p
+  end
+
+  -- a bar frame (name) with up to two parts (main / off hand, or reload / aim)
+  function ST.NewBar(name, parent)
+    local f = CreateFrame("Frame", name, parent or UIParent)
+    f:SetFrameStrata("MEDIUM")
+    f.main = Part(f)
+    f.off = Part(f)
+    f.off:Hide()
+    return f
+  end
+
+  -- the look on one part: texture, border style, back, spark, font
+  local function Skin(p, w, h, size)
+    local l = L()
+    p:SetWidth(w)
+    p:SetHeight(h)
+    local tex = ST.BarTexture()
+    p.fill:SetTexture(tex)
+    local _, _, _, ba = Col("0,0,0," .. (l.backalpha or ".5"))
+    p.back:SetTexture("Interface\\Buttons\\WHITE8X8")
+    p.back:SetVertexColor(0, 0, 0, ba)
+    local font = pfUI.font_unit or pfUI.font_default
+    p.left:SetFont(font, size, "OUTLINE")
+    p.right:SetFont(font, size, "OUTLINE")
+    p.spark:SetWidth(math.max(8, h * 1.3))
+    p.spark:SetHeight(h * 2.2)
+    local b, t = p.border, p.border.tex
+    b:ClearAllPoints()
+    b.diaL:Hide()
+    b.diaR:Hide()
+    t:SetVertexColor(1, 1, 1, 1)
+    t:SetTexCoord(0, 1, 0, 1)
+    local style = l.border or "cdm"
+    if style == "classic" or style == "classicgold" then
+      -- the game's cast bar border, round a bar it was drawn for (195 x 13 in 256 x 64)
+      b:SetWidth(w * 256 / 195)
+      b:SetHeight(h * 64 / 13)
+      b:SetPoint("CENTER", p, "CENTER", 0, 0)
+      t:SetTexture(CASTBORDER)
+      if style == "classicgold" then t:SetVertexColor(1, .82, .25, 1) end
+      b:Show()
+    elseif style == "cdm" or style == "cdmgrey" or style == "blizzard" then
+      b:SetPoint("TOPLEFT", p, "TOPLEFT", -4, 4)
+      b:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 4, -4)
+      t:SetTexture(ART .. "swing-frame")
+      if style == "cdm" then t:SetVertexColor(.05, .05, .05, 1)
+      elseif style == "cdmgrey" then t:SetVertexColor(.45, .45, .48, 1)
+      else t:SetVertexColor(.85, .7, .35, 1) end
+      p.back:SetTexture(ART .. "swing-back")
+      p.back:SetVertexColor(0, 0, 0, math.min(1, ba + .2))
+      if style == "blizzard" then
+        for _, d in ipairs({ b.diaL, b.diaR }) do
+          d:SetTexture(ART .. "swing-diamond")
+          d:SetVertexColor(1, .82, .3, 1)
+          d:SetWidth(h + 6)
+          d:SetHeight(h + 6)
+          d:Show()
+        end
+        b.diaL:ClearAllPoints()
+        b.diaL:SetPoint("CENTER", p, "LEFT", 0, 0)
+        b.diaR:ClearAllPoints()
+        b.diaR:SetPoint("CENTER", p, "RIGHT", 0, 0)
+      end
+      b:Show()
+    elseif style == "pixel" then
+      b:SetPoint("TOPLEFT", p, "TOPLEFT", -1, 1)
+      b:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 1, -1)
+      t:SetTexture(nil)
+      if b.SetBackdrop then
+        b:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        b:SetBackdropBorderColor(0, 0, 0, 1)
+      end
+      b:Show()
+    else
+      b:Hide()
+    end
+    if style ~= "pixel" and b.SetBackdrop then b:SetBackdrop(nil) end
+  end
+  ST.Skin = Skin
+
+  -- one part drawn at progress (0..1), with its colour and texts
+  local function Draw(p, prog, r, g, b, a, lefttext, righttext, fills)
+    local w = p:GetWidth() or 1
+    prog = math.max(0, math.min(1, prog or 0))
+    local shown = fills and prog or (1 - prog)
+    p.fill:SetVertexColor(r, g, b, a or 1)
+    p.fill:SetWidth(math.max(.01, w * shown))
+    p.fill:SetTexCoord(0, math.max(.01, shown), 0, 1)
+    if shown <= 0 then p.fill:Hide() else p.fill:Show() end
+    if L().spark == "1" and prog > 0 and prog < 1 then
+      p.spark:ClearAllPoints()
+      p.spark:SetPoint("CENTER", p, "LEFT", w * shown, 0)
+      p.spark:Show()
+    else
+      p.spark:Hide()
+    end
+    p.left:SetText(lefttext or "")
+    p.right:SetText(righttext or "")
+  end
+  ST.Draw = Draw
+
+  -- lay out a bar frame: one part, or two stacked / combined
+  function ST.Layout(f, set, two)
+    local w, h = tonumber(set.width) or 300, tonumber(set.height) or 12
+    local size = tonumber(set.fontsize) or 10
+    local combined = set.combined == "1"
+    f:SetWidth(w)
+    Skin(f.main, w, (two and combined) and h or h, size)
+    f.main:ClearAllPoints()
+    f.main:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    if two then
+      local oh = combined and math.max(3, math.floor(h / 3)) or h
+      Skin(f.off, w, oh, math.max(6, size - (combined and 3 or 0)))
+      f.off:ClearAllPoints()
+      if combined then
+        f.off:SetPoint("BOTTOMLEFT", f.main, "BOTTOMLEFT", 0, 0)
+        f.off.border:Hide()
+        f.off.back:SetVertexColor(0, 0, 0, 0)
+        f:SetHeight(h)
+      else
+        f.off:SetPoint("TOPLEFT", f.main, "BOTTOMLEFT", 0, -(L().border ~= "none" and 8 or 2))
+        f:SetHeight(h * 2 + 8)
+      end
+      f.off:SetFrameLevel(f.main:GetFrameLevel() + (combined and 3 or 0))
+      f.off:Show()
+    else
+      f.off:Hide()
+      f:SetHeight(h)
+    end
+  end
+
+  -- ---------------------------------------------------------------- state
+
+  local now = GetTime
+  local s = ST.state
+  s.mhStart, s.ohStart, s.tgStart, s.rgStart = 0, 0, 0, 0
+  s.mhSpeed, s.ohSpeed, s.tgSpeed, s.rgSpeed = 2, 2, 2, 2
+  s.lastSwing = 0
+
+  local function Speeds()
+    local mh, oh = UnitAttackSpeed("player")
+    if mh and mh > 0 then
+      -- (a change of speed mid-swing keeps the part already done)
+      if s.mhSpeed and s.mhSpeed > 0 and math.abs(mh - s.mhSpeed) > .01 then
+        local t = now()
+        local done = (t - s.mhStart) / s.mhSpeed
+        if done < 1 then s.mhStart = t - done * mh end
+      end
+      s.mhSpeed = mh
+    end
+    if oh and oh > 0 then
+      if s.ohSpeed and s.ohSpeed > 0 and math.abs(oh - s.ohSpeed) > .01 then
+        local t = now()
+        local done = (t - s.ohStart) / s.ohSpeed
+        if done < 1 then s.ohStart = t - done * oh end
+      end
+      s.ohSpeed = oh
+    end
+    s.dual = (oh and oh > 0) and true or false
+    if UnitRangedDamage then
+      local speed = UnitRangedDamage("player")
+      if speed and speed > 0 then s.rgSpeed = speed s.ranged = true else s.ranged = false end
+    end
+    if UnitExists("target") then
+      local tmh = UnitAttackSpeed("target")
+      if tmh and tmh > 0 then s.tgSpeed = tmh end
+    end
+  end
+  ST.Speeds = Speeds
+
+  function ST.Swing(hand)
+    local t = now()
+    if hand == "off" then s.ohStart = t else s.mhStart = t end
+    s.lastSwing = t
+  end
+  function ST.TargetSwing() s.tgStart = now() s.tgSeen = now() end
+  function ST.Shot() s.rgStart = now() s.rgSeen = now() end
+
+  -- the swing that just happened, from the combat log: the hand nearest its end
+  function ST.SwingFromLog()
+    if not s.dual then ST.Swing("main") return end
+    local t = now()
+    local mh = (t - s.mhStart) / s.mhSpeed
+    local oh = (t - s.ohStart) / s.ohSpeed
+    ST.Swing(oh > mh and "off" or "main")
+  end
+
+  -- a parry hastes the one who parried: 40% of the swing off, not under 20% left
+  local function Haste(startKey, speedKey)
+    local t = now()
+    local speed = s[speedKey]
+    local left = speed - (t - s[startKey])
+    if left <= 0 then return end
+    local newLeft = math.max(speed * .2, left - speed * .4)
+    s[startKey] = s[startKey] - (left - newLeft)
+  end
+  ST.Haste = Haste
+
+  -- ---------------------------------------------------------------- queued attacks
+
+  -- next-swing attacks, by their icon on your action bars
+  ST.QUEUE = {
+    ["Interface\\Icons\\Ability_Rogue_Ambush"] = "queue",       -- Heroic Strike
+    ["Interface\\Icons\\Ability_Warrior_Cleave"] = "cleave",    -- Cleave
+    ["Interface\\Icons\\Ability_Druid_Maul"] = "maul",          -- Maul
+    ["Interface\\Icons\\Ability_MeleeDamage"] = "queue",        -- Raptor Strike
+  }
+  ST.QUEUE_SPELLS = { [78] = 1, [284] = 1, [285] = 1, [1608] = 1, [11564] = 1, [11565] = 1, [11566] = 1, [11567] = 1,
+    [25286] = 1, [845] = 1, [7369] = 1, [11608] = 1, [11609] = 1, [20569] = 1, [6807] = 1, [6808] = 1, [6809] = 1,
+    [8972] = 1, [9745] = 1, [9880] = 1, [9881] = 1, [2973] = 1, [14260] = 1, [14261] = 1, [14262] = 1, [14263] = 1,
+    [14264] = 1, [14265] = 1, [14266] = 1 }
+  local slots = {}
+  function ST.ScanSlots()
+    slots = {}
+    for i = 1, 120 do
+      local tex = GetActionTexture(i)
+      if tex and ST.QUEUE[tex] then table.insert(slots, { i, ST.QUEUE[tex] }) end
+    end
+  end
+  function ST.Queued()
+    for _, sl in ipairs(slots) do
+      if IsCurrentAction(sl[1]) then return sl[2] end
+    end
+  end
+
+  -- ---------------------------------------------------------------- the real bars
+
+  local function Mover(f, bar)
+    local set = S(bar)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", tonumber(set.x) or 0, tonumber(set.y) or 0)
+    if UpdateMovable then UpdateMovable(f) end
+  end
+
+  ST.bars.player = ST.NewBar("pfSwingPlayer")
+  ST.bars.target = ST.NewBar("pfSwingTarget")
+  ST.bars.ranged = ST.NewBar("pfSwingRanged")
+  Mover(ST.bars.player, "player")
+  Mover(ST.bars.target, "target")
+  Mover(ST.bars.ranged, "ranged")
+
+  function ST.ApplyLayout()
+    Speeds()
+    ST.Layout(ST.bars.player, S("player"), s.dual and S("player").offhand == "1")
+    ST.Layout(ST.bars.target, S("target"), false)
+    ST.Layout(ST.bars.ranged, S("ranged"), S("ranged").onebar ~= "1")
+  end
+  ST.UpdateConfig = ST.ApplyLayout
+
+  local function Hex(r, g, b) return string.format("|cff%02x%02x%02x", math.floor(r * 255), math.floor(g * 255), math.floor(b * 255)) end
+  local function Left(t) return string.format("%.1f", math.max(0, t)) end
+
+  -- how see-through a bar is: in / out of combat, fading when idle
+  local function Alpha(set, idle)
+    local a = UnitAffectingCombat("player") and (tonumber(set.alpha) or 1) or (tonumber(set.oocalpha) or .25)
+    if set.fadeidle == "1" and idle then a = math.min(a, tonumber(set.oocalpha) or .25) end
+    return a
+  end
+
+  -- each frame: the three bars from the state (t = the time to draw, so the
+  -- preview can run the same code on a made-up clock)
+  function ST.Paint(f, bar, t, st)
+    st = st or s
+    local set = S(bar)
+    local fills = set.fill ~= "0"
+    if bar == "player" then
+      local queued = st.queued
+      local mhp = (t - st.mhStart) / st.mhSpeed
+      local r, g, b, a = Col(set.maincolor)
+      if queued == "cleave" then r, g, b, a = Col(C.swing.warrior.cleavecolor)
+      elseif queued == "maul" then r, g, b, a = Col(C.swing.warrior.maulcolor)
+      elseif queued then r, g, b, a = Col(C.swing.warrior.queuecolor) end
+      local tr, tg, tb = Col(set.textcolor)
+      Draw(f.main, mhp, r, g, b, a, set.lefttext == "1" and (Hex(tr, tg, tb) .. "Main hand|r") or "",
+        set.righttext == "1" and (Hex(tr, tg, tb) .. Left(st.mhSpeed - (t - st.mhStart)) .. "|r") or "", fills)
+      if f.off:IsShown() then
+        local ohp = (t - st.ohStart) / st.ohSpeed
+        local or2, og, ob, oa = Col(set.offcolor)
+        Draw(f.off, ohp, or2, og, ob, oa, (set.lefttext == "1" and set.combined ~= "1") and (Hex(tr, tg, tb) .. "Off hand|r") or "",
+          (set.righttext == "1" and set.combined ~= "1") and (Hex(tr, tg, tb) .. Left(st.ohSpeed - (t - st.ohStart)) .. "|r") or "", fills)
+      end
+      return t - (st.lastSwing or 0) > (st.mhSpeed + 1)
+    elseif bar == "target" then
+      local p = (t - st.tgStart) / st.tgSpeed
+      local r, g, b, a = Col(set.maincolor)
+      local tr, tg, tb = Col(set.textcolor)
+      Draw(f.main, p, r, g, b, a, set.lefttext == "1" and (Hex(tr, tg, tb) .. (st.tgName or "Target") .. "|r") or "",
+        set.righttext == "1" and (Hex(tr, tg, tb) .. Left(st.tgSpeed - (t - st.tgStart)) .. "|r") or "", fills)
+      return t - (st.tgStart or 0) > (st.tgSpeed + 1)
+    else
+      -- ranged: the reload (speed - 0.5) then the aim (0.5)
+      local speed = st.rgSpeed
+      local elapsed = t - st.rgStart
+      local reload = math.max(.01, speed - .5)
+      local cr, cg, cb, ca = Col(set.cooldowncolor)
+      local ar, ag, ab, aa = Col(set.castcolor)
+      local text = set.text == "1"
+      if set.onebar == "1" then
+        local p = elapsed / speed
+        local inAim = elapsed >= reload
+        Draw(f.main, p, inAim and ar or cr, inAim and ag or cg, inAim and ab or cb, inAim and aa or ca,
+          text and (inAim and "Aim" or "Auto Shot") or "", text and Left(speed - elapsed) or "", true)
+      else
+        Draw(f.main, elapsed / reload, cr, cg, cb, ca, text and "Reload" or "", text and Left(reload - elapsed) or "", true)
+        local aim = st.aimStart and (t - st.aimStart) / .5 or (elapsed >= reload and (elapsed - reload) / .5 or 0)
+        Draw(f.off, aim, ar, ag, ab, aa, text and "Aim" or "", "", true)
+      end
+      return elapsed > speed + 1
+    end
+  end
+
+  local ticker = CreateFrame("Frame")
+  ticker:SetScript("OnUpdate", function()
+    local t = now()
+    s.queued = ST.Queued()
+    -- moving restarts a hunter's aim
+    local x, y = GetPlayerMapPosition("player")
+    if x and (x ~= s.px or y ~= s.py) then
+      s.moving = s.px ~= nil
+      s.px, s.py = x, y
+    else
+      s.moving = false
+    end
+    local reload = s.rgSpeed - .5
+    if s.moving and t - s.rgStart >= reload and t - s.rgStart < s.rgSpeed then s.rgStart = t - reload end
+    local function Run(bar, show)
+      local f = ST.bars[bar]
+      if not show or S(bar).enabled ~= "1" then f:Hide() return end
+      f:Show()
+      local idle = ST.Paint(f, bar, t)
+      f:SetAlpha(Alpha(S(bar), idle))
+    end
+    Run("player", not (pfUI.blizz and pfUI.blizz.IsBlizz and pfUI.blizz.IsBlizz("swing")))
+    Run("target", UnitExists("target") and UnitCanAttack("player", "target") and (s.tgSeen or 0) > 0
+      and t - (s.tgSeen or 0) < 10)
+    Run("ranged", s.ranged and (s.rgSeen or 0) > 0 and t - (s.rgSeen or 0) < 10)
+  end)
+
+  -- ---------------------------------------------------------------- events
+
+  local function Pattern(str)
+    if not str then return end
+    str = string.gsub(str, "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    str = string.gsub(str, "%%%%s", "(.+)")
+    return "^" .. string.gsub(str, "%%%%d", "%%d+") .. "$"
+  end
+  local PARRY_ME = Pattern(VSPARRYOTHERSELF)   -- "X attacks. You parry."
+  local PARRY_THEM = Pattern(VSPARRYSELFOTHER)  -- "You attack. X parries."
+
+  local _, playerGUID = UnitExists("player")
+  local ev = CreateFrame("Frame")
+  for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "UNIT_ATTACK_SPEED", "UNIT_INVENTORY_CHANGED", "PLAYER_TARGET_CHANGED",
+                       "ACTIONBAR_SLOT_CHANGED", "UNIT_CASTEVENT", "CHAT_MSG_COMBAT_SELF_HITS", "CHAT_MSG_COMBAT_SELF_MISSES",
+                       "CHAT_MSG_SPELL_SELF_DAMAGE", "CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", "CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES",
+                       "CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS", "CHAT_MSG_COMBAT_HOSTILEPLAYER_MISSES", "START_AUTOREPEAT_SPELL",
+                       "STOP_AUTOREPEAT_SPELL" }) do
+    pcall(ev.RegisterEvent, ev, e)
+  end
+  function ST.OnEvent(evt, a1, a2, a3, a4)
+    if evt == "PLAYER_ENTERING_WORLD" then
+      _, playerGUID = UnitExists("player")
+      ST.ScanSlots()
+      ST.ApplyLayout()
+      return
+    end
+    if evt == "UNIT_ATTACK_SPEED" or evt == "UNIT_INVENTORY_CHANGED" then
+      if a1 == "player" then
+        local wasDual = s.dual
+        Speeds()
+        if wasDual ~= s.dual then ST.ApplyLayout() end
+      end
+      return
+    end
+    if evt == "PLAYER_TARGET_CHANGED" then
+      Speeds()
+      s.tgName = UnitName("target")
+      s.tgSeen = 0
+      local _, g = UnitExists("target")
+      s.tgGUID = g
+      return
+    end
+    if evt == "ACTIONBAR_SLOT_CHANGED" then ST.ScanSlots() return end
+    if evt == "START_AUTOREPEAT_SPELL" then Speeds() s.rgSeen = now() return end
+    -- SuperWoW: the exact hand, your target's swings, shots and next-swing attacks
+    if evt == "UNIT_CASTEVENT" then
+      local caster, kind, id = a1, a3, a4
+      if caster == playerGUID then
+        if kind == "MAINHAND" then ST.Swing("main") s.sw = true
+        elseif kind == "OFFHAND" then ST.Swing("off") s.sw = true
+        elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot()
+        elseif kind == "CAST" and ST.QUEUE_SPELLS[id] then ST.Swing("main") s.sw = true end
+      elseif s.tgGUID and caster == s.tgGUID and (kind == "MAINHAND" or kind == "OFFHAND") then
+        ST.TargetSwing() s.tsw = true
+      end
+      return
+    end
+    -- the combat log (when SuperWoW does not tell)
+    local msg = a1 or ""
+    if evt == "CHAT_MSG_COMBAT_SELF_HITS" or evt == "CHAT_MSG_COMBAT_SELF_MISSES" then
+      if PARRY_THEM and string.find(msg, PARRY_THEM) then
+        -- they parried you: their swing comes sooner
+        Haste("tgStart", "tgSpeed")
+      end
+      if not s.sw then ST.SwingFromLog() end
+    elseif evt == "CHAT_MSG_SPELL_SELF_DAMAGE" then
+      if string.find(msg, "Auto Shot", 1, true) or string.find(msg, "^Your Shoot") then
+        if not s.sw then Speeds() ST.Shot() end
+      end
+      for _, name in ipairs({ "Heroic Strike", "Cleave", "Maul", "Raptor Strike" }) do
+        if not s.sw and string.find(msg, "^Your " .. name) then ST.Swing("main") end
+      end
+    else
+      -- something swinging at you: your target's swing (by its name)
+      if PARRY_ME and string.find(msg, PARRY_ME) then Haste("mhStart", "mhSpeed") end
+      local tname = UnitName("target")
+      if tname and not s.tsw and string.sub(msg, 1, string.len(tname) + 1) == tname .. " " then ST.TargetSwing() end
+    end
+  end
+  ev:SetScript("OnEvent", function() ST.OnEvent(event, arg1, arg2, arg3, arg4) end)
+
+  -- a test: every bar runs a made-up fight for a while
+  function ST.Test(secs)
+    local t = now()
+    ST.testUntil = t + (secs or 20)
+    Speeds()
+    s.mhStart, s.ohStart, s.tgStart, s.rgStart = t, t - .6, t - .3, t
+    s.tgSeen, s.rgSeen, s.ranged = t, t, true
+    s.tgName = "Test target"
+    if not s.dual and S("player").offhand == "1" then s.dual = true s.ohSpeed = s.ohSpeed or 1.5 end
+    ST.ApplyLayout()
+  end
+  local test = CreateFrame("Frame")
+  test:SetScript("OnUpdate", function()
+    if not ST.testUntil or now() > ST.testUntil then return end
+    local t = now()
+    if t - s.mhStart >= s.mhSpeed then s.mhStart = t s.lastSwing = t end
+    if s.dual and t - s.ohStart >= s.ohSpeed then s.ohStart = t end
+    if t - s.tgStart >= s.tgSpeed then s.tgStart = t s.tgSeen = t end
+    if t - s.rgStart >= s.rgSpeed then s.rgStart = t s.rgSeen = t end
+  end)
+end)

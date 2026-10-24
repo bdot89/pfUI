@@ -318,6 +318,31 @@ public static class Art {
       case "bar-minimal":
         lum = v > 1 - ph ? 1.0 : 0.85;
         return;
+      // swing timer looks (modules/swing.lua): our own art in the styles
+      // WeaponSwingTimer offers (its art is GPL-3 and was not used)
+      case "swing-cdm":
+        // a soft fill, lighter at the top with a thin shine line
+        lum = 0.70 + 0.26 * v;
+        if (v > 1 - 3 * ph && v < 1 - ph) lum = 1.0;
+        return;
+      case "swing-frame": case "swing-back": {
+        // a rounded box: the frame is a 2 px line, the back the filled inside
+        double W = 1 / pw, H = 1 / ph, x = u * W, y = v * H, r = Math.Min(10, H / 2 - 1);
+        double cx = Math.Max(r + 1, Math.Min(W - r - 1, x)), cy = Math.Max(r + 1, Math.Min(H - r - 1, y));
+        double d = Math.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) - r;
+        bool corner = (x < r + 1 || x > W - r - 1) && (y < r + 1 || y > H - r - 1);
+        double edge = corner ? d : Math.Max(Math.Max(1 - x, x - (W - 1)), Math.Max(1 - y, y - (H - 1)));
+        if (kind == "swing-frame") { a = Math.Max(0, Math.Min(1, 1.5 - Math.Abs(edge + 1))); lum = 0.9 + 0.1 * v; }
+        else { a = edge < 0 ? Math.Min(1, -edge) : 0; lum = 0.25; }
+        return;
+      }
+      case "swing-diamond": {
+        // a gold diamond with a dark rim
+        double dd = Math.Abs(u - 0.5) + Math.Abs(v - 0.5);
+        if (dd > 0.47) { a = 0; return; }
+        lum = dd > 0.38 ? 0.25 : 0.75 + 0.25 * (1 - dd / 0.38) * v;
+        return;
+      }
       // unit frame badges and status marks
       case "uf-elite": case "uf-rare": {
         // a crest: two swept wings round a diamond
@@ -426,7 +451,8 @@ $bars = @(
   @("btn-stripes", 64, 64), @("btn-dots", 64, 64), @("btn-ring", 64, 64), @("btn-edge", 64, 16),
   @("bar-smooth", 256, 32), @("bar-bevel", 256, 32), @("bar-steel", 256, 32), @("bar-cloud", 256, 32),
   @("bar-diagonal", 256, 32), @("bar-pill", 256, 32), @("bar-minimal", 256, 32),
-  @("uf-elite", 64, 32), @("uf-rare", 64, 32), @("uf-afk", 32, 32), @("uf-offline", 32, 32)
+  @("uf-elite", 64, 32), @("uf-rare", 64, 32), @("uf-afk", 32, 32), @("uf-offline", 32, 32),
+  @("swing-cdm", 256, 32), @("swing-frame", 256, 32), @("swing-back", 256, 32), @("swing-diamond", 32, 32)
 )
 foreach ($t in $bars) {
   [Art]::Write((Join-Path $BarDir ($t[0] + ".tga")), $t[0], $t[1], $t[2])

@@ -543,3 +543,19 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    from BZ.snap / BZ.osnap = pfUI's own state noted at BZ.Ready; pfUI.tooltip and its status text
    away), panels (pfPanelLeft / Right, XP / rep bars away). The chat / tooltip snapshot is in a pcall.
    Chat does not start in the mock: the chat switch is only checked there when it does.
+14. Swing Timer (24 Oct 2026, NOT seen in game; user: WeaponSwingTimer 2.8.6 "in its own category ... identical").
+   WeaponSwingTimer is GPL-3 (CurseForge lists GPLv3; the user's 2.8.6 is a fork): user chose "built into pfUI
+   Octo", written fresh - its defaults, colours and option list matched, no code or art used. Its 2.8.6 needs
+   Classic Era APIs (CLEU, C_Timer, UnitGUID, BackdropTemplate) and cannot run on 1.12 anyway.
+   modules/swing.lua (`pfUI.swing`): bars pfSwingPlayer / pfSwingTarget / pfSwingRanged (movers), ST.NewBar /
+   Layout / Paint (the options preview runs the same code on its own clock), looks ST.BARS (game UI-StatusBar,
+   WHITE8X8, imgarsar-minimal, swing-cdm) and ST.BORDERS (game UI-CastingBar-Border, gold-tinted, our
+   swing-frame / swing-back / swing-diamond from tools\MakePlateArt.ps1, 1 px, none), spark = game cast bar spark.
+   Swings: SuperWoW UNIT_CASTEVENT MAINHAND / OFFHAND / CAST 75 + 5019 (shots) / next-swing spell ids; else the
+   combat log (CHAT_MSG_COMBAT_SELF_* = a swing, hand nearest its end; target by name prefix). Parry haste via
+   VSPARRYOTHERSELF / VSPARRYSELFOTHER. Queued attacks: action slots with the HS / Cleave / Maul / Raptor icons
+   and IsCurrentAction. Ranged: reload (speed - .5) then aim (.5), moving (map position) restarts the aim.
+   Settings C.swing.player / target / ranged / look / warrior. modules/swing-options.lua: section "Swing Timer"
+   (after Action Bars), page stbars, preview + Test on my bars (ST.Test).
+   Not done (WeaponSwingTimer has them): Aimed / Multi-Shot cast bar with clip, warrior Slam delay, paladin seal
+   marks, latency bars.
