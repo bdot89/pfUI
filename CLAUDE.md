@@ -639,3 +639,9 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    Seen in game 24 Oct: the mount event swaps (and puts back); hover binding gear buttons works (after the
    env "this" fix: never assign `this` in pfUI code - use _G.this); InvTex pictures and the Slot buttons
    preview confirmed. Not tried yet: the other events, waiting while dead / casting.
+   Worn pictures (24 Oct): the blank / wrong pictures were DmorphOcto's item morphs (DmorphOctoDB.items per
+   slot) - a morph changes what GetInventoryItemTexture reports (main hand 905852 = a sword for Anathema,
+   morph ids unknown to the client = Interface\Icons\INV_Robe_02). Proven from WDB\itemcache.wdb (18609 ->
+   display 31346) + ItemDisplayInfo.dbc (patch-Z/patch-5: INV_Staff_12). GR.InvTex now asks GetItemInfo
+   (real item) first; the character window's slot icons use it (hooksecurefunc PaperDollItemSlotButton_Update).
+   GR.TwoHanded (INVTYPE_2HWEAPON): the slot bar leaves an empty off hand out under a two-hander.
