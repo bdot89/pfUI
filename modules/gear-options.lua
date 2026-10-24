@@ -364,5 +364,137 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     Chk(p, "Cooldown numbers", nil, "cdnumbers")
   end
 
+  -- ---------------------------------------------------------------- slot buttons page
+
+  -- the slots to pick (lit = on the bar) and the bar as it will look
+  local function SlotPreview(p)
+    W.Pin(p, "Preview", "Left: every slot - click one to put it on your bar or take it off (or Alt-click it in your "
+      .. "character window). Right: your bar as it will look; Shift + wheel over it for bigger or smaller buttons. "
+      .. "Click this bar to fold it away.", function(pp)
+      local box = W.Box(pp, 150)
+      local holder = CreateFrame("Frame", nil, box)
+      holder:SetAllPoints(box)
+      holder:SetFrameStrata("FULLSCREEN")
+      GO.picks = {}
+      for r, row in ipairs(GO.ROWS) do
+        for c, inv in ipairs(row) do
+          local s = CreateFrame("Button", nil, holder)
+          s.inv = inv
+          s:SetWidth(30)
+          s:SetHeight(30)
+          Flat(s, 1)
+          s.icon = s:CreateTexture(nil, "ARTWORK")
+          s.icon:SetPoint("TOPLEFT", s, "TOPLEFT", 1, -1)
+          s.icon:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -1, 1)
+          s.icon:SetTexCoord(.07, .93, .07, .93)
+          s:SetPoint("TOPLEFT", box, "TOPLEFT", 12 + (c - 1) * 33 + (table.getn(row) < 8 and (8 - table.getn(row)) * 16 or 0), -12 - (r - 1) * 34)
+          s:SetScript("OnClick", function() GR.ToggleSlot(this.inv) O:Refresh() end)
+          s:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(this, "ANCHOR_TOP")
+            GameTooltip:AddLine(GR.NAME[this.inv])
+            GameTooltip:AddLine(GR.HasSlot(this.inv) and "On your bar - click to take it off." or "Click to put it on your bar.", 1, 1, 1)
+            GameTooltip:Show()
+          end)
+          s:SetScript("OnLeave", function() GameTooltip:Hide() end)
+          table.insert(GO.picks, s)
+        end
+      end
+      -- the bar, drawn by the same layout code
+      local sample = CreateFrame("Frame", nil, holder)
+      local sbtn = {}
+      for _, s in ipairs(GR.SLOTS) do sbtn[s[1]] = GR.NewSlotButton(sample, s[1], nil, true) end
+      GO.sample, GO.sampleButtons = sample, sbtn
+      local hot = CreateFrame("Button", nil, holder)
+      hot:SetAllPoints(sample)
+      hot:SetFrameLevel(sample:GetFrameLevel() + 6)
+      hot:EnableMouseWheel(true)
+      hot:SetScript("OnMouseWheel", function()
+        if IsShiftKeyDown() then
+          C.gear.slotsize = tostring(math.max(20, math.min(64, (tonumber(C.gear.slotsize) or 36) + (arg1 or 0))))
+          GR.Changed()
+          O:Refresh()
+        elseif pfUI.plates and pfUI.plates.PassWheel then
+          pfUI.plates.PassWheel(this)
+        end
+      end)
+      hot:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:AddLine("Your slot buttons")
+        GameTooltip:AddLine("Shift + mouse wheel: bigger / smaller", 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      hot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      local function Paint()
+        local ar, ag, ab = Accent()
+        for _, s in ipairs(GO.picks) do
+          s.icon:SetTexture(GetInventoryItemTexture("player", s.inv) or GR.EMPTYTEX[s.inv])
+          if GR.HasSlot(s.inv) then
+            s:SetBackdropBorderColor(ar, ag, ab, 1)
+            s:SetBackdropColor(ar * .45, ag * .45, ab * .45, 1)
+            s.icon:SetAlpha(1)
+          else
+            s:SetBackdropBorderColor(.2, .2, .24, 1)
+            s:SetBackdropColor(.06, .06, .08, 1)
+            s.icon:SetAlpha(.45)
+          end
+        end
+        local n = GR.LayoutSlots(sample, sbtn, GR.SlotList())
+        local room = (box:GetWidth() or 600) - 300
+        local scale = math.min(1, room / math.max(1, sample:GetWidth()), 120 / math.max(1, sample:GetHeight()))
+        sample:SetScale(scale)
+        sample:ClearAllPoints()
+        sample:SetPoint("CENTER", box, "LEFT", (290 + room / 2) / scale, 0)
+        sample:SetAlpha(C.gear.slotbar == "1" and (tonumber(C.gear.slotalpha) or 1) or .3)
+        if n == 0 then sample:Hide() else sample:Show() end
+      end
+      GO.PaintSlots = Paint
+      GR.listeners.slotoptions = function() if holder:IsVisible() then Paint() end end
+      Paint()
+      if p.items then table.insert(p.items, { Refresh = Paint }) end
+      W.Buttons(pp, {
+        { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, nil, "Drag the slot buttons where you want them." },
+      })
+    end)
+  end
+
+  local function BuildSlots(p)
+    W.Heading(p, "Slot buttons", { about = "Buttons for the equipment slots you pick (as ItemRack's): each shows what you wear "
+      .. "there with its cooldown. Click to use it; its menu swaps it for another item from your bags." })
+    SlotPreview(p)
+
+    W.Card(p, "Slot buttons")
+    Chk(p, "Show the slot buttons", nil, "slotbar")
+    Sld(p, "Size", "Or Shift + wheel over the bar in the preview.", 20, 64, 1, "slotsize", Px)
+    Sld(p, "Spacing", nil, 0, 24, 1, "slotspace", Px)
+    Sld(p, "Buttons per row", nil, 1, 19, 1, "slotper")
+    Chk(p, "Up and down", "Off: side by side.", "slotvertical")
+    Sld(p, "Opacity", nil, .1, 1, .05, "slotalpha", function(v) return math.floor(v * 100 + .5) .. "%" end)
+    Chk(p, "Only in combat", nil, "slotcombat")
+    Chk(p, "Alt-click in the character window", "Alt-click a slot there puts it on the bar or takes it off.", "altslots")
+
+    W.Card(p, "Clicks and menus", { tip = "Left-click a slot button uses its item. Its menu lists what else can go in." })
+    W.Dropdown(p, "Menu opens", nil, { { key = "hover", label = "When the mouse is over it" },
+      { key = "right", label = "On right-click" }, { key = "off", label = "Never" } },
+      function() return C.gear.slotmenu end, function(v) C.gear.slotmenu = v U() end)
+    Chk(p, "Only with Shift held", nil, "slotshift")
+    Chk(p, "Right-click uses the item", "When the menu does not open on right-click.", "slotrightuse")
+    W.Dropdown(p, "Menu side", nil, { { key = "auto", label = "Towards the middle" }, { key = "TOP", label = "Above" },
+      { key = "BOTTOM", label = "Below" }, { key = "LEFT", label = "Left" }, { key = "RIGHT", label = "Right" } },
+      function() return C.gear.slotside end, function(v) C.gear.slotside = v U() end)
+    Chk(p, "Alt-click hides an item", "Alt-click an item in a menu to hide it there; hold Alt while it opens to see hidden ones.", "allowhidden")
+    Chk(p, "Only soulbound items", "Leave out gear you could still trade.", "boundonly")
+    W.Buttons(p, { { "Show every hidden item again", function()
+      for k in pairs(C.gear.hidden) do C.gear.hidden[k] = nil end
+    end, nil, "Clears the items hidden with Alt-click." } })
+
+    W.Card(p, "Cooldowns", { tip = "On the slot buttons and the trinket bar." })
+    Chk(p, "Cooldown numbers", nil, "cdnumbers")
+    Chk(p, "Seconds from 90 s", "Off: from 60 s.", "cd90")
+    Chk(p, "Say when an item is ready", "On the screen, when an item used from a button is ready again.", "notify")
+    Chk(p, "Also at 30 s", nil, "notify30")
+    Chk(p, "Also in chat", nil, "notifychat")
+  end
+
   O:AddPage("Gear", "gearsets", "Gear sets", Build)
+  O:AddPage("Gear", "gearslots", "Slot buttons", BuildSlots)
 end)

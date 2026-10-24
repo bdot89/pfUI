@@ -41,8 +41,31 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     return loc, tex
   end
 
-  -- the carried items that can go in slot inv
-  function GR.ItemsFor(inv)
+  -- soulbound? (the bag item's tooltip says so; for "only soulbound items")
+  local scan = CreateFrame("GameTooltip", "pfGearScan", UIParent, "GameTooltipTemplate")
+  scan:SetOwner(UIParent, "ANCHOR_NONE")
+  function GR.Bound(bag, slot)
+    scan:ClearLines()
+    scan:SetOwner(UIParent, "ANCHOR_NONE")
+    scan:SetBagItem(bag, slot)
+    for i = 2, 4 do
+      local fs = _G["pfGearScanTextLeft" .. i]
+      local t = fs and fs:GetText()
+      if t and (t == ITEM_SOULBOUND or t == ITEM_BIND_QUEST) then return true end
+    end
+    return false
+  end
+  -- hidden items (Alt-click in an item menu): by item id, shown while Alt is held
+  C.gear.hidden = C.gear.hidden or {}
+  function GR.IsHidden(id) return id and C.gear.hidden[string.gsub(id, ":.*$", "")] == "1" end
+  function GR.SetHidden(id, on)
+    if not id then return end
+    C.gear.hidden[string.gsub(id, ":.*$", "")] = on and "1" or nil
+  end
+
+  -- the carried items that can go in slot inv (menu: an item menu's filters -
+  -- hidden ones only while Alt is held, soulbound only if set so)
+  function GR.ItemsFor(inv, menu)
     local out = {}
     for _, b in ipairs(GR.Bags()) do
       local loc = GR.EquipLoc(b.link)
@@ -52,7 +75,11 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
           if i == inv then
             local tex = GetContainerItemInfo(b.bag, b.slot)
             local _, _, name = string.find(b.link, "%[(.-)%]")
-            table.insert(out, { bag = b.bag, slot = b.slot, id = b.id, link = b.link, tex = tex, name = name or "" })
+            local hidden = GR.IsHidden(b.id)
+            local skip = menu and ((hidden and not IsAltKeyDown()) or (C.gear.boundonly == "1" and not GR.Bound(b.bag, b.slot)))
+            if not skip then
+              table.insert(out, { bag = b.bag, slot = b.slot, id = b.id, link = b.link, tex = tex, name = name or "", hidden = hidden })
+            end
           end
         end
       end
@@ -90,6 +117,13 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function()
       local pick = fly.onPick
+      -- Alt-click: hide it from the menus (or show it again); the menu stays open
+      if IsAltKeyDown() and this.item ~= "empty" and C.gear.allowhidden ~= "0" and not fly.noHide then
+        GR.SetHidden(this.item.id, not this.item.hidden)
+        local a = fly.args
+        if a then GR.Flyout(a[1], a[2], a[3], a[4]) end
+        return
+      end
       if IsShiftKeyDown() and this.item ~= "empty" and ChatFrameEditBox and ChatFrameEditBox:IsVisible() then
         ChatFrameEditBox:Insert(this.item.link)
         return
@@ -120,16 +154,20 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   -- open the item menu for slot inv beside owner; onPick(item | "empty", mouse button)
   function GR.Flyout(owner, inv, onPick, opts)
     opts = opts or {}
-    local items = opts.items or GR.ItemsFor(inv)
+    local items = opts.items or GR.ItemsFor(inv, true)
     if opts.empty ~= false and GR.Worn(inv) and C.gear.allowempty ~= "0" then table.insert(items, "empty") end
     if table.getn(items) == 0 then fly:Hide() return end
     fly.owner, fly.onPick, fly.hint = owner, onPick, opts.hint
+    fly.args = { owner, inv, onPick, opts }
+    -- (the Gear page lists its own items: no hiding there)
+    fly.noHide = opts.items ~= nil
     local n = table.getn(items)
     local per = math.min(n, tonumber(C.gear.wrap) or PER)
     for i, item in ipairs(items) do
       local b = FlyButton(i)
       b.item = item
       b.icon:SetTexture(item == "empty" and "Interface\\Icons\\Spell_ChargeNegative" or item.tex)
+      b.icon:SetAlpha((item ~= "empty" and item.hidden) and .4 or 1)
       local row = math.floor((i - 1) / per)
       local col = i - 1 - row * per
       b:ClearAllPoints()
@@ -372,8 +410,41 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
            hint = "Left-click: top trinket. Right-click: bottom trinket." })
   end
   local function Clock(left)
-    if left >= 60 then return math.ceil(left / 60) .. "m" end
+    if left >= (C.gear.cd90 == "1" and 90 or 60) then return math.ceil(left / 60) .. "m" end
     return tostring(math.ceil(left))
+  end
+  GR.Clock = Clock
+
+  -- a slot button's cooldown: the game's swipe, numbers, and a notice when
+  -- an item used from it is ready again (or 30 s before, if wanted)
+  function GR.PaintCooldown(b)
+    local start, dur, on = GetInventoryItemCooldown("player", b.inv)
+    if start and dur and dur > 1.5 and on == 1 then
+      if CooldownFrame_SetTimer and b.cdStart ~= start then CooldownFrame_SetTimer(b.cd, start, dur, 1) b.cdStart = start end
+      local left = start + dur - GetTime()
+      b.num:SetText((C.gear.cdnumbers ~= "0" and left > 0) and Clock(left) or "")
+      b.icon:SetVertexColor(.6, .6, .6)
+      -- (only cooldowns long enough to be worth a notice)
+      if dur > 10 then b.watch = GetInventoryItemLink("player", b.inv) end
+      if b.watch and C.gear.notify30 == "1" and left <= 30 and not b.told30 then
+        b.told30 = true
+        GR.Notify(b.watch, " ready in 30 s")
+      end
+    else
+      if b.watch and b.watch == GetInventoryItemLink("player", b.inv) and C.gear.notify ~= "0" then
+        GR.Notify(b.watch, " is ready")
+      end
+      b.watch, b.told30 = nil, nil
+      b.cdStart = nil
+      b.num:SetText("")
+      b.icon:SetVertexColor(1, 1, 1)
+    end
+  end
+  function GR.Notify(link, what)
+    local _, _, name = string.find(link or "", "%[(.-)%]")
+    local text = (name or "Item") .. what
+    if UIErrorsFrame then UIErrorsFrame:AddMessage(text, .3, 1, .4, 1, 3) end
+    if C.gear.notifychat == "1" then DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r gear: " .. text) end
   end
   function GR.UpdateTrinkets()
     if C.gear.trinketbar ~= "1" then bar:Hide() return end
@@ -401,19 +472,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     this.t = (this.t or 0) + arg1
     if this.t < .2 then return end
     this.t = 0
-    for _, b in ipairs(this.slots) do
-      local start, dur, on = GetInventoryItemCooldown("player", b.inv)
-      if start and dur and dur > 1.5 and on == 1 then
-        if CooldownFrame_SetTimer and b.cdStart ~= start then CooldownFrame_SetTimer(b.cd, start, dur, 1) b.cdStart = start end
-        local left = start + dur - GetTime()
-        b.num:SetText((C.gear.cdnumbers ~= "0" and left > 0) and Clock(left) or "")
-        b.icon:SetVertexColor(.6, .6, .6)
-      else
-        b.cdStart = nil
-        b.num:SetText("")
-        b.icon:SetVertexColor(1, 1, 1)
-      end
-    end
+    for _, b in ipairs(this.slots) do GR.PaintCooldown(b) end
   end)
   if UpdateMovable then UpdateMovable(bar) end
 

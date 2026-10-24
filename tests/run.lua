@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-options" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -3919,6 +3919,69 @@ do
       ok(sets.Tank.slots.s1 == nil, "right-click leaves a slot out of the set")
       pfUI.gui:Hide()
     end
+    -- slot buttons (phase 2): the slots picked, laid out, a click uses the item
+    if GR.slotbar then
+      local wasList, wasBar = pfUI_config.gear.slotlist, pfUI_config.gear.slotbar
+      pfUI_config.gear.slotbar, pfUI_config.gear.slotlist = "1", "16,13"
+      GR.Changed()
+      local sb = GR.slotbar
+      ok(sb:IsShown() and sb.buttons[16]:IsShown() and sb.buttons[13]:IsShown() and not sb.buttons[1]:IsShown(),
+        "the slot buttons show the slots picked")
+      local _, _, _, x13 = sb.buttons[13]:GetPoint(1)
+      ok(x13 == 40, "in the order picked, size + spacing apart (" .. tostring(x13) .. ")")
+      ok(GR.ToggleSlot(1) and pfUI_config.gear.slotlist == "16,13,1" and sb.buttons[1]:IsShown(), "a slot put on the bar")
+      ok(not GR.ToggleSlot(13) and pfUI_config.gear.slotlist == "16,1", "and one taken off")
+      local used
+      local uii = UseInventoryItem
+      _G.UseInventoryItem = function(i) used = i end
+      _G.this, _G.arg1 = sb.buttons[16], "LeftButton"
+      sb.buttons[16]:GetScript("OnClick")()
+      _G.UseInventoryItem = uii
+      ok(used == 16, "a click uses the item in that slot")
+      -- hidden items: Alt-click in a menu hides it, Alt held shows it again
+      -- (a ring is in the bags by now)
+      local ringList = GR.ItemsFor(11, true)
+      local rings = table.getn(ringList)
+      local rid = ringList[1] and ringList[1].id
+      GR.SetHidden(rid, true)
+      local alt = IsAltKeyDown
+      _G.IsAltKeyDown = function() return false end
+      local hiddenNow = table.getn(GR.ItemsFor(11, true))
+      _G.IsAltKeyDown = function() return true end
+      local withAlt = GR.ItemsFor(11, true)
+      _G.IsAltKeyDown = alt
+      GR.SetHidden(rid, false)
+      ok(rings >= 1 and hiddenNow == rings - 1 and table.getn(withAlt) == rings and withAlt[1].hidden,
+        "a hidden item is left out of the menus, and shown dimmed with Alt (" .. rings .. "/" .. hiddenNow .. "/" .. table.getn(withAlt) .. ")")
+      -- the Slot buttons page: picks lit, the sample bar drawn
+      local O2 = pfUI.octoui and pfUI.octoui.Options
+      if O2 then
+        pfUI.gui:Show()
+        local good, err = pcall(function() O2:Select("o:gearslots") end)
+        ok(good and O2.pages.gearslots and pfUI.gearOcto.picks and table.getn(pfUI.gearOcto.picks) == 19
+          and pfUI.gearOcto.sampleButtons[16]:IsShown(), "the Slot buttons page with its preview: " .. tostring(err))
+        pfUI.gui:Hide()
+      end
+      pfUI_config.gear.slotlist, pfUI_config.gear.slotbar = wasList, wasBar
+      GR.Changed()
+    end
+    -- a cooldown that ends says so
+    do
+      local b = { inv = 13, cd = CreateFrame("Model"), num = UIParent:CreateFontString(nil, "OVERLAY"),
+                  icon = UIParent:CreateTexture(nil, "ARTWORK") }
+      local cdOn = true
+      local gic = GetInventoryItemCooldown
+      _G.GetInventoryItemCooldown = function() if cdOn then return GetTime() - 10, 120, 1 end return 0, 0, 1 end
+      local said
+      local nt = GR.Notify
+      GR.Notify = function(link, what) said = what end
+      GR.PaintCooldown(b)
+      cdOn = false
+      GR.PaintCooldown(b)
+      GR.Notify = nt
+      _G.GetInventoryItemCooldown = gic
+      ok(said == " is ready", "an item's cooldown ending is announced")
+    end
     -- the trinket bar and the character window panel follow their switches
     pfUI_config.gear.trinketbar = "0"
     GR.Changed()
@@ -3990,7 +4053,12 @@ do
         if good and math.abs((tonumber(r) or 0) - r0) < .003 and math.abs((tonumber(g) or 0) - g0) < .003 then return true end
       end
     end
-    local function IsColor(v) return type(v) == "string" and string.find(v, "^%s*[%d%.]+%s*,%s*[%d%.]+%s*,%s*[%d%.]+") end
+    -- (a colour: three or four numbers, each 0 to 1 - "16,17,18" is a slot list)
+    local function IsColor(v)
+      if type(v) ~= "string" or not string.find(v, "^%s*[%d%.]+%s*,%s*[%d%.]+%s*,%s*[%d%.]+") then return false end
+      for n in string.gfind(v, "[%d%.]+") do if (tonumber(n) or 2) > 1 then return false end end
+      return true
+    end
     local SKIP = { position = 1, disabled = 1, blizz = 1 }
     local list = {}
     for g, gt in pairs(pfUI_config) do

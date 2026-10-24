@@ -598,3 +598,12 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    19 slots in 3 rows (click = item menu into the set, right-click = leave out, Shift = take off), cards This
    set / Buttons / Swapping / Character window / Trinket bar. Next: phase 2 quick-access slot buttons,
    phase 3 events + auto queue.
+   Phase 2 (24 Oct, NOT seen in game): modules/gear-slots.lua - bar pfGearSlots (movable, shown in layout mode)
+   of the slots in C.gear.slotlist ("16,17,18", order kept; GR.ToggleSlot, Alt-click a character window slot
+   replaces its OnClick while Alt is held), GR.NewSlotButton / GR.LayoutSlots (also the options sample),
+   click = UseInventoryItem, menu C.gear.slotmenu hover | right | off, GR.MenuSide (auto = towards the middle).
+   gear-sheet.lua gained GR.PaintCooldown (swipe, numbers, cd90, ready / 30 s notices via UIErrorsFrame +
+   chat, also used by the trinket bar), hidden items C.gear.hidden[baseid] (Alt-click in a menu, Alt held shows
+   them dimmed; not in the Gear page's own lists), only-soulbound filter (pfGearScan tooltip, ITEM_SOULBOUND).
+   Options page gearslots "Slot buttons". The colour test's IsColor now needs every number 0..1.
+   Next: phase 3 events + auto queue.
