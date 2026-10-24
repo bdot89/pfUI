@@ -636,3 +636,6 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    GE.Check every .5 s + events: first happening event with a set wins -> GR.Equip; the gear it replaced
    (snapshot of the set's slots, widened per event set) is put back with GR.Wear when no event is on.
    C.gear.autoswap (master), autotell. Page gearevents "Automatic swaps". /gear events lists what is happening.
+   Seen in game 24 Oct: the mount event swaps (and puts back); hover binding gear buttons works (after the
+   env "this" fix: never assign `this` in pfUI code - use _G.this); InvTex pictures and the Slot buttons
+   preview confirmed. Not tried yet: the other events, waiting while dead / casting.
