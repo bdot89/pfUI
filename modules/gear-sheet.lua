@@ -397,6 +397,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   for i, inv in ipairs({ 13, 14 }) do
     local b = CreateFrame("Button", "pfGearTrinket" .. i, bar)
     b.inv = inv
+    GR.Bindable(b, inv)
     Flat(b, 1)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)

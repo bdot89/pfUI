@@ -134,6 +134,14 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   -- icon and short name of a binding command
   function KM.Describe(action)
     if not action or action == "" then return nil, nil end
+    -- the gear slot buttons (pfUI.gear.UseSlot): the worn item's picture
+    local _, _, ginv = string.find(action, "^PFGEARSLOT(%d+)$")
+    if ginv then
+      ginv = tonumber(ginv)
+      local link = GetInventoryItemLink("player", ginv)
+      local _, _, iname = string.find(link or "", "%[(.-)%]")
+      return GetInventoryItemTexture("player", ginv), iname or ((GetBindingText and GetBindingText(action, "BINDING_NAME_")) or action)
+    end
     local slot = KM.SlotOf(action)
     if slot then
       local tex = HasAction(slot) and GetActionTexture(slot)
@@ -620,6 +628,16 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         end
       end
     end
+    -- the gear slot buttons on screen with no key (user, 24 Oct 2026)
+    local GR = pfUI.gear
+    local seen = {}
+    for _, b in ipairs(GR and GR.bindables or {}) do
+      if b.pfBinding and not seen[b.pfBinding] and b:IsVisible() and not GetBindingKey(b.pfBinding)
+        and GetInventoryItemTexture("player", b.inv) then
+        seen[b.pfBinding] = true
+        table.insert(out, { cmd = b.pfBinding, inv = b.inv })
+      end
+    end
     return out
   end
 
@@ -734,6 +752,13 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         Draggable(a)
         a:SetScript("OnClick", function()
           if this.justDragged then this.justDragged = nil return end
+          if this.cmd then
+            -- a gear slot button: picked, then click a key
+            KM.ability = nil
+            KM.command = (KM.command ~= this.cmd) and this.cmd or nil
+            KM:Refresh()
+            return
+          end
           KM.command = nil
           if KM.ability == this.slot then
             KM.ability = nil
@@ -749,21 +774,32 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
         end)
         a:SetScript("OnEnter", function()
           GameTooltip:SetOwner(this, "ANCHOR_LEFT")
-          GameTooltip:SetAction(this.slot)
-          GameTooltip:AddLine("Click to choose the rank, then click a key - or drag it onto a key.", K.accent[1], K.accent[2], K.accent[3])
+          if this.cmd then
+            GameTooltip:SetInventoryItem("player", this.inv)
+            GameTooltip:AddLine("Gear slot button. Click, then click a key - or drag it onto a key.", K.accent[1], K.accent[2], K.accent[3])
+          else
+            GameTooltip:SetAction(this.slot)
+            GameTooltip:AddLine("Click to choose the rank, then click a key - or drag it onto a key.", K.accent[1], K.accent[2], K.accent[3])
+          end
           GameTooltip:Show()
         end)
         a:SetScript("OnLeave", function() GameTooltip:Hide() end)
         self.abilities[i] = a
       end
-      a.slot = slot
-      a.payload = { slot = slot }
-      a.tex = GetActionTexture(slot)
+      if type(slot) == "table" then
+        a.slot, a.cmd, a.inv = nil, slot.cmd, slot.inv
+        a.payload = { cmd = slot.cmd }
+        a.tex = GetInventoryItemTexture("player", slot.inv)
+      else
+        a.slot, a.cmd, a.inv = slot, nil, nil
+        a.payload = { slot = slot }
+        a.tex = GetActionTexture(slot)
+      end
       a.icon:SetTexture(a.tex)
       local row, col = math.floor((i - 1) / per), math.mod(i - 1, per)
       a:ClearAllPoints()
       a:SetPoint("TOPLEFT", self.panel, "TOPLEFT", 8 + col * (size + 6), -76 - row * (size + 6))
-      local l = (KM.ability == slot) and K.accent or K.line
+      local l = ((a.slot and KM.ability == a.slot) or (a.cmd and KM.command == a.cmd)) and K.accent or K.line
       a:SetBackdropBorderColor(l[1], l[2], l[3], 1)
       a:Show()
     end

@@ -117,8 +117,30 @@ pfUI:RegisterModule("hoverbind", "vanilla:tbc", function ()
   -- so we can bind the respective key, mouse button or mouse wheel direction to the underlying
   -- actionbar button. They should only be shown when hoverbind is active, otherwise the
   -- underlying actionbar buttons can't be clicked anymore.
+  -- octo: any button can be bound by hovering it: one that carries
+  -- button.pfBinding (a Bindings.xml command) is registered with
+  -- pfUI.hoverbind:AddButton(button) - the gear slot buttons and trinket bar
+  -- (user, 24 Oct 2026: "make the buttons possible to simply add into our
+  -- hover macro / keymap").
+  local MakeOverlay
+
+  function pfUI.hoverbind:AddButton(button)
+    if not button or button.pfHoverbind then return end
+    self.extra = self.extra or {}
+    local frame = MakeOverlay(button, function()
+      local f = button:GetScript("OnEnter")
+      if f then local old = this this = button f() this = old end
+    end, function()
+      local f = button:GetScript("OnLeave")
+      if f then local old = this this = button f() this = old end
+    end)
+    button.pfHoverbind = frame
+    table.insert(self.extra, frame)
+    if self:IsShown() then frame:Show() end
+  end
+
   function pfUI.hoverbind:CreateHoverbindFrames()
-    if not pfUI.bars then return end
+    if not pfUI.bars then return {} end
 
     local frames = {}
 
@@ -126,7 +148,18 @@ pfUI:RegisterModule("hoverbind", "vanilla:tbc", function ()
       for j=1,12 do
         local button = pfUI.bars[i][j]
         if button then
-          local frame = CreateFrame("Frame", button:GetName() .. "HoverbindFrame", button)
+          table.insert(frames, MakeOverlay(button, function() pfUI.bars.ButtonEnter(button) end,
+            function() pfUI.bars.ButtonLeave(button) end))
+        end
+      end
+    end
+
+    return frames
+  end
+
+  MakeOverlay = function(button, onEnter, onLeave)
+        do
+          local frame = CreateFrame("Frame", (button:GetName() or tostring(button)) .. "HoverbindFrame", button)
           frame:SetAllPoints(button)
           frame:EnableKeyboard(true)
           frame:EnableMouse(true)
@@ -153,7 +186,7 @@ pfUI:RegisterModule("hoverbind", "vanilla:tbc", function ()
 
               local frame = GetMouseFocus()
               local hovername = (frame and frame.button and frame.button.GetName) and frame.button:GetName() or ""
-              local binding = pfUI.hoverbind:GetBinding(hovername)
+              local binding = frame and frame.button and frame.button.pfBinding or pfUI.hoverbind:GetBinding(hovername)
               if arg1 == "ESCAPE" and not binding then pfUI.hoverbind:Hide() return end
               if binding then
                 if arg1 == "ESCAPE" then 
@@ -181,33 +214,21 @@ pfUI:RegisterModule("hoverbind", "vanilla:tbc", function ()
           -- its highlight and tooltip. This is necessary because the actual buttons don't
           -- receive any mouse events in hoverbind mode since those are swallowed by the
           -- overlapping hoverbind frames.
-          frame:SetScript("OnEnter", function()
-            pfUI.bars.ButtonEnter(button)
-          end)
-          frame:SetScript("OnLeave", function()
-            pfUI.bars.ButtonLeave(button)
-          end)
+          frame:SetScript("OnEnter", onEnter)
+          frame:SetScript("OnLeave", onLeave)
 
-          table.insert(frames, frame)
+          return frame
         end
-      end
-    end
-
-    return frames
   end
 
   function pfUI.hoverbind:ShowHoverbindFrames()
-    if not pfUI.hoverbind.frames then return end
-    for _, frame in ipairs(pfUI.hoverbind.frames) do
-      frame:Show()
-    end
+    for _, frame in ipairs(pfUI.hoverbind.frames or {}) do frame:Show() end
+    for _, frame in ipairs(pfUI.hoverbind.extra or {}) do frame:Show() end
   end
 
   function pfUI.hoverbind:HideHoverbindFrames()
-    if not pfUI.hoverbind.frames then return end
-    for _, frame in ipairs(pfUI.hoverbind.frames) do
-      frame:Hide()
-    end
+    for _, frame in ipairs(pfUI.hoverbind.frames or {}) do frame:Hide() end
+    for _, frame in ipairs(pfUI.hoverbind.extra or {}) do frame:Hide() end
   end
 
   pfUI.hoverbind:SetScript("OnEvent",function()

@@ -71,6 +71,7 @@ pfUI:RegisterModule("gear-slots", "vanilla", function ()
     b.num:SetFont(pfUI.font_default, 12, "OUTLINE")
     b.num:SetPoint("CENTER", b, "CENTER", 0, 0)
     if preview then return b end
+    GR.Bindable(b, inv)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function()
       if IsShiftKeyDown() and ChatFrameEditBox and ChatFrameEditBox:IsVisible() then

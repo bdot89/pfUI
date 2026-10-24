@@ -385,6 +385,47 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     GR.Changed()
   end)
 
+  -- ---------------------------------------------------------------- keys for slot buttons
+
+  -- Bindings.xml PFGEARSLOT1-19: use the item worn in that slot (user, 24
+  -- Oct 2026: the slot buttons in the hover binding and the Key Map)
+  function GR.UseSlot(inv)
+    if GetInventoryItemLink("player", inv) then UseInventoryItem(inv) end
+  end
+  for _, s in ipairs(GR.SLOTS) do
+    _G["BINDING_NAME_PFGEARSLOT" .. s[1]] = "Use worn: " .. s[3]
+  end
+  _G.BINDING_HEADER_PFGEARSLOT = "pfUI Octo: gear slot buttons"
+
+  -- a gear button that works its slot: bindable by hovering it (pfUI's
+  -- hover binding), its key shown small in the corner as on action buttons
+  GR.bindables = {}
+  function GR.Bindable(b, inv)
+    b.pfBinding = "PFGEARSLOT" .. inv
+    if not b.hotkey then
+      b.hotkey = b:CreateFontString(nil, "OVERLAY")
+      b.hotkey:SetFont(pfUI.font_default, 10, "OUTLINE")
+      b.hotkey:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
+      b.hotkey:SetJustifyH("RIGHT")
+    end
+    table.insert(GR.bindables, b)
+    if pfUI.hoverbind and pfUI.hoverbind.AddButton then pfUI.hoverbind:AddButton(b) end
+    GR.ShowKeys()
+  end
+  function GR.ShowKeys()
+    for _, b in ipairs(GR.bindables) do
+      local k = GetBindingKey(b.pfBinding)
+      local t = k and GetBindingText and GetBindingText(k, "KEY_", 1) or k or ""
+      t = string.gsub(t, "SHIFT%-", "s")
+      t = string.gsub(t, "CTRL%-", "c")
+      t = string.gsub(t, "ALT%-", "a")
+      b.hotkey:SetText(t)
+    end
+  end
+  local keyev = CreateFrame("Frame")
+  keyev:RegisterEvent("UPDATE_BINDINGS")
+  keyev:SetScript("OnEvent", function() GR.ShowKeys() end)
+
   -- macro names, as ItemRack's (only when no other addon has them)
   if not _G.EquipSet then _G.EquipSet = function(n) GR.Equip(n) end end
   if not _G.UnequipSet then _G.UnequipSet = function(n) GR.Unequip(n) end end

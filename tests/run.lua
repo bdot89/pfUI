@@ -3899,6 +3899,31 @@ do
     -- the Gear page: tiles for the sets, the slots of the one picked
     local O = pfUI.octoui and pfUI.octoui.Options
     local GO = pfUI.gearOcto
+    -- slot buttons bindable by hovering (user, 24 Oct 2026)
+    do
+      local sb = GR.slotbar and GR.slotbar.buttons and GR.slotbar.buttons[16] or pfGearSlot16
+      ok(sb and sb.pfBinding == "PFGEARSLOT16" and sb.pfHoverbind, "the main hand slot button has a key binding and a hover-bind overlay")
+      ok(pfGearTrinket1 and pfGearTrinket1.pfBinding == "PFGEARSLOT13", "the trinket buttons too")
+      if sb and sb.pfHoverbind then
+        local binds, saved = {}, { SetBinding, GetMouseFocus, SaveBindings, GetBindingKey }
+        _G.SetBinding = function(k, a) binds[k] = a return 1 end
+        _G.SaveBindings = function() end
+        _G.GetMouseFocus = function() return sb.pfHoverbind end
+        _G.GetBindingKey = function(a) for k, v in pairs(binds) do if v == a then return k end end end
+        Mock.Run(sb.pfHoverbind, "OnKeyUp", "F")
+        ok(binds.F == "PFGEARSLOT16", "hovering it and pressing F binds F to it")
+        GR.ShowKeys()
+        ok(sb.hotkey.text == "F", "its key shows in the corner (" .. tostring(sb.hotkey.text) .. ")")
+        _G.SetBinding, _G.GetMouseFocus, _G.SaveBindings, _G.GetBindingKey = saved[1], saved[2], saved[3], saved[4]
+      end
+      local KM = pfUI.keymap
+      if KM then
+        local t = GetInventoryItemTexture
+        _G.GetInventoryItemTexture = function(_, inv) if inv == 16 then return "Interface\\Icons\\INV_Sword_04" end end
+        ok(KM.Describe("PFGEARSLOT16") == "Interface\\Icons\\INV_Sword_04", "the Key Map shows the worn item's picture on that key")
+        _G.GetInventoryItemTexture = t
+      end
+    end
     if GO and GO.TexOf then
       -- seen in game 24 Oct: a set saved with the game's placeholder picture
       -- (INV_Robe_02, missing on this client) drew blank; the picture now

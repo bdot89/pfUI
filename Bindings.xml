@@ -81,4 +81,23 @@
   <Binding name="PFGEAR8">if pfUI and pfUI.gear then pfUI.gear.KeyPress(8) end</Binding>
   <Binding name="PFGEAR9">if pfUI and pfUI.gear then pfUI.gear.KeyPress(9) end</Binding>
   <Binding name="PFGEAR10">if pfUI and pfUI.gear then pfUI.gear.KeyPress(10) end</Binding>
+  <Binding name="PFGEARSLOT1" header="PFGEARSLOT">if pfUI and pfUI.gear then pfUI.gear.UseSlot(1) end</Binding>
+  <Binding name="PFGEARSLOT2">if pfUI and pfUI.gear then pfUI.gear.UseSlot(2) end</Binding>
+  <Binding name="PFGEARSLOT3">if pfUI and pfUI.gear then pfUI.gear.UseSlot(3) end</Binding>
+  <Binding name="PFGEARSLOT4">if pfUI and pfUI.gear then pfUI.gear.UseSlot(4) end</Binding>
+  <Binding name="PFGEARSLOT5">if pfUI and pfUI.gear then pfUI.gear.UseSlot(5) end</Binding>
+  <Binding name="PFGEARSLOT6">if pfUI and pfUI.gear then pfUI.gear.UseSlot(6) end</Binding>
+  <Binding name="PFGEARSLOT7">if pfUI and pfUI.gear then pfUI.gear.UseSlot(7) end</Binding>
+  <Binding name="PFGEARSLOT8">if pfUI and pfUI.gear then pfUI.gear.UseSlot(8) end</Binding>
+  <Binding name="PFGEARSLOT9">if pfUI and pfUI.gear then pfUI.gear.UseSlot(9) end</Binding>
+  <Binding name="PFGEARSLOT10">if pfUI and pfUI.gear then pfUI.gear.UseSlot(10) end</Binding>
+  <Binding name="PFGEARSLOT11">if pfUI and pfUI.gear then pfUI.gear.UseSlot(11) end</Binding>
+  <Binding name="PFGEARSLOT12">if pfUI and pfUI.gear then pfUI.gear.UseSlot(12) end</Binding>
+  <Binding name="PFGEARSLOT13">if pfUI and pfUI.gear then pfUI.gear.UseSlot(13) end</Binding>
+  <Binding name="PFGEARSLOT14">if pfUI and pfUI.gear then pfUI.gear.UseSlot(14) end</Binding>
+  <Binding name="PFGEARSLOT15">if pfUI and pfUI.gear then pfUI.gear.UseSlot(15) end</Binding>
+  <Binding name="PFGEARSLOT16">if pfUI and pfUI.gear then pfUI.gear.UseSlot(16) end</Binding>
+  <Binding name="PFGEARSLOT17">if pfUI and pfUI.gear then pfUI.gear.UseSlot(17) end</Binding>
+  <Binding name="PFGEARSLOT18">if pfUI and pfUI.gear then pfUI.gear.UseSlot(18) end</Binding>
+  <Binding name="PFGEARSLOT19">if pfUI and pfUI.gear then pfUI.gear.UseSlot(19) end</Binding>
 </Bindings>
