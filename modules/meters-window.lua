@@ -933,7 +933,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.titlebtn:SetPoint("TOPLEFT", 2, -(th - 16) / 2 - 1)
     -- buttons from the right: reset, report, menu (as many as are on)
     local x = -2
-    for _, e in ipairs({ { win.reset, "btnreset" }, { win.report, "btnreport" }, { win.menu, "btnmenu" } }) do
+    for _, e in ipairs({ { win.reset, "btnreset" }, { win.report, "btnreport" }, { win.menu, "btnmenu" }, { win.lockbtn, "btnlock" } }) do
       local btn = e[1]
       btn:ClearAllPoints()
       if titled and s[e[2]] ~= "0" then
@@ -952,6 +952,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       win.status.bg:SetTexture(Col(s.titlebg, "0,0,0,0.45"))
     end
     win:SetAlpha(tonumber(s.alpha) or 1)
+    M.PaintLock(win)
   end
   M.ApplyStyle = ApplyStyle
 
@@ -1176,11 +1177,20 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     local function Paint(r, g, bb)
       if b.lines then
         for _, l in ipairs(b.lines) do l:SetTexture(r, g, bb, 1) end
+      elseif b.tex then
+        if b.PaintIcon then b.PaintIcon(r, g, bb) else b.tex:SetVertexColor(r, g, bb, 1) end
       else
         b.text:SetTextColor(r, g, bb, 1)
       end
     end
-    if icon == "menu" then
+    if icon == "lock" then
+      -- the game's chat padlock (Interface\ChatFrame\UI-ChatFrame-LockIcon)
+      b.tex = b:CreateTexture(nil, "OVERLAY")
+      b.tex:SetTexture("Interface\\ChatFrame\\UI-ChatFrame-LockIcon")
+      b.tex:SetWidth(14)
+      b.tex:SetHeight(14)
+      b.tex:SetPoint("CENTER", b, "CENTER", 0, 0)
+    elseif icon == "menu" then
       b.lines = {}
       for i = 1, 3 do
         local l = b:CreateTexture(nil, "OVERLAY")
@@ -1199,7 +1209,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     b:SetScript("OnEnter", function()
       Paint(GetAccentColor())
       GameTooltip:SetOwner(this, "ANCHOR_TOP")
-      GameTooltip:SetText(tip, 1, 1, 1)
+      GameTooltip:SetText(this.tipfn and this.tipfn() or tip, 1, 1, 1)
       GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() Paint(.7, .7, .7) GameTooltip:Hide() end)
@@ -1209,6 +1219,33 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   local function RefreshAll()
     for _, w in ipairs(M.windows) do Refresh(w) end
+  end
+
+  -- the padlock's look: gold locked (or docked), grey unlocked
+  function M.PaintLock(win)
+    local b = win and win.lockbtn
+    if not b then return end
+    if not win.free or S(win).lock == "1" then
+      b.tex:SetVertexColor(1, .82, .2, 1)
+      b.tex:SetAlpha(1)
+    else
+      b.tex:SetVertexColor(.6, .6, .6, 1)
+      b.tex:SetAlpha(.55)
+    end
+  end
+
+  function M.ToggleLock(win)
+    if not win then return end
+    local s = S(win)
+    if not win.free and M.SetDocked then
+      s.lock = "0"
+      M.SetDocked(win, false)
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. T["window out of the chat panel and unlocked - drag its title to move it."])
+    else
+      s.lock = (s.lock == "1") and "0" or "1"
+      if win.grip then if s.lock == "1" then win.grip:Hide() else win.grip:Show() end end
+    end
+    M.PaintLock(win)
   end
 
   -- ---------------------------------------------------------------- docking
@@ -1307,6 +1344,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
         pfUI.thirdparty.meters:Toggle()
       end
     end
+    M.PaintLock(win)
   end
 
   -- ---------------------------------------------------------------- the window menu
@@ -1343,6 +1381,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     if win.free then
       table.insert(items, { T["Lock position and size"], Flip(s, "lock", function()
         if s.lock == "1" then win.grip:Hide() else win.grip:Show() end
+        M.PaintLock(win)
       end), tick = s.lock == "1", keep = true })
     end
     table.insert(items, { string.format(T["Bar height: %s (click: bigger)"], s.barheight), function()
@@ -1550,6 +1589,21 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       WindowMenu(win, this)
     end), "menu")
     win.menu:SetPoint("RIGHT", win.report, "LEFT", -1, 0)
+    -- the padlock (user, 24 Oct 2026: "add padlock to the meters so they can
+    -- be unlocked and locked and moved at will"): gold = locked, grey =
+    -- unlocked (drag the title, resize from the corner). A docked window
+    -- comes out of the dock, unlocked, so it can be moved.
+    win.lockbtn = HeaderButton(win, nil, "", Btn(function() M.ToggleLock(win) end), "lock")
+    win.lockbtn.tipfn = function()
+      if not win.free then return T["Docked - click to take it out of the chat panel and move it"] end
+      if S(win).lock == "1" then return T["Locked - click to unlock: then drag the title to move, the corner to resize"] end
+      return T["Unlocked - drag the title to move, the corner to resize. Click to lock"]
+    end
+    win.lockbtn.PaintIcon = function(r, g, bb)
+      -- (hover lights it in the accent; otherwise its state's colour)
+      win.lockbtn.tex:SetVertexColor(r, g, bb, 1)
+    end
+    win.lockbtn:SetScript("OnLeave", function() GameTooltip:Hide() M.PaintLock(win) end)
 
     -- resize grip (free, unlocked windows)
     win.grip = CreateFrame("Button", nil, win)

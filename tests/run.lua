@@ -670,6 +670,20 @@ if ME then
     w1:SetHeight(160)
     w1.Refresh(w1)
     ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    -- the padlock (user, 24 Oct 2026): locks / unlocks a free window
+    ok(w1.lockbtn ~= nil, "meter windows have a padlock")
+    if w1.lockbtn and ME.ToggleLock then
+      local wasFree, s = w1.free, ME.S(w1)
+      local was = s.lock
+      w1.free = true
+      s.lock = "1"
+      ME.ToggleLock(w1)
+      ok(s.lock == "0" and w1.grip:IsShown(), "padlock: unlocked, the resize corner shows")
+      ME.ToggleLock(w1)
+      ok(s.lock == "1" and not w1.grip:IsShown(), "padlock: locked again, no resize corner")
+      w1.free, s.lock = wasFree, was
+      if was == "1" then w1.grip:Hide() else w1.grip:Show() end
+    end
     -- raised over the chat, the buttons must still sit above the window (it takes clicks)
     w1:SetFrameLevel(w1:GetFrameLevel() + 20)
     ME.Lift(w1)

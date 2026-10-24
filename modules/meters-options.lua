@@ -365,6 +365,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Menu button", nil, S, "btnmenu")
     Chk(p, "Report button", nil, S, "btnreport")
     Chk(p, "Reset button", nil, S, "btnreset")
+    Chk(p, "Padlock button", "Lock or unlock the window (a docked one comes out of the chat panel).", S, "btnlock")
 
     W.Card(p, "Bars")
     Sld(p, "Height", nil, 8, 40, 1, S, "barheight", Px)

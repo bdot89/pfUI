@@ -252,6 +252,7 @@ function pfUI:LoadConfig()
     pfUI:UpdateConfig("meters", w, "btnmenu",     "1")
     pfUI:UpdateConfig("meters", w, "btnreport",   "1")
     pfUI:UpdateConfig("meters", w, "btnreset",    "1")
+    pfUI:UpdateConfig("meters", w, "btnlock",     "1")
     -- bars
     pfUI:UpdateConfig("meters", w, "barheight",   "16")
     pfUI:UpdateConfig("meters", w, "spacing",     "1")
