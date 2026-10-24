@@ -1,10 +1,9 @@
 pfUI:RegisterModule("gear-options", "vanilla", function ()
-  -- pfUI Octo :: the Gear section (24 Oct 2026, modules/gear.lua and
-  -- gear-sheet.lua). One page: a pinned preview with your sets as tiles (click
-  -- = change that one, the one worn marked) and the set's slots laid out as
-  -- three rows; click a slot for what can go in it, right-click to leave it
-  -- out of the set, Shift-click to have the set take it off. Cards under it
-  -- for the set, the buttons, swapping, the character window and the trinket bar.
+  -- pfUI Octo :: the Gear section (24 Oct 2026, modules/gear.lua, gear-sheet.lua,
+  -- gear-slots.lua). Gear sets: a set editor as ItemRack's / Outfitter's (saved sets
+  -- on the left, the slots as on the character sheet with a tick each, the
+  -- character wearing the set between them) and cards for the set, the buttons,
+  -- swapping, the character window and the trinket bar. Slot buttons: its own page.
   local OU = pfUI.octoui
   local W = OU and OU.W
   local O = OU and OU.Options
@@ -47,256 +46,361 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     return GO.edit
   end
 
-  -- ---------------------------------------------------------------- preview
+  -- ---------------------------------------------------------------- set editor
 
-  -- the slots as three rows: armour, then jewellery and the rest, then weapons
+  -- the slot buttons page lays slots out in three rows
   GO.ROWS = { { 1, 2, 3, 15, 5, 4, 19, 9 }, { 10, 6, 7, 8, 11, 12, 13, 14 }, { 16, 17, 18 } }
   local EMPTY = {}
   for _, s in ipairs(GR.SLOTS) do
     local _, tex = GetInventorySlotInfo and GetInventorySlotInfo(s[2])
     EMPTY[s[1]] = tex
   end
+  -- the set editor as ItemRack's / Outfitter's (user, 24 Oct 2026: the first
+  -- version "makes no sense"): the slots where the character sheet has them,
+  -- a tick on each for "in this set", the character wearing the set between
+  -- them, the saved sets listed on the left
+  GO.LEFT = { 1, 2, 3, 15, 5, 4, 19, 9 }
+  GO.RIGHT = { 10, 6, 7, 8, 11, 12, 13, 14 }
+  GO.BOTTOM = { 16, 17, 18 }
+  -- rings, trinkets and one-hand weapons can come from the other slot of the pair
+  local PAIR = { [11] = 12, [12] = 11, [13] = 14, [14] = 13, [16] = 17, [17] = 16 }
 
-  local function Preview(p)
-    W.Pin(p, "Preview", "Your sets, then the slots of the one picked. Click a set to change it. Click a slot for what can "
-      .. "go in it; right-click a slot to leave it out of the set (it stays as it is when the set goes on); Shift-click "
-      .. "to have the set take it off. Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 196)
-      local holder = CreateFrame("Frame", nil, box)
-      holder:SetAllPoints(box)
-      holder:SetFrameStrata("FULLSCREEN")
-      GO.holder = holder
 
-      -- the sets as tiles
-      GO.tiles = {}
-      local function Tile(i)
-        local t = GO.tiles[i]
-        if t then return t end
-        t = CreateFrame("Button", nil, holder)
-        t:SetHeight(24)
-        Flat(t, 1)
-        t.icon = t:CreateTexture(nil, "ARTWORK")
-        t.icon:SetWidth(18)
-        t.icon:SetHeight(18)
-        t.icon:SetPoint("LEFT", t, "LEFT", 3, 0)
-        t.icon:SetTexCoord(.07, .93, .07, .93)
-        t.text = t:CreateFontString(nil, "OVERLAY")
-        t.text:SetFont(W.UIFont(), 11, "OUTLINE")
-        t.text:SetPoint("LEFT", t.icon, "RIGHT", 5, 0)
-        t.worn = t:CreateTexture(nil, "OVERLAY")
-        t.worn:SetTexture("Interface\\Buttons\\WHITE8X8")
-        t.worn:SetWidth(6)
-        t.worn:SetHeight(6)
-        t.worn:SetPoint("TOPRIGHT", t, "TOPRIGHT", -3, -3)
-        t.worn:SetVertexColor(.2, 1, .3, 1)
-        t:RegisterForClicks("LeftButtonUp")
-        t:SetScript("OnClick", function()
-          if this.new then GO.NewSet() else GO.edit = this.set end
-          GR.Changed()
-          O:Refresh()
-        end)
-        t:SetScript("OnEnter", function()
-          GameTooltip:SetOwner(this, "ANCHOR_TOP")
-          if this.new then
-            GameTooltip:AddLine("New set")
-            GameTooltip:AddLine("Saves everything you wear now as a new set.", 1, 1, 1)
-          else
-            GameTooltip:AddLine(this.set)
-            GameTooltip:AddLine(this.wearing and "You wear this set now." or "Click: change this set.", 1, 1, 1)
-          end
-          GameTooltip:Show()
-        end)
-        t:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        GO.tiles[i] = t
-        return t
-      end
+  local function Editor(p)
+    local box = W.Box(p, 392)
+    local holder = CreateFrame("Frame", nil, box)
+    holder:SetAllPoints(box)
+    GO.holder = holder
+    local BW = box:GetWidth() or 668
+    local SZ, GAP = 36, 4
+    local ar, ag, ab = Accent()
 
-      -- the slots
-      GO.slots = {}
-      for r, row in ipairs(GO.ROWS) do
-        for c, inv in ipairs(row) do
-          local s = CreateFrame("Button", nil, holder)
-          s.inv = inv
-          s:SetWidth(34)
-          s:SetHeight(34)
-          Flat(s, 1)
-          s.icon = s:CreateTexture(nil, "ARTWORK")
-          s.icon:SetPoint("TOPLEFT", s, "TOPLEFT", 1, -1)
-          s.icon:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -1, 1)
-          s.icon:SetTexCoord(.07, .93, .07, .93)
-          s.off = s:CreateTexture(nil, "OVERLAY")
-          s.off:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-          s.off:SetWidth(18)
-          s.off:SetHeight(18)
-          s.off:SetPoint("CENTER", s, "CENTER", 0, 0)
-          s.row, s.col = r, c
-          s:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-          s:SetScript("OnClick", function()
-            local set = GO.Set()
-            if not set then return end
-            local key = GR.Key(this.inv)
-            if arg1 == "RightButton" then
-              -- leave it out / put it back in with what is worn
-              if set.slots[key] ~= nil then set.slots[key] = nil
-              else set.slots[key] = GR.Snapshot({ [key] = true })[key] end
-              GR.Changed()
-            elseif IsShiftKeyDown() then
-              set.slots[key] = "empty"
-              GR.Changed()
-            else
-              -- what can go in: what is worn there and what fits from the bags
-              local items = {}
-              local id, link = GR.Worn(this.inv)
-              if id then
-                local _, _, nm = string.find(link, "%[(.-)%]")
-                table.insert(items, { id = id, name = nm or "", tex = GetInventoryItemTexture("player", this.inv), link = link })
-              end
-              for _, it in ipairs(GR.ItemsFor(this.inv)) do table.insert(items, it) end
-              local inv = this.inv
-              GR.Flyout(this, inv, function(item)
-                local s2 = GO.Set()
-                if not s2 then return end
-                s2.slots[GR.Key(inv)] = (item == "empty") and "empty" or { id = item.id, name = item.name, tex = item.tex }
-                GR.Changed()
-              end, { items = items, empty = false, side = "BOTTOM", hint = "Puts it in this set (wear the set to put it on)." })
-            end
-          end)
-          s:SetScript("OnEnter", function()
-            local set = GO.Set()
-            local e = set and set.slots[GR.Key(this.inv)]
-            GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:AddLine(GR.NAME[this.inv])
-            if e == nil then GameTooltip:AddLine("Left out: the set leaves this slot as it is.", .7, .7, .7, 1)
-            elseif e == "empty" then GameTooltip:AddLine("The set takes this off.", 1, .5, .5)
-            else GameTooltip:AddLine(e.name or "", 1, 1, 1) end
-            GameTooltip:AddLine("Click: what can go in", .6, .8, 1)
-            GameTooltip:AddLine("Right-click: leave out / put back in", .6, .8, 1)
-            GameTooltip:AddLine("Shift-click: the set takes it off", .6, .8, 1)
-            GameTooltip:Show()
-          end)
-          s:SetScript("OnLeave", function() GameTooltip:Hide() end)
-          table.insert(GO.slots, s)
-        end
-      end
-
-      local function Paint()
-        PickSet()
-        local ar, ag, ab = Accent()
-        local cur = GR.Current()
-        local names = GR.Sets()
-        local x, y, w = 10, -10, (box:GetWidth() or 600) - 20
-        local n = table.getn(names)
-        for i = 1, n + 1 do
-          local t = Tile(i)
-          local name = names[i]
-          t.new = name == nil
-          t.set = name
-          t.wearing = name ~= nil and name == cur
-          t.icon:SetTexture(name and C.gear.sets[name].icon or "Interface\\Icons\\Spell_ChargePositive")
-          t.text:SetText(name or "New set")
-          t:SetWidth(math.min(160, (t.text:GetStringWidth() or 60) + 40))
-          if x + t:GetWidth() > w then x, y = 10, y - 28 end
-          t:ClearAllPoints()
-          t:SetPoint("TOPLEFT", box, "TOPLEFT", x, y)
-          x = x + t:GetWidth() + 6
-          if name and name == GO.edit then
-            t:SetBackdropBorderColor(ar, ag, ab, 1)
-            t:SetBackdropColor(ar * .45, ag * .45, ab * .45, 1)
-          else
-            t:SetBackdropBorderColor(.2, .2, .24, 1)
-            t:SetBackdropColor(.06, .06, .08, 1)
-          end
-          if t.wearing then t.worn:Show() else t.worn:Hide() end
-          t:Show()
-        end
-        for i = n + 2, table.getn(GO.tiles) do GO.tiles[i]:Hide() end
-        -- the slots, under the tiles
-        local top = y - 34
-        local set = GO.Set()
-        for _, s in ipairs(GO.slots) do
-          local rowLen = table.getn(GO.ROWS[s.row])
-          local left = ((box:GetWidth() or 600) - (8 * 38 - 4)) / 2
-          local xo = left + (s.col - 1) * 38 + (rowLen < 8 and (8 - rowLen) * 19 or 0)
-          s:ClearAllPoints()
-          s:SetPoint("TOPLEFT", box, "TOPLEFT", xo, top - (s.row - 1) * 40)
-          local e = set and set.slots[GR.Key(s.inv)]
-          s.off:Hide()
-          s.icon:SetDesaturated(false)
-          s.icon:SetAlpha(1)
-          if not set then
-            s.icon:SetTexture(EMPTY[s.inv])
-            s.icon:SetAlpha(.4)
-          elseif e == nil then
-            s.icon:SetTexture(EMPTY[s.inv])
-            s.icon:SetAlpha(.25)
-          elseif e == "empty" then
-            s.icon:SetTexture(EMPTY[s.inv])
-            s.icon:SetAlpha(.6)
-            s.off:Show()
-          else
-            s.icon:SetTexture(e.tex)
-          end
-          -- lit: this slot is worn as the set has it
-          local ok = set and e ~= nil and ((e == "empty" and not GR.Worn(s.inv)) or (type(e) == "table" and GR.Worn(s.inv) == e.id))
-          if ok then s:SetBackdropBorderColor(ar, ag, ab, 1) else s:SetBackdropBorderColor(.2, .2, .24, 1) end
-        end
-      end
-      GO.Paint = Paint
-      GR.listeners.options = function() if holder:IsVisible() then Paint() end end
-      Paint()
-      if p.items then table.insert(p.items, { Refresh = Paint }) end
-
-      local ar, ag, ab = Accent()
-      local band = W.Row(pp, 20, 0, 3)
-      local bg = band:CreateTexture(nil, "BACKGROUND")
-      bg:SetAllPoints(band)
-      bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-      bg:SetVertexColor(ar, ag, ab, .22)
-      local how = band:CreateFontString(nil, "OVERLAY")
-      how:SetFont(W.UIFont(), 11, "OUTLINE")
-      how:SetPoint("LEFT", band, "LEFT", 12, 0)
-      local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
-      how:SetText(k .. "Click|r a slot  what goes in     " .. k .. "Right-click|r  leave out     " .. k .. "Shift-click|r  take it off")
-      W.Buttons(pp, {
-        { "Wear it", function() if GO.edit then GR.Equip(GO.edit) end end, nil, "Put this set on now (in combat: weapons now, the rest after).",
-          on = function() return GO.edit ~= nil and GR.Current() == GO.edit end },
-        { "Take it off", function() GR.Unequip(GO.edit) end, nil, "Back to the gear worn before the set went on." },
-        { "Save what I wear", function()
-          local set = GO.Set()
-          if not set then return end
-          -- (only its own slots; a new set has them all)
-          set.slots = GR.Snapshot(set.slots)
-          GR.Changed()
-        end, nil, "Each slot of this set takes what you wear there now." },
-        { "Delete", function()
-          if not GO.edit then return end
-          if GO.sure ~= GO.edit or GetTime() > (GO.sureT or 0) then
-            GO.sure, GO.sureT = GO.edit, GetTime() + 3
-            DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r gear: click Delete again within 3 s to delete \"" .. GO.edit .. "\".")
-            return
-          end
-          GR.Delete(GO.edit)
-          GO.edit, GO.sure = nil, nil
-          GR.Changed()
-          O:Refresh()
-        end, nil, "Click twice to delete this set." },
-        { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, nil, "Move the set button and the trinket bar." },
-      })
+    -- left: the saved sets
+    local title = holder:CreateFontString(nil, "OVERLAY")
+    title:SetFont(W.UIFont(), 12, "OUTLINE")
+    title:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -12)
+    title:SetText("Saved sets")
+    GO.rows = {}
+    local function Row(i)
+      local r = GO.rows[i]
+      if r then return r end
+      r = CreateFrame("Button", nil, holder)
+      r:SetWidth(176)
+      r:SetHeight(24)
+      r:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -32 - (i - 1) * 26)
+      Flat(r, 1)
+      r.icon = r:CreateTexture(nil, "ARTWORK")
+      r.icon:SetWidth(20)
+      r.icon:SetHeight(20)
+      r.icon:SetPoint("LEFT", r, "LEFT", 2, 0)
+      r.icon:SetTexCoord(.07, .93, .07, .93)
+      r.text = r:CreateFontString(nil, "OVERLAY")
+      r.text:SetFont(W.UIFont(), 11, "OUTLINE")
+      r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
+      r.text:SetPoint("RIGHT", r, "RIGHT", -36, 0)
+      r.text:SetJustifyH("LEFT")
+      r.worn = r:CreateFontString(nil, "OVERLAY")
+      r.worn:SetFont(W.UIFont(), 10, "OUTLINE")
+      r.worn:SetPoint("RIGHT", r, "RIGHT", -5, 0)
+      r.worn:SetTextColor(.3, 1, .4)
+      r.worn:SetText("worn")
+      r:SetScript("OnClick", function() GO.edit = this.set GR.Changed() O:Refresh() end)
+      r:SetScript("OnDoubleClick", function() GR.Equip(this.set) end)
+      r:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(this.set)
+        GameTooltip:AddLine("Click: change it here", 1, 1, 1)
+        GameTooltip:AddLine("Double-click: wear it", 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      GO.rows[i] = r
+      return r
+    end
+    local newBtn = W.Button(holder, "New set", 176, 22)
+    newBtn:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 8, 30)
+    newBtn:SetScript("OnClick", function()
+      GO.NewSet()
+      O:Refresh()
+      if GO.name then GO.name:SetFocus() GO.name:HighlightText() end
     end)
+    W.Tip(newBtn, "New set", "Everything you wear now, as a new set. Untick the slots it should leave alone.")
+
+    -- the slots, as on the character sheet
+    local midL = 196 + SZ + 10
+    local midR = BW - 10 - SZ - 10
+    GO.slots = {}
+    local function Slot(inv, x, y)
+      local s = CreateFrame("Button", nil, holder)
+      s.inv = inv
+      s:SetWidth(SZ)
+      s:SetHeight(SZ)
+      s:SetPoint("TOPLEFT", box, "TOPLEFT", x, y)
+      Flat(s, 1)
+      s.icon = s:CreateTexture(nil, "ARTWORK")
+      s.icon:SetPoint("TOPLEFT", s, "TOPLEFT", 1, -1)
+      s.icon:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -1, 1)
+      s.icon:SetTexCoord(.07, .93, .07, .93)
+      s.off = s:CreateTexture(nil, "OVERLAY")
+      s.off:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+      s.off:SetWidth(20)
+      s.off:SetHeight(20)
+      s.off:SetPoint("CENTER", s, "CENTER", 0, 0)
+      -- the tick: in this set or not
+      s.tick = CreateFrame("CheckButton", nil, s)
+      s.tick:SetWidth(16)
+      s.tick:SetHeight(16)
+      s.tick:SetPoint("TOPLEFT", s, "TOPLEFT", -6, 6)
+      s.tick:SetFrameLevel(s:GetFrameLevel() + 3)
+      s.tick:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
+      s.tick:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
+      s.tick:SetScript("OnClick", function() GO.ToggleSlot(this:GetParent().inv) end)
+      s.tick:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(GR.NAME[this:GetParent().inv])
+        GameTooltip:AddLine("Ticked: the set puts this slot on. Unticked: it leaves this slot as it is.", 1, 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      s.tick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      s:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      s:SetScript("OnClick", function()
+        if arg1 == "RightButton" then GO.ToggleSlot(this.inv) return end
+        GO.PickFor(this)
+      end)
+      s:SetScript("OnEnter", function()
+        local set = GO.Set()
+        local e = set and set.slots[GR.Key(this.inv)]
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        if type(e) == "table" and e.id then
+          -- (the item's own tooltip, when the client knows it)
+          local okTip = pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. e.id .. ":0")
+          if not okTip or (GameTooltip:NumLines() or 0) == 0 then GameTooltip:AddLine(e.name or "") end
+        else
+          GameTooltip:AddLine(GR.NAME[this.inv])
+          if e == "empty" then GameTooltip:AddLine("The set takes this off.", 1, .5, .5)
+          elseif e == nil then GameTooltip:AddLine("Not in this set: it stays as it is.", .7, .7, .7, 1) end
+        end
+        GameTooltip:AddLine("Click: pick its item  -  Right-click: in the set or not", .6, .8, 1)
+        GameTooltip:Show()
+      end)
+      s:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      table.insert(GO.slots, s)
+      return s
+    end
+    for i, inv in ipairs(GO.LEFT) do Slot(inv, 196, -12 - (i - 1) * (SZ + GAP)) end
+    for i, inv in ipairs(GO.RIGHT) do Slot(inv, BW - 10 - SZ, -12 - (i - 1) * (SZ + GAP)) end
+    local mid = (midL + midR) / 2
+    for i, inv in ipairs(GO.BOTTOM) do Slot(inv, mid - (3 * SZ + 2 * GAP) / 2 + (i - 1) * (SZ + GAP), -12 - 7 * (SZ + GAP)) end
+
+    -- the middle: icon and name, the character, the buttons
+    local icon = CreateFrame("Button", nil, holder)
+    icon:SetWidth(30)
+    icon:SetHeight(30)
+    icon:SetPoint("TOPLEFT", box, "TOPLEFT", midL, -12)
+    Flat(icon, 1)
+    icon.tex = icon:CreateTexture(nil, "ARTWORK")
+    icon.tex:SetPoint("TOPLEFT", icon, "TOPLEFT", 1, -1)
+    icon.tex:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
+    icon.tex:SetTexCoord(.07, .93, .07, .93)
+    -- (click: the next picture from the set's own items)
+    icon:SetScript("OnClick", function()
+      local set = GO.Set()
+      if not set then return end
+      local list, at = {}, 0
+      for _, s in ipairs(GR.SLOTS) do
+        local e = set.slots[GR.Key(s[1])]
+        if type(e) == "table" and e.tex and e.tex ~= "" then
+          table.insert(list, e.tex)
+          if e.tex == set.icon then at = table.getn(list) end
+        end
+      end
+      if table.getn(list) > 0 then set.icon = list[math.mod(at, table.getn(list)) + 1] GR.Changed() end
+    end)
+    W.Tip(icon, "Icon", "Click for the next picture from the set's items (more on the This set card).")
+    local name = W.EditBox(holder, midR - midL - 40)
+    name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    name:SetScript("OnEnterPressed", function()
+      local v = this:GetText()
+      if GO.edit and v ~= "" and GR.Rename(GO.edit, v) then GO.edit = v end
+      this:ClearFocus()
+      O:Refresh()
+    end)
+    name:SetScript("OnEscapePressed", function() this:SetText(GO.edit or "") this:ClearFocus() end)
+    name:SetScript("OnEditFocusGained", function() GO.typing = true end)
+    name:SetScript("OnEditFocusLost", function() GO.typing = nil end)
+    GO.name = name
+    W.Tip(name, "Name", "Type a name and press Enter.")
+
+    -- the character, wearing the set (drag to turn it)
+    local model = CreateFrame("DressUpModel", nil, holder)
+    model:SetPoint("TOPLEFT", box, "TOPLEFT", midL, -50)
+    model:SetPoint("BOTTOMRIGHT", box, "TOPLEFT", midR, -12 - 7 * (SZ + GAP) + 4)
+    model:EnableMouse(true)
+    model:SetScript("OnMouseDown", function() this.turnX = GetCursorPosition() this.turnF = this.facing or 0 end)
+    model:SetScript("OnMouseUp", function() this.turnX = nil end)
+    model:SetScript("OnUpdate", function()
+      if not this.turnX then return end
+      local x = GetCursorPosition()
+      this.facing = this.turnF + (x - this.turnX) / 80
+      if this.SetFacing then this:SetFacing(this.facing) end
+    end)
+    GO.model = model
+    local function Dress()
+      if not model.SetUnit then return end
+      pcall(model.SetUnit, model, "player")
+      if model.SetFacing then model:SetFacing(model.facing or 0) end
+      local set = GO.Set()
+      for _, e in pairs(set and set.slots or {}) do
+        if type(e) == "table" and e.id and model.TryOn then pcall(model.TryOn, model, "item:" .. e.id .. ":0") end
+      end
+    end
+    GO.Dress = Dress
+
+    -- the buttons under the character
+    local function Btn(text, x, w, fn, tip)
+      local b = W.Button(holder, text, w, 22)
+      b:SetPoint("TOPLEFT", box, "TOPLEFT", x, -12 - 8 * (SZ + GAP) - 4)
+      b:SetScript("OnClick", fn)
+      W.Tip(b, text, tip)
+      return b
+    end
+    local bw = math.floor((midR - midL - 12) / 4)
+    GO.wear = Btn("Wear", midL, bw, function() if GO.edit then GR.Equip(GO.edit) end end,
+      "Put this set on now (in combat: weapons now, the rest after).")
+    Btn("Take off", midL + (bw + 4), bw, function() GR.Unequip(GO.edit) end, "Back to the gear worn before the set went on.")
+    Btn("Save", midL + 2 * (bw + 4), bw, function()
+      local set = GO.Set()
+      if not set then GO.NewSet() O:Refresh() return end
+      set.slots = GR.Snapshot(set.slots)
+      GR.Changed()
+    end, "The ticked slots take what you wear there now.")
+    Btn("Delete", midL + 3 * (bw + 4), bw, function()
+      if not GO.edit then return end
+      if GO.sure ~= GO.edit or GetTime() > (GO.sureT or 0) then
+        GO.sure, GO.sureT = GO.edit, GetTime() + 3
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r gear: click Delete again within 3 s to delete \"" .. GO.edit .. "\".")
+        return
+      end
+      GR.Delete(GO.edit)
+      GO.edit, GO.sure = nil, nil
+      GR.Changed()
+      O:Refresh()
+    end, "Click twice to delete this set.")
+
+    local hint = holder:CreateFontString(nil, "OVERLAY")
+    hint:SetFont(W.UIFont(), 11, "OUTLINE")
+    hint:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 196, 10)
+    hint:SetTextColor(.6, .6, .65)
+    local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
+    hint:SetText(k .. "Tick|r = in this set     " .. k .. "Click|r a slot = pick its item     " .. k .. "Save|r = take what you wear     " .. k .. "Drag|r the character to turn it")
+
+    local function Paint()
+      PickSet()
+      ar, ag, ab = Accent()
+      local cur = GR.Current()
+      local names = GR.Sets()
+      local fit = math.floor((392 - 32 - 60) / 26)
+      for i, n in ipairs(names) do
+        if i <= fit then
+          local r = Row(i)
+          r.set = n
+          r.icon:SetTexture(C.gear.sets[n].icon)
+          r.text:SetText(n)
+          if n == cur then r.worn:Show() else r.worn:Hide() end
+          if n == GO.edit then
+            r:SetBackdropBorderColor(ar, ag, ab, 1)
+            r:SetBackdropColor(ar * .45, ag * .45, ab * .45, 1)
+          else
+            r:SetBackdropBorderColor(.2, .2, .24, 1)
+            r:SetBackdropColor(.06, .06, .08, 1)
+          end
+          r:Show()
+        end
+      end
+      for i = table.getn(names) + 1, table.getn(GO.rows) do GO.rows[i]:Hide() end
+      local set = GO.Set()
+      icon.tex:SetTexture(set and set.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+      if not GO.typing then name:SetText(GO.edit or "") end
+      for _, s in ipairs(GO.slots) do
+        local e = set and set.slots[GR.Key(s.inv)]
+        s.off:Hide()
+        s.icon:SetAlpha(1)
+        s.tick:SetChecked(e ~= nil)
+        if not set then s.tick:Hide() else s.tick:Show() end
+        if type(e) == "table" then
+          s.icon:SetTexture(e.tex)
+        elseif e == "empty" then
+          s.icon:SetTexture(EMPTY[s.inv])
+          s.icon:SetAlpha(.6)
+          s.off:Show()
+        else
+          -- (not in the set: what you wear there, faded)
+          s.icon:SetTexture(GetInventoryItemTexture("player", s.inv) or EMPTY[s.inv])
+          s.icon:SetAlpha(.3)
+        end
+        local worn = set and e ~= nil and ((e == "empty" and not GR.Worn(s.inv)) or (type(e) == "table" and GR.Worn(s.inv) == e.id))
+        if worn then s:SetBackdropBorderColor(ar, ag, ab, 1) else s:SetBackdropBorderColor(.2, .2, .24, 1) end
+      end
+      W.Lit(GO.wear, set ~= nil and cur == GO.edit)
+      Dress()
+    end
+    GO.Paint = Paint
+    GR.listeners.options = function() if holder:IsVisible() then Paint() end end
+    Paint()
+    if p.items then table.insert(p.items, { Refresh = Paint }) end
+  end
+
+  -- in the set or not (in: what you wear there now)
+  function GO.ToggleSlot(inv)
+    local set = GO.Set()
+    if not set then return end
+    local key = GR.Key(inv)
+    if set.slots[key] ~= nil then set.slots[key] = nil
+    else set.slots[key] = GR.Snapshot({ [key] = true })[key] end
+    GR.Changed()
+  end
+
+  -- a slot's item: what you wear there (and in its pair), what fits from the
+  -- bags, or "take it off"
+  function GO.PickFor(s)
+    local set = GO.Set()
+    if not set then return end
+    local inv = s.inv
+    local items, seen = {}, {}
+    local function Add(it)
+      if it and it.id and not seen[it.id] then seen[it.id] = true table.insert(items, it) end
+    end
+    for _, i in ipairs({ inv, PAIR[inv] }) do
+      local id, link = GR.Worn(i)
+      if id then
+        local _, _, nm = string.find(link, "%[(.-)%]")
+        local loc = GR.EquipLoc and GR.EquipLoc(link)
+        local fits = (i == inv)
+        for _, f in ipairs(loc and GR.FITS[loc] or {}) do if f == inv then fits = true end end
+        if fits then Add({ id = id, name = nm or "", tex = GetInventoryItemTexture("player", i), link = link, worn = i }) end
+      end
+    end
+    for _, it in ipairs(GR.ItemsFor(inv)) do Add(it) end
+    table.insert(items, "empty")
+    GR.Flyout(s, inv, function(item)
+      local s2 = GO.Set()
+      if not s2 then return end
+      s2.slots[GR.Key(inv)] = (item == "empty") and "empty" or { id = item.id, name = item.name, tex = item.tex }
+      GR.Changed()
+    end, { items = items, empty = false, side = (s:GetLeft() or 0) > (GO.holder:GetLeft() or 0) + 300 and "LEFT" or "RIGHT",
+           hint = "Puts it in this set (Wear puts the set on)." })
   end
 
   -- ---------------------------------------------------------------- page
 
   local function Build(p)
-    W.Heading(p, "Gear", { about = "Gear sets you put on with one click, a key or /gear equip <set>: full sets or only some "
-      .. "slots. In combat your weapons change at once and the rest when combat ends. Also in the character window "
-      .. "(hover a slot) and an optional trinket bar." })
-    Preview(p)
+    W.Heading(p, "Gear sets", { about = "Gear sets as ItemRack and Outfitter make them: pick a set on the left, tick the slots "
+      .. "it should change, click a slot to pick its item (or Save to take what you wear), then Wear. In combat your "
+      .. "weapons change at once and the rest when combat ends. Also: the Gear sets list beside your character window, "
+      .. "the set button, keys, /gear equip <set>." })
+    Editor(p)
 
-    W.Card(p, "This set", { tip = "The set picked in the preview." })
-    W.Edit(p, "Name", "Press Enter to rename it.", function() return GO.edit or "" end, function(v)
-      if GO.edit and GR.Rename(GO.edit, v) then GO.edit = v O:Refresh() end
-    end)
+    W.Card(p, "This set", { tip = "The set picked on the left." })
     -- (a menu's choices are made once: the set's own items come through "auto")
     local icons = { { key = "auto", label = "Its chest or weapon", texture = "Interface\\Icons\\INV_Misc_QuestionMark" } }
     for _, t in ipairs({ { "INV_Chest_Plate06", "Plate" }, { "INV_Chest_Cloth_17", "Cloth" }, { "INV_Chest_Leather_09", "Leather" },

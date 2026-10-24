@@ -230,7 +230,9 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       PickupInventoryItem(inv)
     else
       PickupContainerItem(from.bag, from.slot)
-      EquipCursorItem(inv)
+      -- (1.12 has no EquipCursorItem: a click on the slot with the item held
+      -- puts it on, and the one worn goes to the bag slot it came from)
+      PickupInventoryItem(inv)
     end
     -- (anything left on the cursor goes back where it came from)
     if CursorHasItem and CursorHasItem() then

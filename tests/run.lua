@@ -3818,29 +3818,25 @@ do
         cursor = here and { item = here, bag = b, slot = s } or nil
       end
     end)
+    -- (as the 1.12 client: a slot clicked with an item held puts it on and the
+    -- one worn goes where the held one came from; there is no EquipCursorItem)
+    Stub("EquipCursorItem", nil)
     Stub("PickupInventoryItem", function(i)
       local here = inv[i]
       if cursor then
-        inv[i] = cursor.item
-        if here and cursor.bag then bags[cursor.bag][cursor.slot] = here cursor = nil
-        elseif here and cursor.inv then inv[cursor.inv] = here cursor = nil
-        else cursor = nil end
+        local held = cursor.item
+        inv[i] = held
+        if here and cursor.bag then bags[cursor.bag][cursor.slot] = here
+        elseif here and cursor.inv then inv[cursor.inv] = here end
+        cursor = nil
+        -- (a two-hander takes the off hand off into the bags)
+        if held.loc == "INVTYPE_2HWEAPON" and inv[17] then
+          for s = 1, 8 do if not bags[0][s] then bags[0][s] = inv[17] inv[17] = nil break end end
+        end
       else
         inv[i] = nil
         cursor = here and { item = here, inv = i } or nil
       end
-    end)
-    Stub("EquipCursorItem", function(i)
-      if not cursor then return end
-      local old = inv[i]
-      inv[i] = cursor.item
-      -- (the one taken off goes where the new one came from)
-      if old and cursor.bag then bags[cursor.bag][cursor.slot] = old end
-      -- (a two-hander takes the off hand off into the bags)
-      if cursor.item.loc == "INVTYPE_2HWEAPON" and inv[17] then
-        for s = 1, 8 do if not bags[0][s] then bags[0][s] = inv[17] inv[17] = nil break end end
-      end
-      cursor = nil
     end)
     local function Run() for _ = 1, 40 do GR.Tick() end end
     local sets = pfUI_config.gear.sets
@@ -3909,14 +3905,53 @@ do
       ok(good and O.pages.gearsets and O.pages.gearsets.frame:IsShown() and GO.slots and table.getn(GO.slots) == 19,
         "the Gear page opens with all 19 slots: " .. tostring(err))
       local shown = 0
-      for _, t in ipairs(GO.tiles or {}) do if t:IsShown() then shown = shown + 1 end end
-      ok(shown == table.getn(GR.Sets()) + 1, "a tile per set and one for a new set (" .. shown .. ")")
-      -- right-click a slot: left out of the set
-      local headSlot
-      for _, s in ipairs(GO.slots) do if s.inv == 1 then headSlot = s end end
-      _G.this, _G.arg1 = headSlot, "RightButton"
-      headSlot:GetScript("OnClick")()
-      ok(sets.Tank.slots.s1 == nil, "right-click leaves a slot out of the set")
+      for _, r in ipairs(GO.rows or {}) do if r:IsShown() then shown = shown + 1 end end
+      ok(shown == table.getn(GR.Sets()), "the saved sets listed on the left (" .. shown .. ")")
+      ok(GO.name and GO.name:GetText() == "Tank" and GO.model, "the set's name and the character beside its slots")
+      -- the slots where the character sheet has them: head top left, main hand under the middle
+      local slotOf = {}
+      for _, s in ipairs(GO.slots) do slotOf[s.inv] = s end
+      local _, _, _, hx = slotOf[1]:GetPoint(1)
+      local _, _, _, gx = slotOf[10]:GetPoint(1)
+      local _, _, _, mx, my = slotOf[16]:GetPoint(1)
+      ok(hx < mx and mx < gx and my < -200, "head on the left, hands on the right, weapons underneath")
+      -- the tick and right-click: in the set or not
+      ok(slotOf[16].tick:GetChecked(), "a slot of the set is ticked")
+      _G.this, _G.arg1 = slotOf[1], "RightButton"
+      slotOf[1]:GetScript("OnClick")()
+      ok(sets.Tank.slots.s1 == nil and not slotOf[1].tick:GetChecked(), "right-click leaves a slot out (tick off)")
+      _G.this = slotOf[1].tick
+      slotOf[1].tick:GetScript("OnClick")()
+      ok(sets.Tank.slots.s1 ~= nil, "the tick puts it back in")
+      -- a slot's menu: the item worn there, its pair's, the bags, "take it off"
+      local picked
+      local fl = GR.Flyout
+      GR.Flyout = function(owner, inv, onPick, opts) picked = opts.items end
+      local had12 = inv[12]
+      inv[12] = ring2
+      GO.PickFor(slotOf[11])
+      inv[12] = had12
+      GR.Flyout = fl
+      local hasWorn12, hasEmpty
+      for _, it in ipairs(picked or {}) do
+        if it == "empty" then hasEmpty = true elseif it.id == "301:0:0" then hasWorn12 = true end
+      end
+      ok(hasWorn12 and hasEmpty, "a ring slot's menu has the ring worn in the other slot and \"take it off\"")
+      -- the character window's menus: the other ring too, and picking it swaps it across
+      local had11, had12b = inv[11], inv[12]
+      inv[11], inv[12] = nil, ring2
+      local menuItems = GR.MenuItems(11)
+      ok(menuItems[1] and menuItems[1].worn == 12, "a ring slot's menu starts with the ring worn in the other slot")
+      GR.EquipItem(11, menuItems[1])
+      for _ = 1, 40 do GR.Tick() end
+      ok(inv[11] == ring2 and inv[12] == nil, "and picking it moves it across")
+      inv[11], inv[12] = had11, had12b
+      -- New set: what you wear, picked and named
+      local before = table.getn(GR.Sets())
+      GO.NewSet()
+      ok(table.getn(GR.Sets()) == before + 1 and GO.edit and sets[GO.edit], "New set saves what you wear and picks it")
+      GR.Delete(GO.edit)
+      GO.edit = "Tank"
       pfUI.gui:Hide()
     end
     -- slot buttons (phase 2): the slots picked, laid out, a click uses the item

@@ -87,6 +87,29 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     return out
   end
 
+  -- an item menu's items: the one worn in the slot's pair (the other ring,
+  -- trinket or one-hand weapon: it swaps across), then the carried ones
+  local PAIR = { [11] = 12, [12] = 11, [13] = 14, [14] = 13, [16] = 17, [17] = 16 }
+  GR.PAIR = PAIR
+  function GR.MenuItems(inv)
+    local out = {}
+    local other = PAIR[inv]
+    -- (not "other and GR.Worn(other)": an "and" keeps only the first of two returns)
+    local id, link
+    if other then id, link = GR.Worn(other) end
+    if id then
+      local loc = GR.EquipLoc(link)
+      for _, f in ipairs(loc and GR.FITS[loc] or {}) do
+        if f == inv then
+          local _, _, nm = string.find(link, "%[(.-)%]")
+          table.insert(out, { id = id, link = link, name = nm or "", tex = GetInventoryItemTexture("player", other), worn = other })
+        end
+      end
+    end
+    for _, it in ipairs(GR.ItemsFor(inv, true)) do table.insert(out, it) end
+    return out
+  end
+
   -- one slot, one item (through the same queue as sets: in combat only weapons)
   function GR.EquipItem(inv, item)
     local want = item == "empty" and "empty" or { id = item.id, name = item.name, tex = item.tex }
@@ -137,8 +160,13 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
       if this.item == "empty" then
         GameTooltip:AddLine("Take it off")
+      elseif this.item.worn then
+        GameTooltip:SetInventoryItem("player", this.item.worn)
+        GameTooltip:AddLine("Worn in your " .. string.lower(GR.NAME[this.item.worn] or "") .. " slot", .6, .8, 1)
       elseif this.item.bag then
         GameTooltip:SetBagItem(this.item.bag, this.item.slot)
+      elseif this.item.id then
+        pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. this.item.id .. ":0")
       end
       if fly.hint then GameTooltip:AddLine(fly.hint, .6, .8, 1) end
       GameTooltip:Show()
@@ -154,7 +182,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   -- open the item menu for slot inv beside owner; onPick(item | "empty", mouse button)
   function GR.Flyout(owner, inv, onPick, opts)
     opts = opts or {}
-    local items = opts.items or GR.ItemsFor(inv, true)
+    local items = opts.items or GR.MenuItems(inv)
     if opts.empty ~= false and GR.Worn(inv) and C.gear.allowempty ~= "0" then table.insert(items, "empty") end
     if table.getn(items) == 0 then fly:Hide() return end
     fly.owner, fly.onPick, fly.hint = owner, onPick, opts.hint

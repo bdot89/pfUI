@@ -607,3 +607,10 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    them dimmed; not in the Gear page's own lists), only-soulbound filter (pfGearScan tooltip, ITEM_SOULBOUND).
    Options page gearslots "Slot buttons". The colour test's IsColor now needs every number 0..1.
    Next: phase 3 events + auto queue.
+   Seen in game 24 Oct: the user found the first Gear sets page confusing ("look at how Outfitter and Item Rack do
+   their UIs") and swapping from the character window did nothing - 1.12 has no EquipCursorItem (only
+   AutoEquipCursorItem); a bag item goes on with PickupContainerItem + PickupInventoryItem(slot) (the worn one goes
+   to that bag slot). The test stub sets EquipCursorItem = nil. The Gear sets page is now an ItemRack-style editor
+   (GO.LEFT / RIGHT / BOTTOM slots as on the character sheet with a tick each, saved sets listed left, a
+   DressUpModel wearing the set between them, name box, Wear / Take off / Save / Delete). GR.MenuItems(inv) = the
+   item worn in the slot's pair (GR.PAIR) + carried items, for every item menu. Not seen in game yet.
