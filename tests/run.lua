@@ -3946,6 +3946,28 @@ do
       for _ = 1, 40 do GR.Tick() end
       ok(inv[11] == ring2 and inv[12] == nil, "and picking it moves it across")
       inv[11], inv[12] = had11, had12b
+      -- a picture saved blank is filled in from the worn item (seen in game)
+      sets.Tank.slots.s16 = { id = GR.Worn(16), name = "x", tex = "" }
+      GO.Paint()
+      ok(sets.Tank.slots.s16.tex ~= "" and slotOf[16].icon:GetTexture() == sets.Tank.slots.s16.tex,
+        "a blank set picture is filled in (" .. tostring(sets.Tank.slots.s16.tex) .. ")")
+      -- the character: a size of its own, one point
+      ok(GO.model:GetWidth() > 100 and GO.model:GetHeight() > 100 and GO.model:GetNumPoints() == 1, "the character has its own size and place")
+      -- the icon picker: the set's items first, then the macro icons, search
+      local gnm, gmi = GetNumMacroIcons, GetMacroIconInfo
+      _G.GetNumMacroIcons = function() return 30 end
+      _G.GetMacroIconInfo = function(i) return i <= 20 and ("Interface\\Icons\\Spell_Fire_" .. i) or ("INV_Sword_" .. i) end
+      local picked2
+      local pk = GO.IconPicker(slotOf[1], nil, { "Interface\\Icons\\Own" }, function(path) picked2 = path end)
+      ok(pk:IsShown() and pk.shown[1] == "Interface\\Icons\\Own" and table.getn(pk.shown) == 31, "the icon picker: the set's items first, then every macro icon")
+      ok(pk.shown[31] == "Interface\\Icons\\INV_Sword_30", "a bare icon name gets its folder")
+      pk.search:SetText("sword")
+      pk:Fill()
+      ok(table.getn(pk.shown) == 10, "searching narrows it (" .. table.getn(pk.shown) .. ")")
+      _G.this = pk.buttons[1]
+      pk.buttons[1]:GetScript("OnClick")()
+      ok(picked2 == "Interface\\Icons\\INV_Sword_21" and not pk:IsShown(), "a click picks it and closes")
+      _G.GetNumMacroIcons, _G.GetMacroIconInfo = gnm, gmi
       -- New set: what you wear, picked and named
       local before = table.getn(GR.Sets())
       GO.NewSet()

@@ -66,6 +66,135 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
   local PAIR = { [11] = 12, [12] = 11, [13] = 14, [14] = 13, [16] = 17, [17] = 16 }
 
 
+  -- an item's picture: worn there, in the bags, or the game's item info
+  function GO.TexOf(id, inv)
+    if not id then return "" end
+    if inv and GR.Worn(inv) == id then return GetInventoryItemTexture("player", inv) or "" end
+    for _, b in ipairs(GR.Bags()) do
+      if b.id == id then return (GetContainerItemInfo(b.bag, b.slot)) or "" end
+    end
+    local info = _G.GetItemInfo
+    if info then
+      local base = string.gsub(id, ":.*$", "")
+      local _, _, _, _, _, _, _, _, tex = info("item:" .. base)
+      if tex then return tex end
+    end
+    return ""
+  end
+
+  -- ---------------------------------------------------------------- icon picker
+
+  -- every macro icon in a grid, as the game's macro window (user, 24 Oct 2026),
+  -- the set's own item pictures first; a search box, the wheel scrolls
+  local COLS, ROWS, ISZ = 10, 6, 34
+  local picker
+  local function Picker()
+    if picker then return picker end
+    picker = CreateFrame("Frame", "pfGearIconPicker", UIParent)
+    picker:SetFrameStrata("FULLSCREEN_DIALOG")
+    picker:SetWidth(COLS * (ISZ + 3) + 17)
+    picker:SetHeight(ROWS * (ISZ + 3) + 72)
+    Flat(picker, .97)
+    picker:EnableMouse(true)
+    picker:EnableMouseWheel(true)
+    table.insert(UISpecialFrames, "pfGearIconPicker")
+    picker:Hide()
+    local title = picker:CreateFontString(nil, "OVERLAY")
+    title:SetFont(W.UIFont(), 12, "OUTLINE")
+    title:SetPoint("TOPLEFT", picker, "TOPLEFT", 10, -10)
+    title:SetText("Pick an icon")
+    local close = W.Button(picker, "X", 22, 20)
+    close:SetPoint("TOPRIGHT", picker, "TOPRIGHT", -6, -6)
+    close:SetScript("OnClick", function() picker:Hide() end)
+    picker.search = W.EditBox(picker, 180)
+    picker.search:SetPoint("TOPRIGHT", close, "TOPLEFT", -8, 0)
+    picker.search:SetScript("OnTextChanged", function() picker.top = 0 picker:Fill() end)
+    picker.search:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+    W.Tip(picker.search, "Search", "Part of the icon's file name: sword, shield, fire, holy, nature...")
+    picker.buttons = {}
+    for i = 1, COLS * ROWS do
+      local b = CreateFrame("Button", nil, picker)
+      b:SetWidth(ISZ)
+      b:SetHeight(ISZ)
+      local r = math.floor((i - 1) / COLS)
+      local c = i - 1 - r * COLS
+      b:SetPoint("TOPLEFT", picker, "TOPLEFT", 8 + c * (ISZ + 3), -36 - r * (ISZ + 3))
+      Flat(b, 1)
+      b.tex = b:CreateTexture(nil, "ARTWORK")
+      b.tex:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+      b.tex:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+      b:SetScript("OnClick", function()
+        if picker.onPick then picker.onPick(this.path) end
+        picker:Hide()
+      end)
+      b:SetScript("OnEnter", function()
+        local ar, ag, ab = Accent()
+        this:SetBackdropBorderColor(ar, ag, ab, 1)
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:AddLine((string.gsub(this.path or "", "^.*\\", "")))
+        GameTooltip:Show()
+      end)
+      b:SetScript("OnLeave", function()
+        if this.path ~= picker.current then this:SetBackdropBorderColor(.2, .2, .24, 1) end
+        GameTooltip:Hide()
+      end)
+      picker.buttons[i] = b
+    end
+    picker.page = picker:CreateFontString(nil, "OVERLAY")
+    picker.page:SetFont(W.UIFont(), 11, "OUTLINE")
+    picker.page:SetPoint("BOTTOMLEFT", picker, "BOTTOMLEFT", 10, 10)
+    picker.page:SetTextColor(.6, .6, .65)
+    picker:SetScript("OnMouseWheel", function()
+      local rows = math.ceil(table.getn(picker.shown or {}) / COLS)
+      picker.top = math.max(0, math.min(math.max(0, rows - ROWS), (picker.top or 0) - (arg1 or 0)))
+      picker:Fill()
+    end)
+    -- the list: the extra pictures first, then every macro icon (once each)
+    function picker:Fill()
+      local find = string.lower(self.search:GetText() or "")
+      local list, seen = {}, {}
+      local function Add(path)
+        if not path or path == "" or seen[path] then return end
+        seen[path] = true
+        if find == "" or string.find(string.lower(path), find, 1, true) then table.insert(list, path) end
+      end
+      for _, path in ipairs(self.extra or {}) do Add(path) end
+      for i = 1, (GetNumMacroIcons and GetNumMacroIcons() or 0) do
+        local path = GetMacroIconInfo(i)
+        -- (a bare icon name gets its folder)
+        if path and not string.find(path, "\\", 1, true) then path = "Interface\\Icons\\" .. path end
+        Add(path)
+      end
+      self.shown = list
+      local ar, ag, ab = Accent()
+      for i, b in ipairs(self.buttons) do
+        local path = list[(self.top or 0) * COLS + i]
+        b.path = path
+        if path then
+          b.tex:SetTexture(path)
+          if path == self.current then b:SetBackdropBorderColor(ar, ag, ab, 1) else b:SetBackdropBorderColor(.2, .2, .24, 1) end
+          b:Show()
+        else
+          b:Hide()
+        end
+      end
+      local rows = math.max(1, math.ceil(table.getn(list) / COLS))
+      self.page:SetText(table.getn(list) .. " icons   -   row " .. ((self.top or 0) + 1) .. " of " .. rows .. "   (mouse wheel scrolls)")
+    end
+    return picker
+  end
+  -- open it beside owner; extra = pictures to put first; onPick(path)
+  function GO.IconPicker(owner, current, extra, onPick)
+    local f = Picker()
+    f.onPick, f.current, f.extra, f.top = onPick, current, extra, 0
+    f.search:SetText("")
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -4)
+    f:Fill()
+    f:Show()
+    return f
+  end
+
   local function Editor(p)
     local box = W.Box(p, 392)
     local holder = CreateFrame("Frame", nil, box)
@@ -202,21 +331,21 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     icon.tex:SetPoint("TOPLEFT", icon, "TOPLEFT", 1, -1)
     icon.tex:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
     icon.tex:SetTexCoord(.07, .93, .07, .93)
-    -- (click: the next picture from the set's own items)
+    -- (click: every macro icon to pick from, the set's own items first)
     icon:SetScript("OnClick", function()
       local set = GO.Set()
       if not set then return end
-      local list, at = {}, 0
+      local own = {}
       for _, s in ipairs(GR.SLOTS) do
         local e = set.slots[GR.Key(s[1])]
-        if type(e) == "table" and e.tex and e.tex ~= "" then
-          table.insert(list, e.tex)
-          if e.tex == set.icon then at = table.getn(list) end
-        end
+        if type(e) == "table" and e.tex and e.tex ~= "" then table.insert(own, e.tex) end
       end
-      if table.getn(list) > 0 then set.icon = list[math.mod(at, table.getn(list)) + 1] GR.Changed() end
+      GO.IconPicker(this, set.icon, own, function(path)
+        local s2 = GO.Set()
+        if s2 then s2.icon = path GR.Changed() end
+      end)
     end)
-    W.Tip(icon, "Icon", "Click for the next picture from the set's items (more on the This set card).")
+    W.Tip(icon, "Icon", "Click to pick one: the set's items first, then every icon the macro window has.")
     local name = W.EditBox(holder, midR - midL - 40)
     name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     name:SetScript("OnEnterPressed", function()
@@ -232,19 +361,41 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     W.Tip(name, "Name", "Type a name and press Enter.")
 
     -- the character, wearing the set (drag to turn it)
+    -- (seen in game: anchored by two corners and dressed before it had a size,
+    -- the model drew in the box's bottom-left corner. Now a fixed size, one
+    -- point, dressed once it is on screen; and hidden while scrolled out of the
+    -- page, since 1.12 draws models outside a scroll area)
     local model = CreateFrame("DressUpModel", nil, holder)
-    model:SetPoint("TOPLEFT", box, "TOPLEFT", midL, -50)
-    model:SetPoint("BOTTOMRIGHT", box, "TOPLEFT", midR, -12 - 7 * (SZ + GAP) + 4)
+    local mw, mh = midR - midL, 7 * (SZ + GAP) - 50
+    model:SetWidth(mw)
+    model:SetHeight(mh)
+    model:SetPoint("TOP", box, "TOPLEFT", (midL + midR) / 2, -48)
     model:EnableMouse(true)
     model:SetScript("OnMouseDown", function() this.turnX = GetCursorPosition() this.turnF = this.facing or 0 end)
     model:SetScript("OnMouseUp", function() this.turnX = nil end)
-    model:SetScript("OnUpdate", function()
-      if not this.turnX then return end
-      local x = GetCursorPosition()
-      this.facing = this.turnF + (x - this.turnX) / 80
-      if this.SetFacing then this:SetFacing(this.facing) end
-    end)
+    model:SetScript("OnShow", function() this.redress = 2 end)
     GO.model = model
+    -- the page's visible area (the scroll frame round the page)
+    local view = p.frame
+    local watch = CreateFrame("Frame", nil, holder)
+    watch:SetScript("OnUpdate", function()
+      local t, b = box:GetTop(), box:GetBottom()
+      local vt, vb = view and view:GetTop(), view and view:GetBottom()
+      local inside = t and b and vt and vb and (t <= vt + 1) and (b >= vb - 1)
+      if inside and not model:IsShown() then model:Show()
+      elseif not inside and model:IsShown() then model:Hide() end
+      if not model:IsShown() then return end
+      -- (dressed a frame after showing, when it has its size)
+      if model.redress then
+        model.redress = model.redress - 1
+        if model.redress <= 0 then model.redress = nil GO.Dress() end
+      end
+      if model.turnX then
+        local x = GetCursorPosition()
+        model.facing = model.turnF + (x - model.turnX) / 80
+        if model.SetFacing then model:SetFacing(model.facing) end
+      end
+    end)
     local function Dress()
       if not model.SetUnit then return end
       pcall(model.SetUnit, model, "player")
@@ -319,6 +470,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
       end
       for i = table.getn(names) + 1, table.getn(GO.rows) do GO.rows[i]:Hide() end
       local set = GO.Set()
+      if set and (not set.icon or set.icon == "") then GR.Save(GO.edit, set.slots) end
       icon.tex:SetTexture(set and set.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
       if not GO.typing then name:SetText(GO.edit or "") end
       for _, s in ipairs(GO.slots) do
@@ -328,7 +480,10 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         s.tick:SetChecked(e ~= nil)
         if not set then s.tick:Hide() else s.tick:Show() end
         if type(e) == "table" then
-          s.icon:SetTexture(e.tex)
+          -- (a picture saved blank - the game had not loaded it yet: the worn
+          -- one or the item's own, kept in the set from now on)
+          if not e.tex or e.tex == "" then e.tex = GO.TexOf(e.id, s.inv) end
+          s.icon:SetTexture(e.tex ~= "" and e.tex or EMPTY[s.inv])
         elseif e == "empty" then
           s.icon:SetTexture(EMPTY[s.inv])
           s.icon:SetAlpha(.6)
@@ -401,29 +556,27 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     Editor(p)
 
     W.Card(p, "This set", { tip = "The set picked on the left." })
-    -- (a menu's choices are made once: the set's own items come through "auto")
-    local icons = { { key = "auto", label = "Its chest or weapon", texture = "Interface\\Icons\\INV_Misc_QuestionMark" } }
-    for _, t in ipairs({ { "INV_Chest_Plate06", "Plate" }, { "INV_Chest_Cloth_17", "Cloth" }, { "INV_Chest_Leather_09", "Leather" },
-                         { "INV_Sword_04", "Sword" }, { "INV_Shield_06", "Shield" }, { "INV_Staff_08", "Staff" },
-                         { "INV_Weapon_Bow_07", "Bow" }, { "Spell_Holy_Heal", "Healing" }, { "Spell_Fire_Fire", "Fire" },
-                         { "Spell_Frost_FrostBolt02", "Frost" }, { "Spell_Shadow_ShadowBolt", "Shadow" },
-                         { "Ability_Mount_RidingHorse", "Riding" }, { "Ability_Warrior_DefensiveStance", "Tanking" },
-                         { "INV_Misc_Gear_01", "Gear" }, { "Ability_Rogue_Sprint", "Speed" }, { "INV_Fishingpole_02", "Fishing" } }) do
-      table.insert(icons, { key = "Interface\\Icons\\" .. t[1], label = t[2], texture = "Interface\\Icons\\" .. t[1] })
-    end
-    W.Dropdown(p, "Icon", "Each choice shows its picture.", icons, function()
-      local s = GO.Set()
-      if not s then return end
-      for _, e in ipairs(icons) do if e.key == s.icon then return s.icon end end
-      return "auto"
-    end, function(v)
-      local s = GO.Set()
-      if not s then return end
-      s.icon = nil
-      if v ~= "auto" then s.icon = v end
-      -- (auto: GR.Save picks the chest, main hand, head... picture)
-      GR.Save(GO.edit, s.slots, s.icon)
-    end)
+    W.Buttons(p, {
+      { "Pick an icon", function()
+        local set = GO.Set()
+        if not set then return end
+        local own = {}
+        for _, s in ipairs(GR.SLOTS) do
+          local e = set.slots[GR.Key(s[1])]
+          if type(e) == "table" and e.tex and e.tex ~= "" then table.insert(own, e.tex) end
+        end
+        GO.IconPicker(this, set.icon, own, function(path)
+          local s2 = GO.Set()
+          if s2 then s2.icon = path GR.Changed() end
+        end)
+      end, nil, "Every icon the macro window has, the set's items first. Or click the icon beside the set's name." },
+      { "Icon from its items", function()
+        local s = GO.Set()
+        if not s then return end
+        s.icon = nil
+        GR.Save(GO.edit, s.slots)
+      end, nil, "Its chest, main hand or head picture." },
+    })
     local keys = { { key = "", label = "None" } }
     for i = 1, 10 do table.insert(keys, { key = tostring(i), label = "Gear set " .. i }) end
     W.Dropdown(p, "Key", "Then give \"Gear set N\" a key in Key Bindings (pfUI Octo: gear sets).", keys,
