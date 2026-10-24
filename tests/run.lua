@@ -3899,6 +3899,18 @@ do
     -- the Gear page: tiles for the sets, the slots of the one picked
     local O = pfUI.octoui and pfUI.octoui.Options
     local GO = pfUI.gearOcto
+    if GO and GO.TexOf then
+      -- seen in game 24 Oct: a set saved with the game's placeholder picture
+      -- (INV_Robe_02, missing on this client) drew blank; the picture now
+      -- comes from the item itself, any enchant
+      ok(not GR.GoodTex("Interface\\Icons\\INV_Robe_02") and GR.GoodTex("Interface\\Icons\\INV_Sword_04"), "the placeholder picture is refused")
+      local w, t, b = GR.Worn, GetInventoryItemTexture, GR.Bags
+      GR.Worn = function(inv) if inv == 7 then return "47204:999:0" end end
+      _G.GetInventoryItemTexture = function(_, inv) if inv == 7 then return "Interface\\Icons\\INV_Pants_08" end end
+      GR.Bags = function() return {} end
+      ok(GO.TexOf("47204:3025:0", 7) == "Interface\\Icons\\INV_Pants_08", "the worn copy's picture, whatever its enchant")
+      GR.Worn, _G.GetInventoryItemTexture, GR.Bags = w, t, b
+    end
     if O and GO then
       pfUI.gui:Show()
       local good, err = pcall(function() GO.Open("Tank") end)

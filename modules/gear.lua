@@ -60,6 +60,14 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     return n
   end
 
+  -- A picture worth keeping. Seen in game 24 Oct: items the game had not
+  -- loaded yet gave Interface\Icons\INV_Robe_02, a file this client does not
+  -- have (checked against every MPQ's file list), so it drew blank.
+  local BADTEX = { ["interface\\icons\\inv_robe_02"] = true }
+  function GR.GoodTex(t)
+    return type(t) == "string" and t ~= "" and not BADTEX[string.lower(t)]
+  end
+
   function GR.Worn(inv)
     local link = GetInventoryItemLink("player", inv)
     return GR.IdOf(link), link
@@ -137,10 +145,11 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     local set = C.gear.sets[name] or {}
     set.slots = slots or set.slots or GR.Snapshot()
     if icon then set.icon = icon end
-    if not set.icon or set.icon == "" then
+    if not set.icon or set.icon == "" or not GR.GoodTex(set.icon) then
+      set.icon = nil
       for _, k in ipairs({ "s5", "s16", "s1", "s15", "s3" }) do
         local e = set.slots[k]
-        if type(e) == "table" and e.tex and e.tex ~= "" then set.icon = e.tex break end
+        if type(e) == "table" and GR.GoodTex(e.tex) then set.icon = e.tex break end
       end
       set.icon = set.icon or "Interface\\Icons\\INV_Chest_Plate06"
     end

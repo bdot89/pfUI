@@ -614,3 +614,9 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    (GO.LEFT / RIGHT / BOTTOM slots as on the character sheet with a tick each, saved sets listed left, a
    DressUpModel wearing the set between them, name box, Wear / Take off / Save / Delete). GR.MenuItems(inv) = the
    item worn in the slot's pair (GR.PAIR) + carried items, for every item menu. Not seen in game yet.
+   Blank slots (24 Oct, found from the saved file, not a screenshot): Set 1 held
+   tex = "Interface\\Icons\\INV_Robe_02" for 8 slots - the picture the game gave for items it had not loaded
+   yet; the file is in no MPQ, so it drew blank. GR.GoodTex refuses it; GO.TexOf looks the picture up by the
+   item's base id (worn in the slot or its pair, bags, GetItemInfo) before the saved one, and the set icon /
+   icon picker use it too. The saved file (WTF\...\SavedVariables\pfUI.lua, written on /reload) is the
+   quickest way to see a set's data.

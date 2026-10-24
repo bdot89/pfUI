@@ -66,18 +66,38 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
   local PAIR = { [11] = 12, [12] = 11, [13] = 14, [14] = 13, [16] = 17, [17] = 16 }
 
 
-  -- an item's picture: worn there, in the bags, or the game's item info
+  -- an item's picture, looked up fresh by the item (any copy - enchant and
+  -- suffix do not change the picture): worn in that slot or its pair, in the
+  -- bags, or the game's item info. Seen in game 24 Oct: a set saved while the
+  -- game had not loaded its items held a placeholder picture
+  -- (Interface\Icons\INV_Robe_02, a file the client does not have) for most
+  -- slots, which then showed blank.
+  local function BaseOf(id) return id and (string.gsub(id, ":.*$", "")) end
+  local function WornBase(inv)
+    local w = GR.Worn(inv)
+    return w and BaseOf(w)
+  end
   function GO.TexOf(id, inv)
     if not id then return "" end
-    if inv and GR.Worn(inv) == id then return GetInventoryItemTexture("player", inv) or "" end
+    local base = BaseOf(id)
+    if inv then
+      for _, i in ipairs({ inv, PAIR[inv] }) do
+        if WornBase(i) == base then
+          local t = GetInventoryItemTexture("player", i)
+          if GR.GoodTex(t) then return t end
+        end
+      end
+    end
     for _, b in ipairs(GR.Bags()) do
-      if b.id == id then return (GetContainerItemInfo(b.bag, b.slot)) or "" end
+      if BaseOf(b.id) == base then
+        local t = GetContainerItemInfo(b.bag, b.slot)
+        if GR.GoodTex(t) then return t end
+      end
     end
     local info = _G.GetItemInfo
     if info then
-      local base = string.gsub(id, ":.*$", "")
       local _, _, _, _, _, _, _, _, tex = info("item:" .. base)
-      if tex then return tex end
+      if GR.GoodTex(tex) then return tex end
     end
     return ""
   end
@@ -338,7 +358,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
       local own = {}
       for _, s in ipairs(GR.SLOTS) do
         local e = set.slots[GR.Key(s[1])]
-        if type(e) == "table" and e.tex and e.tex ~= "" then table.insert(own, e.tex) end
+        if type(e) == "table" then local t = GO.TexOf(e.id, s[1]) if t == "" then t = e.tex end if GR.GoodTex(t) then table.insert(own, t) end end
       end
       GO.IconPicker(this, set.icon, own, function(path)
         local s2 = GO.Set()
@@ -496,13 +516,12 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         s.tick:SetChecked(e ~= nil)
         if not set then s.tick:Hide() else s.tick:Show() end
         if type(e) == "table" then
-          -- (a picture saved blank - the game had not loaded it yet: the worn
-          -- one or the item's own, kept in the set from now on)
-          if not e.tex or e.tex == "" then e.tex = GO.TexOf(e.id, s.inv) end
-          -- (the worn item's own picture first, when it is this one)
-          local live = GR.Worn(s.inv) == e.id and GetInventoryItemTexture("player", s.inv)
-          if live and live ~= "" then e.tex = live end
-          s.icon:SetTexture(e.tex ~= "" and e.tex or EMPTY[s.inv])
+          -- the picture looked up fresh by the item; the saved one only when
+          -- the game cannot say (an item in the bank), and the fresh one
+          -- replaces it in the set
+          local fresh = GO.TexOf(e.id, s.inv)
+          if fresh ~= "" then e.tex = fresh end
+          s.icon:SetTexture((fresh ~= "" and fresh) or (GR.GoodTex(e.tex) and e.tex) or EMPTY[s.inv])
         elseif e == "empty" then
           s.icon:SetTexture(EMPTY[s.inv])
           s.icon:SetAlpha(.6)
@@ -582,7 +601,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         local own = {}
         for _, s in ipairs(GR.SLOTS) do
           local e = set.slots[GR.Key(s[1])]
-          if type(e) == "table" and e.tex and e.tex ~= "" then table.insert(own, e.tex) end
+          if type(e) == "table" then local t = GO.TexOf(e.id, s[1]) if t == "" then t = e.tex end if GR.GoodTex(t) then table.insert(own, t) end end
         end
         GO.IconPicker(this, set.icon, own, function(path)
           local s2 = GO.Set()
