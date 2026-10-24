@@ -1323,7 +1323,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     -- there - off the screen, 24 Oct 2026)
     UpdateMovable(win, not saved)
     if S(win).lock == "1" then win.grip:Hide() else win.grip:Show() end
-    win:Show()
+    if C.meters.hidden == "1" then win:Hide() else win:Show() end
     Refresh(win)
     Lift(win)
   end
@@ -1347,6 +1347,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   end
   function M.ResetPositions()
     for _, w in ipairs(M.windows) do M.ResetPosition(w) end
+    -- (the show / hide button too)
+    if M.toggle then
+      if C.position then C.position["pfMeterToggle"] = nil end
+      M.toggle:ClearAllPoints()
+      M.toggle:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -260, 40)
+      UpdateMovable(M.toggle, true)
+    end
     DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. T["every meter window is back in its starting place."])
   end
   _G.SLASH_PFMETERRESET1 = "/pfmeterreset"
@@ -1795,7 +1802,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     M.windows[id] = win
     win.free = true
     Float(win)
-    win:Show()
+    if C.meters.hidden == "1" then M.ShowAll(true) end
     return win
   end
 
@@ -1849,6 +1856,88 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   end
   for _, win in ipairs(M.windows) do
     if win.free then Float(win) else Register(win) end
+  end
+
+  -- ---------------------------------------------------------------- show / hide all
+
+  -- One button for all the meters (user, 24 Oct 2026: "just a button ... on
+  -- screen and can be moved, pressing it shows ALL meters, pressing it again
+  -- hides them"). C.meters.hidden keeps the state over a reload.
+  function M.AnyShown()
+    for _, w in ipairs(M.windows) do if w:IsShown() then return true end end
+    return false
+  end
+  function M.ShowAll(on)
+    C.meters.hidden = on and "0" or "1"
+    for _, w in ipairs(M.windows) do
+      if on then w:Show() w.Refresh(w) else w:Hide() end
+    end
+    if M.PaintToggle then M.PaintToggle() end
+  end
+  function M.ToggleAll() M.ShowAll(not M.AnyShown()) end
+
+  local tb = CreateFrame("Button", "pfMeterToggle", UIParent)
+  tb:SetWidth(32)
+  tb:SetHeight(32)
+  tb:SetFrameStrata("MEDIUM")
+  tb:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -260, 40)
+  tb:SetMovable(true)
+  tb:SetClampedToScreen(true)
+  CreateBackdrop(tb, nil, nil, .9)
+  tb.icon = tb:CreateTexture(nil, "ARTWORK")
+  tb.icon:SetTexture("Interface\\Icons\\Ability_Marksmanship")
+  tb.icon:SetTexCoord(.08, .92, .08, .92)
+  tb.icon:SetPoint("TOPLEFT", tb, "TOPLEFT", 2, -2)
+  tb.icon:SetPoint("BOTTOMRIGHT", tb, "BOTTOMRIGHT", -2, 2)
+  tb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  tb:RegisterForDrag("LeftButton")
+  tb:SetScript("OnClick", function()
+    if arg1 == "RightButton" then
+      local O = pfUI.octoui and pfUI.octoui.Options
+      if O and O.Open then O:Open(T["Meters"]) end
+      return
+    end
+    M.ToggleAll()
+  end)
+  -- Shift + drag moves it (layout mode moves it too)
+  tb:SetScript("OnDragStart", function() if IsShiftKeyDown() then this:StartMoving() this.moving = true end end)
+  tb:SetScript("OnDragStop", function()
+    if this.moving then this:StopMovingOrSizing() this.moving = nil SaveMovable(this) end
+  end)
+  tb:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_TOP")
+    GameTooltip:AddLine(T["Meters"])
+    GameTooltip:AddLine(M.AnyShown() and T["Click: hide all meters"] or T["Click: show all meters"], 1, 1, 1)
+    GameTooltip:AddLine(T["Right-click: meter options"], .7, .7, .7)
+    GameTooltip:AddLine(T["Shift + drag: move this button"], .7, .7, .7)
+    GameTooltip:Show()
+  end)
+  tb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  function M.PaintToggle()
+    if M.AnyShown() then tb.icon:SetVertexColor(1, 1, 1) tb.icon:SetDesaturated(nil)
+    else tb.icon:SetVertexColor(.6, .6, .6) tb.icon:SetDesaturated(1) end
+  end
+  if UpdateMovable then UpdateMovable(tb) end
+  M.toggle = tb
+  if C.meters.togglebtn == "0" then tb:Hide() end
+  if C.meters.hidden == "1" then M.ShowAll(false) else M.PaintToggle() end
+
+  -- the right chat window stood empty once the meters left it (user, 24 Oct
+  -- 2026: "the black window is there remove it completely"): switched off
+  -- once; its Loot & Spam tab goes into the left chat. Chat settings can
+  -- switch it back on.
+  if C.meters.rightchatoff ~= "1" and pfUI.chat and pfUI.chat.SetupRightChat and C.chat.right.enable == "1" then
+    C.meters.rightchatoff = "1"
+    pcall(function()
+      pfUI.chat.SetupRightChat(false)
+      if ChatFrame3 then
+        ChatFrame3:SetParent(UIParent)
+        local tab = _G["ChatFrame3Tab"]
+        if tab then tab:SetParent(UIParent) end
+        if FCF_DockFrame then FCF_DockFrame(ChatFrame3) end
+        if FCF_DockUpdate then FCF_DockUpdate() end
+      end
+    end)
   end
 
   -- ---------------------------------------------------------------- old addons, instances

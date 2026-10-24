@@ -670,6 +670,19 @@ if ME then
     w1:SetHeight(160)
     w1.Refresh(w1)
     ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    -- one button shows / hides every meter (user, 24 Oct 2026)
+    ok(pfMeterToggle and ME.ToggleAll, "the meters button is there")
+    if ME.ToggleAll then
+      ME.ShowAll(true)
+      pfMeterToggle:Click()
+      local any = false
+      for _, w in ipairs(ME.windows) do if w:IsShown() then any = true end end
+      ok(not any and pfUI_config.meters.hidden == "1", "clicking it hides every meter")
+      pfMeterToggle:Click()
+      local all = true
+      for _, w in ipairs(ME.windows) do if not w:IsShown() then all = false end end
+      ok(all and pfUI_config.meters.hidden == "0", "clicking again shows them all")
+    end
     -- reset positions (user, 24 Oct 2026: a window went off the screen)
     ok(ME.HomeX(6) <= 280 and ME.HomeX(4) == -280, "new windows start on the screen, three to a row")
     if ME.ResetPosition then

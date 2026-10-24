@@ -140,6 +140,8 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("appearance", "border",      "chat",             "-1")
   pfUI:UpdateConfig("appearance", "border",      "bags",             "-1")
   pfUI:UpdateConfig("meters",     nil,           "enable",           "1")
+  pfUI:UpdateConfig("meters",     nil,           "hidden",           "0")
+  pfUI:UpdateConfig("meters",     nil,           "togglebtn",        "1")
 
   pfUI:UpdateConfig("meters",     nil,           "windows",          "2")
   pfUI:UpdateConfig("meters",     nil,           "mode1",            "damage")

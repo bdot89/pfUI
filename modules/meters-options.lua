@@ -322,7 +322,14 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
         "Every meter window back to its starting place in the middle of the screen." },
       { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, 120,
         "Layout mode: drag the meter windows (and everything else) where you want them." },
+      { "Show / hide all", function() if M.ToggleAll then M.ToggleAll() end end, 120,
+        "The same as clicking the meters button on your screen." },
     })
+    W.Check(p, "Meters button on the screen", "A small button that shows or hides every meter window. Shift + drag "
+      .. "moves it; right-click opens these options.", function() return C.meters.togglebtn ~= "0" end, function(v)
+      C.meters.togglebtn = v and "1" or "0"
+      if M.toggle then if v then M.toggle:Show() else M.toggle:Hide() end end
+    end)
     -- (user, 23 Oct 2026: "a full test mode ... click on test bars in the
     -- meter and look at the extra frames with information")
     W.Card(p, "Test mode", { on = { function() return M.testOn and true or false end,
