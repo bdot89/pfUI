@@ -71,16 +71,29 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   -- The picture of what is worn in a slot. Seen in game 24 Oct: for this
   -- server's own items (the Prophecy set, 47xxx) GetInventoryItemTexture keeps
   -- giving the missing placeholder, while GetItemInfo has the real picture.
+  -- Found 24 Oct: DmorphOcto's item morphs change the picture the game
+  -- reports for a worn item (its main-hand morph made a staff show a sword;
+  -- morphs into items the client lacks gave the placeholder). GetItemInfo
+  -- reads the real item, so its picture comes first.
   function GR.InvTex(inv)
-    local t = GetInventoryItemTexture("player", inv)
-    if GR.GoodTex(t) then return t end
     local link = GetInventoryItemLink("player", inv)
     local _, _, base = string.find(link or "", "item:(%d+)")
     if base and _G.GetItemInfo then
       local _, _, _, _, _, _, _, _, tex = _G.GetItemInfo("item:" .. base)
       if GR.GoodTex(tex) then return tex end
     end
+    local t = GetInventoryItemTexture("player", inv)
+    if GR.GoodTex(t) then return t end
     return nil
+  end
+
+  -- a two-handed weapon in the main hand (the off hand cannot be used then)
+  function GR.TwoHanded()
+    local link = GetInventoryItemLink("player", 16)
+    local _, _, base = string.find(link or "", "item:(%d+)")
+    if not base or not _G.GetItemInfo then return false end
+    local _, _, _, _, _, _, _, loc = _G.GetItemInfo("item:" .. base)
+    return loc == "INVTYPE_2HWEAPON"
   end
 
   function GR.Worn(inv)

@@ -229,6 +229,20 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   -- ---------------------------------------------------------------- character window
 
   -- hovering an equipment slot opens its item menu (Shift held, if set so)
+  -- The character window shows the real item's picture (user, 24 Oct 2026:
+  -- a staff showed as a sword - DmorphOcto's morph changes the picture the
+  -- game reports for a worn item; GR.InvTex reads the real one)
+  if PaperDollItemSlotButton_Update and hooksecurefunc then
+    hooksecurefunc("PaperDollItemSlotButton_Update", function()
+      local b = this
+      local id = b and b.GetID and b:GetID()
+      if not id or id < 1 or id > 19 or not b.GetName or not b:GetName() then return end
+      local icon = getglobal(b:GetName() .. "IconTexture")
+      local tex = GetInventoryItemLink("player", id) and GR.InvTex(id)
+      if icon and tex then icon:SetTexture(tex) end
+    end)
+  end
+
   local function HookSlots()
     for _, s in ipairs(GR.SLOTS) do
       local slotButton = _G["Character" .. s[2]]

@@ -3802,8 +3802,10 @@ do
     Stub("UnitAffectingCombat", function(u) return u == "player" and combat end)
     Stub("GetItemInfo", function(s)
       local _, _, id, ench = string.find(s, "item:(%d+):(%d*)")
+      if not id then _, _, id = string.find(s, "item:(%d+)") end
       for _, it in ipairs({ sword, shield, axe, ring, ring2, trink, trink2, axeFiery }) do
-        if string.find(it.link, "item:" .. id .. ":" .. ench .. ":", 1, true) then
+        local want = ench and ("item:" .. id .. ":" .. ench .. ":") or ("item:" .. tostring(id) .. ":")
+        if id and string.find(it.link, want, 1, true) then
           return "x", it.link, 1, 1, "Armor", "Misc", 1, it.loc, it.tex
         end
       end
@@ -4002,7 +4004,10 @@ do
       if KM then
         local t = GetInventoryItemTexture
         _G.GetInventoryItemTexture = function(_, inv) if inv == 16 then return "Interface\\Icons\\INV_Sword_04" end end
+        local iv = GR.InvTex
+        GR.InvTex = function(inv) if inv == 16 then return "Interface\\Icons\\INV_Sword_04" end end
         ok(KM.Describe("PFGEARSLOT16") == "Interface\\Icons\\INV_Sword_04", "the Key Map shows the worn item's picture on that key")
+        GR.InvTex = iv
         _G.GetInventoryItemTexture = t
       end
     end
@@ -4023,6 +4028,17 @@ do
       _G.GetInventoryItemLink = function() return "|cffa335ee|Hitem:47198:2544:0:0|h[Coronet of Prophecy]|h|r" end
       _G.GetItemInfo = function(s) if s == "item:47198" then return "Coronet of Prophecy", s, 4, 60, "Armor", "Cloth", 1, "INVTYPE_HEAD", "Interface\\Icons\\INV_Crown_01" end end
       ok(GR.InvTex(1) == "Interface\\Icons\\INV_Crown_01", "a worn item's picture skips the placeholder (" .. tostring(GR.InvTex(1)) .. ")")
+      -- a morph's picture (DmorphOcto) is not the item's: the real one wins
+      _G.GetInventoryItemTexture = function() return "Interface\\Icons\\INV_Sword_04" end
+      ok(GR.InvTex(1) == "Interface\\Icons\\INV_Crown_01", "the real item's picture, not the morph's")
+      -- a two-hander hides the empty off-hand button
+      _G.GetInventoryItemLink = function(_, inv) if inv == 16 then return "|Hitem:18609:0:0:0|h[Anathema]|h" end end
+      _G.GetItemInfo = function(s) if s == "item:18609" then return "Anathema", s, 4, 60, "Weapon", "Staves", 1, "INVTYPE_2HWEAPON", "Interface\\Icons\\INV_Staff_12" end end
+      ok(GR.TwoHanded(), "a staff counts as two-handed")
+      local f = CreateFrame("Frame", nil, UIParent)
+      local bts = { [16] = CreateFrame("Button", nil, f), [17] = CreateFrame("Button", nil, f) }
+      for _, bt in pairs(bts) do bt.icon = bt:CreateTexture() end
+      ok(GR.LayoutSlots(f, bts, { 16, 17 }) == 1 and not bts[17]:IsShown(), "the empty off hand hides under a two-hander")
       _G.GetInventoryItemTexture, _G.GetInventoryItemLink, _G.GetItemInfo = t, gl, gi
     end
     if O and GO then

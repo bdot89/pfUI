@@ -113,9 +113,12 @@ pfUI:RegisterModule("gear-slots", "vanilla", function ()
     local vertical = C.gear.slotvertical == "1"
     for _, b in pairs(buttons) do b:Hide() end
     local n = 0
+    -- (the off hand stays away while a two-hander is worn and it is empty -
+    -- user, 24 Oct 2026; it comes back with a one-hander)
+    local noOff = GR.TwoHanded() and not GetInventoryItemLink("player", 17)
     for _, inv in ipairs(list) do
       local b = buttons[inv]
-      if b then
+      if b and not (inv == 17 and noOff) then
         local line = math.floor(n / per)
         local pos = n - line * per
         local x, y = pos * (size + gap), line * (size + gap)
