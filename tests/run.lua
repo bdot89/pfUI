@@ -3918,6 +3918,19 @@ do
     ok(GE and GE.Check and pfUI.octoui.Options.BUILD.gearevents, "automatic swaps and their page are there")
     local pgood, perr = pcall(function() pfUI.octoui.Options:Page("gearevents") end)
     ok(pgood, "the Automatic swaps page builds: " .. tostring(perr))
+    -- Rename (user, 24 Oct 2026): the button / right-click ask for a new name
+    if GO and GO.AskRename then
+      local first = GR.Sets()[1]
+      GO.AskRename(first)
+      local d = _G["pfQuestionDialog"]
+      ok(d and d.input and d.input.text == first, "Rename asks with the old name filled in")
+      if d and d.input and d.yes then
+        d.input:SetText("Renamed set")
+        d.yes:Click()
+        ok(pfUI_config.gear.sets["Renamed set"] and not pfUI_config.gear.sets[first], "the set has its new name")
+        GR.Rename("Renamed set", first)
+      end
+    end
     -- seen in game 24 Oct: Wear stayed clickable for a set that was worn
     if GO and GO.wear and GO.Paint then
       local ie = GR.IsEquipped

@@ -253,21 +253,54 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
       r.worn:SetPoint("RIGHT", r, "RIGHT", -5, 0)
       r.worn:SetTextColor(.3, 1, .4)
       r.worn:SetText("worn")
-      r:SetScript("OnClick", function() GO.edit = this.set GR.Changed() O:Refresh() end)
+      r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      r:SetScript("OnClick", function()
+        if arg1 == "RightButton" then GO.AskRename(this.set) return end
+        GO.edit = this.set GR.Changed() O:Refresh()
+      end)
       r:SetScript("OnDoubleClick", function() GR.Equip(this.set) end)
       r:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
         GameTooltip:AddLine(this.set)
         GameTooltip:AddLine("Click: change it here", 1, 1, 1)
         GameTooltip:AddLine("Double-click: wear it", 1, 1, 1)
+        GameTooltip:AddLine("Right-click: rename it", 1, 1, 1)
         GameTooltip:Show()
       end)
       r:SetScript("OnLeave", function() GameTooltip:Hide() end)
       GO.rows[i] = r
       return r
     end
-    local newBtn = W.Button(holder, "New set", 176, 22)
+    -- Rename (user, 24 Oct 2026): a box asking for the new name; the name
+    -- box over the slots does the same on Enter
+    function GO.AskRename(setname)
+      setname = setname or GO.edit
+      if not setname or not C.gear.sets[setname] then return end
+      -- (another question box open would make this one close it instead)
+      local open = _G["pfQuestionDialog"]
+      if open and open:IsShown() then open:Hide() _G["pfQuestionDialog"] = nil end
+      CreateQuestionDialog("Rename \"" .. setname .. "\" to:", function()
+        local box = this:GetParent().input
+        local v = box and string.gsub(box:GetText() or "", "^%s*(.-)%s*$", "%1")
+        if v and v ~= "" and v ~= setname then
+          if C.gear.sets[v] then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r gear: there is already a set called \"" .. v .. "\".")
+          elseif GR.Rename(setname, v) then
+            if GO.edit == setname then GO.edit = v end
+            O:Refresh()
+          end
+        end
+      end, false, true)
+      local d = _G["pfQuestionDialog"]
+      if d and d.input then d.input:SetText(setname) d.input:HighlightText() end
+    end
+
+    local newBtn = W.Button(holder, "New set", 86, 22)
     newBtn:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 8, 30)
+    local renBtn = W.Button(holder, "Rename", 86, 22)
+    renBtn:SetPoint("LEFT", newBtn, "RIGHT", 4, 0)
+    renBtn:SetScript("OnClick", function() GO.AskRename(GO.edit) end)
+    W.Tip(renBtn, "Rename", "Give the set picked on the left a new name. Right-click a set does the same.")
     newBtn:SetScript("OnClick", function()
       GO.NewSet()
       O:Refresh()
