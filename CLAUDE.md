@@ -677,3 +677,21 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    when hidden): M.ToggleAll / ShowAll, C.meters.hidden kept over reloads, right-click = options,
    C.meters.togglebtn. The empty right chat was switched off once (C.meters.rightchatoff, pfUI.chat.
    SetupRightChat(false), ChatFrame3 Loot & Spam docked into the left chat).
+17. Switches, map hiding, UI layouts (24 Oct 2026, NOT seen in game). User: "things like this should be
+   simply able to be toggled on and off", the map hiding by itself in battlegrounds / raids with everything
+   on it, and "RAID UI, NORMAL UI, PVPUI" with an on-screen button and optional automatic switching.
+   - Page switches: O.ModuleSwitch(mod, what) (C.disabled[mod], pfUI.gui.settingChanged -> reload offered
+     on close), O.KeySwitch(group, key, tip, after). On: Action bars, Gryphons, Buffs, Cast bars, Chat,
+     Whispers, Gear sets, Slot buttons (live), Trinket queue (live), Meter windows (live show / hide),
+     Threat (C.meters.threat), Minimap, Swing Timer, Unit frames (C.unitframes.disable). O.STANDIN: a page
+     that needs its module (actionbar, swing, minimap, meters, gear) gets a stand-in page with the switch
+     while that module is off (O:AddStandIns at first open).
+   - modules/octo-context.lua: pfUI.context.Zone() bg | arena | raid | dungeon | world (battlefield status,
+     IsInInstance + kind, else raid group), listeners on change (+ 2 s poll). C.mapauto[zone] = "1": the
+     minimap frame hides, parts outside it (minimap-style PARTS, addon buttons) go alpha 0 + no mouse, put
+     back with map.ApplyStyle; card "Hide by itself" on the Minimap page.
+   - modules/octo-layouts.lua: pfUI.layouts, C.layouts { current, auto, button, byzone[zone], saved[name] =
+     { pos = copy of C.position, meters, gear } }. Switch saves the current layout first, swaps C.position,
+     UpdateMovable for every movable, meters ShowAll, optional gear set; waits for combat to end. Button
+     pfLayoutButton (click = next, right-click = menu, Shift+drag), /layout [name]. Section "UI layouts"
+     second in O.NAV.

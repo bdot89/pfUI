@@ -33,6 +33,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   -- a source is an Octo section or a pfUI category, by name
   O.NAV = {
     { "Settings", { "Settings" } },
+    { "UI layouts", { "UI layouts" } },
     { "Unit Frames", { "Unit Frames", "Castbar" } },
     { "Action Bars", { "Action Bars", "Actionbar" } },
     { "Swing Timer", { "Swing Timer" } },
@@ -531,7 +532,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     xpbar = "INV_Misc_Book_11", tooltip = "INV_Letter_15", castbar = "Spell_Nature_Lightning",
     chat = "INV_Scroll_03", nameplates = "Ability_Hunter_SniperShot", meters = "Ability_Marksmanship",
     thirdparty = "INV_Gizmo_01", components = "Trade_Engineering", about = "INV_Misc_QuestionMark",
-    skins = "INV_Misc_Orb_01", threat = "Ability_Warrior_DefensiveStance",
+    skins = "INV_Misc_Orb_01", threat = "Ability_Warrior_DefensiveStance", uilayouts = "INV_Misc_Map_01",
     actionbars = "Ability_DualWield", chatpanels = "INV_Scroll_03", minimapbuffs = "INV_Misc_Map_01",
     bagsloot = "INV_Misc_Bag_08", addons = "INV_Gizmo_01", swingtimer = "INV_Sword_04", gear = "INV_Chest_Plate06",
   }

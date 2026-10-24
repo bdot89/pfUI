@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "octo-context", "octo-layouts" }
 
 -- ---------------------------------------------------------------- load
 
@@ -3298,7 +3298,7 @@ do
     -- the topic list: most used first, small categories grouped
     local heads = {}
     for _, grp in ipairs(O.groups) do table.insert(heads, grp.header.text.text) end
-    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Swing Timer" and heads[5] == "Gear" and heads[6] == "Nameplates" and heads[table.getn(heads)] == "About",
+    ok(heads[1] == "Settings" and heads[2] == "UI layouts" and heads[3] == "Unit Frames" and heads[5] == "Swing Timer" and heads[6] == "Gear" and heads[7] == "Nameplates" and heads[table.getn(heads)] == "About",
       "topic list in order of importance (" .. table.concat(heads, ", ") .. ")")
     local castTopic
     for _, grp in ipairs(O.groups) do
@@ -3518,6 +3518,63 @@ do
     KM.frame:Hide()
     _G.SetBinding, _G.GetBindingAction, _G.GetBindingKey, _G.SaveBindings, _G.HasAction, _G.GetActionTexture, _G.PlaceAction =
       saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
+  end
+end
+
+-- ---------------------------------------------------------------- where you are, map hiding, UI layouts
+
+do
+  local X, L = pfUI.context, pfUI.layouts
+  ok(X and X.Zone and L and L.Switch, "context and layouts are there")
+  if X and L then
+    local bf, ii = GetBattlefieldStatus, IsInInstance
+    local inBG, inRaid = false, false
+    _G.GetBattlefieldStatus = function() return inBG and "active" or "none" end
+    _G.IsInInstance = function() if inRaid then return 1, "raid" end return nil end
+    ok(X.Zone() == "world", "open world")
+    inRaid = true
+    ok(X.Zone() == "raid", "a raid")
+    inRaid, inBG = false, true
+    ok(X.Zone() == "bg", "a battleground")
+    -- the minimap hides by itself in battlegrounds and comes back after
+    local map = pfUI.minimap
+    if map then
+      pfUI_config.mapauto.bg, pfUI_config.mapauto.tell = "1", "0"
+      inBG = false X.Check()
+      map:Show()
+      inBG = true X.Check()
+      ok(not map:IsShown(), "the minimap hides in a battleground")
+      inBG = false X.Check()
+      ok(map:IsShown(), "and comes back in the open world")
+      pfUI_config.mapauto.bg = "0"
+    end
+    -- layouts keep their own frame places
+    local s = L.Store()
+    local wasPos, wasCur, wasAuto = pfUI_config.position, s.current, s.auto
+    s.current = "Normal"
+    s.saved = {}
+    pfUI_config.position = { pfTestFrameA = { anchor = "CENTER", xpos = 10, ypos = 10 } }
+    L.Switch("Raid")
+    ok(s.current == "Raid" and pfUI_config.position.pfTestFrameA and pfUI_config.position.pfTestFrameA.xpos == 10,
+      "a new layout starts as a copy of the one you were in")
+    pfUI_config.position.pfTestFrameA.xpos = 99
+    L.Switch("Normal")
+    ok(pfUI_config.position.pfTestFrameA.xpos == 10, "Normal keeps its own places")
+    L.Switch("Raid")
+    ok(pfUI_config.position.pfTestFrameA.xpos == 99, "Raid keeps what was arranged in it")
+    -- automatic: a battleground puts PvP on
+    s.auto = "1"
+    inBG = false X.Check()
+    inBG = true X.Check()
+    ok(s.current == "PvP", "entering a battleground switches to PvP (" .. tostring(s.current) .. ")")
+    s.auto = wasAuto
+    local pg, pe = pcall(function() pfUI.octoui.Options:Page("layouts") end)
+    ok(pg, "the UI layouts page builds: " .. tostring(pe))
+    pg, pe = pcall(function() pfUI.octoui.Options.pages.mmmap = nil pfUI.octoui.Options:Page("mmmap") end)
+    ok(pg, "the Minimap page builds with its Hide by itself card: " .. tostring(pe))
+    pfUI_config.position, s.current = wasPos, wasCur
+    _G.GetBattlefieldStatus, _G.IsInInstance = bf, ii
+    inBG = false
   end
 end
 

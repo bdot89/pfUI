@@ -573,6 +573,8 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
     W.Heading(p, "Minimap", { on = O.ModuleSwitch("minimap", "Minimap"), about = "The map's look: a ready-made style, its shape, border, the spell art around it, "
       .. "size and opacity. Buttons and texts around it are on \"Buttons and text\"." })
     Preview(p)
+    -- (user, 24 Oct 2026: hidden by itself in battlegrounds, raids...)
+    if pfUI.context and pfUI.context.MapCard then pfUI.context.MapCard(p, W) end
 
     W.Card(p, "Looks", { tip = "Shape, border and art in one click. Buttons, sizes and places stay as they are." })
     local looks = {}
