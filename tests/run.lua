@@ -3562,6 +3562,34 @@ do
     ok(pfUI_config.position.pfTestFrameA.xpos == 10, "Normal keeps its own places")
     L.Switch("Raid")
     ok(pfUI_config.position.pfTestFrameA.xpos == 99, "Raid keeps what was arranged in it")
+    -- each layout keeps its own spells (user, 24 Oct 2026): a made-up action bar
+    do
+      local bar, cursor = { [1] = { t = "spell", name = "Smite", rank = "Rank 2" } }, nil
+      local book = { { "Smite", "Rank 1" }, { "Smite", "Rank 2" }, { "Psychic Scream", "Rank 1" } }
+      local saved = { HasAction, GetActionText, GetSpellName, PickupSpell, PlaceAction, PickupAction, ClearCursor, GetActionInfo }
+      local km = pfUI.keymap and pfUI.keymap.ActionSpell
+      _G.HasAction = function(s) return bar[s] ~= nil end
+      _G.GetActionText = function(s) return bar[s] and bar[s].t == "macro" and bar[s].name or nil end
+      _G.GetActionInfo = nil
+      _G.GetSpellName = function(i) local b = book[i] if b then return b[1], b[2] end end
+      _G.PickupSpell = function(i) cursor = { t = "spell", name = book[i][1], rank = book[i][2] } end
+      _G.PlaceAction = function(s) local old = bar[s] bar[s] = cursor cursor = old end
+      _G.PickupAction = function(s) cursor = bar[s] bar[s] = nil end
+      _G.ClearCursor = function() cursor = nil end
+      if pfUI.keymap then pfUI.keymap.ActionSpell = function(s) if bar[s] then return bar[s].name, bar[s].rank end end end
+      local cur = s.current
+      L.Switch(cur == "Normal" and "PvP" or "Normal")          -- the layout left keeps Smite on slot 1
+      local other = s.current
+      bar[1] = { t = "spell", name = "Psychic Scream", rank = "Rank 1" }
+      L.Switch(cur)
+      ok(bar[1] and bar[1].name == "Smite" and bar[1].rank == "Rank 2", "switching back puts that layout's spell back, rank too")
+      L.Switch(other)
+      ok(bar[1] and bar[1].name == "Psychic Scream", "and the other layout's spell on the other layout")
+      L.Switch(cur)
+      _G.HasAction, _G.GetActionText, _G.GetSpellName, _G.PickupSpell, _G.PlaceAction, _G.PickupAction, _G.ClearCursor, _G.GetActionInfo =
+        saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7], saved[8]
+      if pfUI.keymap then pfUI.keymap.ActionSpell = km end
+    end
     -- automatic: a battleground puts PvP on
     s.auto = "1"
     inBG = false X.Check()

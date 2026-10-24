@@ -39,17 +39,135 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
   end
   L.Store = Store
 
+  -- ---------------------------------------------------------------- spells on the bars
+
+  -- Each layout keeps what is on the 120 action slots (user, 24 Oct 2026:
+  -- "it moves the frames but my spells dont move" - different spells per
+  -- layout). A slot is { t = "spell" | "item" | "macro", name, rank }.
+  -- ClassicAPI's GetActionInfo says which kind (its returns are taken as
+  -- retail's - not verified on this client); without it: a macro has
+  -- GetActionText, a name in the spellbook is a spell, the rest are items.
+  -- The name and rank come from the button's tooltip.
+  local scan
+  local function TipName(slot)
+    if pfUI.keymap and pfUI.keymap.ActionSpell then return pfUI.keymap.ActionSpell(slot) end
+    if not scan then scan = CreateFrame("GameTooltip", "pfLayoutScan", nil, "GameTooltipTemplate") end
+    scan:SetOwner(WorldFrame, "ANCHOR_NONE")
+    scan:ClearLines()
+    scan:SetAction(slot)
+    local l, r = getglobal("pfLayoutScanTextLeft1"), getglobal("pfLayoutScanTextRight1")
+    local name, rank = l and l:GetText(), r and r:IsShown() and r:GetText()
+    scan:Hide()
+    if rank == "" then rank = nil end
+    return name, rank
+  end
+
+  -- the spellbook index of a spell (that rank, else the highest)
+  local function SpellIndex(name, rank)
+    local i, best = 1, nil
+    while true do
+      local n, r = GetSpellName(i, BOOKTYPE_SPELL or "spell")
+      if not n then break end
+      if n == name then
+        best = i
+        if rank and r == rank then return i end
+      end
+      i = i + 1
+    end
+    return best
+  end
+
+  function L.ReadSlot(slot)
+    if not HasAction(slot) then return nil end
+    local kind
+    if GetActionInfo then
+      local ok, k = pcall(GetActionInfo, slot)
+      if ok and type(k) == "string" then kind = k end
+    end
+    local macro = GetActionText and GetActionText(slot)
+    if kind == "macro" or (not kind and macro) then return { t = "macro", name = macro } end
+    local name, rank = TipName(slot)
+    if not name then return nil end
+    if kind == "item" then return { t = "item", name = name } end
+    if kind == "spell" or SpellIndex(name) then return { t = "spell", name = name, rank = rank } end
+    return { t = "item", name = name }
+  end
+
+  function L.ReadBars()
+    local out = {}
+    for slot = 1, 120 do
+      local e = L.ReadSlot(slot)
+      if e then out[tostring(slot)] = e end
+    end
+    return out
+  end
+
+  local function Same(a, b)
+    if not a or not b then return a == b end
+    return a.t == b.t and a.name == b.name and (a.t ~= "spell" or a.rank == b.rank)
+  end
+
+  -- what is carried or worn with that name: bag, slot | inv
+  local function FindItem(name)
+    for bag = 0, 4 do
+      for s = 1, (GetContainerNumSlots(bag) or 0) do
+        local link = GetContainerItemLink(bag, s)
+        if link and string.find(link, "[" .. name .. "]", 1, true) then return bag, s end
+      end
+    end
+    for inv = 1, 19 do
+      local link = GetInventoryItemLink("player", inv)
+      if link and string.find(link, "[" .. name .. "]", 1, true) then return nil, nil, inv end
+    end
+  end
+
+  -- puts e on the slot (nil = empties it); false when it could not
+  function L.PutSlot(slot, e)
+    if Same(L.ReadSlot(slot), e) then return true end
+    ClearCursor()
+    if not e then
+      PickupAction(slot)
+      ClearCursor()
+      return true
+    end
+    if e.t == "spell" then
+      local i = SpellIndex(e.name, e.rank)
+      if not i then return false end
+      PickupSpell(i, BOOKTYPE_SPELL or "spell")
+    elseif e.t == "macro" then
+      local i = GetMacroIndexByName and GetMacroIndexByName(e.name)
+      if not i or i == 0 then return false end
+      PickupMacro(i)
+    else
+      local bag, s, inv = FindItem(e.name)
+      if bag then PickupContainerItem(bag, s) elseif inv then PickupInventoryItem(inv) else return false end
+    end
+    PlaceAction(slot)
+    -- (what was on the slot comes onto the cursor: let it go)
+    ClearCursor()
+    return true
+  end
+
+  function L.WriteBars(bars)
+    if type(bars) ~= "table" then return end
+    local missing = 0
+    for slot = 1, 120 do
+      if not L.PutSlot(slot, bars[tostring(slot)]) then missing = missing + 1 end
+    end
+    if missing > 0 then Say(missing .. " action button" .. (missing == 1 and "" or "s") .. " kept what they had - not found in your spellbook, macros or bags.") end
+  end
+
   -- what the layout you are in looks like now
   local function Snapshot()
     local M = pfUI.meters
-    return { pos = Copy(C.position or {}), meters = (C.meters and C.meters.hidden == "1") and "0" or "1",
+    return { pos = Copy(C.position or {}), meters = (C.meters and C.meters.hidden == "1") and "0" or "1", bars = L.ReadBars(),
              gear = Store().saved[Store().current] and Store().saved[Store().current].gear or "" }
   end
   function L.SaveCurrent()
     local s = Store()
     local keep = s.saved[s.current] or {}
     local snap = Snapshot()
-    keep.pos, keep.meters = snap.pos, snap.meters
+    keep.pos, keep.meters, keep.bars = snap.pos, snap.meters, snap.bars
     keep.gear = keep.gear or ""
     s.saved[s.current] = keep
   end
@@ -91,6 +209,8 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     s.current = name
     Place()
     if pfUI.meters and pfUI.meters.ShowAll then pfUI.meters.ShowAll(target.meters ~= "0") end
+    -- its own spells on the action bars (unless switched off for it)
+    if target.bars and target.ownbars ~= "0" then L.WriteBars(target.bars) end
     if target.gear and target.gear ~= "" and pfUI.gear and C.gear.sets[target.gear] then pfUI.gear.Equip(target.gear) end
     L.Paint()
     Say(name .. (why and (" (" .. why .. ")") or "") .. ".")
@@ -226,7 +346,7 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       on = { function() return Store().button ~= "0" end, function(v) Store().button = v and "1" or "0" L.Paint() end,
         "The layout button on your screen." },
       about = "Three layouts - Normal, Raid and PvP - each remembering where every frame is (everything you move in "
-        .. "Move frames), whether the meters show, and a gear set. Switch with the button on your screen (click = "
+        .. "Move frames), the spells on your action bars, whether the meters show, and a gear set. Switch with the button on your screen (click = "
         .. "next, right-click = pick) or /layout. Whatever you arrange while in a layout is kept for it. Turn on "
         .. "Automatic and the layout for a place goes on when you get there." })
     W.Live(p, function() return "Now: |cff33ccff" .. Store().current .. "|r" end)
@@ -265,6 +385,15 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       end, function(v)
         local t = Store().saved[nm] or Snapshot()
         t.meters = v and "1" or "0"
+        Store().saved[nm] = t
+      end)
+      W.Check(p, nm .. ": its own spells", "This layout keeps its own spells, items and macros on the action bars: "
+        .. "what you put there while in it comes back when you switch to it.", function()
+        local t = Store().saved[nm]
+        return not t or t.ownbars ~= "0"
+      end, function(v)
+        local t = Store().saved[nm] or Snapshot()
+        t.ownbars = v and "1" or "0"
         Store().saved[nm] = t
       end)
       W.Dropdown(p, nm .. ": gear set", "Put on when this layout goes on.", SetList,

@@ -695,3 +695,10 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      UpdateMovable for every movable, meters ShowAll, optional gear set; waits for combat to end. Button
      pfLayoutButton (click = next, right-click = menu, Shift+drag), /layout [name]. Section "UI layouts"
      second in O.NAV.
+   - Own spells per layout (24 Oct, user: "it moves the frames but my spells dont move"): saved[name].bars =
+     L.ReadBars() (120 slots, { t = spell | item | macro, name, rank }; kind from ClassicAPI GetActionInfo when
+     present - unverified - else GetActionText = macro, spellbook name = spell, else item; name / rank from the
+     button tooltip via pfUI.keymap.ActionSpell). Switch writes them back (L.PutSlot: PickupSpell by name +
+     rank / PickupMacro / bag or worn item, PlaceAction, ClearCursor; empty = PickupAction + ClearCursor;
+     slots already right are left alone; not found -> kept, counted in chat). Per layout "its own spells"
+     (ownbars, on by default).
