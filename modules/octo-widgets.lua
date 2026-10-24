@@ -1144,11 +1144,33 @@ end
 -- A compact dropdown for custom rows: options { { key, label } }.
 function W.MiniDrop(parent, width, options, get, set, menuWidth)
   local f, text, btn, hit = W.DropBox(parent, width)
-  local menu = W.Menu(f, options, menuWidth or math.max(width, 120), function(k)
-    set(k)
-    Changed()
-  end)
+  -- options may be a function: the list is read again each time the menu
+  -- opens, so things made since (a new gear set) are in it (24 Oct 2026)
+  local list = options
+  local function Opts()
+    if type(list) == "function" then return list() or {} end
+    return list
+  end
+  local function Sig(o)
+    local s = ""
+    for i = 1, table.getn(o) do s = s .. tostring(o[i].key) .. "\1" .. tostring(o[i].label) .. "\2" end
+    return s
+  end
+  local menu, sig
+  local function Build()
+    local o = Opts()
+    local s = Sig(o)
+    if menu and s == sig then return end
+    if menu then menu:Hide() end
+    sig = s
+    menu = W.Menu(f, o, menuWidth or math.max(width, 120), function(k)
+      set(k)
+      Changed()
+    end)
+  end
+  Build()
   local function Toggle()
+    Build()
     local open = menu:IsShown()
     W.CloseMenus()
     if not open then menu:Show() end
@@ -1170,6 +1192,7 @@ function W.MiniDrop(parent, width, options, get, set, menuWidth)
     sample:Hide()
     icon:Hide()
     text:SetPoint("LEFT", f, "LEFT", 7, 0)
+    local options = Opts()
     for i = 1, table.getn(options) do
       local o = options[i]
       if o.key == k then

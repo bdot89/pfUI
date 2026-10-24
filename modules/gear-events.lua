@@ -243,7 +243,7 @@ pfUI:RegisterModule("gear-events", "vanilla", function ()
       W.Card(p, label, { folded = (Cfg(key).on ~= "1"),
         on = { function() return Cfg(key).on == "1" end, function(v) Cfg(key).on = v and "1" or "0" end,
           "Wear a set while: " .. label .. "." } })
-      W.Dropdown(p, "Wear", "The set worn while this lasts.", SetList(),
+      W.Dropdown(p, "Wear", "The set worn while this lasts.", SetList,
         function() return Cfg(key).set end, function(v) Cfg(key).set = v end)
       W.Check(p, "Put back after", "When it ends, wear again what you wore before.",
         function() return Cfg(key).back == "1" end, function(v) Cfg(key).back = v and "1" or "0" end)

@@ -3916,6 +3916,33 @@ do
     ok(GE and GE.Check and pfUI.octoui.Options.BUILD.gearevents, "automatic swaps and their page are there")
     local pgood, perr = pcall(function() pfUI.octoui.Options:Page("gearevents") end)
     ok(pgood, "the Automatic swaps page builds: " .. tostring(perr))
+    -- seen in game 24 Oct: a set made after the page was built was not in its menus
+    do
+      local W = pfUI.octoui.W
+      local names = { "A" }
+      local box = W.MiniDrop(UIParent, 120, function()
+        local o = {}
+        for _, n in ipairs(names) do table.insert(o, { key = n, label = n }) end
+        return o
+      end, function() return "A" end, function() end)
+      table.insert(names, "Brand new")
+      box:Click()
+      local found
+      for _, m in ipairs(W.menus) do
+        if m:IsShown() then
+          for _, e in ipairs({ m:GetChildren() }) do if e.key == "Brand new" then found = true end end
+        end
+      end
+      ok(found, "a dropdown's menu is read again when it opens")
+      W.CloseMenus()
+      -- the Options button / right-click on a set open the window itself
+      pfUI.gui:Hide()
+      if pfUI.plates and pfUI.plates.OpenSection then
+        pfUI.plates.OpenSection("gearsets")
+        ok(pfUI.gui:IsShown() and pfUI.octoui.Options.current == "o:gearsets", "opening a Gear page from outside shows the window")
+        pfUI.gui:Hide()
+      end
+    end
     if GE then
       local equip, wear, worn = GR.Equip, GR.Wear, GR.IsEquipped
       local got, back

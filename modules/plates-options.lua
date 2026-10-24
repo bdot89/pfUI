@@ -779,7 +779,9 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
   }
   P.GO = GO
   function P.OpenSection(key, title)
-    O:Select("o:" .. key)
+    -- (the window opens first: callers outside it - the gear menu's Options,
+    -- a right-click on a set - found nothing happened, 24 Oct 2026)
+    if not (O.frame and O.frame:IsShown()) then O:Open(key) else O:Select("o:" .. key) end
     local p = O.pages[key]
     if not p then return end
     for _, c in ipairs(p.cards) do
