@@ -3916,6 +3916,18 @@ do
     ok(GE and GE.Check and pfUI.octoui.Options.BUILD.gearevents, "automatic swaps and their page are there")
     local pgood, perr = pcall(function() pfUI.octoui.Options:Page("gearevents") end)
     ok(pgood, "the Automatic swaps page builds: " .. tostring(perr))
+    -- seen in game 24 Oct: Wear stayed clickable for a set that was worn
+    if GO and GO.wear and GO.Paint then
+      local ie = GR.IsEquipped
+      GR.IsEquipped = function() return true end
+      GO.edit = GR.Sets()[1]
+      pcall(GO.Paint)
+      ok(GO.wear:IsEnabled() ~= 1 and (GO.wear.text or GO.wear.label.text) == "Worn", "Wear is greyed out while the set is worn")
+      GR.IsEquipped = function() return false end
+      pcall(GO.Paint)
+      ok(GO.wear:IsEnabled() == 1 and (GO.wear.text or GO.wear.label.text) == "Wear", "and back when it is not")
+      GR.IsEquipped = ie
+    end
     -- seen in game 24 Oct: a set made after the page was built was not in its menus
     do
       local W = pfUI.octoui.W

@@ -493,7 +493,8 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
           r.set = n
           r.icon:SetTexture(C.gear.sets[n].icon)
           r.text:SetText(n)
-          if n == cur then r.worn:Show() else r.worn:Hide() end
+          -- (every set fully worn says so - two sets can hold the same gear)
+          if GR.IsEquipped(n) then r.worn:Show() else r.worn:Hide() end
           if n == GO.edit then
             r:SetBackdropBorderColor(ar, ag, ab, 1)
             r:SetBackdropColor(ar * .45, ag * .45, ab * .45, 1)
@@ -534,7 +535,18 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         local worn = set and e ~= nil and ((e == "empty" and not GR.Worn(s.inv)) or (type(e) == "table" and GR.Worn(s.inv) == e.id))
         if worn then s:SetBackdropBorderColor(ar, ag, ab, 1) else s:SetBackdropBorderColor(.2, .2, .24, 1) end
       end
-      W.Lit(GO.wear, set ~= nil and cur == GO.edit)
+      -- Wear: greyed out with "Worn" while this set is what you wear (user,
+      -- 24 Oct 2026: "why is wear enabled when its this set that is worn")
+      local onNow = set ~= nil and GR.IsEquipped(GO.edit)
+      W.Lit(GO.wear, false)
+      if onNow then
+        GO.wear:Disable()
+        GO.wear:SetText("Worn")
+        GO.wear.label:SetTextColor(.45, .45, .45)
+      else
+        GO.wear:Enable()
+        GO.wear:SetText("Wear")
+      end
       Dress()
     end
     GO.Paint = Paint

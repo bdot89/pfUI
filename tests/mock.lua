@@ -88,6 +88,9 @@ function methods:GetRight() return 300 end
 function methods:GetCenter() return 200, 650 end
 function methods:GetName(a) if a == 1 then return self.plateGuid end return self.name end
 function methods:GetParent() return self._parent end
+function methods:Disable() self._disabled = true end
+function methods:Enable() self._disabled = nil end
+function methods:IsEnabled() return (not self._disabled) and 1 or nil end
 function methods:SetParent(p)
   if self._parent and self._parent._kids then
     for i, k in ipairs(self._parent._kids) do
