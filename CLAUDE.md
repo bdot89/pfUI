@@ -660,9 +660,9 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    [on|off]. Page gearqueue "Trinket queue": per slot a 9-row list (^ v, Priority, Pause, Delay box, the
    red stop mark). Left out: TrinketMenu's "hold while its buff is on" (no item -> buff link on 1.12) and
    sort profiles.
-   Birthday suit (24 Oct, not seen in game): GR.Naked (every worn slot "empty", C.gear.before = snapshot,
+   Birthday suit (24 Oct, works in game): GR.Naked (every worn slot "empty", C.gear.before = snapshot,
    so Unequip dresses again), GR.ToggleNaked (menu entry Birthday suit / Dress again, /gear naked, binding
    PFGEARNAKED). Taking off: FreeBagSlot skips slots filled in the last 3 s (taken) and ones a special bag
    refused (item left on the cursor -> put back on, refused reset per GR.Wear).
-   Meters padlock (24 Oct, not seen in game): win.lockbtn (UI-ChatFrame-LockIcon), M.ToggleLock / M.PaintLock,
+   Meters padlock (24 Oct, works in game): win.lockbtn (UI-ChatFrame-LockIcon), M.ToggleLock / M.PaintLock,
    S(win).lock; docked -> SetDocked(win, false) unlocked; per-window btnlock.
