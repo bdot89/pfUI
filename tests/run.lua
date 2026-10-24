@@ -680,6 +680,13 @@ if ME then
       local pt, _, _, x, y = w1:GetPoint()
       ok(pfUI_config.position[w1:GetName()] == nil and pt == "CENTER" and x == ME.HomeX(1),
         "Reset position puts a lost window back in the middle (" .. tostring(pt) .. " " .. tostring(x) .. ")")
+      -- seen in game 24 Oct: closing layout mode put it back off the screen
+      -- (pfUI's remembered first spot); the reset spot is the default now
+      w1.posdata = { scale = 1, pos = { { "TOPLEFT", UIParent, "TOPLEFT", 5000, -5000 } } }
+      ME.ResetPosition(w1)
+      pfUI.api.UpdateMovable(w1)
+      pt, _, _, x = w1:GetPoint()
+      ok(pt == "CENTER" and x == ME.HomeX(1), "after layout mode it stays where the reset put it (" .. tostring(pt) .. " " .. tostring(x) .. ")")
       w1.free = wasFree
       if not wasFree then ME.ResetPosition(w1) end
     end

@@ -1304,10 +1304,14 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win:SetFrameStrata("MEDIUM")
     win:SetWidth(tonumber(S(win).width) or 260)
     win:SetHeight(tonumber(S(win).height) or 160)
-    if not (C.position and C.position[win:GetName()]) then
+    local saved = C.position and C.position[win:GetName()]
+    if not saved then
       win:SetPoint("CENTER", UIParent, "CENTER", M.HomeX(id), M.HomeY(id))
     end
-    UpdateMovable(win)
+    -- (with no saved spot this is the window's default from now on: pfUI
+    -- keeps the first spot it saw and layout mode put a reset window back
+    -- there - off the screen, 24 Oct 2026)
+    UpdateMovable(win, not saved)
     if S(win).lock == "1" then win.grip:Hide() else win.grip:Show() end
     win:Show()
     Refresh(win)
