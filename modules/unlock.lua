@@ -189,6 +189,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       C.position[frame:GetName()] = {}
     end
     C.position[frame:GetName()]["scale"] = scale
+    -- octo: a frame whose module keeps its own size setting (action bars)
+    -- takes the new size there too, so its next refresh keeps it
+    if frame.OnScale then frame:OnScale(scale) end
 
     frame.drag.text:SetText(T["Scale"] .. ": " .. scale)
     frame.drag.text:SetAlpha(1)
@@ -545,7 +548,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
 
     -- repaint hackfix for panels
-    if pfUI.panel and pfUI.chat then
+    if pfUI.panel and pfUI.chat and pfUI.panel.left and pfUI.chat.left and pfUI.panel.right and pfUI.chat.right then
       pfUI.panel.left:SetScale(pfUI.chat.left:GetScale())
       pfUI.panel.right:SetScale(pfUI.chat.right:GetScale())
     end

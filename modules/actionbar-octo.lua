@@ -669,6 +669,15 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
       if bar and d then
         local scale = tonumber(d.scale) or 1
         if math.abs((bar:GetScale() or 1) - scale) > .001 then bar:SetScale(scale) end
+        -- one size for both places that set it: layout mode keeps the bar's
+        -- scale in C.position too (24 Oct 2026: a bar sized with the mouse
+        -- wheel in layout mode went back to this setting after Esc)
+        local pos = bar.GetName and bar:GetName() and C.position[bar:GetName()]
+        if pos and pos.scale then pos.scale = scale end
+        if not bar.OnScale then
+          local n = i
+          bar.OnScale = function(_, s) DB(n).scale = tostring(s) end
+        end
         local alpha = tonumber(d.alpha) or 1
         bar.octoAlpha = alpha
         bar.fadeTo = math.min(alpha, tonumber(d.fadeto) or 0)

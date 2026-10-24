@@ -1033,7 +1033,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
           where = e.where
         else
           where = e.page.title or e.page.key
-          if e.card then where = where .. " > " .. e.card.title end
+          if e.card then where = where .. " > " .. (e.card.title or "Preview") end
         end
         row.b.text:SetText(e.label .. "   |cff999999" .. where .. "|r")
         row:Show()

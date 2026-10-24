@@ -3634,6 +3634,32 @@ do
   end
 end
 
+-- layout mode: a bar sized with the wheel keeps that size after Esc and the
+-- bars' next refresh (user, 24 Oct 2026: it went back)
+do
+  local bar = _G.pfActionBarMain
+  if bar and pfUI.unlock and pfUI.bars then
+    for k in pairs(pfUI.movables) do if type(k) ~= "string" then pfUI.movables[k] = nil end end
+    pfUI.unlock:Show()
+    local was = bar:GetScale()
+    if bar.drag then
+      _G.this, _G.arg1 = bar.drag, 2
+      bar.drag:GetScript("OnMouseWheel")()
+    end
+    local sized = bar:GetScale()
+    pfUI.unlock:Hide()
+    pfUI.bars:UpdateConfig()
+    ok(math.abs(sized - was) > .1 and math.abs(bar:GetScale() - sized) < .01,
+      "a bar sized in layout mode keeps its size after Esc (" .. was .. " -> " .. sized .. " -> " .. bar:GetScale() .. ")")
+    ok(pfUI_config.bars.bar1.scale == tostring(sized), "and the Bars page's Scale shows it (" .. tostring(pfUI_config.bars.bar1.scale) .. ")")
+    -- the Scale setting changed on the page: layout mode's saved size follows
+    pfUI_config.bars.bar1.scale = "1"
+    pfUI.bars:UpdateConfig()
+    pfUI.api.UpdateMovable(bar)
+    ok(math.abs(bar:GetScale() - 1) < .01, "and a Scale picked on the page holds in layout mode too")
+  end
+end
+
 -- the Buffs section: one page with a preview laid out as buff.lua does it
 do
   local O = pfUI.octoui and pfUI.octoui.Options
