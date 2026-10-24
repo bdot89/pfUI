@@ -63,6 +63,9 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
       -- a made-up fight with its own clock
       local st = { mhStart = 0, ohStart = -.7, tgStart = -.4, rgStart = 0, mhSpeed = 2.6, ohSpeed = 1.8, tgSpeed = 2.0,
                    rgSpeed = 2.9, lastSwing = 0, tgName = "Onyxia", n = 0, preview = true }
+      -- (a wand for every class but hunters, as on the real bar)
+      local _, cls = UnitClass("player")
+      st.wand = cls ~= "HUNTER"
       SO.state = st
       local bars = {}
       local ys = { player = -14, target = -64, ranged = -98, cast = -140 }
@@ -104,7 +107,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
         local fit = math.min(1, ((box:GetWidth() or 600) - 40) / 300)
         for bar, f in pairs(bars) do
           local set = C.swing[bar]
-          local two = (bar == "player" and set.offhand == "1") or (bar == "ranged" and set.onebar ~= "1")
+          local two = (bar == "player" and set.offhand == "1") or (bar == "ranged" and set.onebar ~= "1" and not st.wand)
           ST.Layout(f, set, two)
           f:SetScale(math.min(1, ((box:GetWidth() or 600) - 40) / math.max(1, tonumber(set.width) or 300)))
           f:ClearAllPoints()
@@ -208,11 +211,11 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
     Color(p, "Bar", nil, G("target"), "maincolor")
     Color(p, "Text", nil, G("target"), "textcolor")
 
-    W.Card(p, "Auto Shot and wand", { tip = "The reload, then the half-second aim (moving restarts it)." })
+    W.Card(p, "Auto Shot and wand", { tip = "A wand: one bar, full when the next shot is ready. Auto Shot (hunters): the reload, then the half-second aim (moving restarts it)." })
     Common(p, "ranged")
-    Chk(p, "One bar", "Reload and aim in one bar (its colour changes for the aim).", G("ranged"), "onebar")
+    Chk(p, "One bar", "Auto Shot: reload and aim in one bar (its colour changes for the aim). A wand is always one bar.", G("ranged"), "onebar")
     Chk(p, "Texts", nil, G("ranged"), "text")
-    Color(p, "Reload", nil, G("ranged"), "cooldowncolor")
+    Color(p, "Reload / wand", nil, G("ranged"), "cooldowncolor")
     Color(p, "Aim", nil, G("ranged"), "castcolor")
     Chk(p, "Multi-Shot clip zone", "A red zone on the reload: a Multi-Shot started in it pushes your next Auto Shot back.", G("cast"), "clip")
     Color(p, "Clip zone", nil, G("cast"), "clipcolor")

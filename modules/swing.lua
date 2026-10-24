@@ -318,6 +318,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
   s.mhStart, s.ohStart, s.tgStart, s.rgStart = 0, 0, 0, 0
   s.mhSpeed, s.ohSpeed, s.tgSpeed, s.rgSpeed = 2, 2, 2, 2
   s.lastSwing = 0
+  -- a wand (every class but hunters, who cannot use one): no aim, one bar
+  local _, myClass = UnitClass("player")
+  s.wand = myClass ~= "HUNTER"
 
   local function Speeds()
     local mh, oh = UnitAttackSpeed("player")
@@ -357,7 +360,13 @@ pfUI:RegisterModule("swing", "vanilla", function ()
   end
   function ST.TargetSwing() s.tgStart = now() s.tgSeen = now() end
   -- (wand: the Multi-Shot clip zone is for Auto Shot only)
-  function ST.Shot(wand) s.rgStart = now() s.rgSeen = now() s.wand = wand and true or false end
+  function ST.Shot(wand)
+    s.rgStart = now()
+    s.rgSeen = now()
+    local was = s.wand
+    s.wand = (wand or myClass ~= "HUNTER") and true or false
+    if was ~= s.wand and ST.ApplyLayout then ST.ApplyLayout() end
+  end
 
   -- the swing that just happened, from the combat log: the hand nearest its end
   function ST.SwingFromLog()
@@ -428,7 +437,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     Speeds()
     ST.Layout(ST.bars.player, S("player"), s.dual and S("player").offhand == "1")
     ST.Layout(ST.bars.target, S("target"), false)
-    ST.Layout(ST.bars.ranged, S("ranged"), S("ranged").onebar ~= "1")
+    ST.Layout(ST.bars.ranged, S("ranged"), S("ranged").onebar ~= "1" and not s.wand)
     ST.Layout(ST.bars.cast, S("cast"), false)
   end
   ST.UpdateConfig = ST.ApplyLayout
@@ -508,7 +517,12 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       local cr, cg, cb, ca = Col(set.cooldowncolor)
       local ar, ag, ab, aa = Col(set.castcolor)
       local text = set.text == "1"
-      if set.onebar == "1" then
+      if st.wand then
+        -- a wand: one bar over the whole shot time; full = the next shot is ready
+        Draw(f.main, elapsed / speed, cr, cg, cb, ca, text and "Wand" or "", text and Left(speed - elapsed) or "", true)
+        f.main.clip:Hide()
+        return elapsed > speed + 1
+      elseif set.onebar == "1" then
         local p = elapsed / speed
         local inAim = elapsed >= reload
         Draw(f.main, p, inAim and ar or cr, inAim and ag or cg, inAim and ab or cb, inAim and aa or ca,
@@ -601,7 +615,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       s.moving = false
     end
     local reload = s.rgSpeed - .5
-    if s.moving and t - s.rgStart >= reload and t - s.rgStart < s.rgSpeed then s.rgStart = t - reload end
+    if not s.wand and s.moving and t - s.rgStart >= reload and t - s.rgStart < s.rgSpeed then s.rgStart = t - reload end
     -- layout mode: every bar shows (a made-up fight) so each can be placed
     local unlocked = pfUI.unlock and pfUI.unlock:IsShown()
     if unlocked and not (ST.testUntil and t < ST.testUntil) then
@@ -704,7 +718,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if caster == playerGUID then
         if kind == "MAINHAND" then ST.Swing("main") s.sw = true
         elseif kind == "OFFHAND" then ST.Swing("off") s.sw = true
-        elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot(id == 5019)
+        elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot(id == 5019) s.rsw = true
         elseif kind == "CAST" and ST.QUEUE_SPELLS[id] then ST.Swing("main") s.sw = true end
       elseif s.tgGUID and caster == s.tgGUID and (kind == "MAINHAND" or kind == "OFFHAND") then
         ST.TargetSwing() s.tsw = true
@@ -721,7 +735,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if not s.sw then ST.SwingFromLog() end
     elseif evt == "CHAT_MSG_SPELL_SELF_DAMAGE" then
       if string.find(msg, "Auto Shot", 1, true) or string.find(msg, "^Your Shoot") then
-        if not s.sw then Speeds() ST.Shot(string.find(msg, "^Your Shoot") ~= nil) end
+        -- (not when SuperWoW told already: the log line comes when the shot
+        -- lands, later, and restarted the bar part way - seen in game)
+        if not s.rsw then Speeds() ST.Shot(string.find(msg, "^Your Shoot") ~= nil) end
       end
       for _, name in ipairs({ "Heroic Strike", "Cleave", "Maul", "Raptor Strike" }) do
         if not s.sw and string.find(msg, "^Your " .. name) then ST.Swing("main") end

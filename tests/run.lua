@@ -2002,8 +2002,34 @@ do
       SW.Paint(f, "player", now0)
       ok(math.abs((f.main.fill:GetWidth() or 0) - 150) < 1, "half way: half the bar (" .. tostring(f.main.fill:GetWidth()) .. ")")
       st.queued = nil
-      -- ranged: reload, then the aim
+      -- a wand: one bar over the whole shot time, full = ready (user, 24 Oct 2026)
       local rf = SW.bars.ranged
+      st.wand = true
+      SW.ApplyLayout()
+      st.rgStart, st.rgSpeed = now0 - .75, 1.5
+      SW.Paint(rf, "ranged", now0)
+      ok(not rf.off:IsShown() and math.abs(rf.main.fill:GetWidth() - 150) < 1 and rf.main.left:GetText() == "Wand",
+        "a wand is one bar, half full half way to the next shot (" .. tostring(rf.main.fill:GetWidth()) .. ")")
+      -- SuperWoW tells the shot; the combat log line when it lands must not restart it
+      local _, pg2 = UnitExists("player")
+      SW.OnEvent("UNIT_CASTEVENT", pg2, nil, "CAST", 5019)
+      local shotAt = st.rgStart
+      Mock.now = Mock.now + .6
+      SW.OnEvent("CHAT_MSG_SPELL_SELF_DAMAGE", "Your Shoot hits Ogre for 80 Shadow damage.")
+      ok(st.rgStart == shotAt, "the shot's combat log line does not restart the wand bar")
+      Mock.now = Mock.now - .6
+      st.rsw = nil
+      -- moving near the end does not hold a wand back (only a hunter's aim)
+      st.rgStart, st.rgSpeed = GetTime() - 1.3, 1.5
+      st.px, st.py = .1, .1
+      local gpmp = GetPlayerMapPosition
+      _G.GetPlayerMapPosition = function() return .2, .2 end
+      Mock.Run(SW.ticker, "OnUpdate", .02)
+      _G.GetPlayerMapPosition = gpmp
+      ok(math.abs((GetTime() - st.rgStart) - 1.3) < .01, "moving does not restart a wand")
+      -- ranged (hunters): reload, then the aim
+      st.wand = false
+      SW.ApplyLayout()
       st.rgStart, st.rgSpeed = now0 - 2.7, 3
       SW.Paint(rf, "ranged", now0)
       ok(rf.main.fill:GetWidth() >= 299 and rf.off.fill:GetWidth() > 100, "after the reload the aim fills")
