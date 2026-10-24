@@ -76,6 +76,7 @@
   <Include file="..\modules\gear-slots.lua"/>
   <Include file="..\modules\gear-options.lua"/>
   <Include file="..\modules\gear-events.lua"/>
+  <Include file="..\modules\gear-queue.lua"/>
   <Include file="..\modules\chat-options.lua"/>
   <Include file="..\modules\loot.lua"/>
   <Include file="..\modules\roll.lua"/>

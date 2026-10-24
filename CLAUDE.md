@@ -645,3 +645,18 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    display 31346) + ItemDisplayInfo.dbc (patch-Z/patch-5: INV_Staff_12). GR.InvTex now asks GetItemInfo
    (real item) first; the character window's slot icons use it (hooksecurefunc PaperDollItemSlotButton_Update).
    GR.TwoHanded (INVTYPE_2HWEAPON): the slot bar leaves an empty off hand out under a two-hander.
+   GR.InvTex returns nil for an empty slot (a morph still reports its picture there); the slot bar watches
+   the worn links itself every .25 s (UNIT_INVENTORY_CHANGED did not reach it when a staff went to the bag).
+   Rename (24 Oct): Rename button beside New set + right-click a saved set -> GO.AskRename (pfUI question box
+   with an edit box; any open question box is closed first or CreateQuestionDialog just closes it).
+   Trinket queue (24 Oct, NOT seen in game; user: TrinketMenu 12.0.6 in Downloads - no licence, rules only):
+   modules/gear-queue.lua (GR.tq = Q). C.gear.tqueue["13"/"14"] = { on, order = { base ids..., "stop" },
+   paused }, C.gear.tflags[base] = { prio, pause, delay } (shared by both slots). Q.Pick: <= 30 s cooldown
+   = ready; worn on cooldown -> first ready above the mark; worn ready -> stays unless a ready Priority one
+   above; worn passive (no "Use:" in its tooltip, Q.HasUse) -> a ready one higher up; Delay n holds it n s
+   after its cooldown started; Pause holds the queue. Q.Process each second out of combat, not while a set
+   swap runs / GR.Blocked, one GR.EquipItem at a time. Trinket bar: Alt-click = GR.ToggleQueue, gear mark
+   gold / grey / red. GR.SetQueue(0|1|13|14, ON|OFF|PAUSE|RESUME|SORT, names...). /gear queue [top|bottom]
+   [on|off]. Page gearqueue "Trinket queue": per slot a 9-row list (^ v, Priority, Pause, Delay box, the
+   red stop mark). Left out: TrinketMenu's "hold while its buff is on" (no item -> buff link on 1.12) and
+   sort profiles.

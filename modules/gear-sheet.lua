@@ -429,6 +429,8 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
         if link then ChatFrameEditBox:Insert(link) end
         return
       end
+      -- Alt-click: this slot's trinket queue on / off (gear-queue.lua)
+      if IsAltKeyDown() and GR.ToggleQueue then GR.ToggleQueue(this.inv) return end
       if C.gear.trinketmenu ~= "0" and C.gear.trinketmenuclick == "1" and arg1 == "RightButton" then
         GR.TrinketMenu(this)
       else

@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue" }
 
 -- ---------------------------------------------------------------- load
 
@@ -3912,6 +3912,66 @@ do
       ok(GR.Blocked() == nil, "and can once the cast ends")
       pfUI.env.UnitCastingInfo, _G.UnitCastingInfo = uci, uci
       ok(GR.WaitText({ name = "Tank", waiting = "dead" }) == "Tank: it goes on when you are alive again", "the wait is explained")
+    end
+    -- the trinket queue (TrinketMenu's rules, written fresh)
+    local Q = GR.tq
+    ok(Q and Q.Pick and GR.ToggleQueue and pfUI.octoui.Options.BUILD.gearqueue, "the trinket queue and its page are there")
+    if Q then
+      local pg, pe = pcall(function() pfUI.octoui.Options:Page("gearqueue") end)
+      ok(pg, "the Trinket queue page builds: " .. tostring(pe))
+      local saved = { GR.Worn, GR.Bags, GR.EquipLoc, Q.HasUse, Q.Left, GR.EquipItem, GR.InvTex }
+      -- worn: A in the top slot; in the bags: B and C
+      local worn = { [13] = "100:0:0" }
+      local cds = { ["100"] = 0, ["200"] = 0, ["300"] = 0 }
+      GR.Worn = function(inv) local id = worn[inv] return id, id and ("|Hitem:" .. id .. ":0|h[T" .. id .. "]|h") end
+      GR.Bags = function() return {
+        { bag = 0, slot = 1, id = "200:0:0", link = "|Hitem:200:0:0:0|h[T200]|h" },
+        { bag = 0, slot = 2, id = "300:0:0", link = "|Hitem:300:0:0:0|h[T300]|h" } } end
+      GR.EquipLoc = function() return "INVTYPE_TRINKET" end
+      GR.InvTex = function() return "x" end
+      Q.HasUse = function() return true end
+      Q.Left = function(t) return cds[t.base] or 0 end
+      local put
+      GR.EquipItem = function(inv, item) put = inv .. "=" .. item.id end
+      local q = Q.Slot(13)
+      q.on, q.paused, q.order = "1", nil, { "200", "100", "300", "stop" }
+      for _, k in ipairs({ "100", "200", "300" }) do pfUI_config.gear.tflags[k] = nil end
+      -- A ready to use: it stays
+      ok(Q.Pick(13) == nil, "the worn trinket ready to use stays on")
+      -- A on cooldown (2 min left): the first ready one above the mark goes on
+      cds["100"] = 120
+      local t = Q.Pick(13)
+      ok(t and t.base == "200", "on cooldown: the first ready trinket goes on (" .. tostring(t and t.base) .. ")")
+      -- B with 25 s left counts as ready (putting it on starts 30 s anyway)
+      cds["200"] = 25
+      t = Q.Pick(13)
+      ok(t and t.base == "200", "30 seconds or less counts as ready")
+      -- B with 50 s left: C is below the mark only if listed after stop - here it is above
+      cds["200"] = 50
+      t = Q.Pick(13)
+      ok(t and t.base == "300", "the next ready one when the first is not")
+      q.order = { "200", "100", "stop", "300" }
+      ok(Q.Pick(13) == nil, "nothing below the stop mark is used")
+      -- Priority: A ready, B above it ready and Priority -> B
+      cds["100"], cds["200"] = 0, 0
+      Q.Flags("200").prio = "1"
+      t = Q.Pick(13)
+      ok(t and t.base == "200", "a ready Priority trinket above takes over")
+      Q.Flags("200").prio = "0"
+      -- Pause on the worn one: nothing happens
+      Q.Flags("100").pause = "1"
+      cds["100"] = 120
+      ok(Q.Pick(13) == nil and Q.state[13] == "pause", "a Pause trinket worn holds the queue")
+      Q.Flags("100").pause = "0"
+      -- Process swaps one in through EquipItem (out of combat, nothing running)
+      local inq = GR.queue
+      GR.queue = nil
+      Q.Process()
+      ok(put == "13=200:0:0", "the queue puts it on (" .. tostring(put) .. ")")
+      GR.queue = inq
+      q.on = "0"
+      GR.Worn, GR.Bags, GR.EquipLoc, Q.HasUse, Q.Left, GR.EquipItem, GR.InvTex =
+        saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
     end
     -- phase 3: automatic swaps
     local GE = GR.events
