@@ -71,6 +71,9 @@
   <Include file="..\modules\castbar-options.lua"/>
   <Include file="..\modules\swing.lua"/>
   <Include file="..\modules\swing-options.lua"/>
+  <Include file="..\modules\gear.lua"/>
+  <Include file="..\modules\gear-sheet.lua"/>
+  <Include file="..\modules\gear-options.lua"/>
   <Include file="..\modules\chat-options.lua"/>
   <Include file="..\modules\loot.lua"/>
   <Include file="..\modules\roll.lua"/>

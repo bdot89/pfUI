@@ -69,4 +69,16 @@
   <Binding name="PFSTANCEFOUR10" runOnUp="true">pfActionButton(118)</Binding>
   <Binding name="PFSTANCEFOUR11" runOnUp="true">pfActionButton(119)</Binding>
   <Binding name="PFSTANCEFOUR12" runOnUp="true">pfActionButton(120)</Binding>
+
+  <!-- octo: gear sets (modules/gear.lua): the set given key N on the Gear page -->
+  <Binding name="PFGEAR1" header="PFGEAR">if pfUI and pfUI.gear then pfUI.gear.KeyPress(1) end</Binding>
+  <Binding name="PFGEAR2">if pfUI and pfUI.gear then pfUI.gear.KeyPress(2) end</Binding>
+  <Binding name="PFGEAR3">if pfUI and pfUI.gear then pfUI.gear.KeyPress(3) end</Binding>
+  <Binding name="PFGEAR4">if pfUI and pfUI.gear then pfUI.gear.KeyPress(4) end</Binding>
+  <Binding name="PFGEAR5">if pfUI and pfUI.gear then pfUI.gear.KeyPress(5) end</Binding>
+  <Binding name="PFGEAR6">if pfUI and pfUI.gear then pfUI.gear.KeyPress(6) end</Binding>
+  <Binding name="PFGEAR7">if pfUI and pfUI.gear then pfUI.gear.KeyPress(7) end</Binding>
+  <Binding name="PFGEAR8">if pfUI and pfUI.gear then pfUI.gear.KeyPress(8) end</Binding>
+  <Binding name="PFGEAR9">if pfUI and pfUI.gear then pfUI.gear.KeyPress(9) end</Binding>
+  <Binding name="PFGEAR10">if pfUI and pfUI.gear then pfUI.gear.KeyPress(10) end</Binding>
 </Bindings>

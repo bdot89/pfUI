@@ -581,3 +581,20 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    Preview: sample icons with buff.lua's spacing formulas, a sample buff bar in the tab's colours, totems;
    click = card, Shift + wheel = icon size. Buff bars need a reload (button lit once changed). Layout mode
    boxes for buffs / buff bars / totems open it (unlock.lua frame_configs, O.tabs.bfbuffs).
+16. Gear sets (24 Oct 2026, phase 1 of 3, NOT seen in game; user: ItemRack-universal-4.56.1 "like we have been
+   adding the rest"). ItemRack has no licence (all rights reserved) and needs Classic Era APIs: read for its
+   feature list only, written fresh. modules/gear.lua (`pfUI.gear` = GR): sets in C.gear.sets[name] = { icon,
+   key, slots = { s<inv> = { id = "item:enchant:suffix", name, tex } | "empty" } } (pfUI_config is per character);
+   GR.Equip / Unequip (C.gear.before = what those slots wore) / Toggle / IsEquipped / Current; a queue (GR.Wear,
+   GR.Tick every .1 s, one pick-up per tick waiting on item locks, 40 tries a slot) - weapons in combat
+   (C.gear.combatweapons), the rest after PLAYER_REGEN_ENABLED; exact copy first, then the same item id.
+   Set button pfGearButton (movable), minimap button pfGearMinimapButton (kept out of addonbuttons), menu
+   pfGearMenu, Bindings.xml PFGEAR1-10 -> GR.KeyPress(n) (BINDING_NAME_PFGEARn named after its set), /gear,
+   EquipSet / UnequipSet / ToggleSet / IsSetEquipped globals when free. gear-sheet.lua: GR.Flyout (item menu,
+   pfGearFlyout), GR.ItemsFor(inv) via _G.GetItemInfo (pfUI's compat GetItemInfo is TBC-ordered and drops the
+   equip location), character window slot hover menus + pfGearSheet panel (sets list, New from worn, Options),
+   trinket bar pfGearTrinkets (use on click, cooldown swipe + numbers, menu: left = slot 13, right = 14).
+   gear-options.lua (`pfUI.gearOcto`): section "Gear" (topic after Swing Timer), page gearsets: set tiles,
+   19 slots in 3 rows (click = item menu into the set, right-click = leave out, Shift = take off), cards This
+   set / Buttons / Swapping / Character window / Trinket bar. Next: phase 2 quick-access slot buttons,
+   phase 3 events + auto queue.

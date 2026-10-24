@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -3225,7 +3225,7 @@ do
     -- the topic list: most used first, small categories grouped
     local heads = {}
     for _, grp in ipairs(O.groups) do table.insert(heads, grp.header.text.text) end
-    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Swing Timer" and heads[5] == "Nameplates" and heads[table.getn(heads)] == "About",
+    ok(heads[1] == "Settings" and heads[2] == "Unit Frames" and heads[4] == "Swing Timer" and heads[5] == "Gear" and heads[6] == "Nameplates" and heads[table.getn(heads)] == "About",
       "topic list in order of importance (" .. table.concat(heads, ", ") .. ")")
     local castTopic
     for _, grp in ipairs(O.groups) do
@@ -3766,6 +3766,172 @@ do
       BO.bar = "pbuff"
     end
     pfUI.gui:Hide()
+  end
+end
+
+-- gear sets (gear.lua): a small made-up character with bags, swaps through
+-- the client's pick-up / equip calls as 1.12 does them
+do
+  local GR = pfUI.gear
+  ok(GR and GR.Equip and GR.Flyout and GR.trinkets and pfUI.gearOcto, "gear sets, item menu, trinket bar and the Gear page are there")
+  if GR then
+    local function Item(id, name, loc, ench)
+      return { link = "|cffffffff|Hitem:" .. id .. ":" .. (ench or 0) .. ":0:0|h[" .. name .. "]|h|r", loc = loc,
+               tex = "Interface\\Icons\\" .. name, ench = ench }
+    end
+    local sword, shield = Item(100, "Sword", "INV_WEAPON"), Item(101, "Shield", "INVTYPE_SHIELD")
+    local axe, ring, ring2 = Item(200, "Axe", "INVTYPE_2HWEAPON"), Item(300, "Ring", "INVTYPE_FINGER"), Item(301, "Band", "INVTYPE_FINGER")
+    local trink, trink2 = Item(400, "Idol", "INVTYPE_TRINKET"), Item(401, "Charm", "INVTYPE_TRINKET")
+    local axeFiery = Item(200, "Axe", "INVTYPE_2HWEAPON", 803)
+    sword.loc = "INVTYPE_WEAPON"
+    local inv = { [16] = sword, [17] = shield, [11] = ring, [13] = trink }
+    local bags = { [0] = { axe, ring2, trink2, axeFiery }, [1] = {} }
+    local cursor
+    local saved = {}
+    local function Stub(name, fn) saved[name] = _G[name] _G[name] = fn end
+    local combat = false
+    Stub("GetContainerNumSlots", function(b) if b == 0 then return 8 elseif b == 1 then return 4 end return 0 end)
+    Stub("GetContainerItemLink", function(b, s) return bags[b] and bags[b][s] and bags[b][s].link end)
+    Stub("GetContainerItemInfo", function(b, s) local it = bags[b] and bags[b][s] return it and it.tex, 1, nil end)
+    Stub("GetInventoryItemLink", function(u, i) return inv[i] and inv[i].link end)
+    Stub("GetInventoryItemTexture", function(u, i) return inv[i] and inv[i].tex end)
+    Stub("IsInventoryItemLocked", function() return nil end)
+    Stub("CursorHasItem", function() return cursor ~= nil end)
+    Stub("SpellIsTargeting", function() return nil end)
+    Stub("UnitIsDeadOrGhost", function() return nil end)
+    Stub("UnitAffectingCombat", function(u) return u == "player" and combat end)
+    Stub("GetItemInfo", function(s)
+      local _, _, id, ench = string.find(s, "item:(%d+):(%d*)")
+      for _, it in ipairs({ sword, shield, axe, ring, ring2, trink, trink2, axeFiery }) do
+        if string.find(it.link, "item:" .. id .. ":" .. ench .. ":", 1, true) then
+          return "x", it.link, 1, 1, "Armor", "Misc", 1, it.loc, it.tex
+        end
+      end
+    end)
+    Stub("PickupContainerItem", function(b, s)
+      local here = bags[b][s]
+      if cursor then
+        bags[b][s] = cursor.item
+        cursor = here and { item = here, bag = b, slot = s } or nil
+      else
+        bags[b][s] = nil
+        cursor = here and { item = here, bag = b, slot = s } or nil
+      end
+    end)
+    Stub("PickupInventoryItem", function(i)
+      local here = inv[i]
+      if cursor then
+        inv[i] = cursor.item
+        if here and cursor.bag then bags[cursor.bag][cursor.slot] = here cursor = nil
+        elseif here and cursor.inv then inv[cursor.inv] = here cursor = nil
+        else cursor = nil end
+      else
+        inv[i] = nil
+        cursor = here and { item = here, inv = i } or nil
+      end
+    end)
+    Stub("EquipCursorItem", function(i)
+      if not cursor then return end
+      local old = inv[i]
+      inv[i] = cursor.item
+      -- (the one taken off goes where the new one came from)
+      if old and cursor.bag then bags[cursor.bag][cursor.slot] = old end
+      -- (a two-hander takes the off hand off into the bags)
+      if cursor.item.loc == "INVTYPE_2HWEAPON" and inv[17] then
+        for s = 1, 8 do if not bags[0][s] then bags[0][s] = inv[17] inv[17] = nil break end end
+      end
+      cursor = nil
+    end)
+    local function Run() for _ = 1, 40 do GR.Tick() end end
+    local sets = pfUI_config.gear.sets
+    local wasSets, wasCur, wasBefore = {}, pfUI_config.gear.current, pfUI_config.gear.before
+    for k, v in pairs(sets) do wasSets[k] = v sets[k] = nil end
+
+    GR.Save("Tank", GR.Snapshot())
+    ok(sets.Tank and type(sets.Tank.slots.s16) == "table" and sets.Tank.slots.s16.id == "100:0:0" and sets.Tank.slots.s1 == "empty",
+      "a set saved from what is worn (empty slots too)")
+    ok(GR.IsEquipped("Tank") and GR.Current() == "Tank", "it counts as worn")
+    -- a partial set: only the weapons
+    GR.Save("Axe", { s16 = { id = "200:0:0", name = "Axe" }, s17 = "empty" })
+    GR.Equip("Axe")
+    Run()
+    ok(inv[16] == axe and inv[17] == nil and GR.IsEquipped("Axe") and GR.Current() == "Axe", "a weapons-only set goes on (two-hander, off hand off)")
+    ok(inv[11] == ring and inv[13] == trink, "slots outside the set stay as they are")
+    -- back to what was worn before
+    GR.Unequip()
+    Run()
+    ok(inv[16] == sword and inv[17] == shield, "taking a set off puts back the gear worn before")
+    -- the same item with another enchant is another copy
+    GR.Save("Fiery", { s16 = { id = "200:803:0", name = "Axe" } })
+    GR.Equip("Fiery")
+    Run()
+    ok(inv[16] == axeFiery, "the copy with the saved enchant is picked, not another")
+    GR.Equip("Tank")
+    Run()
+    ok(GR.IsEquipped("Tank"), "and back to the full set")
+    -- in combat: weapons now, armour after
+    GR.Save("Rings", { s11 = { id = "301:0:0", name = "Band" }, s16 = { id = "200:0:0", name = "Axe" }, s17 = "empty" })
+    combat = true
+    GR.Equip("Rings")
+    Run()
+    ok(inv[16] == axe and inv[11] == ring and GR.queue and GR.queue.waiting, "in combat: the weapon changes, the ring waits")
+    combat = false
+    Mock.Fire("PLAYER_REGEN_ENABLED")
+    Run()
+    ok(inv[11] == ring2 and not GR.queue, "the ring goes on when combat ends")
+    -- a ring worn in the other slot is moved, not looked for in the bags
+    GR.Save("Swap", { s12 = { id = "301:0:0", name = "Band" }, s11 = "empty" })
+    GR.Equip("Swap")
+    Run()
+    ok(inv[12] == ring2 and inv[11] == nil, "an item worn in another slot moves across")
+    -- what fits a slot, for the item menus and the trinket bar
+    local trinkets = GR.ItemsFor(13)
+    ok(table.getn(trinkets) == 1 and trinkets[1].id == "401:0:0", "the trinket menu lists the carried trinkets")
+    GR.EquipItem(14, trinkets[1])
+    Run()
+    ok(inv[14] == trink2, "picking one from the menu puts it on")
+    -- key bindings and /gear
+    sets.Tank.key = "3"
+    GR.Changed()
+    ok(BINDING_NAME_PFGEAR3 == "Gear set 3: Tank", "key 3 is named after its set in Key Bindings")
+    GR.KeyPress(3)
+    Run()
+    ok(GR.IsEquipped("Tank"), "the key puts the set on")
+    SlashCmdList.PFGEAR("save Bank")
+    ok(sets.Bank ~= nil, "/gear save")
+    ok(GR.Rename("Bank", "Bank alt") and sets["Bank alt"] and not sets.Bank, "a set can be renamed")
+    -- the Gear page: tiles for the sets, the slots of the one picked
+    local O = pfUI.octoui and pfUI.octoui.Options
+    local GO = pfUI.gearOcto
+    if O and GO then
+      pfUI.gui:Show()
+      local good, err = pcall(function() GO.Open("Tank") end)
+      ok(good and O.pages.gearsets and O.pages.gearsets.frame:IsShown() and GO.slots and table.getn(GO.slots) == 19,
+        "the Gear page opens with all 19 slots: " .. tostring(err))
+      local shown = 0
+      for _, t in ipairs(GO.tiles or {}) do if t:IsShown() then shown = shown + 1 end end
+      ok(shown == table.getn(GR.Sets()) + 1, "a tile per set and one for a new set (" .. shown .. ")")
+      -- right-click a slot: left out of the set
+      local headSlot
+      for _, s in ipairs(GO.slots) do if s.inv == 1 then headSlot = s end end
+      _G.this, _G.arg1 = headSlot, "RightButton"
+      headSlot:GetScript("OnClick")()
+      ok(sets.Tank.slots.s1 == nil, "right-click leaves a slot out of the set")
+      pfUI.gui:Hide()
+    end
+    -- the trinket bar and the character window panel follow their switches
+    pfUI_config.gear.trinketbar = "0"
+    GR.Changed()
+    ok(not GR.trinkets:IsShown(), "the trinket bar can be switched off")
+    pfUI_config.gear.trinketbar = "1"
+    GR.Changed()
+    ok(GR.trinkets:IsShown(), "and on")
+
+    for k in pairs(sets) do sets[k] = nil end
+    for k, v in pairs(wasSets) do sets[k] = v end
+    pfUI_config.gear.current, pfUI_config.gear.before = wasCur, wasBefore
+    GR.queue = nil
+    for name, fn in pairs(saved) do _G[name] = fn end
   end
 end
 
