@@ -670,6 +670,18 @@ if ME then
     w1:SetHeight(160)
     w1.Refresh(w1)
     ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    -- match all windows to one (user, 24 Oct 2026)
+    if ME.MatchAll and table.getn(ME.windows) >= 2 then
+      local a, b = pfUI_config.meters.win1, pfUI_config.meters.win2
+      local keep = { b.width, b.texture, b.mode, a.width, a.texture }
+      a.width, a.texture = "321", "Interface\\AddOns\\pfUI\\img\\bar"
+      local modeB = b.mode
+      local n = ME.MatchAll(1)
+      ok(n >= 1 and b.width == "321" and b.texture == a.texture and b.mode == modeB,
+        "Match all: window 2 takes window 1's size and look, keeps what it shows")
+      b.width, b.texture, b.mode, a.width, a.texture = keep[1], keep[2], keep[3], keep[4], keep[5]
+      ME.MatchAll(1)
+    end
     -- one button shows / hides every meter (user, 24 Oct 2026)
     ok(pfMeterToggle and ME.ToggleAll, "the meters button is there")
     if ME.ToggleAll then

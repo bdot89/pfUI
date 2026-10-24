@@ -1345,6 +1345,34 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       Dock(win)
     end
   end
+  -- every other window takes this one's size and look (user, 24 Oct 2026:
+  -- "an option that matches all windows size and looks"); what each window
+  -- shows (display, fight) and its padlock stay its own
+  local KEEP = { mode = true, segment = true, lock = true }
+  function M.MatchAll(fromId)
+    local src = C.meters["win" .. (fromId or 1)]
+    if type(src) ~= "table" then return 0 end
+    local n = 0
+    for _, w in ipairs(M.windows) do
+      local id = w.cfg or w.id
+      if id ~= fromId then
+        local dst = C.meters["win" .. id]
+        if type(dst) == "table" then
+          for k, v in pairs(src) do
+            if not KEEP[k] and type(v) ~= "table" then dst[k] = v end
+          end
+          w:SetWidth(tonumber(dst.width) or 260)
+          w:SetHeight(tonumber(dst.height) or 160)
+          if M.ApplyStyle then M.ApplyStyle(w) end
+          w.Refresh(w)
+          n = n + 1
+        end
+      end
+    end
+    if M.CombatLook then M.CombatLook() end
+    return n
+  end
+
   function M.ResetPositions()
     for _, w in ipairs(M.windows) do M.ResetPosition(w) end
     -- (the show / hide button too)

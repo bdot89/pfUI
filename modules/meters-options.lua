@@ -353,6 +353,15 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     })
     W.Card(p, "Looks", { tip = "Ready-made looks for this window." })
     Looks(p)
+    -- (user, 24 Oct 2026: "an option that matches all windows size and looks")
+    W.Buttons(p, {
+      { "Match all windows to this one", function()
+        local n = M.MatchAll and M.MatchAll(MO.cur) or 0
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. n .. " " .. (n == 1 and "window" or "windows")
+          .. " now " .. (n == 1 and "has" or "have") .. " the size and look of window " .. MO.cur .. ".")
+      end, 230, "Every other meter window takes this window's size and look - bars, fonts, colours, title bar, "
+        .. "buttons. What each one shows (damage, threat...) stays its own." },
+    })
 
     W.Card(p, "Shows", { tip = "What this window shows when it opens (its title bar changes it while playing)." })
     Drop(p, "Shows", nil, Modes(), S, "mode")
