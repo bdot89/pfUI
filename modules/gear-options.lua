@@ -361,31 +361,47 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     W.Tip(name, "Name", "Type a name and press Enter.")
 
     -- the character, wearing the set (drag to turn it)
-    -- (seen in game: anchored by two corners and dressed before it had a size,
-    -- the model drew in the box's bottom-left corner. Now a fixed size, one
-    -- point, dressed once it is on screen; and hidden while scrolled out of the
-    -- page, since 1.12 draws models outside a scroll area)
-    local model = CreateFrame("DressUpModel", nil, holder)
-    local mw, mh = midR - midL, 7 * (SZ + GAP) - 50
-    model:SetWidth(mw)
-    model:SetHeight(mh)
-    model:SetPoint("TOP", box, "TOPLEFT", (midL + midR) / 2, -48)
+    -- (seen in game twice: inside the options window, which is scaled down to
+    -- fit the screen, a 1.12 model draws as if unscaled and slides towards the
+    -- bottom-left. So the model sits on UIParent and is lined up every frame
+    -- over a spot in the editor; it hides with the page, and while the editor
+    -- is scrolled out of view)
+    local spot = CreateFrame("Frame", nil, holder)
+    spot:SetWidth(midR - midL)
+    spot:SetHeight(7 * (SZ + GAP) - 50)
+    spot:SetPoint("TOP", box, "TOPLEFT", (midL + midR) / 2, -48)
+    local model = CreateFrame("DressUpModel", "pfGearModel", UIParent)
+    model:SetFrameStrata("FULLSCREEN")
+    model:Hide()
     model:EnableMouse(true)
     model:SetScript("OnMouseDown", function() this.turnX = GetCursorPosition() this.turnF = this.facing or 0 end)
     model:SetScript("OnMouseUp", function() this.turnX = nil end)
     model:SetScript("OnShow", function() this.redress = 2 end)
-    GO.model = model
+    GO.model, GO.spot = model, spot
+    holder:SetScript("OnHide", function() model:Hide() end)
     -- the page's visible area (the scroll frame round the page)
     local view = p.frame
     local watch = CreateFrame("Frame", nil, holder)
     watch:SetScript("OnUpdate", function()
-      local t, b = box:GetTop(), box:GetBottom()
+      local t, b = spot:GetTop(), spot:GetBottom()
       local vt, vb = view and view:GetTop(), view and view:GetBottom()
       local inside = t and b and vt and vb and (t <= vt + 1) and (b >= vb - 1)
       if inside and not model:IsShown() then model:Show()
       elseif not inside and model:IsShown() then model:Hide() end
       if not model:IsShown() then return end
-      -- (dressed a frame after showing, when it has its size)
+      -- the spot in UIParent's units
+      local k = spot:GetEffectiveScale() / UIParent:GetEffectiveScale()
+      local l, bt = (spot:GetLeft() or 0) * k, (spot:GetBottom() or 0) * k
+      local w, h = (spot:GetWidth() or 1) * k, (spot:GetHeight() or 1) * k
+      if l ~= model.l or bt ~= model.b or w ~= model.w or h ~= model.h then
+        model.l, model.b, model.w, model.h = l, bt, w, h
+        model:ClearAllPoints()
+        model:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, bt)
+        model:SetWidth(w)
+        model:SetHeight(h)
+        model.redress = 2
+      end
+      -- (dressed a frame after it moved, when it has its size)
       if model.redress then
         model.redress = model.redress - 1
         if model.redress <= 0 then model.redress = nil GO.Dress() end
@@ -483,6 +499,9 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
           -- (a picture saved blank - the game had not loaded it yet: the worn
           -- one or the item's own, kept in the set from now on)
           if not e.tex or e.tex == "" then e.tex = GO.TexOf(e.id, s.inv) end
+          -- (the worn item's own picture first, when it is this one)
+          local live = GR.Worn(s.inv) == e.id and GetInventoryItemTexture("player", s.inv)
+          if live and live ~= "" then e.tex = live end
           s.icon:SetTexture(e.tex ~= "" and e.tex or EMPTY[s.inv])
         elseif e == "empty" then
           s.icon:SetTexture(EMPTY[s.inv])

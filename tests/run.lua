@@ -3952,7 +3952,13 @@ do
       ok(sets.Tank.slots.s16.tex ~= "" and slotOf[16].icon:GetTexture() == sets.Tank.slots.s16.tex,
         "a blank set picture is filled in (" .. tostring(sets.Tank.slots.s16.tex) .. ")")
       -- the character: a size of its own, one point
-      ok(GO.model:GetWidth() > 100 and GO.model:GetHeight() > 100 and GO.model:GetNumPoints() == 1, "the character has its own size and place")
+      -- the character: on the screen itself (a model in the scaled-down window
+      -- drew off to the bottom-left in game), over its spot, gone with the page
+      ok(GO.model:GetParent() == UIParent and GO.spot and GO.spot:GetWidth() > 100, "the character sits on the screen, over its spot in the editor")
+      pfUI.gui:Hide()
+      ok(not GO.model:IsShown(), "and goes with the options window")
+      pfUI.gui:Show()
+      GO.Open("Tank")
       -- the icon picker: the set's items first, then the macro icons, search
       local gnm, gmi = GetNumMacroIcons, GetMacroIconInfo
       _G.GetNumMacroIcons = function() return 30 end

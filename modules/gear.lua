@@ -396,6 +396,20 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     elseif cmd == "list" then
       local names = GR.Sets()
       Say(table.getn(names) == 0 and "no sets yet." or table.concat(names, ", "))
+    elseif cmd == "dump" then
+      -- what a set holds, slot by slot, beside what is worn (for bug reports)
+      local name = rest ~= "" and rest or C.gear.current or GR.Sets()[1]
+      local set = name and C.gear.sets[name]
+      if not set then Say("no set to show.") return end
+      Say("\"" .. name .. "\" icon " .. tostring(set.icon))
+      for _, s in ipairs(GR.SLOTS) do
+        local e = set.slots[GR.Key(s[1])]
+        local worn = GR.Worn(s[1])
+        local what = e == nil and "-" or e == "empty" and "take off" or
+          (tostring(e.id) .. " \"" .. tostring(e.name) .. "\" tex=" .. tostring(e.tex))
+        DEFAULT_CHAT_FRAME:AddMessage("  " .. s[3] .. ": " .. what .. "  |cff999999worn " .. tostring(worn)
+          .. " tex=" .. tostring(GetInventoryItemTexture("player", s[1])) .. "|r")
+      end
     elseif cmd == "save" and rest ~= "" then
       GR.Save(rest, GR.Snapshot())
       Say("saved \"" .. rest .. "\" from what you wear.")
