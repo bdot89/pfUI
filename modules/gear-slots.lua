@@ -177,6 +177,22 @@ pfUI:RegisterModule("gear-slots", "vanilla", function ()
     this.t = 0
     for _, inv in ipairs(GR.SlotList()) do GR.PaintCooldown(this.buttons[inv]) end
   end)
+  -- what is worn, looked at by the bar itself: the inventory event did not
+  -- arrive in game when the staff went back to the bag (24 Oct 2026)
+  local seen
+  local look = CreateFrame("Frame")
+  look:SetScript("OnUpdate", function()
+    this.t = (this.t or 0) + arg1
+    if this.t < .25 then return end
+    this.t = 0
+    local s = ""
+    for _, inv in ipairs(GR.SlotList()) do s = s .. inv .. "=" .. (GetInventoryItemLink("player", inv) or "-") .. ";" end
+    s = s .. "16=" .. (GetInventoryItemLink("player", 16) or "-")
+    if s ~= seen then
+      seen = s
+      GR.UpdateSlots()
+    end
+  end)
   local watch = CreateFrame("Frame")
   watch:SetScript("OnUpdate", function()
     local open = pfUI.unlock and pfUI.unlock:IsShown()

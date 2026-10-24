@@ -4020,7 +4020,10 @@ do
       GR.Worn = function(inv) if inv == 7 then return "47204:999:0" end end
       _G.GetInventoryItemTexture = function(_, inv) if inv == 7 then return "Interface\\Icons\\INV_Pants_08" end end
       GR.Bags = function() return {} end
+      local gl0 = GetInventoryItemLink
+      _G.GetInventoryItemLink = function(_, inv) if inv == 7 then return "|Hitem:47204:999:0:0|h[Trousers]|h" end end
       ok(GO.TexOf("47204:3025:0", 7) == "Interface\\Icons\\INV_Pants_08", "the worn copy's picture, whatever its enchant")
+      _G.GetInventoryItemLink = gl0
       GR.Worn, _G.GetInventoryItemTexture, GR.Bags = w, t, b
       -- worn custom items keep giving the placeholder: GetItemInfo has the real one
       local gl, gi = GetInventoryItemLink, _G.GetItemInfo
@@ -4039,6 +4042,11 @@ do
       local bts = { [16] = CreateFrame("Button", nil, f), [17] = CreateFrame("Button", nil, f) }
       for _, bt in pairs(bts) do bt.icon = bt:CreateTexture() end
       ok(GR.LayoutSlots(f, bts, { 16, 17 }) == 1 and not bts[17]:IsShown(), "the empty off hand hides under a two-hander")
+      -- seen in game 24 Oct: the staff put away - the morph's picture stayed, the off hand stayed away
+      _G.GetInventoryItemLink = function() return nil end
+      _G.GetInventoryItemTexture = function() return "Interface\\Icons\\INV_Sword_04" end
+      ok(GR.InvTex(16) == nil, "an empty slot shows no picture, morph or not")
+      ok(GR.LayoutSlots(f, bts, { 16, 17 }) == 2 and bts[17]:IsShown(), "the off hand comes back once the two-hander is off")
       _G.GetInventoryItemTexture, _G.GetInventoryItemLink, _G.GetItemInfo = t, gl, gi
     end
     if O and GO then

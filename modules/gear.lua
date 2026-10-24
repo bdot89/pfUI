@@ -77,7 +77,10 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   -- reads the real item, so its picture comes first.
   function GR.InvTex(inv)
     local link = GetInventoryItemLink("player", inv)
-    local _, _, base = string.find(link or "", "item:(%d+)")
+    -- (an empty slot has no picture - with a morph on it the game still
+    -- reports the morph's, seen 24 Oct with the staff put away)
+    if not link then return nil end
+    local _, _, base = string.find(link, "item:(%d+)")
     if base and _G.GetItemInfo then
       local _, _, _, _, _, _, _, _, tex = _G.GetItemInfo("item:" .. base)
       if GR.GoodTex(tex) then return tex end
