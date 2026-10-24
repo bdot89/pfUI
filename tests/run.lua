@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events" }
 
 -- ---------------------------------------------------------------- load
 
@@ -3899,6 +3899,44 @@ do
     -- the Gear page: tiles for the sets, the slots of the one picked
     local O = pfUI.octoui and pfUI.octoui.Options
     local GO = pfUI.gearOcto
+    -- phase 3: the queue waits while casting / dead, and says why
+    do
+      local uci = UnitCastingInfo
+      local casting = true
+      pfUI.env.UnitCastingInfo = function() if casting then return "Frostbolt" end end
+      _G.UnitCastingInfo = pfUI.env.UnitCastingInfo
+      ok(GR.Blocked() == "casting", "gear cannot change while casting")
+      casting = nil
+      ok(GR.Blocked() == nil, "and can once the cast ends")
+      pfUI.env.UnitCastingInfo, _G.UnitCastingInfo = uci, uci
+      ok(GR.WaitText({ name = "Tank", waiting = "dead" }) == "Tank: it goes on when you are alive again", "the wait is explained")
+    end
+    -- phase 3: automatic swaps
+    local GE = GR.events
+    ok(GE and GE.Check and pfUI.octoui.Options.BUILD.gearevents, "automatic swaps and their page are there")
+    local pgood, perr = pcall(function() pfUI.octoui.Options:Page("gearevents") end)
+    ok(pgood, "the Automatic swaps page builds: " .. tostring(perr))
+    if GE then
+      local equip, wear, worn = GR.Equip, GR.Wear, GR.IsEquipped
+      local got, back
+      GR.Equip = function(n) got = n end
+      GR.Wear = function(n, slots) back = slots end
+      GR.IsEquipped = function() return false end
+      pfUI_config.gear.sets.Riding = { icon = "x", slots = { s8 = { id = "1:0:0", name = "Riding boots", tex = "" } } }
+      GE.Cfg("mount").on, GE.Cfg("mount").set, GE.Cfg("mount").back = "1", "Riding", "1"
+      local m = IsMounted
+      local up = true
+      _G.IsMounted = function() return up end
+      pfUI.env.IsMounted = _G.IsMounted
+      GE.Check()
+      ok(got == "Riding" and GE.state.active == "mount", "mounting wears the riding set")
+      up = false
+      GE.Check()
+      ok(back and back.s8 ~= nil and GE.state.active == nil, "getting off puts back what was worn in its slots")
+      _G.IsMounted, pfUI.env.IsMounted = m, m
+      GR.Equip, GR.Wear, GR.IsEquipped = equip, wear, worn
+      pfUI_config.gear.events.mount, pfUI_config.gear.sets.Riding = nil, nil
+    end
     -- slot buttons bindable by hovering (user, 24 Oct 2026)
     do
       local sb = GR.slotbar and GR.slotbar.buttons and GR.slotbar.buttons[16] or pfGearSlot16

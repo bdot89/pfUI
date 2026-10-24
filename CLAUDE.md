@@ -620,4 +620,19 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    item's base id (worn in the slot or its pair, bags, GetItemInfo) before the saved one, and the set icon /
    icon picker use it too. The saved file (WTF\...\SavedVariables\pfUI.lua, written on /reload) is the
    quickest way to see a set's data. Confirmed in game 24 Oct: slots filled, the character (model on
-   UIParent, lined up each frame) sits between the slot columns. Next: phase 3 events + auto queue.
+   UIParent, lined up each frame) sits between the slot columns.
+   Slot buttons bindable (24 Oct, user: "add into our hover macro / keymap"): Bindings.xml PFGEARSLOT1-19 ->
+   GR.UseSlot(inv); GR.Bindable(b, inv) on slot bar + trinket bar buttons (b.pfBinding, key text in the corner,
+   GR.ShowKeys on UPDATE_BINDINGS). hoverbind.lua: `pfUI.hoverbind:AddButton(button)` - any button carrying
+   pfBinding gets an overlay (the action bar overlays share MakeOverlay). Key Map: KM.Describe shows the worn
+   item for PFGEARSLOTn; KM.Unbound lists visible unbound slot buttons ({ cmd, inv } entries).
+   Phase 3 (24 Oct, NOT seen in game): queue - GR.Blocked() "dead" (C.gear.waitdead; Equip no longer refuses
+   while dead) / "casting" (C.gear.waitcast, UnitCastingInfo / UnitChannelInfo) hold the whole queue; q.waiting
+   = "combat" | "dead" | "casting", GR.WaitText for chat and the set button tooltip. modules/gear-events.lua
+   (GR.events = GE): events in priority order - mount (ClassicAPI / SuperWoW IsMounted, else a buff whose
+   tooltip says "Increases speed"), taxi, swim (only with IsSwimming), stealth (IsStealthed, else Stealth /
+   Prowl form), this character's stances / forms ("form:<name>"), bg (GetBattlefieldStatus active), raid /
+   dungeon (IsInInstance + its type, else raid group), rest, combat. C.gear.events[key] = { on, set, back }.
+   GE.Check every .5 s + events: first happening event with a set wins -> GR.Equip; the gear it replaced
+   (snapshot of the set's slots, widened per event set) is put back with GR.Wear when no event is on.
+   C.gear.autoswap (master), autotell. Page gearevents "Automatic swaps". /gear events lists what is happening.

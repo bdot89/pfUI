@@ -222,6 +222,27 @@ pfUI:RegisterModule("gear", "vanilla", function ()
 
   local function InCombat() return UnitAffectingCombat("player") end
 
+  -- why gear cannot change right now (phase 3: swaps wait until it can):
+  -- "dead", "casting", or nil. Combat is per slot (weapons may still go).
+  local function Casting()
+    local ok, a = pcall(UnitCastingInfo, "player")
+    if ok and a then return true end
+    ok, a = pcall(UnitChannelInfo, "player")
+    return ok and a and true or nil
+  end
+  function GR.Blocked()
+    if C.gear.waitdead ~= "0" and UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return "dead" end
+    if C.gear.waitcast ~= "0" and Casting() then return "casting" end
+    return nil
+  end
+  local WAIT_TEXT = { combat = "the rest goes on when combat ends", dead = "it goes on when you are alive again",
+                      casting = "it goes on when your cast ends" }
+  function GR.WaitText(q)
+    q = q or GR.queue
+    if not q or not q.waiting then return nil end
+    return q.name .. ": " .. (WAIT_TEXT[q.waiting] or WAIT_TEXT.combat)
+  end
+
   -- one move for a slot of the queue; true = something was done
   local function Step(inv, want, keep)
     if want == "empty" then
@@ -265,6 +286,21 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     local q = GR.queue
     if not q then runner:Hide() return end
     if Busy() then return end
+    -- dead or casting: everything waits (the runner keeps looking)
+    local blocked = GR.Blocked()
+    if blocked then
+      if q.waiting ~= blocked then
+        q.waiting = blocked
+        if C.gear.tellwait ~= "0" then Say(GR.WaitText(q) .. ".") end
+        GR.Changed()
+      end
+      return
+    end
+    if q.waiting == "dead" or q.waiting == "casting" then
+      q.waiting = nil
+      q.told = nil
+      GR.Changed()
+    end
     local waiting
     -- slots of this set to keep where they are (already right)
     local keep = {}
@@ -300,7 +336,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
         if C.gear.tellwait ~= "0" then Say(q.name .. ": the rest goes on when combat ends.") end
         GR.Changed()
       end
-      q.waiting = true
+      q.waiting = "combat"
       return
     end
     Finish(q)
@@ -332,7 +368,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   function GR.Equip(name)
     local set = C.gear.sets[name]
     if not set then Say("no set called \"" .. tostring(name) .. "\".") return end
-    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then Say("not while dead.") return end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") and C.gear.waitdead == "0" then Say("not while dead.") return end
     -- what is worn now in its slots, to put back with Unequip
     if C.gear.current ~= name then C.gear.before = GR.Snapshot(set.slots) end
     C.gear.current = name
@@ -593,7 +629,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       GameTooltip:AddLine("Gear sets")
       local cur = GR.Current()
       GameTooltip:AddLine(cur and ("Wearing: " .. cur) or "Wearing: no saved set", 1, 1, 1)
-      if GR.queue and GR.queue.waiting then GameTooltip:AddLine(GR.queue.name .. ": the rest goes on after combat", 1, .8, .2) end
+      if GR.queue and GR.queue.waiting then GameTooltip:AddLine(GR.WaitText(), 1, .8, .2) end
       GameTooltip:AddLine("Click: your sets", .7, .7, .7)
       GameTooltip:AddLine("Shift + click: back to the gear worn before", .7, .7, .7)
       GameTooltip:AddLine("Right-click: gear options", .7, .7, .7)
