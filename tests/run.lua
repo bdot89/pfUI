@@ -3987,6 +3987,11 @@ do
         _G.SaveBindings = function() end
         _G.GetMouseFocus = function() return sb.pfHoverbind end
         _G.GetBindingKey = function(a) for k, v in pairs(binds) do if v == a then return k end end end
+        -- seen in game 24 Oct: hovering it left a stray "this" in pfUI's
+        -- environment, and every pfUI script after it read the wrong frame
+        Mock.Run(sb.pfHoverbind, "OnEnter")
+        Mock.Run(sb.pfHoverbind, "OnLeave")
+        ok(rawget(pfUI.env, "this") == nil, "hovering a gear button's overlay leaves pfUI's 'this' alone")
         Mock.Run(sb.pfHoverbind, "OnKeyUp", "F")
         ok(binds.F == "PFGEARSLOT16", "hovering it and pressing F binds F to it")
         GR.ShowKeys()

@@ -129,10 +129,10 @@ pfUI:RegisterModule("hoverbind", "vanilla:tbc", function ()
     self.extra = self.extra or {}
     local frame = MakeOverlay(button, function()
       local f = button:GetScript("OnEnter")
-      if f then local old = this this = button f() this = old end
+      if f then local old = _G.this _G.this = button f() _G.this = old end
     end, function()
       local f = button:GetScript("OnLeave")
-      if f then local old = this this = button f() this = old end
+      if f then local old = _G.this _G.this = button f() _G.this = old end
     end)
     button.pfHoverbind = frame
     table.insert(self.extra, frame)
