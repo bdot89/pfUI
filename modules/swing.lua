@@ -75,6 +75,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     p.border.tex:SetAllPoints(p.border)
     p.border.diaL = p.border:CreateTexture(nil, "OVERLAY")
     p.border.diaR = p.border:CreateTexture(nil, "OVERLAY")
+    -- the rounded frame's two ends (drawn at their own shape, not stretched)
+    p.border.capL = p.border:CreateTexture(nil, "OVERLAY")
+    p.border.capR = p.border:CreateTexture(nil, "OVERLAY")
     -- marks on the bar: Multi-Shot clip zone, latency, Slam window and its
     -- GCD spark, the paladin's twist and GCD lines
     for _, k in ipairs({ "clip", "lag", "slam", "gcd", "mark1", "mark2" }) do
@@ -146,6 +149,10 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     b.diaR:Hide()
     t:SetVertexColor(1, 1, 1, 1)
     t:SetTexCoord(0, 1, 0, 1)
+    t:ClearAllPoints()
+    t:SetAllPoints(b)
+    b.capL:Hide()
+    b.capR:Hide()
     local style = l.border or "cdm"
     if style == "classic" or style == "classicgold" then
       -- the game's cast bar border, round a bar it was drawn for (195 x 13 in 256 x 64)
@@ -156,13 +163,37 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if style == "classicgold" then t:SetVertexColor(1, .82, .25, 1) end
       b:Show()
     elseif style == "cdm" or style == "cdmgrey" or style == "blizzard" then
+      -- (24 Oct 2026, seen in game: one rounded box stretched to the bar's
+      -- length had long tapered ends. Now three pieces: the ends keep the
+      -- art's own shape, only the middle stretches; the back stays straight.)
       b:SetPoint("TOPLEFT", p, "TOPLEFT", -4, 4)
       b:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 4, -4)
-      t:SetTexture(ART .. "swing-frame")
-      if style == "cdm" then t:SetVertexColor(.05, .05, .05, 1)
-      elseif style == "cdmgrey" then t:SetVertexColor(.45, .45, .48, 1)
-      else t:SetVertexColor(.85, .7, .35, 1) end
-      p.back:SetTexture(ART .. "swing-back")
+      local bh = h + 8
+      local cap = math.min(bh / 2, (w + 8) / 2)
+      local r, g, bl = .05, .05, .05
+      if style == "cdmgrey" then r, g, bl = .45, .45, .48
+      elseif style == "blizzard" then r, g, bl = .85, .7, .35 end
+      local ART_FRAME = ART .. "swing-frame"
+      b.capL:SetTexture(ART_FRAME)
+      b.capL:SetTexCoord(0, 16 / 256, 0, 1)
+      b.capL:ClearAllPoints()
+      b.capL:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+      b.capL:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+      b.capL:SetWidth(cap)
+      b.capR:SetTexture(ART_FRAME)
+      b.capR:SetTexCoord(240 / 256, 1, 0, 1)
+      b.capR:ClearAllPoints()
+      b.capR:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+      b.capR:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+      b.capR:SetWidth(cap)
+      t:SetTexture(ART_FRAME)
+      t:SetTexCoord(16 / 256, 240 / 256, 0, 1)
+      t:ClearAllPoints()
+      t:SetPoint("TOPLEFT", b.capL, "TOPRIGHT", 0, 0)
+      t:SetPoint("BOTTOMRIGHT", b.capR, "BOTTOMLEFT", 0, 0)
+      for _, x in ipairs({ t, b.capL, b.capR }) do x:SetVertexColor(r, g, bl, 1) end
+      b.capL:Show()
+      b.capR:Show()
       p.back:SetVertexColor(0, 0, 0, math.min(1, ba + .2))
       if style == "blizzard" then
         for _, d in ipairs({ b.diaL, b.diaR }) do

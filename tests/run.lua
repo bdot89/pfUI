@@ -2023,6 +2023,18 @@ do
       SW.Paint(rf, "ranged", now0)
       ok(not rf.main.clip:IsShown(), "no clip zone for other classes")
       _G.UnitClass = ucWas
+      -- Cooldown Manager border: round ends at their own shape, a straight back
+      pfUI_config.swing.look.border = "cdm"
+      SW.ApplyLayout()
+      local pb = SW.bars.player.main
+      local h0 = tonumber(pfUI_config.swing.player.height) or 12
+      ok(pb.border.capL:IsShown() and math.abs(pb.border.capL:GetWidth() - (h0 + 8) / 2) < .01 and pb.back:GetTexture() == "Interface\\Buttons\\WHITE8X8",
+        "Cooldown Manager border: ends not stretched, straight back (" .. tostring(pb.border.capL:GetWidth()) .. ")")
+      pfUI_config.swing.look.border = "pixel"
+      SW.ApplyLayout()
+      ok(not pb.border.capL:IsShown(), "other borders have no end pieces")
+      pfUI_config.swing.look.border = "cdm"
+      SW.ApplyLayout()
       -- the texts sit over the border art
       ok(rf.main.text and rf.main.text:GetFrameLevel() > rf.main.border:GetFrameLevel() and rf.main.left:GetParent() == rf.main.text,
         "bar texts above the border")
