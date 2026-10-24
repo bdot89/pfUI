@@ -2030,9 +2030,13 @@ do
       local h0 = tonumber(pfUI_config.swing.player.height) or 12
       ok(pb.border.capL:IsShown() and math.abs(pb.border.capL:GetWidth() - (h0 + 8) / 2) < .01 and pb.back:GetTexture() == "Interface\\Buttons\\WHITE8X8",
         "Cooldown Manager border: ends not stretched, straight back (" .. tostring(pb.border.capL:GetWidth()) .. ")")
+      -- the round ends sit outside the bar (its square ends stay inside the straight part)
+      local _, _, _, bx = pb.border:GetPoint(1)
+      ok(math.abs((bx or 0) + (h0 + 8) / 2) < .01 and pb.backL:IsShown() and pb.backR:IsShown(),
+        "round ends outside the bar, filled dark (frame starts " .. tostring(bx) .. " px left of the bar)")
       pfUI_config.swing.look.border = "pixel"
       SW.ApplyLayout()
-      ok(not pb.border.capL:IsShown(), "other borders have no end pieces")
+      ok(not pb.border.capL:IsShown() and not pb.backL:IsShown(), "other borders have no end pieces")
       pfUI_config.swing.look.border = "cdm"
       SW.ApplyLayout()
       -- the texts sit over the border art

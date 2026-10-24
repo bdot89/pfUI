@@ -78,6 +78,11 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     -- the rounded frame's two ends (drawn at their own shape, not stretched)
     p.border.capL = p.border:CreateTexture(nil, "OVERLAY")
     p.border.capR = p.border:CreateTexture(nil, "OVERLAY")
+    -- and the dark inside of those ends, under the bar (on the bar: textures
+    -- can sit outside their frame)
+    p.backL = p:CreateTexture(nil, "BACKGROUND")
+    p.backR = p:CreateTexture(nil, "BACKGROUND")
+    p.backM = p:CreateTexture(nil, "BACKGROUND")
     -- marks on the bar: Multi-Shot clip zone, latency, Slam window and its
     -- GCD spark, the paladin's twist and GCD lines
     for _, k in ipairs({ "clip", "lag", "slam", "gcd", "mark1", "mark2" }) do
@@ -153,6 +158,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     t:SetAllPoints(b)
     b.capL:Hide()
     b.capR:Hide()
+    p.backL:Hide()
+    p.backR:Hide()
+    p.backM:Hide()
     local style = l.border or "cdm"
     if style == "classic" or style == "classicgold" then
       -- the game's cast bar border, round a bar it was drawn for (195 x 13 in 256 x 64)
@@ -166,10 +174,34 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       -- (24 Oct 2026, seen in game: one rounded box stretched to the bar's
       -- length had long tapered ends. Now three pieces: the ends keep the
       -- art's own shape, only the middle stretches; the back stays straight.)
-      b:SetPoint("TOPLEFT", p, "TOPLEFT", -4, 4)
-      b:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 4, -4)
+      -- (seen in game: the bar's square ends, marks and fill showed past the
+      -- round ends. The round ends now sit just outside the bar, filled dark,
+      -- so the bar ends square inside the straight part of the frame.)
       local bh = h + 8
-      local cap = math.min(bh / 2, (w + 8) / 2)
+      local cap = bh / 2
+      b:SetPoint("TOPLEFT", p, "TOPLEFT", -cap, 4)
+      b:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", cap, -4)
+      local BACK = ART .. "swing-back"
+      local _, _, _, inside = Col("0,0,0," .. (l.backalpha or ".5"))
+      inside = math.min(1, inside + .2)
+      for _, x in ipairs({ p.backL, p.backR, p.backM }) do
+        x:SetTexture(BACK)
+        x:SetVertexColor(0, 0, 0, inside)
+        x:ClearAllPoints()
+        x:Show()
+      end
+      p.backL:SetTexCoord(0, 16 / 256, 0, 1)
+      p.backL:SetPoint("TOPRIGHT", p, "TOPLEFT", 0, 4)
+      p.backL:SetPoint("BOTTOMRIGHT", p, "BOTTOMLEFT", 0, -4)
+      p.backL:SetWidth(cap)
+      p.backR:SetTexCoord(240 / 256, 1, 0, 1)
+      p.backR:SetPoint("TOPLEFT", p, "TOPRIGHT", 0, 4)
+      p.backR:SetPoint("BOTTOMLEFT", p, "BOTTOMRIGHT", 0, -4)
+      p.backR:SetWidth(cap)
+      -- (the strips above and below the bar, inside the frame)
+      p.backM:SetTexCoord(16 / 256, 240 / 256, 0, 1)
+      p.backM:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 4)
+      p.backM:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, -4)
       local r, g, bl = .05, .05, .05
       if style == "cdmgrey" then r, g, bl = .45, .45, .48
       elseif style == "blizzard" then r, g, bl = .85, .7, .35 end
@@ -262,6 +294,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if combined then
         f.off:SetPoint("BOTTOMLEFT", f.main, "BOTTOMLEFT", 0, 0)
         f.off.border:Hide()
+        f.off.backL:Hide()
+        f.off.backR:Hide()
+        f.off.backM:Hide()
         f.off.back:SetVertexColor(0, 0, 0, 0)
         f:SetHeight(h)
       else
