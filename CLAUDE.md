@@ -673,7 +673,7 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    C.position and floats the window at M.HomeX/HomeY (three to a row); Float with no saved spot calls
    UpdateMovable(win, true) so pfUI's remembered default (posdata) is that spot - layout mode used to put a
    reset window back at its first, off-screen spot.
-   Meters button (24 Oct): pfMeterToggle (movable, Shift+drag, layout mode; Ability_Marksmanship icon, grey
+   Meters button (24 Oct, works in game; black panel gone): pfMeterToggle (movable, Shift+drag, layout mode; Ability_Marksmanship icon, grey
    when hidden): M.ToggleAll / ShowAll, C.meters.hidden kept over reloads, right-click = options,
    C.meters.togglebtn. The empty right chat was switched off once (C.meters.rightchatoff, pfUI.chat.
    SetupRightChat(false), ChatFrame3 Loot & Spam docked into the left chat).
