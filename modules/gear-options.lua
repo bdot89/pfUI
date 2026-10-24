@@ -632,7 +632,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
   -- ---------------------------------------------------------------- page
 
   local function Build(p)
-    W.Heading(p, "Gear sets", { about = "Gear sets as ItemRack and Outfitter make them: pick a set on the left, tick the slots "
+    W.Heading(p, "Gear sets", { on = O.ModuleSwitch("gear", "Gear sets"), about = "Gear sets as ItemRack and Outfitter make them: pick a set on the left, tick the slots "
       .. "it should change, click a slot to pick its item (or Save to take what you wear), then Wear. In combat your "
       .. "weapons change at once and the rest when combat ends. Also: the Gear sets list beside your character window, "
       .. "the set button, keys, /gear equip <set>." })
@@ -827,7 +827,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
   end
 
   local function BuildSlots(p)
-    W.Heading(p, "Slot buttons", { about = "Buttons for the equipment slots you pick (as ItemRack's): each shows what you wear "
+    W.Heading(p, "Slot buttons", { on = O.KeySwitch(function() return C.gear end, "slotbar", "The slot buttons on or off.", function() if GR.UpdateSlots then GR.UpdateSlots() end end), about = "Buttons for the equipment slots you pick (as ItemRack's): each shows what you wear "
       .. "there with its cooldown. Click to use it; its menu swaps it for another item from your bags." })
     SlotPreview(p)
 

@@ -335,7 +335,7 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
   -- ---------------------------------------------------------------- page
 
   local function Build(p)
-    W.Heading(p, "Buffs", { about = "Your buffs, debuffs and weapon buffs by the minimap, the buff bars on your unit frames, "
+    W.Heading(p, "Buffs", { on = O.ModuleSwitch("buff", "Buffs"), about = "Your buffs, debuffs and weapon buffs by the minimap, the buff bars on your unit frames, "
       .. "and your totems. The Blizzard switch above puts the game's own buff frame back." })
     Preview(p)
 

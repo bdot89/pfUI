@@ -570,7 +570,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
   end
 
   local function BuildMap(p)
-    W.Heading(p, "Minimap", { about = "The map's look: a ready-made style, its shape, border, the spell art around it, "
+    W.Heading(p, "Minimap", { on = O.ModuleSwitch("minimap", "Minimap"), about = "The map's look: a ready-made style, its shape, border, the spell art around it, "
       .. "size and opacity. Buttons and texts around it are on \"Buttons and text\"." })
     Preview(p)
 

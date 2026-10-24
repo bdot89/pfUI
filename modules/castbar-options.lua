@@ -401,7 +401,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- page
 
   local function Build(p)
-    W.Heading(p, "Cast bars", { about = "The cast bars under the player, target and focus frames. Pick one with the tabs; "
+    W.Heading(p, "Cast bars", { on = O.ModuleSwitch("castbar", "Cast bars"), about = "The cast bars under the player, target and focus frames. Pick one with the tabs; "
       .. "the colours and texture at the bottom are for all of them." })
     Preview(p)
     W.Card(p, "Bar", { tip = "Whether this cast bar shows, and its size." })

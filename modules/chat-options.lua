@@ -563,7 +563,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     { key = "{}", label = "{ }" }, { key = "  ", label = "None" } }
 
   local function BuildWindows(p)
-    W.Heading(p, "Chat", { about = "Your chat panels, their tabs and windows. The preview shows a line of every kind with "
+    W.Heading(p, "Chat", { on = O.ModuleSwitch("chat", "Chat"), about = "Your chat panels, their tabs and windows. The preview shows a line of every kind with "
       .. "your settings; the switches over it turn real windows on and off." })
     Preview(p)
     W.Card(p, "Looks", { tip = "Timestamps, channel names, colours, background and dock in one click. Some parts take a reload." })
@@ -660,7 +660,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   -- chat-whispers.lua: windows of their own
   local function WS() return C.chat.whisper end
   local function BuildWhispers(p)
-    W.Heading(p, "Whispers", { about = "Each person who whispers you gets a small window of their own - class, level, "
+    W.Heading(p, "Whispers", { on = O.ModuleSwitch("chat-whispers", "Whisper windows"), about = "Each person who whispers you gets a small window of their own - class, level, "
       .. "guild, the conversation and a box to answer in - or a tab in the left chat." })
     Preview(p)
     local WHm = pfUI.whispers

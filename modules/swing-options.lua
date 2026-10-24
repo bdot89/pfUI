@@ -176,7 +176,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
   end
 
   local function Build(p)
-    W.Heading(p, "Swing Timer", { about = "Bars counting down to your next swing, your target's next swing and your next Auto "
+    W.Heading(p, "Swing Timer", { on = O.ModuleSwitch("swing", "Swing Timer"), about = "Bars counting down to your next swing, your target's next swing and your next Auto "
       .. "Shot or wand shot - WeaponSwingTimer's bars, built in. Swings come from SuperWoW when it runs (the exact hand), "
       .. "else from the combat log." })
     Preview(p)

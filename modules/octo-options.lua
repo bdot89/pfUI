@@ -98,6 +98,48 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end, fmt)
   end
 
+  -- ON / OFF for a whole pfUI module (user, 24 Oct 2026: "things like this
+  -- should be simply able to be toggled on and off"). pfUI starts or skips a
+  -- module at load, so the change asks for a reload when the window closes.
+  function O.ModuleSwitch(mod, what)
+    return { function() return not (C.disabled and C.disabled[mod] == "1") end, function(v)
+      C.disabled = C.disabled or {}
+      C.disabled[mod] = v and "0" or "1"
+      pfUI.gui.settingChanged = true
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. (what or mod) .. (v and " on" or " off")
+        .. " after a reload - close the options to reload.")
+    end, (what or mod) .. " on or off (takes a reload: the options window offers it when you close it)." }
+  end
+  -- ON / OFF for a "1" / "0" setting; after(v) runs when it changes
+  function O.KeySwitch(group, key, tip, after)
+    return { function() return group()[key] ~= "0" end, function(v)
+      group()[key] = v and "1" or "0"
+      if after then after(v) end
+    end, tip }
+  end
+
+  -- A feature whose page needs its module running would lose its page - and
+  -- its switch - once switched off. Then a stand-in page holds the switch.
+  O.STANDIN = {
+    { "actionbar", "Action Bars", "abgeneral", "General", "Action bars" },
+    { "swing", "Swing Timer", "stbars", "Bars", "Swing Timer" },
+    { "minimap", "Minimap", "mmmap", "Map", "Minimap" },
+    { "meters", "Meters", "mtwindows", "Windows", "Meters" },
+    { "gear", "Gear", "gearsets", "Gear sets", "Gear sets" },
+  }
+  function O:AddStandIns()
+    for _, s in ipairs(O.STANDIN) do
+      if C.disabled and C.disabled[s[1]] == "1" and not self.BUILD[s[3]] then
+        local mod, title = s[1], s[5]
+        self:AddPage(s[2], s[3], s[4], function(p)
+          W.Heading(p, title, { on = O.ModuleSwitch(mod, title),
+            about = title .. " is switched off. Switch it on and close the options to reload; its settings come back." })
+          W.Note(p, title .. " is off. Use the switch at the top right to turn it back on.")
+        end)
+      end
+    end
+  end
+
   -- a page of the Octo kind; group = the topic list section it goes under
   function O:AddPage(group, key, label, build)
     local sec
@@ -1311,6 +1353,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   g:SetScript("OnShow", function()
     if onShow then onShow() end
     -- categories added since (late modules, the search page) join the list
+    -- (stand-in pages for switched-off features, once every module has run)
+    if not O.standinsAdded then O.standinsAdded = true O:AddStandIns() end
     if O.navCount ~= O:CountLegacy() then O:BuildNav() end
     O.first = O.first or (O.octo[1] and O.octo[1][2][1] and ("o:" .. O.octo[1][2][1][1]))
     O:RefreshQuick()

@@ -1619,6 +1619,23 @@ do
     O.quickFind:SetText("")
     ok(not O.searching, "clearing Find goes back to the page")
     pfUI_config.sct.enabled = wasOn
+    -- page switches (user, 24 Oct 2026: "toggles anywhere that is possible")
+    local sw = O.ModuleSwitch("swing", "Swing Timer")
+    local wasDis = pfUI_config.disabled.swing
+    pfUI.gui.settingChanged = nil
+    sw[2](false)
+    ok(pfUI_config.disabled.swing == "1" and pfUI.gui.settingChanged and not sw[1](), "a page switch turns its module off and asks for a reload")
+    -- a feature whose page needs it running keeps a stand-in page with the switch
+    local realBuild = O.BUILD.stbars
+    O.BUILD.stbars = nil
+    O:AddStandIns()
+    ok(O.BUILD.stbars ~= nil, "switched off: a stand-in page keeps the switch")
+    local sg = pcall(function() O.pages.stbars = nil O:Page("stbars") end)
+    ok(sg, "the stand-in page builds")
+    sw[2](true)
+    pfUI_config.disabled.swing = wasDis
+    O.BUILD.stbars, O.pages.stbars = realBuild, nil
+    pfUI.gui.settingChanged = nil
     pfUI.gui:Hide()
   end
 end

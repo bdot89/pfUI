@@ -583,7 +583,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- general
 
   BUILD.abgeneral = function(p)
-    W.Heading(p, "Action bars", { about = "Your action bars: how they look, how buttons behave, and what lights up. "
+    W.Heading(p, "Action bars", { on = O.ModuleSwitch("actionbar", "Action bars"), about = "Your action bars: how they look, how buttons behave, and what lights up. "
       .. "Each bar's layout and when it shows are on Bars; everything about a button (looks, effects, letters) on Buttons." })
     Preview(p)
     W.Card(p, "Looks", { tip = "Ready-made styles for every bar." })
@@ -875,7 +875,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   end
 
   BUILD.abgryphons = function(p)
-    W.Heading(p, "Gryphons", { about = "The art at the ends of the main bar: the game's gryphon, lion and dragons." })
+    W.Heading(p, "Gryphons", { on = O.ModuleSwitch("gryphons", "Gryphons"), about = "The art at the ends of the main bar: the game's gryphon, lion and dragons." })
     GryPreview(p)
     local function UGP() UG() if AB.PaintGry then AB.PaintGry() end end
     W.Card(p, "Gryphons")

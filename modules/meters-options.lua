@@ -324,7 +324,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   local NAMECOLOR = { { "white", "White" }, { "class", "Class colour" } }
 
   local function BuildWindows(p)
-    W.Heading(p, "Meter windows", { about = "Pick a window with the tabs (or make a new one), then its look. Every window has "
+    W.Heading(p, "Meter windows", { on = { function() return C.meters.hidden ~= "1" end, function(v) M.ShowAll(v) end, "Show or hide every meter window (the same as the meters button)." }, about = "Pick a window with the tabs (or make a new one), then its look. Every window has "
       .. "its own settings; the preview shows the one you are editing." })
     Preview(p)
     -- (user, 24 Oct 2026: a meter went off the screen, "a reset positions button")
@@ -660,7 +660,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
 
   local function BuildThreat(p)
     local TH = M.threat
-    W.Heading(p, "Threat", { about = "Your threat on the mob you target, from the server (the same answers TWThreat shows): "
+    W.Heading(p, "Threat", { on = O.KeySwitch(function() return C.meters end, "threat", "Ask the server for threat on or off (takes a reload).", function() pfUI.gui.settingChanged = true end), about = "Your threat on the mob you target, from the server (the same answers TWThreat shows): "
       .. "only in a party or raid, on a mob in combat. A label by your target's nameplate turns yellow near your cap and red "
       .. "past it, a popup and a sound can warn you, and a meter window can show everyone's threat." })
     if not TH then

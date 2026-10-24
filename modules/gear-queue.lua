@@ -377,7 +377,7 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
   end
 
   local function Build(p)
-    W.Heading(p, "Trinket queue", { about = "Each trinket slot can swap trinkets by itself (as TrinketMenu's auto queue): put "
+    W.Heading(p, "Trinket queue", { on = { function() return Q.Slot(13).on == "1" or Q.Slot(14).on == "1" end, function(v) Q.Slot(13).on = v and "1" or "0" Q.Slot(14).on = v and "1" or "0" Q.Paint() end, "Both trinket slots' queues on or off." }, about = "Each trinket slot can swap trinkets by itself (as TrinketMenu's auto queue): put "
       .. "your trinkets in order; when the one you wear goes on cooldown, the first one above the red mark that is "
       .. "ready goes on. A trinket with 30 seconds or less of cooldown counts as ready - putting one on starts a 30 "
       .. "second cooldown anyway. Swaps wait for combat to end. Alt-click a trinket on the trinket bar to switch its "

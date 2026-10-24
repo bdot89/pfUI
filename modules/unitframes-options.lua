@@ -966,7 +966,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- frames
 
   BUILD.ufframes = function(p)
-    W.Heading(p, "Unit frames", { about = "Pick a frame with the tabs: its preview shows at the top, its settings below, one card per "
+    W.Heading(p, "Unit frames", { on = { function() return C.unitframes.disable ~= "1" end, function(v) C.unitframes.disable = v and "0" or "1" pfUI.gui.settingChanged = true end, "pfUI's unit frames on or off (takes a reload)." }, about = "Pick a frame with the tabs: its preview shows at the top, its settings below, one card per "
       .. "part. Click a part of the preview to jump to its card. The cards named \"All frames\" change every frame." })
     Preview(p)
     SharedTop(p)
