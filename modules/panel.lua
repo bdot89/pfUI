@@ -788,7 +788,11 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     if pfUI.chat.right:IsShown() then pfUI.chat.right:Hide() else pfUI.chat.right:Show() end
   end)
 
-  if not pfUI.chat then pfUI.panel.right.hide:Hide() end
+  -- octo: the toggle button is gone (user, 24 Oct 2026: it swapped the chat
+  -- for docked meters and back - "it just confuses and makes a mess of the
+  -- UI"); the meters are free windows now (meters-window.lua)
+  pfUI.panel.right.hide:Hide()
+  pfUI.panel.right.hide.Show = function() end
 
   -- buttons for right panel
   local width = pfUI.panel.right:GetWidth() / 3 - 2

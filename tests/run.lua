@@ -914,7 +914,7 @@ if ME then
         if b:IsShown() and b.text.text and string.find(b.text.text, label, 1, true) then return b end
       end
     end
-    ok(find("Docked in the chat panel") and find("Lock position") and find("Merge pets") and find("All meter options"), "menu has dock, lock, tracking and options")
+    ok(not find("Docked in the chat panel") and find("Lock position") and find("Merge pets") and find("All meter options"), "menu has lock, tracking and options, no docking (removed 24 Oct)")
     -- lock: hides the resize grip, stays open
     ok(w1.grip:IsShown(), "free window has a resize grip")
     find("Lock position"):Click()
@@ -948,10 +948,7 @@ if ME then
     pfUI_config.chat.right.enable = "1"
     pfUI.thirdparty.meters.state = nil
     ME.SetDocked(w1, true)
-    ok(not w1.free and w1:IsShown() and pfUI.thirdparty.meters.damage, "dock: window goes into the chat panel")
-    local p, rel = w1:GetPoint()
-    ok(rel == chat, "docked window anchored to the chat")
-    ok(pfUI.thirdparty.meters.state, "meters shown instead of the chat")
+    ok(w1.free and pfUI_config.thirdparty.pfmeter.dock == "0" and not pfUI.thirdparty.meters.damage, "docking is gone: a window stays free")
     ME.SetDocked(w1, false)
     ok(w1.free and w1:IsShown() and pfUI_config.thirdparty.pfmeter.dock == "0", "undock: free window")
     ok(not pfUI.thirdparty.meters.state, "nothing docked: chat back")

@@ -1254,9 +1254,19 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   local function KeyOf(win) return (win.id == 1 and "pfmeter") or (win.id == 2 and "pfthreat") or nil end
   local function SideOf(win) return win.id == 1 and "damage" or "threat" end
 
-  local function CanDock()
-    return pfUI.thirdparty and pfUI.thirdparty.meters and pfUI.chat and pfUI.chat.right and C.chat.right.enable == "1"
+  -- Docking in the right chat is gone (user, 24 Oct 2026: windows "move all
+  -- over", "tied to this bottom button ... remove this function ... it just
+  -- confuses and makes a mess of the UI"). Every window is a free window you
+  -- place; the chat panel's toggle button is hidden (panel.lua).
+  local function CanDock() return false end
+  if C.thirdparty then
+    for _, k in ipairs({ "pfmeter", "pfthreat" }) do
+      if type(C.thirdparty[k]) == "table" then C.thirdparty[k].dock = "0" end
+    end
+    C.thirdparty.showmeter = "0"
   end
+  -- (a chat hidden by the old toggle comes back)
+  if pfUI.chat and pfUI.chat.right and C.chat.right.enable == "1" then pfUI.chat.right:Show() end
 
   -- 1.12 does not carry a parent's new frame level over to its children: after
   -- the window is raised (docked over the chat) its buttons would sit below
@@ -1351,6 +1361,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   -- dock / undock while playing
   function M.SetDocked(win, dock)
+    dock = dock and CanDock()   -- (docking is gone: always a free window)
     local other = M.windows[win.id == 1 and 2 or 1]
     C.thirdparty[KeyOf(win)].dock = dock and "1" or "0"
     if dock and CanDock() then
@@ -1399,13 +1410,6 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       end
     end
     local items = { { T["Window"], head = true } }
-    -- (windows 1 and 2 can go into the right chat panel)
-    if win.id <= 2 then
-      table.insert(items, { T["Docked in the chat panel"], function()
-          M.SetDocked(win, win.free and true or false)
-          WindowMenu(win, anchor)
-        end, tick = not win.free, keep = true })
-    end
     if win.free then
       table.insert(items, { T["Lock position and size"], Flip(s, "lock", function()
         if s.lock == "1" then win.grip:Hide() else win.grip:Show() end

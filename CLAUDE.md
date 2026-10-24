@@ -665,4 +665,11 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    PFGEARNAKED). Taking off: FreeBagSlot skips slots filled in the last 3 s (taken) and ones a special bag
    refused (item left on the cursor -> put back on, refused reset per GR.Wear).
    Meters padlock (24 Oct, works in game): win.lockbtn (UI-ChatFrame-LockIcon), M.ToggleLock / M.PaintLock,
-   S(win).lock; docked -> SetDocked(win, false) unlocked; per-window btnlock.
+   S(win).lock; per-window btnlock.
+   Docking removed (24 Oct, user hated the chat-panel toggle: "it just confuses and makes a mess"): CanDock()
+   is false, pfmeter / pfthreat .dock and thirdparty.showmeter forced "0", the right chat is shown, dock menu
+   entry and options gone; panel.lua hides pfUI.panel.right.hide for good (its Show is a no-op). Reset
+   positions (Meters page card "Where they are", window menu, /pfmeterreset): M.ResetPosition clears
+   C.position and floats the window at M.HomeX/HomeY (three to a row); Float with no saved spot calls
+   UpdateMovable(win, true) so pfUI's remembered default (posdata) is that spot - layout mode used to put a
+   reset window back at its first, off-screen spot.

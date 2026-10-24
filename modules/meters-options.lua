@@ -248,7 +248,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
         end
         if n >= M.MAXWIN then MO.newBtn:Hide() else MO.newBtn:Show() end
         local s = S()
-        local where = (MO.cur <= 2 and M.windows[MO.cur] and not M.windows[MO.cur].free) and "docked in the right chat" or "floating"
+        local where = "floating"
         cap:SetText("Window " .. MO.cur .. " (" .. where .. "), shown on a made-up fight  -  " .. (s.width or "?") .. " x " .. (s.height or "?"))
         MO.Sync()
       end })
@@ -319,7 +319,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     W.Card(p, "Where they are", { tip = "Lost a window off the screen? Reset puts it back." })
     W.Buttons(p, {
       { "Reset positions", function() if M.ResetPositions then M.ResetPositions() end end, 140,
-        "Every meter window back to its starting place: free ones in the middle of the screen, docked ones in the chat panel." },
+        "Every meter window back to its starting place in the middle of the screen." },
       { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, 120,
         "Layout mode: drag the meter windows (and everything else) where you want them." },
     })
@@ -373,7 +373,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Chk(p, "Menu button", nil, S, "btnmenu")
     Chk(p, "Report button", nil, S, "btnreport")
     Chk(p, "Reset button", nil, S, "btnreset")
-    Chk(p, "Padlock button", "Lock or unlock the window (a docked one comes out of the chat panel).", S, "btnlock")
+    Chk(p, "Padlock button", "Lock or unlock the window: unlocked, drag the title to move it and the corner to resize it.", S, "btnlock")
 
     W.Card(p, "Bars")
     Sld(p, "Height", nil, 8, 40, 1, S, "barheight", Px)
@@ -433,20 +433,12 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
 
   -- ---------------------------------------------------------------- data, threat
 
-  local function TP(key) return function() return C.thirdparty[key] end end
 
   local function BuildData(p)
     W.Heading(p, "Meter data", { about = "What the meters track and keep." })
     W.Card(p, "Meters")
     Chk(p, "Use the meters", "After a reload.", G, "enable", Reload)
     Chk(p, "Ask to reset in a new instance", nil, G, "resetask", function() end)
-    Chk(p, "Show the meters in place of the chat at login", nil, function() return C.thirdparty end, "showmeter", function() end)
-    Chk(p, "Window 1 docks in the right chat", nil, TP("pfmeter"), "dock", function()
-      if M.windows[1] then M.SetDocked(M.windows[1], C.thirdparty.pfmeter.dock == "1") end
-    end)
-    Chk(p, "Window 2 docks in the right chat", nil, TP("pfthreat"), "dock", function()
-      if M.windows[2] then M.SetDocked(M.windows[2], C.thirdparty.pfthreat.dock == "1") end
-    end)
     W.Card(p, "Tracking")
     Chk(p, "Merge pets into their owner", nil, G, "mergepets", function() M.who = {} end)
     Chk(p, "Everyone nearby (battlegrounds)", nil, G, "trackall", function() M.who = {} end)
