@@ -2007,8 +2007,37 @@ do
       st.rgStart, st.rgSpeed = now0 - 2.7, 3
       SW.Paint(rf, "ranged", now0)
       ok(rf.main.fill:GetWidth() >= 299 and rf.off.fill:GetWidth() > 100, "after the reload the aim fills")
+      -- the clip zone: hunters' Auto Shot only (in game it covered half a wand bar)
+      local ucWas = UnitClass
+      _G.UnitClass = function(u) if u == "player" then return "Hunter", "HUNTER" end return ucWas(u) end
+      st.wand = false
+      SW.Paint(rf, "ranged", now0)
       ok(rf.main.clip:IsShown() and math.abs(rf.main.clip:GetWidth() - 60) < 1, "the Multi-Shot clip zone: the reload's last half second ("
         .. tostring(rf.main.clip:GetWidth()) .. ")")
+      SW.Shot(true)
+      st.rgStart = now0 - 2.7
+      SW.Paint(rf, "ranged", now0)
+      ok(not rf.main.clip:IsShown(), "no clip zone for a wand")
+      st.wand = false
+      _G.UnitClass = function(u) if u == "player" then return "Priest", "PRIEST" end return ucWas(u) end
+      SW.Paint(rf, "ranged", now0)
+      ok(not rf.main.clip:IsShown(), "no clip zone for other classes")
+      _G.UnitClass = ucWas
+      -- the texts sit over the border art
+      ok(rf.main.text and rf.main.text:GetFrameLevel() > rf.main.border:GetFrameLevel() and rf.main.left:GetParent() == rf.main.text,
+        "bar texts above the border")
+      -- layout mode shows every bar, and leaving it ends the made-up fight
+      for k in pairs(pfUI.movables) do if type(k) ~= "string" then pfUI.movables[k] = nil end end
+      pfUI.unlock:Show()
+      local tick = SW.ticker
+      if tick then
+        Mock.Run(tick, "OnUpdate", .02)
+        ok(SW.bars.ranged:IsShown() and SW.bars.target:IsShown() and SW.bars.cast:IsShown(), "layout mode shows every swing bar to place")
+        pfUI.unlock:Hide()
+        Mock.Run(tick, "OnUpdate", .02)
+        ok(not SW.bars.cast:IsShown() and not SW.testUnlock, "and they go when layout mode ends")
+      end
+      pfUI.unlock:Hide()
       -- the cast bar: Aimed Shot from SPELLCAST_START, pushed back, stopped
       local cf = SW.bars.cast
       SW.OnEvent("SPELLCAST_START", "Aimed Shot", 3000)

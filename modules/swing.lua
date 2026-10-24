@@ -60,9 +60,14 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     p.spark = p:CreateTexture(nil, "OVERLAY")
     p.spark:SetTexture(SPARK)
     p.spark:SetBlendMode("ADD")
-    p.left = p:CreateFontString(nil, "OVERLAY")
+    -- the texts on their own layer, over the border art and the marks (in game
+    -- the border covered them and a white reload bar hid white text)
+    p.text = CreateFrame("Frame", nil, p)
+    p.text:SetAllPoints(p)
+    p.text:SetFrameLevel(p:GetFrameLevel() + 4)
+    p.left = p.text:CreateFontString(nil, "OVERLAY")
     p.left:SetPoint("LEFT", p, "LEFT", 3, 0)
-    p.right = p:CreateFontString(nil, "OVERLAY")
+    p.right = p.text:CreateFontString(nil, "OVERLAY")
     p.right:SetPoint("RIGHT", p, "RIGHT", -3, 0)
     p.border = CreateFrame("Frame", nil, p)
     p.border:SetFrameLevel(p:GetFrameLevel() + 2)
@@ -128,6 +133,11 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     local font = pfUI.font_unit or pfUI.font_default
     p.left:SetFont(font, size, "OUTLINE")
     p.right:SetFont(font, size, "OUTLINE")
+    for _, fs in ipairs({ p.left, p.right }) do
+      fs:SetShadowColor(0, 0, 0, 1)
+      fs:SetShadowOffset(1, -1)
+    end
+    p.text:SetFrameLevel(p:GetFrameLevel() + 4)
     p.spark:SetWidth(math.max(8, h * 1.3))
     p.spark:SetHeight(h * 2.2)
     local b, t = p.border, p.border.tex
@@ -280,7 +290,8 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     s.lastSwing = t
   end
   function ST.TargetSwing() s.tgStart = now() s.tgSeen = now() end
-  function ST.Shot() s.rgStart = now() s.rgSeen = now() end
+  -- (wand: the Multi-Shot clip zone is for Auto Shot only)
+  function ST.Shot(wand) s.rgStart = now() s.rgSeen = now() s.wand = wand and true or false end
 
   -- the swing that just happened, from the combat log: the hand nearest its end
   function ST.SwingFromLog()
@@ -444,7 +455,9 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       -- Multi-Shot clip zone: starting one in the last half second before
       -- the aim delays the next Auto Shot
       local cs = C.swing.cast
-      if cs.clip == "1" then
+      -- (hunters' Auto Shot only: a wand has no Multi-Shot; the preview shows it always)
+      local _, cls = UnitClass("player")
+      if cs.clip == "1" and (st.preview or (cls == "HUNTER" and not st.wand)) then
         local kr, kg, kb, ka = Col(cs.clipcolor)
         if set.onebar == "1" then Mark(f.main, f.main.clip, .5, .5, speed, true, kr, kg, kb, ka)
         else Mark(f.main, f.main.clip, 0, .5, reload, true, kr, kg, kb, ka) end
@@ -509,6 +522,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
   end
 
   local ticker = CreateFrame("Frame")
+  ST.ticker = ticker
   ticker:SetScript("OnUpdate", function()
     local t = now()
     s.queued = ST.Queued()
@@ -522,12 +536,30 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     end
     local reload = s.rgSpeed - .5
     if s.moving and t - s.rgStart >= reload and t - s.rgStart < s.rgSpeed then s.rgStart = t - reload end
+    -- layout mode: every bar shows (a made-up fight) so each can be placed
+    local unlocked = pfUI.unlock and pfUI.unlock:IsShown()
+    if unlocked and not (ST.testUntil and t < ST.testUntil) then
+      ST.Test(3600)
+      ST.testUnlock = true
+    elseif not unlocked and ST.testUnlock then
+      ST.testUnlock = nil
+      ST.testUntil = 0
+    end
+    local testing = ST.testUntil and t < ST.testUntil
+    -- a test over: the real weapons again (a test gives a two-hander an off hand)
+    if s.wasTesting and not testing then
+      Speeds()
+      ST.ApplyLayout()
+      s.tgSeen, s.rgSeen, s.cast = 0, 0, nil
+    end
+    s.wasTesting = testing
     local function Run(bar, show)
       local f = ST.bars[bar]
-      if not show or S(bar).enabled ~= "1" then f:Hide() return end
+      if not (show or testing) or S(bar).enabled ~= "1" then f:Hide() return end
       f:Show()
       local idle = ST.Paint(f, bar, t)
-      f:SetAlpha(Alpha(S(bar), idle))
+      -- (a test shows at the in-combat opacity: out of combat some bars are see-through)
+      f:SetAlpha(testing and math.max(.5, tonumber(S(bar).alpha) or 1) or Alpha(S(bar), idle))
     end
     Run("player", not (pfUI.blizz and pfUI.blizz.IsBlizz and pfUI.blizz.IsBlizz("swing")))
     Run("target", UnitExists("target") and UnitCanAttack("player", "target") and (s.tgSeen or 0) > 0
@@ -606,7 +638,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if caster == playerGUID then
         if kind == "MAINHAND" then ST.Swing("main") s.sw = true
         elseif kind == "OFFHAND" then ST.Swing("off") s.sw = true
-        elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot()
+        elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot(id == 5019)
         elseif kind == "CAST" and ST.QUEUE_SPELLS[id] then ST.Swing("main") s.sw = true end
       elseif s.tgGUID and caster == s.tgGUID and (kind == "MAINHAND" or kind == "OFFHAND") then
         ST.TargetSwing() s.tsw = true
@@ -623,7 +655,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if not s.sw then ST.SwingFromLog() end
     elseif evt == "CHAT_MSG_SPELL_SELF_DAMAGE" then
       if string.find(msg, "Auto Shot", 1, true) or string.find(msg, "^Your Shoot") then
-        if not s.sw then Speeds() ST.Shot() end
+        if not s.sw then Speeds() ST.Shot(string.find(msg, "^Your Shoot") ~= nil) end
       end
       for _, name in ipairs({ "Heroic Strike", "Cleave", "Maul", "Raptor Strike" }) do
         if not s.sw and string.find(msg, "^Your " .. name) then ST.Swing("main") end
