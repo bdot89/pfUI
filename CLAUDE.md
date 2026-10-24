@@ -649,7 +649,7 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    the worn links itself every .25 s (UNIT_INVENTORY_CHANGED did not reach it when a staff went to the bag).
    Rename (24 Oct): Rename button beside New set + right-click a saved set -> GO.AskRename (pfUI question box
    with an edit box; any open question box is closed first or CreateQuestionDialog just closes it).
-   Trinket queue (24 Oct, NOT seen in game; user: TrinketMenu 12.0.6 in Downloads - no licence, rules only):
+   Trinket queue (24 Oct, seen working in game with Rename; user: TrinketMenu 12.0.6 in Downloads - no licence, rules only):
    modules/gear-queue.lua (GR.tq = Q). C.gear.tqueue["13"/"14"] = { on, order = { base ids..., "stop" },
    paused }, C.gear.tflags[base] = { prio, pause, delay } (shared by both slots). Q.Pick: <= 30 s cooldown
    = ready; worn on cooldown -> first ready above the mark; worn ready -> stays unless a ready Priority one
