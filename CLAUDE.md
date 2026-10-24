@@ -619,4 +619,5 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    yet; the file is in no MPQ, so it drew blank. GR.GoodTex refuses it; GO.TexOf looks the picture up by the
    item's base id (worn in the slot or its pair, bags, GetItemInfo) before the saved one, and the set icon /
    icon picker use it too. The saved file (WTF\...\SavedVariables\pfUI.lua, written on /reload) is the
-   quickest way to see a set's data.
+   quickest way to see a set's data. Confirmed in game 24 Oct: slots filled, the character (model on
+   UIParent, lined up each frame) sits between the slot columns. Next: phase 3 events + auto queue.
