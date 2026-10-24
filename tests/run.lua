@@ -670,6 +670,19 @@ if ME then
     w1:SetHeight(160)
     w1.Refresh(w1)
     ok(w1.bars[1] and w1.bars[1]:IsShown() and string.find(w1.bars[1].left.text or "", "Tester"), "bar shows Tester")
+    -- reset positions (user, 24 Oct 2026: a window went off the screen)
+    ok(ME.HomeX(6) <= 280 and ME.HomeX(4) == -280, "new windows start on the screen, three to a row")
+    if ME.ResetPosition then
+      local wasFree = w1.free
+      w1.free = true
+      pfUI_config.position[w1:GetName()] = { anchor = "TOPLEFT", xpos = 5000, ypos = -5000 }
+      ME.ResetPosition(w1)
+      local pt, _, _, x, y = w1:GetPoint()
+      ok(pfUI_config.position[w1:GetName()] == nil and pt == "CENTER" and x == ME.HomeX(1),
+        "Reset position puts a lost window back in the middle (" .. tostring(pt) .. " " .. tostring(x) .. ")")
+      w1.free = wasFree
+      if not wasFree then ME.ResetPosition(w1) end
+    end
     -- the padlock (user, 24 Oct 2026): locks / unlocks a free window
     ok(w1.lockbtn ~= nil, "meter windows have a padlock")
     if w1.lockbtn and ME.ToggleLock then

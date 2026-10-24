@@ -1305,7 +1305,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win:SetWidth(tonumber(S(win).width) or 260)
     win:SetHeight(tonumber(S(win).height) or 160)
     if not (C.position and C.position[win:GetName()]) then
-      win:SetPoint("CENTER", UIParent, "CENTER", (id - 1.5) * 280, -120)
+      win:SetPoint("CENTER", UIParent, "CENTER", M.HomeX(id), M.HomeY(id))
     end
     UpdateMovable(win)
     if S(win).lock == "1" then win.grip:Hide() else win.grip:Show() end
@@ -1313,6 +1313,30 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     Refresh(win)
     Lift(win)
   end
+
+  -- where a free window starts: three to a row around the middle of the
+  -- screen (window 5 and 6 used to start off its right edge)
+  function M.HomeX(id) return (math.mod(id - 1, 3) - 1) * 280 end
+  function M.HomeY(id) return -120 - math.floor((id - 1) / 3) * 190 end
+
+  -- back to the start (user, 24 Oct 2026: a meter went off the screen):
+  -- free windows to their home spot, docked ones back into the chat panel
+  function M.ResetPosition(win)
+    if not win then return end
+    if C.position then C.position[win:GetName()] = nil end
+    if win.free then
+      win:ClearAllPoints()
+      Float(win)
+    elseif Dock then
+      Dock(win)
+    end
+  end
+  function M.ResetPositions()
+    for _, w in ipairs(M.windows) do M.ResetPosition(w) end
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. T["every meter window is back in its starting place."])
+  end
+  _G.SLASH_PFMETERRESET1 = "/pfmeterreset"
+  _G.SlashCmdList.PFMETERRESET = function() M.ResetPositions() end
 
   local function Register(win)
     pfUI.thirdparty.meters:RegisterMeter(SideOf(win), { KeyOf(win), "pfUI", win,
@@ -1383,6 +1407,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
         if s.lock == "1" then win.grip:Hide() else win.grip:Show() end
         M.PaintLock(win)
       end), tick = s.lock == "1", keep = true })
+      table.insert(items, { T["Reset position"], function() M.ResetPosition(win) end })
     end
     table.insert(items, { string.format(T["Bar height: %s (click: bigger)"], s.barheight), function()
       local nextv = BAR_HEIGHTS[1]
@@ -1443,7 +1468,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.bars = {}
     win:SetWidth(tonumber(S(win).width) or 260)
     win:SetHeight(tonumber(S(win).height) or 160)
-    win:SetPoint("CENTER", UIParent, "CENTER", (id - 1.5) * 280, -120)
+    win:SetPoint("CENTER", UIParent, "CENTER", M.HomeX(id), M.HomeY(id))
     win:SetFrameStrata("MEDIUM")
     win:SetMovable(true)
     win:SetResizable(true)

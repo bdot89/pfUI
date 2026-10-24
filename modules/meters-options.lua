@@ -315,6 +315,14 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     W.Heading(p, "Meter windows", { about = "Pick a window with the tabs (or make a new one), then its look. Every window has "
       .. "its own settings; the preview shows the one you are editing." })
     Preview(p)
+    -- (user, 24 Oct 2026: a meter went off the screen, "a reset positions button")
+    W.Card(p, "Where they are", { tip = "Lost a window off the screen? Reset puts it back." })
+    W.Buttons(p, {
+      { "Reset positions", function() if M.ResetPositions then M.ResetPositions() end end, 140,
+        "Every meter window back to its starting place: free ones in the middle of the screen, docked ones in the chat panel." },
+      { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, 120,
+        "Layout mode: drag the meter windows (and everything else) where you want them." },
+    })
     -- (user, 23 Oct 2026: "a full test mode ... click on test bars in the
     -- meter and look at the extra frames with information")
     W.Card(p, "Test mode", { on = { function() return M.testOn and true or false end,
