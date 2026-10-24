@@ -230,13 +230,32 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     for _, b in ipairs(bags) do if Base(b.id) == Base(want.id) then return b end end
   end
 
+  -- (bag slots just filled - the game may still call them empty for a
+  -- moment - and ones a special bag would not take are skipped; 24 Oct 2026,
+  -- the Birthday suit takes many things off in a row)
+  local taken, refused = {}, {}
   local function FreeBagSlot()
+    local now = GetTime()
     for bag = 0, 4 do
       for slot = 1, (GetContainerNumSlots(bag) or 0) do
-        if not GetContainerItemLink(bag, slot) then return bag, slot end
+        local k = bag .. ":" .. slot
+        if not GetContainerItemLink(bag, slot) and not refused[k] and not (taken[k] and now - taken[k] < 3) then
+          return bag, slot
+        end
       end
     end
   end
+  GR.FreeBagSlot = FreeBagSlot
+  local function FreeSlots()
+    local n = 0
+    for bag = 0, 4 do
+      for slot = 1, (GetContainerNumSlots(bag) or 0) do
+        if not GetContainerItemLink(bag, slot) then n = n + 1 end
+      end
+    end
+    return n
+  end
+  GR.FreeSlots = FreeSlots
 
   local function Busy()
     if CursorHasItem and CursorHasItem() then return true end
@@ -279,8 +298,16 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     if want == "empty" then
       local bag, slot = FreeBagSlot()
       if not bag then Say("no room in your bags to take off " .. GR.NAME[inv] .. ".") return "fail" end
+      if IsInventoryItemLocked and IsInventoryItemLocked(inv) then return false end
       PickupInventoryItem(inv)
       PickupContainerItem(bag, slot)
+      if CursorHasItem and CursorHasItem() then
+        -- that bag would not take it (a quiver, a soul bag): back on, try another
+        PickupInventoryItem(inv)
+        refused[bag .. ":" .. slot] = true
+        return false
+      end
+      taken[bag .. ":" .. slot] = GetTime()
       return true
     end
     local from = GR.Find(want, keep)
@@ -391,6 +418,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       if wa ~= wb then return wa < wb end
       return a < b
     end)
+    refused = {}
     GR.queue = { name = name, slots = slots, order = order, tries = {}, skip = {} }
     runner:Show()
     GR.Tick()
@@ -414,6 +442,38 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     C.gear.current = nil
     C.gear.before = {}
     GR.Wear(name or "Unequip", before)
+  end
+
+  -- ---------------------------------------------------------------- birthday suit
+
+  -- Everything worn goes into the bags (user, 24 Oct 2026: "birthday suit
+  -- option that makes you naked putting all your gear in bags"). What was
+  -- worn is kept as "before", so Take off (back to before) dresses you again.
+  -- Armour waits for combat to end, as every swap.
+  function GR.IsNaked()
+    for _, s in ipairs(GR.SLOTS) do
+      if GetInventoryItemLink("player", s[1]) then return false end
+    end
+    return true
+  end
+  function GR.Naked()
+    local slots, n = {}, 0
+    for _, s in ipairs(GR.SLOTS) do
+      if GetInventoryItemLink("player", s[1]) then
+        slots[GR.Key(s[1])] = "empty"
+        n = n + 1
+      end
+    end
+    if n == 0 then Say("nothing on to take off.") return end
+    local free = FreeSlots()
+    if free < n then Say("room in your bags for " .. free .. " of the " .. n .. " things you wear - the rest stays on.") end
+    C.gear.before = GR.Snapshot()
+    C.gear.current = nil
+    GR.Wear("Birthday suit", slots)
+  end
+  -- the menu's entry: naked, or dressed again in what you had on
+  function GR.ToggleNaked()
+    if GR.IsNaked() and C.gear.before and next(C.gear.before) then GR.Unequip() else GR.Naked() end
   end
 
   -- "a" on and off, or between "a" and "b"
@@ -463,6 +523,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     _G["BINDING_NAME_PFGEARSLOT" .. s[1]] = "Use worn: " .. s[3]
   end
   _G.BINDING_HEADER_PFGEARSLOT = "pfUI Octo: gear slot buttons"
+  _G.BINDING_NAME_PFGEARNAKED = "Birthday suit (all gear into bags) / dress again"
 
   -- a gear button that works its slot: bindable by hovering it (pfUI's
   -- hover binding), its key shown small in the corner as on action buttons
@@ -510,6 +571,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     elseif cmd == "toggle" and rest ~= "" then
       local _, _, a, b = string.find(rest, "^(.-)%s*,%s*(.+)$")
       if a then GR.Toggle(a, b) else GR.Toggle(rest) end
+    elseif cmd == "naked" then GR.ToggleNaked()
     elseif cmd == "list" then
       local names = GR.Sets()
       Say(table.getn(names) == 0 and "no sets yet." or table.concat(names, ", "))
@@ -602,6 +664,12 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     end
     if cur or (C.gear.before and next(C.gear.before)) then
       table.insert(list, { text = "Take off (back to before)", icon = "Interface\\Icons\\Spell_ChargeNegative", action = function() GR.Unequip() end })
+    end
+    -- (naked: the entry dresses you again)
+    if GR.IsNaked() and C.gear.before and next(C.gear.before) then
+      table.insert(list, { text = "Dress again", icon = "Interface\\Icons\\INV_Chest_Cloth_01", action = function() GR.ToggleNaked() end })
+    else
+      table.insert(list, { text = "Birthday suit (all into bags)", icon = "Interface\\Icons\\Ability_Rogue_Disguise", action = function() GR.Naked() end })
     end
     table.insert(list, { text = "Gear options...", icon = "Interface\\Icons\\INV_Misc_Gear_01", action = function()
       if pfUI.gearOcto and pfUI.gearOcto.Open then pfUI.gearOcto.Open() end

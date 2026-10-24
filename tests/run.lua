@@ -3873,6 +3873,18 @@ do
     GR.Unequip()
     Run()
     ok(inv[16] == sword and inv[17] == shield, "taking a set off puts back the gear worn before")
+    -- Birthday suit (user, 24 Oct 2026): everything into the bags, then back on
+    GR.Naked()
+    Run()
+    local left = 0
+    for _ in pairs(inv) do left = left + 1 end
+    ok(left == 0 and GR.IsNaked(), "Birthday suit: nothing worn (" .. left .. " left)")
+    local inBags = 0
+    for _, b in pairs(bags) do for _, it in pairs(b) do if it == sword or it == shield or it == ring or it == trink then inBags = inBags + 1 end end end
+    ok(inBags == 4, "all four things went into the bags (" .. inBags .. ")")
+    GR.ToggleNaked()
+    Run()
+    ok(inv[16] == sword and inv[17] == shield and inv[11] == ring and inv[13] == trink, "Dress again puts it all back on")
     -- the same item with another enchant is another copy
     GR.Save("Fiery", { s16 = { id = "200:803:0", name = "Axe" } })
     GR.Equip("Fiery")
