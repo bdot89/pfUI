@@ -206,6 +206,18 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       end)
       W.Tip(new, "New window", "Adds a meter window (up to " .. M.MAXWIN .. "). It floats: move it with Move frames or its title bar.")
       MO.newBtn = new
+      -- (user, 24 Oct 2026: at the top, whichever window is being changed)
+      local row2 = W.Row(p, 24, 0, 4)
+      local match = W.Button(row2, "Match all windows to this one", 230, 22)
+      match:SetPoint("LEFT", row2, "LEFT", 0, 0)
+      match:SetScript("OnClick", function()
+        local n = M.MatchAll and M.MatchAll(MO.cur) or 0
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. n .. " " .. (n == 1 and "window" or "windows")
+          .. " now " .. (n == 1 and "has" or "have") .. " the size and look of window " .. MO.cur .. ".")
+      end)
+      W.Tip(match, "Match all windows to this one", "Every other meter window takes this window's size and look - bars, "
+        .. "fonts, colours, title bar, buttons. What each one shows (damage, threat...) stays its own.")
+      MO.matchBtn = match
       local box = W.Box(p, 210)
       MO.box = box
       -- the preview window, a real one
@@ -353,15 +365,6 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     })
     W.Card(p, "Looks", { tip = "Ready-made looks for this window." })
     Looks(p)
-    -- (user, 24 Oct 2026: "an option that matches all windows size and looks")
-    W.Buttons(p, {
-      { "Match all windows to this one", function()
-        local n = M.MatchAll and M.MatchAll(MO.cur) or 0
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r meters: " .. n .. " " .. (n == 1 and "window" or "windows")
-          .. " now " .. (n == 1 and "has" or "have") .. " the size and look of window " .. MO.cur .. ".")
-      end, 230, "Every other meter window takes this window's size and look - bars, fonts, colours, title bar, "
-        .. "buttons. What each one shows (damage, threat...) stays its own." },
-    })
 
     W.Card(p, "Shows", { tip = "What this window shows when it opens (its title bar changes it while playing)." })
     Drop(p, "Shows", nil, Modes(), S, "mode")
