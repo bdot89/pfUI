@@ -254,6 +254,8 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
       frame.backup = {}
       frame.backup.top_frame_name = GetTopFrame(frame):GetName()
       frame.backup.parent_name = GetTopFrame(frame):GetParent():GetName()
+      -- (octo: the parent itself - a name is not taken by every client's SetParent)
+      frame.backup.parent = GetTopFrame(frame):GetParent()
       frame.backup.is_clamped_to_screen = frame:IsClampedToScreen()
       frame.backup.is_movable = frame:IsMovable()
       frame.backup.point = {frame:GetPoint()}
@@ -278,7 +280,9 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
 
   local function RestoreButton(frame)
     if frame.backup ~= nil then
-      _G[frame.backup.top_frame_name]:SetParent(frame.backup.parent_name)
+      local top = _G[frame.backup.top_frame_name or ""] or frame
+      local parent = frame.backup.parent or _G[frame.backup.parent_name or ""] or Minimap
+      top:SetParent(parent)
       frame:SetClampedToScreen(frame.backup.is_clamped_to_screen)
       frame:SetMovable(frame.backup.is_movable)
       frame:SetScale(frame.backup.scale)
@@ -440,7 +444,9 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
       local i = TableMatch(self.buttons, name)
       if i then
         table.remove(self.buttons, i)
-        if f then RestoreButton(f) end
+        -- (octo, 25 Oct 2026: an error here left the button half moved until a
+        -- reload - "it should be instant"; the map place below sets it anyway)
+        if f then pcall(RestoreButton, f) end
       end
       hide[name] = (where == "hide") or nil
       if f then
@@ -498,7 +504,7 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
         if x + px > width - 3 and x > 3 then
           x, y, rowh = 3, y - rowh - gap, 0
         end
-        OnMap(f, x + px / 2, y - px / 2, px / h)
+        pcall(OnMap, f, x + px / 2, y - px / 2, px / h)
         x = x + px + gap
         if px > rowh then rowh = px end
       end
