@@ -96,9 +96,14 @@ libpredict:SetScript("OnEvent", function()
 end)
 
 libpredict:SetScript("OnUpdate", function()
+  -- only housekeeping (readers check the end times themselves): twice a second
+  local now = GetTime()
+  if (this.tick or 0) > now then return end
+  this.tick = now + .5
+
   -- update on timeout events
   for timestamp, targets in pairs(events) do
-    if GetTime() >= timestamp then
+    if now >= timestamp then
       events[timestamp] = nil
     end
   end

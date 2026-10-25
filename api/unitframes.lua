@@ -325,6 +325,10 @@ function pfUI.uf:UpdateVisibility()
   local unitstr = string.format("%s%s", self.label or "", self.id or "")
   local visibility = string.format("[target=%s,exists] show; hide", unitstr)
 
+  -- ClassicAPI: point the UNIT_* events at this frame's unit (no-op unless it changed)
+  self.RegisterUnitEvents = self.RegisterUnitEvents or pfUI.uf.RegisterUnitEvents
+  self:RegisterUnitEvents(unitstr)
+
   if pfUI.unlock and pfUI.unlock:IsShown() then
     -- display during unlock mode
     visibility = "show"
@@ -859,6 +863,7 @@ function pfUI.uf:UpdateConfig()
     f:EnableEvents()
     f:UpdateFrameSize()
   else
+    f.unitevents = nil
     f:UnregisterAllEvents()
     f:Hide()
   end
@@ -914,10 +919,56 @@ function pfUI.uf.OnEvent()
     elseif event == "UNIT_COMBAT" then
       CombatFeedback_OnCombatEvent(arg2, arg3, arg4, arg5)
     else
-      this.update_full = true
+      -- health / power: the bars only (pfUI ran a full refresh - every aura
+      -- and the portrait - on each tick); a unit coming into or out of sight
+      -- still gets the full one
+      local visible = UnitIsVisible(arg1) and true or false
+      if visible ~= this.visiblecache then
+        this.visiblecache = visible
+        this.update_full = true
+      else
+        this.update_base = true
+      end
     end
   end
 end
+
+-- ClassicAPI frame:RegisterUnitEvent: each frame hears only its own unit's
+-- UNIT_* events instead of every unit's (40 raid frames used to wake for every
+-- health tick in the raid). Without ClassicAPI EnableEvents registers them
+-- plainly and OnEvent compares arg1 as before.
+local UNIT_EVENTS = {
+  "UNIT_DISPLAYPOWER", "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_MANA", "UNIT_MAXMANA",
+  "UNIT_RAGE", "UNIT_MAXRAGE", "UNIT_ENERGY", "UNIT_MAXENERGY", "UNIT_FOCUS",
+  "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "UNIT_FACTION", "UNIT_AURA",
+}
+
+function pfUI.uf.RegisterUnitEvents(self, unitstr)
+  if not self.RegisterUnitEvent or self.unitname or not self.unitevents then return end
+  if unitstr == "" then unitstr = nil end
+  if self.eventunit == unitstr then return end
+  self.eventunit = unitstr
+  for i = 1, table.getn(UNIT_EVENTS) do
+    -- a plain registration keeps ignoring the filter, so drop it first
+    self:UnregisterEvent(UNIT_EVENTS[i])
+    if unitstr then self:RegisterUnitEvent(UNIT_EVENTS[i], unitstr) end
+  end
+end
+
+-- a frame handling events while the client shuts down can crash it (#132,
+-- seen by the ClassicAPI pfUI fork): unit frames go quiet on logout / reload
+local logout = CreateFrame("Frame")
+logout:RegisterEvent("PLAYER_LOGOUT")
+logout:SetScript("OnEvent", function()
+  for _, f in pairs(pfUI.uf.frames) do
+    f.unitevents = nil
+    if f.UnregisterAllEvents then f:UnregisterAllEvents() end
+    if f.SetScript then
+      f:SetScript("OnEvent", nil)
+      f:SetScript("OnUpdate", nil)
+    end
+  end
+end)
 
 function pfUI.uf.OnUpdate()
   -- update combat feedback
@@ -933,6 +984,7 @@ function pfUI.uf.OnUpdate()
   if this.update_full then
     -- process full updates
     pfUI.uf:RefreshUnit(this, "all")
+    this.predictAt = nil
 
     -- clear update caches
     this.update_full = nil
@@ -963,6 +1015,7 @@ function pfUI.uf.OnUpdate()
     if this.update_base then
       pfUI.uf:RefreshUnit(this, "base")
       this.update_base = nil
+      this.predictAt = nil
     end
   end
 
@@ -1021,8 +1074,11 @@ function pfUI.uf.OnUpdate()
     this.portrait.model.update = nil
   end
 
-  -- get incoming heals and resurections
-  if libpredict then
+  -- get incoming heals and resurections (20 times a second is enough: the
+  -- bars only move on events; pfUI asked libpredict on every frame)
+  local now = GetTime()
+  if libpredict and now >= (this.predictAt or 0) then
+    this.predictAt = now + .05
     local unit = this.label .. this.id
     local heal = libpredict:UnitGetIncomingHeals(unit)
     local ress = libpredict:UnitHasIncomingResurrection(unit)
@@ -1168,20 +1224,26 @@ function pfUI.uf:EnableEvents()
   local f = self
 
   f:RegisterEvent("PLAYER_ENTERING_WORLD")
-  f:RegisterEvent("UNIT_DISPLAYPOWER")
-  f:RegisterEvent("UNIT_HEALTH")
-  f:RegisterEvent("UNIT_MAXHEALTH")
-  f:RegisterEvent("UNIT_MANA")
-  f:RegisterEvent("UNIT_MAXMANA")
-  f:RegisterEvent("UNIT_RAGE")
-  f:RegisterEvent("UNIT_MAXRAGE")
-  f:RegisterEvent("UNIT_ENERGY")
-  f:RegisterEvent("UNIT_MAXENERGY")
-  f:RegisterEvent("UNIT_FOCUS")
-  f:RegisterEvent("UNIT_PORTRAIT_UPDATE")
-  f:RegisterEvent("UNIT_MODEL_CHANGED")
-  f:RegisterEvent("UNIT_FACTION")
-  f:RegisterEvent("UNIT_AURA") -- frame=buff, frame=debuff
+  if f.RegisterUnitEvent and not f.unitname then
+    -- ClassicAPI: filtered to this frame's unit (pfUI.uf.RegisterUnitEvents)
+    f.unitevents, f.eventunit = true, nil
+    pfUI.uf.RegisterUnitEvents(f, (f.label or "") .. (f.id or ""))
+  else
+    f:RegisterEvent("UNIT_DISPLAYPOWER")
+    f:RegisterEvent("UNIT_HEALTH")
+    f:RegisterEvent("UNIT_MAXHEALTH")
+    f:RegisterEvent("UNIT_MANA")
+    f:RegisterEvent("UNIT_MAXMANA")
+    f:RegisterEvent("UNIT_RAGE")
+    f:RegisterEvent("UNIT_MAXRAGE")
+    f:RegisterEvent("UNIT_ENERGY")
+    f:RegisterEvent("UNIT_MAXENERGY")
+    f:RegisterEvent("UNIT_FOCUS")
+    f:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    f:RegisterEvent("UNIT_MODEL_CHANGED")
+    f:RegisterEvent("UNIT_FACTION")
+    f:RegisterEvent("UNIT_AURA") -- frame=buff, frame=debuff
+  end
   f:RegisterEvent("PLAYER_AURAS_CHANGED") -- label=player && frame=buff
   f:RegisterEvent("UNIT_INVENTORY_CHANGED") -- label=player && frame=buff
   f:RegisterEvent("PARTY_MEMBERS_CHANGED") -- label=party, frame=leaderIcon
@@ -1345,6 +1407,7 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
     f:EnableEvents()
     f:UpdateFrameSize()
   else
+    f.unitevents = nil
     f:UnregisterAllEvents()
     f:Hide()
   end

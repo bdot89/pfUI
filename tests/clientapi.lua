@@ -234,6 +234,38 @@ if Has then
   _G.GetAddOnInfo = realInfo
 end
 
+-- ---------------------------------------------------------------- unit frame events
+-- ClassicAPI frame:RegisterUnitEvent: a unit frame hears only its own unit
+do
+  local reg = {}
+  local f = { unitevents = true,
+    RegisterUnitEvent = function(self, e, u) reg[e] = u end,
+    UnregisterEvent = function(self, e) reg[e] = nil end }
+  pfUI.uf.RegisterUnitEvents(f, "raid3")
+  ok(reg.UNIT_HEALTH == "raid3" and reg.UNIT_AURA == "raid3", "unit frame: its own unit's events only (RegisterUnitEvent)")
+  pfUI.uf.RegisterUnitEvents(f, "")
+  ok(reg.UNIT_HEALTH == nil and reg.UNIT_AURA == nil, "unit frame without a unit: unit events dropped")
+  local named = { unitname = "focus", unitevents = true, RegisterUnitEvent = function() error("filtered") end }
+  ok(pcall(pfUI.uf.RegisterUnitEvents, named, "player"), "a frame following a name keeps plain events")
+
+  -- a health tick refreshes the bars only; coming into sight refreshes it all
+  local saved = { this = rawget(_G, "this"), event = rawget(_G, "event"), arg1 = rawget(_G, "arg1"),
+                  vis = rawget(_G, "UnitIsVisible") }
+  local seen = true
+  _G.UnitIsVisible = function() return seen end
+  local h = { label = "party", id = "1" }
+  _G.this, _G.event, _G.arg1 = h, "UNIT_HEALTH", "party1"
+  pfUI.uf.OnEvent()
+  ok(h.update_full, "first health event of a frame: full refresh")
+  h.update_full = nil
+  pfUI.uf.OnEvent()
+  ok(h.update_base and not h.update_full, "next health event: bars only, no aura / portrait rescan")
+  h.update_base, seen = nil, false
+  pfUI.uf.OnEvent()
+  ok(h.update_full, "unit out of sight: full refresh")
+  _G.this, _G.event, _G.arg1, _G.UnitIsVisible = saved.this, saved.event, saved.arg1, saved.vis
+end
+
 -- ---------------------------------------------------------------- back to the plain mock
 C_UnitAuras, C_Spell = nil, nil
 for k, v in pairs(savedG) do rawset(_G, k, v) end
