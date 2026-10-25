@@ -313,6 +313,9 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     Chk(p, "Totems", nil, N, "totems")
     Chk(p, "Still a bar when hurt", "A unit that has lost health keeps its bar.", N, "fullhealth")
     Chk(p, "Still a bar on the target", nil, N, "target")
+    W.Card(p, "Smoothness", { folded = true, tip = "Your target, casting plates and plates that are moving always redraw on every frame." })
+    Sld(p, "Other plates redraw", "How often a calm plate redraws, per second. Lower = more frames per second in big pulls; 60 = every frame.",
+      10, 60, 5, S, "calmfps", function(v) return (tonumber(v) or 30) >= 60 and "every frame" or (v .. " a second") end)
     if pfUI.client <= 11200 then
       W.Card(p, "Clicks", { folded = true })
       Chk(p, "Click through", "Plates ignore the mouse.", N, "clickthrough")

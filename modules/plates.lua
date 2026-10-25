@@ -895,6 +895,9 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     if P.Auras then P.Auras.Tick(plate, o, now) end
     P.ComboTick(o, now)
     if P.Fx then P.Fx.Tick(plate, o, now) end
+    -- something on it moves: keep it on every frame (P.Calm)
+    o.busy = o.scale ~= want or o.anim or o.casting or o.cend:IsShown() or o.cpglowing
+      or plate.health.zoomed or plate.health.zoomTransition or nil
   end
 
   -- ---------------------------------------------------------------- test mode and preview
@@ -1510,10 +1513,32 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     P.Update(plate)
   end
 
+  -- Calm plates redraw C.plates.calmfps times a second instead of on every
+  -- frame (idea from the ClassicAPI pfUI fork, which throttles plates by kind):
+  -- pfUI's OnUpdate and our Tick both read a dozen things per plate per frame.
+  -- Health is event-driven (OnValueChanged), so only these need every frame:
+  -- the target (and the plate just leaving it), queued events, mouseover,
+  -- casts, anything animating (o.busy, set by P.Tick), previews and the test.
+  function P.Calm(parent, plate)
+    local fps = tonumber(S.calmfps) or 30
+    if fps >= 60 or S.enable ~= "1" then return end
+    local o = plate.octo
+    if plate.istarget or plate.eventcache or parent.preview or not o or o.busy then return end
+    if plate.castbar:IsShown() or plate.cache.mouseover then return end
+    if UnitExists("target") and parent:GetAlpha() == 1 then return end
+    if UnitExists("mouseover") and plate.original.glow and plate.original.glow:IsShown() then return end
+    if P.Testing() then return end
+    local now = GetTime()
+    if (plate.calmAt or 0) > now then return true end
+    plate.calmAt = now + 1 / fps
+  end
+
   local OnUpdate = NP.OnUpdate
   NP.OnUpdate = function(frame)
-    OnUpdate(frame)
     local parent = frame or this
+    local plate = parent and parent.nameplate
+    if plate and P.Calm(parent, plate) then return end
+    OnUpdate(frame)
     if parent then P.Tick(parent.nameplate) end
   end
 

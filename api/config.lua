@@ -199,6 +199,8 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("plates",     nil,           "animcrit",         "pop")
   pfUI:UpdateConfig("plates",     nil,           "animtarget",       "pop")
   pfUI:UpdateConfig("plates",     nil,           "animsize",         "25")
+  -- calm plates (not target / casting / moving) redraw this often; 60 = every frame
+  pfUI:UpdateConfig("plates",     nil,           "calmfps",          "30")
   for i = 1, 6 do
     pfUI:UpdateConfig("plates", "rule" .. i, "on",     "0")
     pfUI:UpdateConfig("plates", "rule" .. i, "when",   "name")

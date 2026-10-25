@@ -388,8 +388,10 @@ pfUI:RegisterModule("plates-auras", "vanilla:tbc", function ()
 
   function A.Tick(plate, o, now)
     if not o.ashown or o.ashown == 0 then return end
-    for _, pool in ipairs({ o.aicons, o.bicons }) do
-      for _, f in ipairs(pool) do
+    -- the two pools without a new table each frame
+    for n = 1, 2 do
+      local pool = n == 1 and o.aicons or o.bicons
+      for _, f in ipairs(pool or {}) do
         if f.ends and f:IsShown() then
           local left = f.ends - now
           if left <= 0 then
