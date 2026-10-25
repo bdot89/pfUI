@@ -4675,6 +4675,16 @@ do
   end
 end
 
+-- the tooltip anchor's size in layout mode is the game tooltip's size
+do
+  local a = pfUI.tooltip and pfUI.tooltip.anchorframe
+  if a and GameTooltip and GameTooltip.GetScale then
+    a:SetScale(1.4)
+    ok(math.abs((GameTooltip:GetScale() or 0) - 1.4) < .01, "a bigger tooltip box makes the tooltip bigger")
+    a:SetScale(1)
+  end
+end
+
 -- the preview help strips: keys and what they do, read from the old text
 do
   local W = pfUI.octoui.W

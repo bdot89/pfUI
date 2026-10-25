@@ -7,7 +7,25 @@ pfUI:RegisterModule("tooltip", "vanilla:tbc", function ()
   pfUI.tooltip.anchorframe:SetHeight(72)
   pfUI.tooltip.anchorframe:SetPoint("TOP", UIParent, "TOP", 0, -50)
   pfUI.tooltip.anchorframe:Hide()
+  -- octo (25 Oct 2026, user: "when resizing the tooltip the tooltip ingame
+  -- should get bigger or smaller as well"): the anchor box's size in layout
+  -- mode is the size of the game's tooltips
+  local function TipScale(scale)
+    scale = tonumber(scale) or 1
+    for _, n in ipairs({ "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2" }) do
+      local t = _G[n]
+      if t and t.SetScale then t:SetScale(scale) end
+    end
+  end
+  pfUI.tooltip.TipScale = TipScale
+  -- (every way the box is sized - the wheel, a reset, a UI layout - goes through SetScale)
+  local setScale = pfUI.tooltip.anchorframe.SetScale
+  pfUI.tooltip.anchorframe.SetScale = function(self, scale)
+    setScale(self, scale)
+    TipScale(scale)
+  end
   UpdateMovable(pfUI.tooltip.anchorframe)
+  TipScale(pfUI.tooltip.anchorframe:GetScale())
 
   function pfUI.tooltip:GetAnchorPoint()
     local prefix = "TOP"
