@@ -482,11 +482,19 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     frame:SetScript("OnDragStop", nil)
     frame:SetScript("OnUpdate", nil)
     frame:ClearAllPoints()
+    local moved = frame:GetParent() ~= Minimap
     frame:SetParent(Minimap)
     frame:SetScale(scale)
     frame:SetPoint("CENTER", Minimap, "TOPLEFT", cx / scale, cy / scale)
     if frame.SetFrameLevel then frame:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 5) end
-    if not frame:IsShown() then frame:Show() end
+    -- (1.12: a frame moved out of a hidden parent - the shut panel - stays
+    -- unseen though it and every parent say shown, until it is hidden and
+    -- shown again; seen 25 Oct 2026: "on the map (not showing)" with every
+    -- parent shown, fine after a reload)
+    if moved or not frame:IsVisible() then
+      frame:Hide()
+      frame:Show()
+    end
   end
 
   -- why a button does not show: its parents, each shown or not (for chat)
