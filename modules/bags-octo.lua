@@ -413,17 +413,31 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
   function BO.Header(f)
     local o = f and f.octo
     if not o then return end
-    local list = { f.close, f.bags, f.sort, f.keys, f.open, f.picklock, f.disenchant }
+    -- a clear "Sort" button in place of pfUI's small sort icon (user, 25 Oct
+    -- 2026: "make this button also be on the bags so it is able to be done
+    -- without opening UI"); bags or bank by the window
+    local W = pfUI.octoui and pfUI.octoui.W
+    if not o.sortb and W then
+      o.sortb = W.Button(o.head, "Sort", 40, 16)
+      if W.Tint then W.Tint(o.sortb, "go") end
+      o.sortb.which = f.octoWhich
+      o.sortb:SetScript("OnClick", function()
+        if pfUI.api.libbagsort then pfUI.api.libbagsort:Sort(this.which == "bank" and "bank" or "bags") end
+      end)
+      W.Tip(o.sortb, "Sort", "Sorts this window's items: instantly with ClassicAPI, else one item at a time.")
+    end
+    if f.sort and o.sortb then f.sort:Hide() end
+    local list = { f.close, f.bags, o.sortb or f.sort, f.keys, f.open, f.picklock, f.disenchant }
     local prev
     for _, b in ipairs(list) do
       local use = b ~= nil
-      if b == f.sort and S().sortbtn ~= "1" then use = false end
+      if (b == f.sort or (o.sortb and b == o.sortb)) and S().sortbtn ~= "1" then use = false end
       if (b == f.picklock or b == f.disenchant) and b and not (b:GetID() and b:GetID() > 0) then use = false end
       if b then
         if use then
           b:SetParent(o.head)
           b:ClearAllPoints()
-          b:SetWidth(16)
+          b:SetWidth(b == o.sortb and 40 or 16)
           b:SetHeight(16)
           if prev then
             b:SetPoint("RIGHT", prev, "LEFT", -4, 0)
