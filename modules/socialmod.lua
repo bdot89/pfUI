@@ -195,4 +195,83 @@ pfUI:RegisterModule("socialmod", "vanilla:tbc", function ()
       end
     end)
   end
+
+  -- octo: notes on friends (from the ClassicAPI pfUI fork). "Note" in a
+  -- friend's right-click menu; the note shows when you hover the friend.
+  -- ClassicAPI keeps them in its friend list (C_FriendList notes); without
+  -- it they are kept in pfUI_cache.friendnotes (per realm).
+  if FriendsFrame and UnitPopupMenus and UnitPopupMenus["FRIEND"] then
+    local TOKEN = "PFUI_FRIEND_NOTE"
+    local capi = C_UnitAuras and C_FriendList and C_FriendList.SetFriendNotes and C_FriendList.GetFriendInfo
+
+    local function Key(name) return (GetRealmName() or "") .. ":" .. string.lower(name or "") end
+    local function GetNote(name)
+      if not name then return end
+      if capi then
+        local ok, info = pcall(C_FriendList.GetFriendInfo, name)
+        if ok and info then return info.notes end
+      end
+      return pfUI_cache.friendnotes and pfUI_cache.friendnotes[Key(name)]
+    end
+    local function SetNote(name, text)
+      if not name then return end
+      if text == "" then text = nil end
+      if capi and pcall(C_FriendList.SetFriendNotes, name, text or "") then return end
+      pfUI_cache.friendnotes = pfUI_cache.friendnotes or {}
+      pfUI_cache.friendnotes[Key(name)] = text
+    end
+
+    StaticPopupDialogs["PFUI_FRIEND_NOTE"] = {
+      text = T["Note for %s:"],
+      button1 = OKAY,
+      button2 = CANCEL,
+      hasEditBox = 1,
+      maxLetters = 128,
+      OnShow = function()
+        local box = _G[this:GetName() .. "EditBox"]
+        box:SetText(GetNote(pfUI.socialmod.noteFor) or "")
+        box:HighlightText()
+        box:SetFocus()
+      end,
+      OnAccept = function()
+        SetNote(pfUI.socialmod.noteFor, _G[this:GetParent():GetName() .. "EditBox"]:GetText())
+      end,
+      EditBoxOnEnterPressed = function()
+        SetNote(pfUI.socialmod.noteFor, this:GetText())
+        this:GetParent():Hide()
+      end,
+      EditBoxOnEscapePressed = function() this:GetParent():Hide() end,
+      timeout = 0, whileDead = 1, hideOnEscape = 1,
+    }
+
+    UnitPopupButtons[TOKEN] = { text = T["Note"], dist = 0 }
+    local menu = UnitPopupMenus["FRIEND"]
+    table.insert(menu, math.max(1, table.getn(menu)), TOKEN)
+
+    hooksecurefunc("UnitPopup_OnClick", function()
+      if not this or this.value ~= TOKEN then return end
+      local dropdown = _G[UIDROPDOWNMENU_INIT_MENU]
+      local name = dropdown and dropdown.name
+      if not name or name == "" then return end
+      pfUI.socialmod.noteFor = name
+      StaticPopup_Show("PFUI_FRIEND_NOTE", name)
+    end)
+
+    -- the note under the friend's name when hovered
+    for i = 1, FRIENDS_TO_DISPLAY or 10 do
+      local button = _G["FriendsFrameFriendButton" .. i]
+      if button then
+        HookScript(button, "OnEnter", function()
+          local name = GetFriendInfo(this:GetID())
+          local note = GetNote(name)
+          if not note or note == "" then return end
+          GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+          GameTooltip:SetText(name)
+          GameTooltip:AddLine(note, 1, 1, 1, 1)
+          GameTooltip:Show()
+        end)
+        HookScript(button, "OnLeave", function() GameTooltip:Hide() end)
+      end
+    end
+  end
 end)
