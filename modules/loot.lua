@@ -3,6 +3,202 @@ pfUI:RegisterModule("loot", "vanilla:tbc", function ()
 
   pfUI.loot = CreateFrame("Frame", "pfLootFrame", UIParent)
   pfUI.loot:Hide()
+
+  -- octo: loot roll history (from the ClassicAPI pfUI fork), /loothistory.
+  -- ClassicAPI keeps the last 128 group-loot rolls (who needed / greeded /
+  -- passed, the dice, the winner) through /reload. Without ClassicAPI the
+  -- command says so. Click an item: its rolls; wheel: scroll.
+  do
+    local ROLLTEX = { [0] = "Interface\\Buttons\\UI-GroupLoot-Pass-Up", [1] = "Interface\\Buttons\\UI-GroupLoot-Dice-Up",
+                      [2] = "Interface\\Buttons\\UI-GroupLoot-Coin-Up" }
+    local ROWS, ROWH = 16, 20
+    local rawborder, border = GetBorderSize()
+    local open, offset, entries = {}, 0, {}
+
+    local function Has() return C_UnitAuras and C_LootHistory and C_LootHistory.GetNumItems end
+
+    local h = CreateFrame("Frame", "pfLootHistory", UIParent)
+    pfUI.loot.history = h
+    h:SetFrameStrata("DIALOG")
+    h:SetWidth(380)
+    h:SetHeight(ROWS * ROWH + 48)
+    h:SetPoint("CENTER", 0, 0)
+    h:SetMovable(true)
+    h:EnableMouse(true)
+    h:SetClampedToScreen(true)
+    h:RegisterForDrag("LeftButton")
+    h:SetScript("OnDragStart", function() this:StartMoving() end)
+    h:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+    h:EnableMouseWheel(1)
+    h:Hide()
+    CreateBackdrop(h, nil, true, .85)
+    CreateBackdropShadow(h)
+    table.insert(UISpecialFrames, "pfLootHistory")
+
+    h.title = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    h.title:SetFont(pfUI.font_default, C.global.font_size + 2, "OUTLINE")
+    h.title:SetPoint("TOP", 0, -8)
+    h.title:SetText(T["Loot History"])
+    local ar, ag, ab = .2, 1, .8
+    if GetAccentColor then ar, ag, ab = GetAccentColor() end
+    h.title:SetTextColor(ar, ag, ab)
+
+    h.close = CreateFrame("Button", nil, h, "UIPanelCloseButton")
+    h.close:SetWidth(20)
+    h.close:SetHeight(20)
+    h.close:SetPoint("TOPRIGHT", 0, 0)
+    h.close:SetScript("OnClick", function() h:Hide() end)
+    SkinCloseButton(h.close, h, -6, -6)
+
+    h.clear = CreateFrame("Button", nil, h, "UIPanelButtonTemplate")
+    h.clear:SetWidth(56)
+    h.clear:SetHeight(16)
+    h.clear:SetPoint("TOPLEFT", 8, -7)
+    h.clear:SetText(T["Clear"])
+    SkinButton(h.clear)
+    h.clear:SetScript("OnClick", function() if Has() then C_LootHistory.Clear() end end)
+
+    h.empty = h:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+    h.empty:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+    h.empty:SetPoint("CENTER", 0, 0)
+    h.empty:SetTextColor(.6, .6, .6)
+
+    h.rows = {}
+    for i = 1, ROWS do
+      local r = CreateFrame("Button", nil, h)
+      r:SetHeight(ROWH)
+      r:SetPoint("TOPLEFT", 8, -30 - (i - 1) * ROWH)
+      r:SetPoint("TOPRIGHT", -8, -30 - (i - 1) * ROWH)
+      r.bg = r:CreateTexture(nil, "BACKGROUND")
+      r.bg:SetAllPoints()
+      r.bg:SetTexture(1, 1, 1, i - math.floor(i / 2) * 2 == 0 and .03 or 0)
+      r.icon = r:CreateTexture(nil, "ARTWORK")
+      r.icon:SetWidth(ROWH - 4)
+      r.icon:SetHeight(ROWH - 4)
+      r.icon:SetPoint("LEFT", 2, 0)
+      r.icon:SetTexCoord(.08, .92, .08, .92)
+      r.left = r:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+      r.left:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+      r.left:SetJustifyH("LEFT")
+      r.right = r:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+      r.right:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+      r.right:SetJustifyH("RIGHT")
+      r.roll = r:CreateTexture(nil, "OVERLAY")
+      r.roll:SetWidth(14)
+      r.roll:SetHeight(14)
+      r.roll:SetPoint("RIGHT", -2, 0)
+      r.right:SetPoint("RIGHT", r.roll, "LEFT", -4, 0)
+      r:SetScript("OnClick", function()
+        local e = this.entry
+        if e and e.kind == "item" then
+          open[e.rollID] = not open[e.rollID]
+          h:Refresh()
+        end
+      end)
+      r:SetScript("OnEnter", function()
+        local e = this.entry
+        if e and e.link then
+          GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+          GameTooltip:SetHyperlink(e.link)
+          GameTooltip:Show()
+        end
+      end)
+      r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      h.rows[i] = r
+    end
+
+    local function ClassName(name, class)
+      local c = class and RAID_CLASS_COLORS[class]
+      if c then return rgbhex(c) .. (name or "?") .. "|r" end
+      return name or "?"
+    end
+
+    -- newest first; an open item lists everyone's roll under it
+    function h:Refresh()
+      for k in pairs(entries) do entries[k] = nil end
+      local n = Has() and C_LootHistory.GetNumItems() or 0
+      for i = n, 1, -1 do
+        local rollID, link, players, done, winner = C_LootHistory.GetItem(i)
+        if rollID then
+          local _, _, id = string.find(link or "", "item:(%d+)")
+          local name, _, quality, _, _, _, _, _, tex = _G.GetItemInfo(tonumber(id) or 0)
+          local e = { kind = "item", rollID = rollID, link = link, name = name or link, quality = quality, tex = tex }
+          if winner then
+            local wname, wclass, wtype, wroll = C_LootHistory.GetPlayerInfo(i, winner)
+            e.right = ClassName(wname, wclass) .. (wroll and ("  " .. wroll) or "")
+            e.rolltex = ROLLTEX[wtype]
+          elseif done then
+            e.right = "|cff888888" .. T["All passed"] .. "|r"
+          else
+            e.right = "|cffffcc00" .. T["Rolling..."] .. "|r"
+          end
+          table.insert(entries, e)
+          if open[rollID] then
+            for p = 1, (players or 0) do
+              local pname, pclass, ptype, proll, win = C_LootHistory.GetPlayerInfo(i, p)
+              if pname then
+                table.insert(entries, { kind = "player", link = link,
+                  left = (win and "|cff33ff33> |r" or "   ") .. ClassName(pname, pclass),
+                  right = proll and tostring(proll) or "-", rolltex = ROLLTEX[ptype] })
+              end
+            end
+          end
+        end
+      end
+
+      local count = table.getn(entries)
+      offset = math.max(0, math.min(offset, count - ROWS))
+      for i = 1, ROWS do
+        local r, e = h.rows[i], entries[i + offset]
+        r.entry = e
+        if e then
+          r.left:ClearAllPoints()
+          r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+          if e.kind == "item" then
+            r.icon:SetTexture(e.tex or "Interface\\Icons\\INV_Misc_QuestionMark")
+            r.icon:Show()
+            r.left:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
+            local q = e.quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[e.quality]
+            r.left:SetText((q and q.hex or "") .. (e.name or "?") .. "|r")
+          else
+            r.icon:Hide()
+            r.left:SetPoint("LEFT", r, "LEFT", 26, 0)
+            r.left:SetText(e.left)
+          end
+          r.right:SetText(e.right or "")
+          if e.rolltex then r.roll:SetTexture(e.rolltex) r.roll:Show() else r.roll:Hide() end
+          r:Show()
+        else
+          r:Hide()
+        end
+      end
+
+      if not Has() then
+        h.empty:SetText(T["Needs ClassicAPI (it keeps the roll history)."])
+      elseif count == 0 then
+        h.empty:SetText(T["No loot rolls yet."])
+      else
+        h.empty:SetText("")
+      end
+    end
+
+    h:SetScript("OnMouseWheel", function()
+      offset = offset - arg1 * 3
+      h:Refresh()
+    end)
+    h:SetScript("OnShow", function() offset = 0 h:Refresh() end)
+
+    if Has() then
+      h:RegisterEvent("LOOT_HISTORY_FULL_UPDATE")
+      h:RegisterEvent("LOOT_HISTORY_ROLL_CHANGED")
+      h:RegisterEvent("LOOT_HISTORY_ROLL_COMPLETE")
+      h:SetScript("OnEvent", function() if this:IsShown() then this:Refresh() end end)
+    end
+
+    pfUI.api.RegisterSlashCommand("PFLOOTHISTORY", { "/loothistory", "/lh" }, function()
+      if h:IsShown() then h:Hide() else h:Show() end
+    end)
+  end
   pfUI.loot:SetFrameStrata("DIALOG")
   pfUI.loot:RegisterEvent("LOOT_OPENED")
   pfUI.loot:RegisterEvent("LOOT_CLOSED")

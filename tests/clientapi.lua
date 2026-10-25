@@ -243,6 +243,37 @@ do
   C_Spell = savedSpell
 end
 
+-- ---------------------------------------------------------------- loot roll history (/loothistory)
+-- (the loot module needs more of the client than the mock has: line 372's
+-- table; these run once it starts there)
+local LH = pfUI.loot and pfUI.loot.history
+if LH and LH.Refresh then
+  local savedAuras, savedLH = C_UnitAuras, rawget(_G, "C_LootHistory")
+  LH:Refresh()
+  ok(LH.empty:GetText() and string.find(LH.empty:GetText(), "ClassicAPI"), "no ClassicAPI: the window says it needs it")
+  C_UnitAuras = savedAuras or {}
+  _G.C_LootHistory = {
+    GetNumItems = function() return 2 end,
+    GetItem = function(i)
+      if i == 1 then return 11, "item:2589:0:0:0", 2, true, 2 end
+      return 12, "item:2592:0:0:0", 1, false, nil
+    end,
+    GetPlayerInfo = function(i, p)
+      if p == 1 then return "Arcanist", "MAGE", 2, 40, false, true end
+      return "Shemp", "WARRIOR", 1, 88, true, false
+    end,
+    Clear = function() end,
+  }
+  LH:Refresh()
+  local r1, r2 = LH.rows[1], LH.rows[2]
+  ok(r1.entry and r1.entry.rollID == 12 and string.find(r1.right:GetText() or "", "Rolling"), "newest roll first, still rolling")
+  ok(r2.entry and r2.entry.rollID == 11 and string.find(r2.right:GetText() or "", "Shemp"), "finished roll names the winner")
+  _G.this = r2
+  r2:GetScript("OnClick")()
+  ok(LH.rows[3].entry and LH.rows[3].entry.kind == "player" and LH.rows[4].entry, "click an item: everyone's roll under it")
+  C_UnitAuras, _G.C_LootHistory = savedAuras, savedLH
+end
+
 -- ---------------------------------------------------------------- unit frame events
 -- ClassicAPI frame:RegisterUnitEvent: a unit frame hears only its own unit
 do
