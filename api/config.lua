@@ -1366,6 +1366,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("abuttons",   nil,           "rowsize",          "6")
   pfUI:UpdateConfig("abuttons",   nil,           "spacing",          "2")
   pfUI:UpdateConfig("abuttons",   nil,           "hideincombat",     "1")
+  pfUI:UpdateConfig("abuttons",   nil,           "size",             "0")
 
   pfUI:UpdateConfig("screenshot", nil,           "interval",         "0")
   pfUI:UpdateConfig("screenshot", nil,           "levelup",          "0")

@@ -55,7 +55,12 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
   pfUI.addonbuttons.rows = 1
   pfUI.addonbuttons.max_button_size = 40
 
+  -- octo (25 Oct 2026, user: "the resizer hardly changes the buttons"): a
+  -- size of its own in px (0 = fit the map's width, as pfUI did)
+  local function Fixed() return tonumber(C.abuttons.size or "") or 0 end
+
   local function GetButtonSize()
+    if Fixed() > 0 then return Fixed() end
     if C.abuttons.position == "bottom" or C.abuttons.position == "top" then
       return (pfUI.minimap:GetWidth() - (tonumber(C.abuttons.spacing) * (tonumber(C.abuttons.rowsize) + 1))) / tonumber(C.abuttons.rowsize)
     else
@@ -151,6 +156,7 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
       end
     end
     calculated_scale = GetButtonSize() / (sum_size / buttons_count)
+    if Fixed() > 0 then return calculated_scale end
     return calculated_scale > 1 and 1 or calculated_scale
   end
 
@@ -163,32 +169,47 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     FindButtons(MinimapBackdrop)
   end
 
+  -- the panel's long side: the map's, or as long as a row of fixed-size buttons
+  local function Long(side)
+    if Fixed() > 0 then return tonumber(C.abuttons.rowsize) * GetStringSize() + tonumber(C.abuttons.spacing) end
+    return side
+  end
+
+  -- what the panel hangs under: the bar under the map when it is in its own
+  -- place there (it used to cover the first row and take its clicks)
+  local function Below()
+    local bar = pfUI.panel and pfUI.panel.minimap
+    local S = C.mapstyle
+    if bar and bar:IsShown() and not (S and tonumber(S.barx or "")) then return bar end
+    return pfUI.minimap
+  end
+
   local function SetupMainFrame()
     pfUI.addonbuttons:ClearAllPoints()
     pfUI.addonbuttons:SetScale(pfUI.minimap:GetScale())
 
     pfUI.addonbuttons.minimapbutton:ClearAllPoints()
     if C.abuttons.position == "bottom" then
-      pfUI.addonbuttons:SetWidth(pfUI.minimap:GetWidth())
+      pfUI.addonbuttons:SetWidth(Long(pfUI.minimap:GetWidth()))
       pfUI.addonbuttons:SetHeight(ceil((GetNumButtons() > 0 and GetNumButtons() or 1) / tonumber(C.abuttons.rowsize)) * GetStringSize() + tonumber(C.abuttons.spacing))
-      pfUI.addonbuttons:SetPoint("TOP", pfUI.minimap, "BOTTOM", 0 , -default_border * 3)
+      pfUI.addonbuttons:SetPoint("TOP", Below(), "BOTTOM", 0 , -default_border * 3)
       SkinArrowButton(pfUI.addonbuttons.minimapbutton, "down")
       pfUI.addonbuttons.minimapbutton:SetPoint("BOTTOM", pfUI.minimap, "BOTTOM", 0, 4)
     elseif C.abuttons.position == "left" then
       pfUI.addonbuttons:SetWidth(ceil((GetNumButtons() > 0 and GetNumButtons() or 1) / tonumber(C.abuttons.rowsize)) * GetStringSize() + tonumber(C.abuttons.spacing))
-      pfUI.addonbuttons:SetHeight(pfUI.minimap:GetHeight())
+      pfUI.addonbuttons:SetHeight(Long(pfUI.minimap:GetHeight()))
       pfUI.addonbuttons:SetPoint("TOPRIGHT", pfUI.minimap, "TOPLEFT", -default_border * 3, 0)
       SkinArrowButton(pfUI.addonbuttons.minimapbutton, "left")
       pfUI.addonbuttons.minimapbutton:SetPoint("LEFT", pfUI.minimap, "LEFT", 4, 0)
     elseif C.abuttons.position == "top" then
-      pfUI.addonbuttons:SetWidth(pfUI.minimap:GetWidth())
+      pfUI.addonbuttons:SetWidth(Long(pfUI.minimap:GetWidth()))
       pfUI.addonbuttons:SetHeight(ceil((GetNumButtons() > 0 and GetNumButtons() or 1) / tonumber(C.abuttons.rowsize)) * GetStringSize() + tonumber(C.abuttons.spacing))
       pfUI.addonbuttons:SetPoint("BOTTOM", pfUI.minimap, "TOP", 0 , default_border * 3)
       SkinArrowButton(pfUI.addonbuttons.minimapbutton, "up")
       pfUI.addonbuttons.minimapbutton:SetPoint("TOP", pfUI.minimap, "TOP", 0, -4)
     elseif C.abuttons.position == "right" then
       pfUI.addonbuttons:SetWidth(ceil((GetNumButtons() > 0 and GetNumButtons() or 1) / tonumber(C.abuttons.rowsize)) * GetStringSize() + tonumber(C.abuttons.spacing))
-      pfUI.addonbuttons:SetHeight(pfUI.minimap:GetHeight())
+      pfUI.addonbuttons:SetHeight(Long(pfUI.minimap:GetHeight()))
       pfUI.addonbuttons:SetPoint("TOPLEFT", pfUI.minimap, "TOPRIGHT", default_border * 3, 0)
       SkinArrowButton(pfUI.addonbuttons.minimapbutton, "right")
       pfUI.addonbuttons.minimapbutton:SetPoint("RIGHT", pfUI.minimap, "RIGHT", -4, 0)

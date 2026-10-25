@@ -2285,6 +2285,16 @@ do
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "hide" and fake.alpha == 0, "and can be hidden")
       pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
+      pfUI.addonbuttons:ProcessButtons()
+      ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map", "and the next look round leaves it on the map")
+      -- a size of their own (user, 25 Oct 2026: "the resizer hardly changes the buttons")
+      local ab = pfUI_config.abuttons
+      local was = { ab.size, ab.rowsize, ab.spacing, ab.position }
+      ab.size, ab.rowsize, ab.spacing, ab.position = "40", "6", "2", "bottom"
+      pfUI.addonbuttons:ProcessButtons()
+      ok(math.abs(pfUI.addonbuttons:GetWidth() - (6 * 42 + 2)) < .5, "a button size makes the panel as wide as a row of them (" .. tostring(pfUI.addonbuttons:GetWidth()) .. ")")
+      ab.size, ab.rowsize, ab.spacing, ab.position = was[1], was[2], was[3], was[4]
+      pfUI.addonbuttons:ProcessButtons()
       -- buttons made elsewhere and only anchored to the map are not looked for
       -- (that scan crashed the client at login; /abp add takes them by hand)
       if not MinimapCluster:GetParent() then MinimapCluster:SetParent(UIParent) end

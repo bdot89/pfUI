@@ -660,7 +660,8 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
       local n = table.getn(MO.found or {})
       return n == 0 and "No addon buttons found on the map yet." or (n .. " addon button" .. (n == 1 and "" or "s") .. " found - pick where each goes:")
     end)
-    for i = 1, 12 do
+    -- (30: 18 were found on the user's map and only 12 had rows)
+    for i = 1, 30 do
       local row = W.Row(p, 22, 0, 2)
       row.name = W.Font(row:CreateFontString(nil, "OVERLAY"), 11, .85, .85, .85)
       row.name:SetPoint("LEFT", row, "LEFT", 4, 0)
@@ -673,7 +674,10 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
         b.place = pl[1]
         b:SetScript("OnClick", function()
           local name = this:GetParent().button
-          if name and pfUI.addonbuttons then pfUI.addonbuttons:SetPlace(name, this.place) end
+          if name and pfUI.addonbuttons then
+            pfUI.addonbuttons:SetPlace(name, this.place)
+            DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r map: " .. name .. " - " .. ((this.place == "panel" and "in the panel") or (this.place == "map" and "on the map") or "hidden") .. ".")
+          end
           if MO.PaintButtons then MO.PaintButtons() end
         end)
         row.btns[j] = b
@@ -763,6 +767,8 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
     Chk(p, "Open at login", nil, AB, "showdefault", ABU)
     Chk(p, "Close in combat", nil, AB, "hideincombat", ABU)
     Sld(p, "Buttons a row", nil, 1, 20, 1, AB, "rowsize", nil, ABU)
+    Sld(p, "Button size", "0 = as big as fits the map's width (they never grow then); more = that size in px.", 0, 48, 1, AB, "size",
+      function(v) return (tonumber(v) or 0) == 0 and "fit" or (v .. " px") end, ABU)
     Sld(p, "Gap", nil, 0, 10, 1, AB, "spacing", Px, ABU)
     ButtonList(p)
     W.Live(p, function()
