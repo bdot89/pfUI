@@ -4610,6 +4610,9 @@ end
 do
   local GR = pfUI.gryphons
   ok(GR and GR.Art("Dragon2") and GR.Art("Elite") and table.getn(GR.art) >= 6, "end art: gryphon, lion and four dragons")
+  -- (25 Oct 2026: the options module starts before gryphons.lua and kept a nil copy: the Art list showed only None)
+  local AL = pfUI.barsOcto and pfUI.barsOcto.ArtList
+  ok(AL and table.getn(AL()) >= 7, "the Gryphons page's Art list has every picture (" .. tostring(AL and table.getn(AL())) .. ")")
   if GR then
     local set = pfUI_config.bars.gryphons
     local was = { set.texture, set.size, set.sides }

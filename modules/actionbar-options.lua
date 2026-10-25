@@ -778,10 +778,12 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
 
   -- the end art: a sample bar with both ends drawn from the settings, and
   -- one click per picture (the one in use lit)
-  local GR = pfUI.gryphons
+  -- (read when used: this module starts before gryphons.lua, so pfUI.gryphons
+  -- is not there yet at load - the Art list only ever showed None, 25 Oct 2026)
+  local function GR() return pfUI.gryphons end
   local function ArtList()
     local out = { { key = "None", label = "None" } }
-    for _, a in ipairs(GR and GR.art or {}) do table.insert(out, { key = a.key, label = a.label, texture = a.tex }) end
+    for _, a in ipairs(GR() and GR().art or {}) do table.insert(out, { key = a.key, label = a.label, texture = a.tex }) end
     return out
   end
   AB.ArtList = ArtList
@@ -834,7 +836,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       -- the same drawing as gryphons.lua, scaled to the box
       local function Paint()
         local set = GRY()
-        local art = GR and GR.Art(set.texture)
+        local art = GR() and GR().Art(set.texture)
         local c = art and art.coords or { 0, 1, 0, 1 }
         local size = math.min(100, tonumber(set.size) or 64)
         local aspect = math.max(.2, (c[2] - c[1]) / math.max(.01, c[4] - c[3]))
