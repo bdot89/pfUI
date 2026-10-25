@@ -274,6 +274,64 @@ if LH and LH.Refresh then
   C_UnitAuras, _G.C_LootHistory = savedAuras, savedLH
 end
 
+-- ---------------------------------------------------------------- bag sorting
+local BS = pfUI.api.libbagsort
+ok(BS and BS.Sort and BS.Step, "bag sort lib loaded")
+if BS and BS.Step then
+  local saved = {}
+  local function Stub(name, fn) saved[name] = rawget(_G, name) _G[name] = fn end
+  local function It(id, name, quality, equip, count, stack)
+    return { link = "|cffffffff|Hitem:" .. id .. ":0:0:0|h[" .. name .. "]|h|r", id = id, name = name,
+             quality = quality, equip = equip or "", count = count or 1, stack = stack or 1 }
+  end
+  local bag = { [1] = It(4306, "Silk Cloth", 1, nil, 5, 20), [2] = It(2589, "Grey Junk", 0),
+                [3] = It(6948, "Hearthstone", 1), [4] = It(4306, "Silk Cloth", 1, nil, 12, 20), [5] = nil,
+                [6] = It(10000, "Plate Helm", 2, "INVTYPE_HEAD") }
+  local cursor
+  Stub("GetContainerNumSlots", function(b) return b == 0 and 6 or 0 end)
+  Stub("GetContainerItemLink", function(b, s) return b == 0 and bag[s] and bag[s].link end)
+  Stub("GetContainerItemInfo", function(b, s) local it = b == 0 and bag[s] return it and "tex", it and it.count, nil end)
+  Stub("GetItemInfo", function(id)
+    for _, it in pairs(bag) do if it.id == id then return it.name, it.link, it.quality, 1, "Type", "Sub", it.stack, it.equip end end
+  end)
+  Stub("CursorHasItem", function() return cursor ~= nil end)
+  Stub("SplitContainerItem", function(b, s, n) bag[s].count = bag[s].count - n cursor = { item = bag[s], n = n, split = true } end)
+  Stub("PickupContainerItem", function(b, s)
+    local here = bag[s]
+    if not cursor then bag[s] = nil cursor = here and { item = here, from = s } return end
+    if here and here.id == cursor.item.id and here ~= cursor.item then
+      here.count = here.count + (cursor.n or cursor.item.count)
+      cursor = nil
+      return
+    end
+    if cursor.split then bag[s] = It(cursor.item.id, cursor.item.name, cursor.item.quality, cursor.item.equip, cursor.n, cursor.item.stack)
+    else bag[s] = cursor.item end
+    if here and cursor.from then bag[cursor.from] = here end
+    cursor = nil
+  end)
+  local slots = {}
+  for s = 1, 6 do slots[s] = { bag = 0, slot = s } end
+  local n = 0
+  while BS.Step(slots) and n < 50 do n = n + 1 end
+  ok(bag[1] and bag[1].name == "Hearthstone" and bag[2] and bag[2].name == "Plate Helm" and bag[3] and bag[3].count == 17
+    and bag[6] and bag[6].name == "Grey Junk", "plain sort: hearthstone, gear, stacks topped up (17), grey last (" .. n .. " moves)")
+  for k, v in pairs(saved) do _G[k] = v end
+
+  -- ClassicAPI: one call, the client sorts
+  local savedAuras, savedCont = C_UnitAuras, rawget(_G, "C_Container")
+  local sorted
+  C_UnitAuras = C_UnitAuras or {}
+  _G.C_Container = { SortBags = function() sorted = "bags" end, SortBankBags = function() sorted = "bank" end }
+  ok(BS:Sort("bags") and sorted == "bags" and not BS.run, "ClassicAPI: C_Container.SortBags, no cursor moves")
+  sorted = nil
+  local savedBank = rawget(_G, "BankFrame")
+  _G.BankFrame = { IsShown = function() return nil end }
+  ok(not BS:Sort("bank") and sorted == nil, "the bank only while it is open")
+  _G.BankFrame.IsShown = function() return 1 end
+  ok(BS:Sort("bank") and sorted == "bank", "an open bank: C_Container.SortBankBags")
+  C_UnitAuras, _G.C_Container, _G.BankFrame = savedAuras, savedCont, savedBank
+end
+
 -- ---------------------------------------------------------------- unit frame events
 -- ClassicAPI frame:RegisterUnitEvent: a unit frame hears only its own unit
 do
