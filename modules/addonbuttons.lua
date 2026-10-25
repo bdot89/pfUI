@@ -446,7 +446,7 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
         table.remove(self.buttons, i)
         -- (octo, 25 Oct 2026: an error here left the button half moved until a
         -- reload - "it should be instant"; the map place below sets it anyway)
-        if f then pcall(RestoreButton, f) end
+        if f and where == "hide" then pcall(RestoreButton, f) end
       end
       hide[name] = (where == "hide") or nil
       if f then
@@ -472,8 +472,21 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     self:ProcessButtons()
   end
 
+  -- the frame that carries the button: its holder, but never the panel itself
+  -- (25 Oct 2026: a button in an unnamed holder, back from the panel, climbed
+  -- to the panel - the whole panel went onto the map and the button stayed hidden)
+  local function Carrier(frame)
+    local f = frame
+    for _ = 1, 10 do
+      local p = f.GetParent and f:GetParent()
+      if not p or not p.GetParent or p == Minimap or p == MinimapBackdrop or p == UIParent or p == pfUI.addonbuttons then return f end
+      f = p
+    end
+    return f
+  end
+
   local function OnMap(frame, cx, cy, scale)
-    local top = GetTopFrame(frame)
+    local top = Carrier(frame)
     frame:SetFrameStrata("HIGH")
     frame:SetMovable(false)
     frame:SetScript("OnDragStart", nil)

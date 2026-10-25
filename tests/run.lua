@@ -2294,6 +2294,27 @@ do
       ok(math.abs(fake:GetScale() - 30 / 20) < .01, "and takes a size of its own (" .. tostring(fake:GetScale()) .. ")")
       pfUI.addonbuttons:SetSize("OctoTestMinimapButton", 0)
       ok(pfUI.addonbuttons:GetSize("OctoTestMinimapButton") == 0, "all the way left = the size for all")
+      -- map -> panel -> map again, with the panel shut (user, 25 Oct 2026: "when i move
+      -- it back to panel then back to map it doesnt work")
+      pfUI.addonbuttons:Hide()
+      pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "panel")
+      ok(fake:GetParent() == pfUI.addonbuttons, "to the panel")
+      pfUI.addonbuttons:SetPlace("OctoTestMinimapButton", "map")
+      local _, rel2 = fake:GetPoint()
+      ok(fake:GetParent() == Minimap and rel2 == Minimap and fake:IsShown() and fake:GetAlpha() == 1,
+        "and back on the map at once (parent " .. tostring(fake:GetParent() and fake:GetParent():GetName()) .. ", shown " .. tostring(fake:IsShown()) .. ")")
+      -- a button inside an unnamed holder: the holder goes, never the panel
+      local holder = CreateFrame("Frame", nil, Minimap)
+      local inner = CreateFrame("Button", "OctoTestHeldButton", holder)
+      inner:SetWidth(20) inner:SetHeight(20)
+      inner:SetScript("OnClick", function() end)
+      inner:SetPoint("CENTER", holder, "CENTER", 0, 0)
+      pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "panel")
+      pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "map")
+      ok(pfUI.addonbuttons:GetParent() ~= Minimap and holder:GetParent() == Minimap,
+        "a held button comes back with its holder, the panel stays put")
+      pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "hide")
+      pfUI.addonbuttons:Show()
       -- a size of their own (user, 25 Oct 2026: "the resizer hardly changes the buttons")
       local ab = pfUI_config.abuttons
       local was = { ab.size, ab.rowsize, ab.spacing, ab.position }
