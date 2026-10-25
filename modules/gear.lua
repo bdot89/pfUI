@@ -448,15 +448,46 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       q.told = nil
       GR.Changed()
     end
-    local waiting
+    local waiting, pending
+    local now = GetTime()
     -- slots of this set to keep where they are (already right)
     local keep = {}
     for _, inv in ipairs(q.order) do
       if Done(inv, q.slots[GR.Key(inv)]) then keep[inv] = true end
     end
+    -- ClassicAPI (the instant swap the ClassicAPI pfUI fork gets from its
+    -- equipment sets): every slot that may change now goes in this one pass,
+    -- cursor-free - C_Item.EquipItemByName with the exact copy's bag slot or
+    -- worn slot (GR.Find: GUID, full link, id). Taking off, slots waiting for
+    -- combat / death / a cast, and anything that did not take go through the
+    -- one-a-tick queue below.
+    if GR.Instant() then
+      q.sent, q.itries = q.sent or {}, q.itries or {}
+      local used = {}
+      for _, inv in ipairs(q.order) do
+        local want = q.slots[GR.Key(inv)]
+        -- (three instant tries a slot, then the cursor queue has it)
+        if not keep[inv] and not q.skip[inv] and type(want) == "table" and (q.sent[inv] or 0) <= now
+          and (q.itries[inv] or 0) < 3
+          and not (InCombat() and not (GR.WEAPON[inv] and C.gear.combatweapons ~= "0")) then
+          local from = GR.Find(want, keep)
+          local k = from and (from.inv and ("i" .. from.inv) or (from.bag .. ":" .. from.slot))
+          if from and not used[k] and not Locked(inv, from) then
+            used[k] = true
+            local loc = from.inv and { equipmentSlotIndex = from.inv } or { bagID = from.bag, slotIndex = from.slot }
+            -- (1 s for the server to answer before this slot is looked at again)
+            q.itries[inv] = (q.itries[inv] or 0) + 1
+            if pcall(C_Item.EquipItemByName, loc, inv) then q.sent[inv] = now + 1 end
+          end
+        end
+      end
+    end
     for _, inv in ipairs(q.order) do
       local want = q.slots[GR.Key(inv)]
-      if not keep[inv] and not q.skip[inv] then
+      if not keep[inv] and not q.skip[inv] and q.sent and (q.sent[inv] or 0) > now then
+        -- sent by the instant pass, the server has not answered yet
+        pending = true
+      elseif not keep[inv] and not q.skip[inv] then
         if InCombat() and not (GR.WEAPON[inv] and C.gear.combatweapons ~= "0") then
           waiting = true
         else
@@ -486,7 +517,13 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       q.waiting = "combat"
       return
     end
+    if pending then return end
     Finish(q)
+  end
+
+  -- ClassicAPI's cursor-free equip is there (C.gear.instant "0" = always the queue)
+  function GR.Instant()
+    return C_UnitAuras and C_Item and C_Item.EquipItemByName and C.gear.instant ~= "0" and true or nil
   end
   runner:SetScript("OnUpdate", function()
     this.t = (this.t or 0) + arg1

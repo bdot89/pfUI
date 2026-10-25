@@ -681,6 +681,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
 
     W.Card(p, "Swapping")
     Chk(p, "Weapons change in combat", "1.12 lets weapons change in combat; the rest always waits for combat to end.", "combatweapons")
+    Chk(p, "Instant swap (ClassicAPI)", "With ClassicAPI the whole set goes on at once, without the cursor; off = one item at a time, as without it.", "instant")
     Chk(p, "Say when gear waits for combat", nil, "tellwait")
     Chk(p, "A set's key takes it off again", "Off: the key only puts the set on.", "keytoggle")
     Chk(p, "\"Take it off\" in item menus", nil, "allowempty")

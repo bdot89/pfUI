@@ -4175,6 +4175,40 @@ do
       ok(inv[11] == j20 and inv[12] == j19, "and wearing it swaps the two rings round")
       inv[11], inv[12], bags[1][1] = keep11, keep12, keep10
     end
+    -- ClassicAPI (friend of the user: brues' pfUI had "instant gear swap"):
+    -- the whole set in one pass with C_Item.EquipItemByName, no cursor
+    do
+      local savedAuras, savedItem, realPick = C_UnitAuras, rawget(_G, "C_Item"), PickupContainerItem
+      local calls, picks = 0, 0
+      C_UnitAuras = C_UnitAuras or {}
+      _G.C_Item = { EquipItemByName = function(loc, dst)
+        calls = calls + 1
+        local here = inv[dst]
+        if loc.bagID then
+          inv[dst], bags[loc.bagID][loc.slotIndex] = bags[loc.bagID][loc.slotIndex], here
+        else
+          inv[dst], inv[loc.equipmentSlotIndex] = inv[loc.equipmentSlotIndex], here
+        end
+      end }
+      _G.PickupContainerItem = function(b, s) picks = picks + 1 return realPick(b, s) end
+      GR.Equip("Tank")
+      Run()
+
+      GR.Save("Swift", { s16 = { id = "200:0:0", name = "Axe" }, s11 = { id = "301:0:0", name = "Band" } })
+      calls, picks = 0, 0
+      GR.Equip("Swift")
+      ok(inv[16] == axe and inv[11] == ring2 and calls == 2 and picks == 0,
+        "instant swap: the set goes on in one pass, no cursor (" .. calls .. " / " .. picks .. ")")
+      GR.Tick()
+      ok(not GR.queue, "and the swap is finished")
+      pfUI_config.gear.instant = "0"
+      calls = 0
+      GR.Equip("Tank")
+      Run()
+      ok(calls == 0 and GR.IsEquipped("Tank"), "Instant swap off: the one-a-tick queue")
+      pfUI_config.gear.instant = "1"
+      C_UnitAuras, _G.C_Item, _G.PickupContainerItem = savedAuras, savedItem, realPick
+    end
     -- key bindings and /gear
     sets.Tank.key = "3"
     GR.Changed()

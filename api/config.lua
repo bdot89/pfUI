@@ -345,6 +345,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("gear",       nil,           "mmangle",          "200")
   pfUI:UpdateConfig("gear",       nil,           "tellwait",         "1")
   pfUI:UpdateConfig("gear",       nil,           "combatweapons",    "1")
+  pfUI:UpdateConfig("gear",       nil,           "instant",          "1") -- octo: ClassicAPI one-pass swap
   pfUI:UpdateConfig("gear",       nil,           "keytoggle",        "0")
   pfUI:UpdateConfig("gear",       nil,           "allowempty",       "1")
   pfUI:UpdateConfig("gear",       nil,           "wrap",             "6")
