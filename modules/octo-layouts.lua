@@ -35,9 +35,108 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     s.current = s.current or "Normal"
     if s.auto == nil then s.auto = "0" end
     if s.button == nil then s.button = "1" end
+    -- (25 Oct 2026, user: "add option to add more profiles") the layouts in
+    -- order, each with a picture and a colour; L.NAMES follows the list
+    if type(s.list) ~= "table" or table.getn(s.list) == 0 then s.list = { "Normal", "Raid", "PvP" } end
+    if type(s.icons) ~= "table" then s.icons = {} end
+    if type(s.colors) ~= "table" then s.colors = {} end
+    if L.NAMES ~= nil and L.synced ~= s.list then
+      for i = table.getn(L.NAMES), 1, -1 do table.remove(L.NAMES, i) end
+      for _, n in ipairs(s.list) do table.insert(L.NAMES, n) end
+      L.synced = s.list
+    end
     return s
   end
   L.Store = Store
+
+  -- colours a layout can have (picked in turn for new ones)
+  L.COLORS = { { .2, .7, 1 }, { 1, .55, .15 }, { .9, .25, .25 }, { .3, .85, .45 }, { .7, .45, 1 },
+               { 1, .85, .2 }, { .2, .85, .85 }, { 1, .45, .75 } }
+  L.DEFCOLOR = { Normal = 1, Raid = 2, PvP = 3 }
+  function L.Color(name)
+    local s = Store()
+    local i = tonumber(s.colors[name] or "") or L.DEFCOLOR[name] or 1
+    local c = L.COLORS[i] or L.COLORS[1]
+    return c[1], c[2], c[3], i
+  end
+  function L.Hex(name)
+    local r, g, b = L.Color(name)
+    return string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255)
+  end
+  function L.Icon(name)
+    return Store().icons[name] or L.ICON[name] or "Interface\\Icons\\INV_Misc_Note_01"
+  end
+  local function Has(name)
+    for _, n in ipairs(Store().list) do if n == name then return true end end
+  end
+  L.Has = Has
+
+  -- talent specs that name this layout follow a rename / delete
+  local function SpecsFollow(old, new)
+    local specs = C.gear and C.gear.specs
+    if type(specs) ~= "table" then return end
+    for _, sp in pairs(specs) do
+      if type(sp) == "table" then
+        if sp.layout == old then sp.layout = new or "" end
+        if type(sp.bars) == "table" and sp.bars[old] then
+          if new then sp.bars[new] = sp.bars[old] end
+          sp.bars[old] = nil
+        end
+      end
+    end
+  end
+
+  -- a new layout, starting as a copy of the one you are in
+  function L.New(name)
+    local s = Store()
+    name = string.gsub(name or "", "^%s*(.-)%s*$", "%1")
+    if name == "" then return nil, "it needs a name" end
+    if string.len(name) > 20 then name = string.sub(name, 1, 20) end
+    if Has(name) then return nil, "there is already a layout called " .. name end
+    if table.getn(s.list) >= 12 then return nil, "twelve layouts is the most" end
+    L.SaveCurrent()
+    s.saved[name] = Copy(s.saved[s.current])
+    s.saved[name].gear = ""
+    s.colors[name] = tostring(math.mod(table.getn(s.list), table.getn(L.COLORS)) + 1)
+    table.insert(s.list, name)
+    L.synced = nil
+    Store()
+    return name
+  end
+
+  function L.Rename(old, new)
+    local s = Store()
+    new = string.gsub(new or "", "^%s*(.-)%s*$", "%1")
+    if new == "" or new == old or not Has(old) then return nil end
+    if string.len(new) > 20 then new = string.sub(new, 1, 20) end
+    if Has(new) then return nil, "there is already a layout called " .. new end
+    for i, n in ipairs(s.list) do if n == old then s.list[i] = new end end
+    s.saved[new], s.saved[old] = s.saved[old], nil
+    s.icons[new], s.icons[old] = s.icons[old] or L.ICON[old], nil
+    s.colors[new], s.colors[old] = s.colors[old] or (L.DEFCOLOR[old] and tostring(L.DEFCOLOR[old])), nil
+    for z, n in pairs(s.byzone) do if n == old then s.byzone[z] = new end end
+    if s.current == old then s.current = new end
+    SpecsFollow(old, new)
+    L.synced = nil
+    Store()
+    L.Paint()
+    return new
+  end
+
+  function L.Delete(name)
+    local s = Store()
+    if not Has(name) then return nil end
+    if table.getn(s.list) <= 1 then return nil, "the last layout stays" end
+    if s.current == name then return nil, "switch to another layout first" end
+    for i = table.getn(s.list), 1, -1 do if s.list[i] == name then table.remove(s.list, i) end end
+    s.saved[name], s.icons[name], s.colors[name] = nil, nil, nil
+    for z, n in pairs(s.byzone) do if n == name then s.byzone[z] = "" end end
+    SpecsFollow(name, nil)
+    L.synced = nil
+    Store()
+    return true
+  end
+  Store()
 
   -- ---------------------------------------------------------------- spells on the bars
 
@@ -268,7 +367,7 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     if menu then menu:Hide() end
     local opts = { { label = "UI layout", group = true } }
     for _, n in ipairs(L.NAMES) do
-      table.insert(opts, { key = n, label = n .. (n == Store().current and "  |cff33ccff(on)|r" or "") })
+      table.insert(opts, { key = n, label = L.Hex(n) .. n .. "|r" .. (n == Store().current and "  |cff55ff77(on)|r" or ""), icon = L.Icon(n) })
     end
     table.insert(opts, { key = "_opt", label = "Layout options..." })
     menu = W.Menu(owner, opts, 170, function(k)
@@ -302,8 +401,11 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
 
   function L.Paint()
     local s = Store()
-    b.icon:SetTexture(L.ICON[s.current] or L.ICON.Normal)
+    b.icon:SetTexture(L.Icon(s.current))
+    local r, g, bl = L.Color(s.current)
     b.label:SetText(s.current)
+    b.label:SetTextColor(r, g, bl)
+    if b.backdrop and b.backdrop.SetBackdropBorderColor then b.backdrop:SetBackdropBorderColor(r, g, bl, 1) end
     if s.button == "0" then b:Hide() else b:Show() end
   end
   if UpdateMovable then UpdateMovable(b) end
@@ -349,7 +451,7 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
   local ZONES = { { "world", "Open world" }, { "dungeon", "Dungeons" }, { "raid", "Raids" }, { "bg", "Battlegrounds" }, { "arena", "Arenas" } }
   local function LayoutList()
     local out = { { key = "", label = "- stay as it is -" } }
-    for _, n in ipairs(L.NAMES) do table.insert(out, { key = n, label = n }) end
+    for _, n in ipairs(L.NAMES) do table.insert(out, { key = n, label = L.Hex(n) .. n .. "|r", icon = L.Icon(n) }) end
     return out
   end
   local function SetList()
@@ -358,22 +460,197 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     return out
   end
 
+  local function Rebuild() if O.Rebuild then O:Rebuild("layouts") end end
+  local function Ask(text, fn, box, start)
+    local open = _G["pfQuestionDialog"]
+    if open and open:IsShown() then open:Hide() _G["pfQuestionDialog"] = nil end
+    CreateQuestionDialog(text, function()
+      local input = this:GetParent().input
+      fn(input and input:GetText())
+    end, false, box)
+    local d = _G["pfQuestionDialog"]
+    if box and d and d.input then d.input:SetText(start or "") d.input:HighlightText() end
+  end
+  function L.AskNew()
+    Ask("A new UI layout, starting as a copy of " .. Store().current .. ". Its name:", function(v)
+      local name, err = L.New(v)
+      if not name then Say(err or "no layout made.") return end
+      Say(name .. " made: switch to it and arrange it.")
+      Rebuild()
+    end, true, "")
+  end
+  function L.AskRename(name)
+    Ask("Rename the " .. name .. " layout to:", function(v)
+      local new, err = L.Rename(name, v)
+      if not new then if err then Say(err .. ".") end return end
+      Rebuild()
+    end, true, name)
+  end
+  function L.AskDelete(name)
+    local ok, why = true, nil
+    if Store().current == name then ok, why = false, "switch to another layout first" end
+    if table.getn(Store().list) <= 1 then ok, why = false, "the last layout stays" end
+    if not ok then Say(name .. ": " .. why .. ".") return end
+    Ask("Delete the " .. name .. " layout?\n\nIts frame places, spells and settings are lost. "
+      .. "Places and specs that used it keep the layout they are in.", function()
+      L.Delete(name)
+      Rebuild()
+    end)
+  end
+  function L.PickIcon(name, owner)
+    local GO = pfUI.gearOcto
+    if not (GO and GO.IconPicker) then return end
+    local extra = {}
+    for _, n in ipairs(L.NAMES) do table.insert(extra, L.Icon(n)) end
+    for _, t in pairs(L.ICON) do table.insert(extra, t) end
+    local p = GO.IconPicker(owner, L.Icon(name), extra, function(path)
+      Store().icons[name] = path
+      L.Paint()
+      if L.PaintTiles then L.PaintTiles() end
+    end)
+    if p then p:SetFrameStrata("FULLSCREEN_DIALOG") end
+  end
+  function L.NextColor(name)
+    local _, _, _, i = L.Color(name)
+    Store().colors[name] = tostring(math.mod(i, table.getn(L.COLORS)) + 1)
+    L.Paint()
+    if L.PaintTiles then L.PaintTiles() end
+  end
+
+  -- the layouts as coloured tiles: click = switch, right-click = its menu
+  local PER, TW, TH, GAP = 4, 183, 84, 8
+  local function Tiles(p)
+    local n = table.getn(L.NAMES) + 1
+    local rows = math.ceil(n / PER)
+    local box = W.Box(p, rows * (TH + GAP) + GAP)
+    local tiles = {}
+    local function Tile(i)
+      if tiles[i] then return tiles[i] end
+      local t = CreateFrame("Button", nil, box)
+      t:SetWidth(TW)
+      t:SetHeight(TH)
+      t:SetPoint("TOPLEFT", box, "TOPLEFT", GAP + math.mod(i - 1, PER) * (TW + GAP), -GAP - math.floor((i - 1) / PER) * (TH + GAP))
+      W.Flat(t, W.C.card, 1, W.C.line)
+      W.Hover(t, .08)
+      t.band = t:CreateTexture(nil, "ARTWORK")
+      t.band:SetTexture("Interface\\Buttons\\WHITE8X8")
+      t.band:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -1)
+      t.band:SetPoint("BOTTOMRIGHT", t, "TOPRIGHT", -1, -5)
+      t.glow = t:CreateTexture(nil, "BORDER")
+      t.glow:SetTexture("Interface\\Buttons\\WHITE8X8")
+      t.glow:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -5)
+      t.glow:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -1, 1)
+      if t.glow.SetGradientAlpha then t.glow:SetGradientAlpha("VERTICAL", 1, 1, 1, 0, 1, 1, 1, .22) end
+      t.icon = t:CreateTexture(nil, "OVERLAY")
+      t.icon:SetWidth(40)
+      t.icon:SetHeight(40)
+      t.icon:SetTexCoord(.07, .93, .07, .93)
+      t.icon:SetPoint("LEFT", t, "LEFT", 10, -2)
+      t.name = W.Font(t:CreateFontString(nil, "OVERLAY"), 14, 1, 1, 1)
+      t.name:SetPoint("TOPLEFT", t.icon, "TOPRIGHT", 10, -2)
+      t.name:SetWidth(TW - 70)
+      t.name:SetJustifyH("LEFT")
+      t.sub = W.Font(t:CreateFontString(nil, "OVERLAY"), 10, W.C.dim[1], W.C.dim[2], W.C.dim[3])
+      t.sub:SetPoint("TOPLEFT", t.name, "BOTTOMLEFT", 0, -4)
+      t.sub:SetWidth(TW - 70)
+      t.sub:SetJustifyH("LEFT")
+      t.on = W.Font(t:CreateFontString(nil, "OVERLAY"), 10, 1, 1, 1)
+      t.on:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -6, 5)
+      t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      t:SetScript("OnClick", function()
+        local nm = this.layout
+        if not nm then L.AskNew() return end
+        if arg1 == "RightButton" then
+          local m = W.Menu(this, {
+            { label = nm, group = true },
+            { key = "switch", label = "Switch to it", icon = L.Icon(nm) },
+            { key = "rename", label = "Rename..." },
+            { key = "icon", label = "Picture..." },
+            { key = "color", label = "Next colour" },
+            { key = "delete", label = "|cffff5555Delete...|r" } }, 150, function(k)
+              if k == "switch" then L.Switch(nm) if L.PaintTiles then L.PaintTiles() end
+              elseif k == "rename" then L.AskRename(nm)
+              elseif k == "icon" then L.PickIcon(nm, this)
+              elseif k == "color" then L.NextColor(nm)
+              elseif k == "delete" then L.AskDelete(nm) end
+            end)
+          m:SetFrameStrata("FULLSCREEN_DIALOG")
+          m:Show()
+          return
+        end
+        L.Switch(nm)
+        L.PaintTiles()
+      end)
+      t:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        if this.layout then
+          GameTooltip:AddLine(this.layout)
+          GameTooltip:AddLine("Click: switch to it", 1, 1, 1)
+          GameTooltip:AddLine("Right-click: rename, picture, colour, delete", 1, 1, 1)
+        else
+          GameTooltip:AddLine("New layout")
+          GameTooltip:AddLine("Starts as a copy of the layout you are in: frames, spells, meters.", 1, 1, 1, 1)
+        end
+        GameTooltip:Show()
+      end)
+      t:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      tiles[i] = t
+      return t
+    end
+    function L.PaintTiles()
+      local s = Store()
+      for i, nm in ipairs(L.NAMES) do
+        local t = Tile(i)
+        local r, g, b = L.Color(nm)
+        t.layout = nm
+        t.band:SetVertexColor(r, g, b, 1)
+        t.glow:SetVertexColor(r, g, b, 1)
+        t.icon:SetTexture(L.Icon(nm))
+        t.icon:SetVertexColor(1, 1, 1)
+        t.name:SetText(nm)
+        t.name:SetTextColor(r, g, b)
+        local sv = s.saved[nm]
+        local bits = {}
+        if sv and sv.gear and sv.gear ~= "" then table.insert(bits, sv.gear) end
+        if not sv or sv.ownbars ~= "0" then table.insert(bits, "own spells") end
+        if sv and sv.meters == "0" then table.insert(bits, "no meters") end
+        t.sub:SetText(table.concat(bits, " - "))
+        if nm == s.current then
+          t:SetBackdropBorderColor(r, g, b, 1)
+          t.on:SetText("|cff55ff77ON NOW|r")
+        else
+          t:SetBackdropBorderColor(W.C.line[1], W.C.line[2], W.C.line[3], 1)
+          t.on:SetText("")
+        end
+        t:Show()
+      end
+      local add = Tile(table.getn(L.NAMES) + 1)
+      add.layout = nil
+      add.band:SetVertexColor(.4, .42, .46, 1)
+      add.glow:SetVertexColor(.4, .42, .46, 1)
+      add.icon:SetTexture("Interface\\Icons\\Spell_ChargePositive")
+      add.name:SetText("+ New layout")
+      add.name:SetTextColor(.85, .86, .9)
+      add.sub:SetText("copy of the one you are in")
+      add.on:SetText("")
+      add:SetBackdropBorderColor(W.C.line[1], W.C.line[2], W.C.line[3], 1)
+      if table.getn(L.NAMES) >= 12 then add:Hide() else add:Show() end
+      for i = table.getn(L.NAMES) + 2, table.getn(tiles) do tiles[i]:Hide() end
+    end
+    L.PaintTiles()
+  end
+
   local function Build(p)
     W.Heading(p, "UI layouts", {
       on = { function() return Store().button ~= "0" end, function(v) Store().button = v and "1" or "0" L.Paint() end,
         "The layout button on your screen." },
-      about = "Three layouts - Normal, Raid and PvP - each remembering where every frame is (everything you move in "
-        .. "Move frames), the spells on your action bars, whether the meters show, and a gear set. Switch with the button on your screen (click = "
-        .. "next, right-click = pick) or /layout. Whatever you arrange while in a layout is kept for it. Turn on "
-        .. "Automatic and the layout for a place goes on when you get there." })
-    W.Live(p, function() return "Now: |cff33ccff" .. Store().current .. "|r" end)
-    W.Card(p, "Switch")
-    local list = {}
-    for _, n in ipairs(L.NAMES) do
-      local nm = n
-      table.insert(list, { nm, function() L.Switch(nm) end, 110, "Switch to the " .. nm .. " layout now." })
-    end
-    W.Buttons(p, list)
+      about = "Layouts - Normal, Raid, PvP and any you make - each remember where every frame is (everything you move "
+        .. "in Move frames), the spells on your action bars, whether the meters show, and a gear set. Switch with the "
+        .. "button on your screen (click = next, right-click = pick), /layout, or a tile here. Whatever you arrange "
+        .. "while in a layout is kept for it. A talent spec can pick a layout too (Gear > Talent specs): changing spec "
+        .. "at the Brainwashing Device switches to it, with that spec's own spells in it." })
+    W.Card(p, "Your layouts", { tip = "Click a tile to switch; right-click to rename, change its picture or colour, or delete it." })
+    Tiles(p)
     W.Buttons(p, {
       { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, 120,
         "Arrange this layout: what you move is kept for the layout you are in." },
@@ -381,7 +658,11 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
         L.SaveCurrent()
         local s = Store()
         for _, n in ipairs(L.NAMES) do
-          if n ~= s.current then s.saved[n] = Copy(s.saved[s.current]) s.saved[n].gear = (s.saved[n] and s.saved[n].gear) or "" end
+          if n ~= s.current then
+            local gear = s.saved[n] and s.saved[n].gear or ""
+            s.saved[n] = Copy(s.saved[s.current])
+            s.saved[n].gear = gear
+          end
         end
         Say("every layout now has the " .. s.current .. " layout's places.")
       end, 210, "Start the other layouts from this one." },
@@ -393,30 +674,34 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       W.Dropdown(p, z[2], "The layout that goes on here.", LayoutList,
         function() return Store().byzone[zone] or "" end, function(v) Store().byzone[zone] = v end)
     end
-    W.Card(p, "Each layout", { tip = "What else each layout changes." })
     for _, n in ipairs(L.NAMES) do
       local nm = n
-      W.Check(p, nm .. ": meters shown", nil, function()
+      W.Card(p, L.Hex(nm) .. nm .. "|r", { tip = "What else the " .. nm .. " layout changes." })
+      W.Check(p, "Meters shown", nil, function()
         local t = Store().saved[nm]
         return not t or t.meters ~= "0"
       end, function(v)
         local t = Store().saved[nm] or Snapshot()
         t.meters = v and "1" or "0"
         Store().saved[nm] = t
+        if L.PaintTiles then L.PaintTiles() end
       end)
-      W.Check(p, nm .. ": its own spells", "This layout keeps its own spells, items and macros on the action bars: "
-        .. "what you put there while in it comes back when you switch to it.", function()
+      W.Check(p, "Its own spells", "This layout keeps its own spells, items and macros on the action bars: "
+        .. "what you put there while in it comes back when you switch to it. (A talent spec with its own "
+        .. "spells keeps them per layout instead.)", function()
         local t = Store().saved[nm]
         return not t or t.ownbars ~= "0"
       end, function(v)
         local t = Store().saved[nm] or Snapshot()
         t.ownbars = v and "1" or "0"
         Store().saved[nm] = t
+        if L.PaintTiles then L.PaintTiles() end
       end)
-      W.Dropdown(p, nm .. ": gear set", "Put on when this layout goes on.", SetList,
+      W.Dropdown(p, "Gear set", "Put on when this layout goes on.", SetList,
         function() local t = Store().saved[nm] return t and t.gear or "" end,
-        function(v) local t = Store().saved[nm] or Snapshot() t.gear = v Store().saved[nm] = t end)
+        function(v) local t = Store().saved[nm] or Snapshot() t.gear = v Store().saved[nm] = t if L.PaintTiles then L.PaintTiles() end end)
     end
   end
+
   O:AddPage("UI layouts", "layouts", "Layouts", Build)
 end)

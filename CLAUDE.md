@@ -721,3 +721,15 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    while a spec with own spells is on, L.SaveCurrent / Switch keep bars in that spec (L.BarSpec) instead of
    the layout. Talents changed some other way that match exactly one spec apply it too (C.gear.specnotice).
    /gear specs, /specs = the window away from the device (links only). Page gearspecs "Talent specs".
+   Seen in game 25 Oct: the device's own menu showed (most likely the new file needed a client restart - a
+   /reload does not find new files) and the user reset / saved over a spec with no warning. Now: every choice
+   asks first with what it does (GS.Question: activate / save "what it holds is lost" / reset with price /
+   buy), never trusting the server's confirm flag (1.12 shows no box for it); the game's SelectGossipOption is
+   wrapped (GS.rawSelect = the original) so the device's own menu asks too (C.gear.specconfirm). GS.Options
+   uses ClassicAPI's list only when it reads as the device, else GetGossipOptions; /specs debug prints both.
+   Window recoloured (user: "very dull"): class colour gradient top, a help line, each row striped and washed
+   in its main tree's colour (GS.TREE), split numbers per tree colour, green Activate / gold Save here / red
+   Reset buttons. UI layouts: your own (L.New / Rename / Delete, up to 12; C.layouts.list / icons / colors,
+   L.NAMES follows the list; specs' layout and bars follow renames), layouts page = coloured tiles (click =
+   switch, right-click = rename / picture / colour / delete, + New layout), a card per layout in its colour.
+   O:Rebuild(key) builds an Octo page again (new layout / new spec).

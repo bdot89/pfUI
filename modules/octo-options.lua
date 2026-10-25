@@ -800,6 +800,19 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     return p
   end
 
+  -- Builds a page again (one whose cards depend on things added since: a new
+  -- UI layout, a new talent spec); shown again at once when it is on screen.
+  function O:Rebuild(key)
+    local p = self.pages[key]
+    if not p then return end
+    p.frame:Hide()
+    self.pages[key] = nil
+    for i = table.getn(W.index), 1, -1 do
+      if W.index[i].page == p then table.remove(W.index, i) end
+    end
+    if self.current == "o:" .. key and pfUI.gui and pfUI.gui:IsShown() then self:Select(self.current) end
+  end
+
   local function HideOcto(except)
     for _, q in pairs(O.pages) do
       if q ~= except then q.frame:Hide() end

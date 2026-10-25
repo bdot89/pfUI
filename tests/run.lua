@@ -3590,6 +3590,35 @@ do
         saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7], saved[8]
       if pfUI.keymap then pfUI.keymap.ActionSpell = km end
     end
+    -- your own layouts (user, 25 Oct 2026: "add option to add more profiles")
+    do
+      local specs = pfUI_config.gear and pfUI_config.gear.specs
+      if pfUI_config.gear then pfUI_config.gear.specs = { ["1"] = { name = "Holy", layout = "Arena", bars = { Arena = {} } } } end
+      local n = table.getn(L.NAMES)
+      ok(L.New("Arena") == "Arena" and table.getn(L.NAMES) == n + 1 and L.NAMES[n + 1] == "Arena", "a new layout joins the list")
+      ok(L.New("Arena") == nil, "two layouts cannot share a name")
+      ok(s.saved.Arena and s.saved.Arena.pos, "it starts as a copy of the layout you are in")
+      local r1, g1 = L.Color("Arena")
+      ok(r1 and g1 and L.Hex("Arena") and L.Icon("Arena"), "it has a colour and a picture")
+      s.byzone.arena = "Arena"
+      ok(L.Rename("Arena", "Duels") == "Duels" and L.Has("Duels") and not L.Has("Arena") and s.byzone.arena == "Duels",
+        "renaming keeps it in the list and in the automatic places")
+      if pfUI_config.gear then
+        local sp = pfUI_config.gear.specs["1"]
+        ok(sp.layout == "Duels" and sp.bars.Duels and not sp.bars.Arena, "a talent spec using it follows the new name")
+      end
+      local cur = s.current
+      L.Switch("Duels")
+      ok(L.Delete("Duels") == nil, "the layout you are in cannot be deleted")
+      L.Switch(cur)
+      ok(L.Delete("Duels") and not L.Has("Duels") and table.getn(L.NAMES) == n and s.byzone.arena == "", "deleting takes it out everywhere")
+      if pfUI_config.gear then
+        ok(pfUI_config.gear.specs["1"].layout == "", "and talent specs that used it keep the layout they are in")
+        pfUI_config.gear.specs = specs
+      end
+      local pg, pe = pcall(function() pfUI.octoui.Options:Page("layouts") end)
+      ok(pg, "the layouts page builds with its tiles: " .. tostring(pe))
+    end
     -- automatic: a battleground puts PvP on
     s.auto = "1"
     inBG = false X.Check()
@@ -4483,10 +4512,11 @@ do
     local GE, RB, WB = GR.Equip, pfUI.layouts.ReadBars, pfUI.layouts.WriteBars
     _G.C_GossipInfo = nil
     _G.GetGossipOptions = function()
-      return "Activate 1st Specialization  (31/20/0)", "gossip", "Save 1st Specialization.", "gossip",
+      return "Reset my talents. (5g0s0c)", "gossip", "Activate 1st Specialization  (31/20/0)", "gossip", "Save 1st Specialization.", "gossip",
         "Activate 2nd Specialization  (0/21/30)", "gossip", "Save 2nd Specialization.", "gossip"
     end
-    _G.SelectGossipOption = function(i) picked = i end
+    local rawSel = GS.rawSelect
+    GS.rawSelect = function(i) picked = i end
     _G.GetTalentTabInfo = function(i) return "Tree" .. i, "tex" .. i, split[i] end
     local ask = GS.Ask GS.Ask = function(text, yes) yes() end
     _G.GetTime = function() return now end
@@ -4500,11 +4530,25 @@ do
     GS.OnGossip()
     ok(GS.frame:IsShown(), "talking to the device opens the specs window")
     ok(GS.IsActive(1) and not GS.IsActive(2), "the spec you are in is marked active")
+    do
+      local asked, yes
+      GS.Ask = function(text, fn) asked, yes = text, fn end
+      picked = nil
+      _G.SelectGossipOption(1)
+      ok(asked and string.find(asked, "5g", 1, true) and picked == nil, "the device's own Reset asks first, with its price")
+      yes()
+      ok(picked == 1, "and goes on when you say yes")
+      asked, picked = nil, nil
+      GS.Save(1)
+      ok(asked and string.find(asked, "lost", 1, true) and picked == nil, "Save over a spec says what is lost")
+      GS.Ask = function(text, fn) fn() end
+      picked = nil
+    end
     GS.Ensure(2).set = "Healing"
     pfUI_config.gear.specnow = "1"
     bars = "Smite"
     GS.Activate(2)
-    ok(picked == 3, "Activate picks the device's option for that slot (" .. tostring(picked) .. ")")
+    ok(picked == 4, "Activate picks the device's option for that slot (" .. tostring(picked) .. ")")
     ok(GS.Spec(1).bars[pfUI.layouts.Store().current] and GS.Spec(1).bars[pfUI.layouts.Store().current]["1"].name == "Smite",
       "the spec left keeps the spells on the bars")
     split = { 0, 21, 30 }
@@ -4545,6 +4589,7 @@ do
       _G.UnitAffectingCombat = saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
     GR.Equip, pfUI.layouts.ReadBars, pfUI.layouts.WriteBars = GE, RB, WB
     GS.Ask = ask
+    GS.rawSelect = rawSel
   end
 end
 
