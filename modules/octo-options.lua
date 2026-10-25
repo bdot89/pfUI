@@ -181,6 +181,37 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     return f, text, a, b
   end
 
+  -- every menu closes on a click anywhere outside it (user, 25 Oct 2026, the
+  -- trinket queue menu): ClassicAPI's GLOBAL_MOUSE_DOWN (fires for clicks on
+  -- frames and on the world); without it a menu closes 1.5 s after the mouse
+  -- has left it and what opened it
+  local Menu = W.Menu
+  W.Menu = function(anchor, options, width, onPick)
+    local m = Menu(anchor, options, width, onPick)
+    m.anchor = anchor
+    m.away = 0
+    m:SetScript("OnUpdate", function()
+      if W.globalClicks then return end
+      if MouseIsOver(this) or (this.anchor and this.anchor.IsVisible and this.anchor:IsVisible() and MouseIsOver(this.anchor)) then
+        this.away = 0
+      else
+        this.away = (this.away or 0) + (arg1 or 0)
+        if this.away > 1.5 then this:Hide() end
+      end
+    end)
+    return m
+  end
+  local clicks = CreateFrame("Frame")
+  W.globalClicks = pcall(clicks.RegisterEvent, clicks, "GLOBAL_MOUSE_DOWN") and C_EventUtils ~= nil or nil
+  clicks:SetScript("OnEvent", function()
+    for _, m in ipairs(W.menus or {}) do
+      if m:IsShown() and not MouseIsOver(m)
+        and not (m.anchor and m.anchor.IsVisible and m.anchor:IsVisible() and MouseIsOver(m.anchor)) then
+        m:Hide()
+      end
+    end
+  end)
+
   -- a picture on every card (user: "add more artwork throughout"): one given
   -- by the page, else one found from the card's words (names checked in the
   -- client's listfile, 25 Oct 2026)
