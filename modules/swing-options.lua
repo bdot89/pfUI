@@ -151,6 +151,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
       how:SetPoint("LEFT", band, "LEFT", 12, 0)
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r a bar  its settings     " .. k .. "Shift + wheel|r  taller / shorter     " .. k .. "Move frames|r  move the bars")
+      W.HowTo(pp, band, how:GetText(), nil, 0)
       W.Buttons(pp, {
         { "Test on my bars (20 s)", function()
           if ST.testUntil and GetTime() < ST.testUntil then ST.testUntil = 0 else ST.Test(20) end

@@ -4605,6 +4605,14 @@ do
   end
 end
 
+-- the preview help strips: keys and what they do, read from the old text
+do
+  local W = pfUI.octoui.W
+  local pr = W.HowToPairs("|cff3399ffClick|r a part  its settings     |cff3399ffShift + wheel|r  size")
+  ok(table.getn(pr) == 2 and pr[1][1] == "Click" and pr[1][2] == "a part  its settings" and pr[2][1] == "Shift + wheel",
+    "a help strip's keys and actions are read apart")
+end
+
 -- the trinket queue from the bar (25 Oct 2026): the cog is a button, right-click
 -- opens a quick menu; item tooltips can be off and never cover the item menu
 do

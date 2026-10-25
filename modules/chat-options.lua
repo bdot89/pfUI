@@ -494,6 +494,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
       local kc = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(kc .. "Click|r a line, tab, time or the typing box  its settings     " .. kc .. "Shift + wheel|r  chat text size     "
         .. kc .. "Move frames|r  move the panels")
+      W.HowTo(pp, band, how:GetText(), nil, 0)
       W.Buttons(pp, {
         { "Show test lines in my chat", CH.TestLines, nil, "A line of every kind in your real chat, so you see the real thing. Only you see them.",
           on = function() return CH.testAt and GetTime() - CH.testAt < 2 end },

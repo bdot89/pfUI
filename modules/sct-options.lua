@@ -132,6 +132,7 @@ local function Preview(p)
   local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
   how:SetText(key .. "Click|r an area  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  text size     "
     .. key .. "Right-click|r  put it back")
+  W.HowTo(p, band, how:GetText(), nil, 0)
   end)
 end
 

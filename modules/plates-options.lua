@@ -199,6 +199,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     local key = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
     how:SetText(key .. "Click|r  options     " .. key .. "Drag|r  move     " .. key .. "Shift + wheel|r  bigger / smaller     "
       .. key .. "Right-click|r  put it back")
+    W.HowTo(p, band, how:GetText(), nil, 150)
     -- the test's time left, at the band's right end
     local status = band:CreateFontString(nil, "OVERLAY")
     status:SetFont(W.UIFont(), 12, "OUTLINE")

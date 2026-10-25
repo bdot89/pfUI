@@ -242,6 +242,7 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
       local kc = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(kc .. "Click|r a bag  show / hide its slots     " .. kc .. "Drag|r a real window's title  move it     "
         .. kc .. "Right-click|r its title  this page")
+      W.HowTo(pp, band, how:GetText(), nil, 0)
       W.Buttons(pp, {
         { "Open my bags", function() if ToggleBackpack then ToggleBackpack() end end, nil, "Shows or hides your real bag window." },
         { "Sort my bags", function()

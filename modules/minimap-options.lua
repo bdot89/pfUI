@@ -508,6 +508,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r  pick     " .. k .. "Drag|r  move (the map too)     " .. k .. "Shift + wheel|r  bigger / smaller     "
         .. k .. "Right-click|r  put it back")
+      W.HowTo(pp, band, how:GetText(), nil, 0)
       W.Buttons(pp, {
         { "Put every part back", function()
           for _, part in ipairs(map.PARTS or {}) do map.ResetPart(part.key) end

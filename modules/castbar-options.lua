@@ -395,6 +395,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r the name or timer  move it     " .. k .. "Right-click|r  put back     "
         .. k .. "Shift + wheel|r  height     " .. k .. "Move frames|r  move it")
+      W.HowTo(p, band, how:GetText(), nil, 0)
     end)
   end
 

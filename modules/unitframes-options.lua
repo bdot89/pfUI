@@ -891,6 +891,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       how2:SetPoint("TOPLEFT", band, "TOPLEFT", 12, -19)
       how2:SetText(k .. "Alt + wheel|r  zoom     " .. k .. "Drag|r empty space  move the view     " .. k .. "Double-click|r  fit the view     "
         .. k .. "Move frames|r  move them on screen")
+      W.HowTo(p, band, how:GetText(), how2:GetText())
     end)
   end
 

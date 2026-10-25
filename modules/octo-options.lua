@@ -218,6 +218,80 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
   end)
 
+  -- The "how to use this preview" strips (user, 25 Oct 2026: "this looks horrid
+  -- on all pages hard to read and no alignment"): W.HowTo(page, band, text
+  -- [, text2]) reads the old one-line text ("|cff..KEY|r  what it does" pairs)
+  -- and draws a grid instead - each key a keycap (white on a dark button with
+  -- an accent edge), what it does in light grey beside it, columns lined up;
+  -- the band becomes a dark card with an accent edge and grows to fit.
+  -- reserve = px kept free at the right end (a status text there).
+  function W.HowToPairs(text)
+    local out = {}
+    for key, act in string.gfind(text or "", "|c%x%x%x%x%x%x%x%x(.-)|r([^|]*)") do
+      act = string.gsub(act, "^%s+", "")
+      act = string.gsub(act, "%s+$", "")
+      table.insert(out, { key, act })
+    end
+    return out
+  end
+  function W.HowTo(p, band, text, text2, reserve)
+    if not band then return end
+    local pairs_ = W.HowToPairs(text)
+    for _, e in ipairs(W.HowToPairs(text2)) do table.insert(pairs_, e) end
+    if table.getn(pairs_) == 0 then return end
+    -- the old text and colour wash go
+    for _, r in ipairs({ band:GetRegions() }) do
+      if r.GetText then
+        -- (only the old help lines: a status text beside them stays)
+        local t = r:GetText()
+        if t and string.find(t, "|r", 1, true) and table.getn(W.HowToPairs(t)) > 0 then r:Hide() end
+      elseif r.GetDrawLayer and r:GetDrawLayer() == "BACKGROUND" then r:Hide() end
+    end
+    if band.howto then for _, c in ipairs(band.howto) do c:Hide() end end
+    band.howto = {}
+    W.Flat(band, W.C.card, 1, W.C.line)
+    local ar, ag, ab = W.C.accent[1], W.C.accent[2], W.C.accent[3]
+    if GetAccentColor then ar, ag, ab = GetAccentColor() end
+    if not band.howEdge then
+      band.howEdge = band:CreateTexture(nil, "ARTWORK")
+      band.howEdge:SetTexture("Interface\\Buttons\\WHITE8X8")
+      band.howEdge:SetPoint("TOPLEFT", band, "TOPLEFT", 1, -1)
+      band.howEdge:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT", 1, 1)
+      band.howEdge:SetWidth(3)
+    end
+    band.howEdge:SetVertexColor(ar, ag, ab, 1)
+    local width = (band:GetWidth() or 700) - 20 - (reserve or 0)
+    local cols = width >= 640 and 4 or (width >= 420 and 3 or 2)
+    local colw = math.floor(width / cols)
+    local ROW = 22
+    for i, e in ipairs(pairs_) do
+      local col = math.mod(i - 1, cols)
+      local row = math.floor((i - 1) / cols)
+      local cell = CreateFrame("Frame", nil, band)
+      cell:SetWidth(colw)
+      cell:SetHeight(ROW)
+      cell:SetPoint("TOPLEFT", band, "TOPLEFT", 12 + col * colw, -5 - row * ROW)
+      local cap = CreateFrame("Frame", nil, cell)
+      cap:SetHeight(17)
+      cap:SetPoint("LEFT", cell, "LEFT", 0, 0)
+      W.Flat(cap, W.C.btn, 1, W.C.line)
+      cap:SetBackdropBorderColor(ar * .8, ag * .8, ab * .8, 1)
+      local kt = W.Font(cap:CreateFontString(nil, "OVERLAY"), 10, 1, 1, 1)
+      kt:SetPoint("CENTER", cap, "CENTER", 0, 0)
+      kt:SetText(e[1])
+      cap:SetWidth(math.max(28, math.floor((kt:GetStringWidth() or 30) + 12)))
+      local at = W.Font(cell:CreateFontString(nil, "OVERLAY"), 11, .82, .83, .87)
+      at:SetPoint("LEFT", cap, "RIGHT", 6, 0)
+      at:SetPoint("RIGHT", cell, "RIGHT", -6, 0)
+      at:SetJustifyH("LEFT")
+      at:SetText(e[2])
+      table.insert(band.howto, cell)
+    end
+    local rows = math.ceil(table.getn(pairs_) / cols)
+    band:SetHeight(rows * ROW + 10)
+    if p and W.Measure then pcall(W.Measure, p) end
+  end
+
   -- a picture on every card (user: "add more artwork throughout"): one given
   -- by the page, else one found from the card's words (names checked in the
   -- client's listfile, 25 Oct 2026)

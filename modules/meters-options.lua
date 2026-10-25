@@ -283,6 +283,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r a part  its settings     " .. k .. "Drag|r the corner grip  size     " .. k .. "Shift + wheel|r  bar / title height     "
         .. k .. "Move frames|r  move windows")
+      W.HowTo(p, band, how:GetText())
     end)
   end
 
@@ -651,6 +652,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r the label  its settings     " .. k .. "Drag|r  move it     " .. k .. "Shift + wheel|r  text size     "
         .. k .. "Right-click|r  put back")
+      W.HowTo(pp, band, how:GetText())
     end)
   end
 

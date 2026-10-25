@@ -324,6 +324,7 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
       how:SetPoint("LEFT", band, "LEFT", 12, 0)
       local k = string.format("|cff%02x%02x%02x", math.floor(ar * 255), math.floor(ag * 255), math.floor(ab * 255))
       how:SetText(k .. "Click|r a part  its settings     " .. k .. "Shift + wheel|r  icon size     " .. k .. "Move frames|r  move them")
+      W.HowTo(pp, band, how:GetText(), nil, 0)
       W.Buttons(pp, {
         { "Move frames", function() if pfUI.unlock then pfUI.unlock:Show() end end, nil, "Drag your buffs, debuffs and bars where you want them." },
         { "Reload for buff bars", function() ReloadUI() end, nil, "The buff bars are made when you log in: switching one on or off shows after a reload.",
