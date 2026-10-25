@@ -297,17 +297,21 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       if base == "stop" then past = true
       elseif known[base] then table.insert(past and after or before, base) end
     end
-    table.insert(opts, { label = "In the queue - click: first, right-click: remove", group = true })
+    -- (25 Oct 2026, user: the menu stays open and a click moves a trinket
+    -- from one list to the other)
+    table.insert(opts, { label = "In the queue", group = true })
+    table.insert(opts, { label = "|cff8a8d96click: take out   right-click: to the top|r" })
     if table.getn(before) == 0 then table.insert(opts, { label = "|cff888888(none yet)|r" }) end
     for i, base in ipairs(before) do
       local t = known[base]
-      table.insert(opts, { key = "first:" .. base, label = i .. ". " .. t.name .. (Q.Flags(base).prio == "1" and " |cffffd100(priority)|r" or ""), icon = t.tex })
+      table.insert(opts, { key = "in:" .. base, label = i .. ". " .. t.name .. (Q.Flags(base).prio == "1" and " |cffffd100(priority)|r" or ""), icon = t.tex })
     end
     if table.getn(after) > 0 then
-      table.insert(opts, { label = "Not in it - click: add", group = true })
+      table.insert(opts, { label = "Not in it", group = true })
+      table.insert(opts, { label = "|cff8a8d96click: add   right-click: add at the top|r" })
       for _, base in ipairs(after) do
         local t = known[base]
-        table.insert(opts, { key = "add:" .. base, label = t.name, icon = t.tex })
+        table.insert(opts, { key = "out:" .. base, label = t.name, icon = t.tex })
       end
     end
     table.insert(opts, { key = "page", label = "All queue settings..." })
@@ -324,29 +328,31 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
         table.insert(q.order, at, base)
       end
     end
-    GR.qmenu = W2.Menu(owner, opts, 230, function(k)
-      if k == "toggle" then GR.ToggleQueue(inv) return end
-      if k == "pause" then GR.SetQueue(inv, q.paused and "RESUME" or "PAUSE") return end
+    GR.qmenu = W2.Menu(owner, opts, 260, function(k)
+      local right = arg1 == "RightButton"
       if k == "page" then
         if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("gearqueue")
         elseif pfUI.octoui and pfUI.octoui.Options then pfUI.octoui.Options:Open("gearqueue") end
         return
       end
-      local _, _, what, base = string.find(k, "^(%a+):(.+)$")
-      if not base then return end
-      -- (right-click on one in the queue: out of it)
-      if what == "first" and arg1 == "RightButton" then
-        Move(base, "out")
-        Say((known[base] and known[base].name or "Trinket") .. " is out of the " .. (inv == 13 and "top" or "bottom") .. " queue.")
-        Q.Paint()
-        GR.Changed()
-        return
+      if k == "toggle" then GR.ToggleQueue(inv)
+      elseif k == "pause" then GR.SetQueue(inv, q.paused and "RESUME" or "PAUSE")
+      else
+        local _, _, what, base = string.find(k, "^(%a+):(.+)$")
+        if base then
+          if what == "in" then
+            Move(base, right and "first" or "out")
+          else
+            Move(base, right and "first" or "end")
+            -- (a trinket added means the queue is wanted)
+            if q.on ~= "1" then q.on = "1" Say((inv == 13 and "Top" or "Bottom") .. " trinket queue on.") end
+          end
+          Q.Paint()
+          GR.Changed()
+        end
       end
-      Move(base, what == "first" and "first" or "end")
-      -- (a trinket added means the queue is wanted)
-      if q.on ~= "1" then q.on = "1" Say((inv == 13 and "Top" or "Bottom") .. " trinket queue on.") end
-      Q.Paint()
-      GR.Changed()
+      -- (it stays open: the same menu again, with the change in it)
+      GR.QueueMenu(owner, inv)
     end, true)
     GR.qmenu:SetFrameStrata("TOOLTIP")
     GR.qmenu:Show()
