@@ -88,10 +88,12 @@ pfUI:RegisterModule("gear-slots", "vanilla", function ()
       end
     end)
     b:SetScript("OnEnter", function()
-      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-      if GetInventoryItemLink("player", this.inv) then GameTooltip:SetInventoryItem("player", this.inv)
-      else GameTooltip:AddLine(GR.NAME[this.inv]) end
-      GameTooltip:Show()
+      if not GR.TipsOn or GR.TipsOn() then
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        if GetInventoryItemLink("player", this.inv) then GameTooltip:SetInventoryItem("player", this.inv)
+        else GameTooltip:AddLine(GR.NAME[this.inv]) end
+        GameTooltip:Show()
+      end
       if C.gear.slotmenu == "hover" and (C.gear.slotshift ~= "1" or IsShiftKeyDown()) then GR.SlotMenu(this) end
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)

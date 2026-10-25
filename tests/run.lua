@@ -4546,6 +4546,25 @@ do
   end
 end
 
+-- the trinket queue from the bar (25 Oct 2026): the cog is a button, right-click
+-- opens a quick menu; item tooltips can be off and never cover the item menu
+do
+  local GR = pfUI.gear
+  if GR and GR.QueueMenu and GR.trinkets then
+    local b = GR.trinkets.slots[1]
+    if GR.tq and GR.tq.Paint then GR.tq.Paint() end
+    ok(b.qbtn and b.qbtn:GetScript("OnClick"), "the cog on a trinket is a button")
+    local good, err = pcall(GR.QueueMenu, b, 13)
+    ok(good and GR.qmenu, "right-click opens the quick queue menu: " .. tostring(err))
+    if GR.qmenu then GR.qmenu:Hide() end
+    local was = pfUI_config.gear.tooltips
+    pfUI_config.gear.tooltips = "0"
+    ok(not GR.TipsOn(), "item tooltips can be switched off")
+    pfUI_config.gear.tooltips = was
+    ok(pcall(GR.TipClear, true), "keeping the tooltip off the item menu runs")
+  end
+end
+
 -- the updated ClassicAPI (25 Oct 2026): item GUIDs, soulbound bit, line of
 -- sight, clipboard, PLAYER_SWING - stand-ins shaped like its docs
 do

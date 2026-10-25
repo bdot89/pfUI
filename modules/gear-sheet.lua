@@ -128,6 +128,10 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
 
   -- ---------------------------------------------------------------- item menu
 
+  -- item tooltips on the gear buttons and menus (C.gear.tooltips; user, 25 Oct
+  -- 2026: "an option to hide tooltips in the main UI")
+  function GR.TipsOn() return C.gear.tooltips ~= "0" end
+
   local fly = CreateFrame("Frame", "pfGearFlyout", UIParent)
   fly:SetFrameStrata("FULLSCREEN_DIALOG")
   fly:EnableMouse(true)
@@ -167,7 +171,8 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     b:SetScript("OnEnter", function()
       local ar, ag, ab = Accent()
       this:SetBackdropBorderColor(ar, ag, ab, 1)
-      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+      if not GR.TipsOn() then return end
+      GameTooltip:SetOwner(this, "ANCHOR_NONE")
       if this.item == "empty" then
         GameTooltip:AddLine("Take it off")
       elseif this.item.worn then
@@ -180,6 +185,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       end
       if fly.hint then GameTooltip:AddLine(fly.hint, .6, .8, 1) end
       GameTooltip:Show()
+      GR.TipClear(true)
     end)
     b:SetScript("OnLeave", function()
       this:SetBackdropBorderColor(.2, .2, .24, 1)
@@ -227,7 +233,46 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     fly:Show()
   end
   -- it closes a moment after the mouse leaves it and its slot
+  -- A tooltip never covers the item menu (user, 25 Oct 2026: "it should always
+  -- NEVER cover this and move around the gear selection frame"): an item in the
+  -- menu shows its tooltip beside the menu, away from the slot it opened from;
+  -- the slot's own tooltip moves to the slot's other side.
+  local function Rect(f)
+    local s = f:GetEffectiveScale() or 1
+    local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
+    if not (l and r and t and b) then return end
+    return l * s, r * s, t * s, b * s
+  end
+  function GR.TipClear(item)
+    if not fly:IsShown() or not GameTooltip:IsShown() then return end
+    local fl, fr, ft, fb = Rect(fly)
+    if not fl then return end
+    local tl, tr, tt, tb = Rect(GameTooltip)
+    -- (just placed with no anchor yet: always place it)
+    if tl and not item and (tr <= fl or tl >= fr or tt <= fb or tb >= ft) then return end
+    local owner = fly.owner
+    local ol, or2, ot, ob
+    if owner and owner.GetLeft then ol, or2, ot, ob = Rect(owner) end
+    GameTooltip:ClearAllPoints()
+    if item or MouseIsOver(fly) then
+      -- beside the menu, on the side away from its slot
+      if ol and or2 <= fl + 1 then GameTooltip:SetPoint("TOPLEFT", fly, "TOPRIGHT", 4, 0)
+      elseif ol and ol >= fr - 1 then GameTooltip:SetPoint("TOPRIGHT", fly, "TOPLEFT", -4, 0)
+      elseif ol and ob >= ft - 1 then GameTooltip:SetPoint("TOPLEFT", fly, "BOTTOMLEFT", 0, -4)
+      else GameTooltip:SetPoint("BOTTOMLEFT", fly, "TOPLEFT", 0, 4) end
+    elseif ol then
+      -- the slot's tooltip: on the slot's other side from the menu
+      if fr <= ol + 1 then GameTooltip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
+      elseif fl >= or2 - 1 then GameTooltip:SetPoint("TOPRIGHT", owner, "TOPLEFT", -4, 0)
+      elseif fb >= ot - 1 then GameTooltip:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -4)
+      else GameTooltip:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 4) end
+    else
+      GameTooltip:SetPoint("BOTTOMLEFT", fly, "TOPLEFT", 0, 4)
+    end
+  end
+
   fly:SetScript("OnUpdate", function()
+    GR.TipClear()
     if MouseIsOver(this) or (this.owner and this.owner:IsVisible() and MouseIsOver(this.owner)) then
       this.away = 0
     else
@@ -443,14 +488,25 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       if IsAltKeyDown() and GR.ToggleQueue then GR.ToggleQueue(this.inv) return end
       if C.gear.trinketmenu ~= "0" and C.gear.trinketmenuclick == "1" and arg1 == "RightButton" then
         GR.TrinketMenu(this)
+      elseif arg1 == "RightButton" and GR.QueueMenu then
+        -- (right-click: this slot's trinket queue, set up from here)
+        GR.QueueMenu(this, this.inv)
       else
         UseInventoryItem(this.inv)
       end
     end)
     b:SetScript("OnEnter", function()
-      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-      GameTooltip:SetInventoryItem("player", this.inv)
-      GameTooltip:Show()
+      if GR.TipsOn() then
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetInventoryItem("player", this.inv)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Left-click: use it", .6, .8, 1)
+        if C.gear.trinketmenuclick == "1" then GameTooltip:AddLine("Right-click: the trinkets you carry", .6, .8, 1)
+        else GameTooltip:AddLine("Right-click: its trinket queue", .6, .8, 1) end
+        GameTooltip:AddLine("Alt-click: queue on / off - the cog does the same", .6, .8, 1)
+        GameTooltip:AddLine("Shift-click: link it in chat", .6, .8, 1)
+        GameTooltip:Show()
+      end
       if C.gear.trinketmenu ~= "0" and C.gear.trinketmenuclick ~= "1" and (C.gear.trinketshift ~= "1" or IsShiftKeyDown()) then GR.TrinketMenu(this) end
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)

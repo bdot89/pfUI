@@ -237,23 +237,108 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
     local bar = GR.trinkets
     if not bar or not bar.slots then return end
     for _, b in pairs(bar.slots) do
-      if not b.qmark then
-        b.qmark = b:CreateTexture(nil, "OVERLAY")
+      -- (25 Oct 2026, user: "the setting or cog does nothing ... right clicking
+      -- does nothing either"): the cog is a button - left-click = queue on /
+      -- off, right-click = the quick menu; shown dim while the queue is off
+      if not b.qbtn then
+        local q = CreateFrame("Button", nil, b)
+        q:SetWidth(14)
+        q:SetHeight(14)
+        q:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+        q:SetFrameLevel(b:GetFrameLevel() + 4)
+        q:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b.qmark = q:CreateTexture(nil, "OVERLAY")
         b.qmark:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
         b.qmark:SetTexCoord(.08, .92, .08, .92)
-        b.qmark:SetWidth(12)
-        b.qmark:SetHeight(12)
-        b.qmark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+        b.qmark:SetAllPoints(q)
+        q.inv = b.inv
+        q:SetScript("OnClick", function()
+          if arg1 == "RightButton" then GR.QueueMenu(this, this.inv) else GR.ToggleQueue(this.inv) end
+        end)
+        q:SetScript("OnEnter", function()
+          GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+          local qq = Q.Slot(this.inv)
+          GameTooltip:AddLine((this.inv == 13 and "Top" or "Bottom") .. " trinket queue: " .. (qq.on == "1" and "|cff55ff77on|r" or "|cffff5555off|r"))
+          GameTooltip:AddLine("When the trinket you wear goes on cooldown, the next ready one in the queue goes on.", 1, 1, 1, 1)
+          GameTooltip:AddLine("Left-click: queue on / off", .6, .8, 1)
+          GameTooltip:AddLine("Right-click: pick the trinkets and their order", .6, .8, 1)
+          GameTooltip:Show()
+        end)
+        q:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b.qbtn = q
       end
       local st = Q.Slot(b.inv).on == "1" and (Q.state[b.inv] or "on") or "off"
       local c = COLOR[st]
       if c then
         b.qmark:SetVertexColor(c[1], c[2], c[3])
-        b.qmark:Show()
+        b.qmark:SetAlpha(1)
       else
-        b.qmark:Hide()
+        b.qmark:SetVertexColor(.6, .6, .6)
+        b.qmark:SetAlpha(.45)
+      end
+      b.qbtn:Show()
+    end
+  end
+
+  -- the quick menu: queue on / off, pause, the order (click = first), the
+  -- trinkets not in it yet (click = add), and the full page
+  function GR.QueueMenu(owner, inv)
+    local W2 = pfUI.octoui and pfUI.octoui.W
+    if not W2 or not W2.Menu then return end
+    if GR.qmenu then GR.qmenu:Hide() end
+    local q = Q.Slot(inv)
+    local order, known = Q.Order(inv)
+    local opts = { { label = (inv == 13 and "Top" or "Bottom") .. " trinket queue", group = true } }
+    table.insert(opts, { key = "toggle", label = q.on == "1" and "|cff55ff77ON|r - click to turn off" or "|cffff5555OFF|r - click to turn on" })
+    if q.on == "1" then table.insert(opts, { key = "pause", label = q.paused and "Resume" or "Pause" }) end
+    local before, after = {}, {}
+    local past
+    for _, base in ipairs(order) do
+      if base == "stop" then past = true
+      elseif known[base] then table.insert(past and after or before, base) end
+    end
+    table.insert(opts, { label = "In the queue - click: first", group = true })
+    if table.getn(before) == 0 then table.insert(opts, { label = "|cff888888(none yet)|r" }) end
+    for i, base in ipairs(before) do
+      local t = known[base]
+      table.insert(opts, { key = "first:" .. base, label = i .. ". " .. t.name .. (Q.Flags(base).prio == "1" and " |cffffd100(priority)|r" or ""), icon = t.tex })
+    end
+    if table.getn(after) > 0 then
+      table.insert(opts, { label = "Not in it - click: add", group = true })
+      for _, base in ipairs(after) do
+        local t = known[base]
+        table.insert(opts, { key = "add:" .. base, label = t.name, icon = t.tex })
       end
     end
+    table.insert(opts, { key = "page", label = "All queue settings..." })
+    local function Move(base, pos)
+      for i = table.getn(q.order), 1, -1 do if q.order[i] == base then table.remove(q.order, i) end end
+      if pos == "first" then
+        table.insert(q.order, 1, base)
+      else
+        local at = table.getn(q.order) + 1
+        for i, k in ipairs(q.order) do if k == "stop" then at = i break end end
+        table.insert(q.order, at, base)
+      end
+    end
+    GR.qmenu = W2.Menu(owner, opts, 230, function(k)
+      if k == "toggle" then GR.ToggleQueue(inv) return end
+      if k == "pause" then GR.SetQueue(inv, q.paused and "RESUME" or "PAUSE") return end
+      if k == "page" then
+        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("gearqueue")
+        elseif pfUI.octoui and pfUI.octoui.Options then pfUI.octoui.Options:Open("gearqueue") end
+        return
+      end
+      local _, _, what, base = string.find(k, "^(%a+):(.+)$")
+      if not base then return end
+      Move(base, what == "first" and "first" or "end")
+      -- (a trinket added means the queue is wanted)
+      if q.on ~= "1" then q.on = "1" Say((inv == 13 and "Top" or "Bottom") .. " trinket queue on.") end
+      Q.Paint()
+      GR.Changed()
+    end)
+    GR.qmenu:SetFrameStrata("TOOLTIP")
+    GR.qmenu:Show()
   end
 
   -- ---------------------------------------------------------------- options page
