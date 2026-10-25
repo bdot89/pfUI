@@ -469,7 +469,7 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       fn(input and input:GetText())
     end, false, box)
     local d = _G["pfQuestionDialog"]
-    if box and d and d.input then d.input:SetText(start or "") d.input:HighlightText() end
+    if box and d and d.input then d.input:SetText(start or "") d.input:SetScript("OnEditFocusGained", function() this:HighlightText() end) d.input:SetFocus() d.input:HighlightText() end
   end
   function L.AskNew()
     Ask("A new UI layout, starting as a copy of " .. Store().current .. ". Its name:", function(v)

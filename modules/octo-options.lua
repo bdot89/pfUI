@@ -53,6 +53,182 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   local WIDTH, HEIGHT, NAV_W, NAV_ROW = 1080, 740, 196, 20
   local SEARCH = "[" .. T["Search"] .. "]"
 
+  -- ---------------------------------------------------------------- one colour language
+
+  -- (user, 25 Oct 2026, after the talent specs window: "copy this colour and
+  -- layout ... keep it a rule Red for off green for on etc purple for multi
+  -- choice ... keep it all the same and make this look highly prof")
+  --   go / on    green   Activate, Wear, Test, Show, New, ticked boxes, ON
+  --   danger     red     Delete, Reset, Remove, Clear, OFF
+  --   pick       purple  dropdowns and menus: one of many
+  --   save       gold    Save, Copy, Buy, Import / Export
+  --   open       blue    Open, Move frames, Options, other pages
+  -- Done here, on top of the widgets, so every Octo page follows it.
+  W.ROLE = {
+    go = { .25, .85, .4 }, on = { .25, .85, .4 }, danger = { .95, .3, .3 }, off = { .95, .3, .3 },
+    pick = { .68, .45, 1 }, save = { 1, .78, .2 }, open = { .35, .7, 1 },
+  }
+  -- a button in its role's colour: dark fill, bright edge and words
+  function W.Tint(b, role)
+    local col = role and W.ROLE[role]
+    if not b or not col or not b.SetBackdropColor then return b end
+    b.role = role
+    local function Paint()
+      if b.picked then return end
+      b:SetBackdropColor(col[1] * .28, col[2] * .28, col[3] * .28, 1)
+      b:SetBackdropBorderColor(col[1] * .85, col[2] * .85, col[3] * .85, 1)
+      if b.label then b.label:SetTextColor(math.min(1, col[1] + .3), math.min(1, col[2] + .3), math.min(1, col[3] + .3)) end
+    end
+    b.PaintRole = Paint
+    Paint()
+    b:SetScript("OnMouseUp", Paint)
+    return b
+  end
+  -- a button's role from its words (first match wins)
+  W.ROLEWORDS = {
+    { "danger", { "delete", "remove", "reset", "clear", "forget", "unbind", "take off", "turn off", " off", "disable", "stop" } },
+    { "save", { "save", "copy", "buy", "export", "import", "match", "rename", "share" } },
+    { "go", { "activate", "wear", "apply", "test", "start", "try", "show", "switch", "new", "add", "+ ", "play", "turn on", "dress" } },
+    { "open", { "open", "move", "keybind", "options", "gear sets", "layouts", "profiles", "install", "find", "breakdown", "page" } },
+    { "pick", { "pick", "choose", "look", "..." } },
+  }
+  function W.RoleOf(text)
+    local t = " " .. string.lower(string.gsub(text or "", "|c%x%x%x%x%x%x%x%x", "")) .. " "
+    for _, r in ipairs(W.ROLEWORDS) do
+      for _, w in ipairs(r[2]) do
+        if string.find(t, w, 1, true) then return r[1] end
+      end
+    end
+  end
+
+  -- rows of buttons: each tinted by its role (d.role, else its words); lit
+  -- buttons ("on" while something holds) light green, not blue
+  local Buttons = W.Buttons
+  W.Buttons = function(p, list)
+    local row = Buttons(p, list)
+    local kids = { row:GetChildren() }
+    for i = 1, table.getn(list) do
+      local b, d = kids[i], list[i]
+      if b and d and not (d.on or d[5]) then
+        local role = d.role or W.RoleOf(d[1])
+        if role then W.Tint(b, role) end
+      end
+    end
+    return row
+  end
+  local Lit = W.Lit
+  W.Lit = function(b, on)
+    Lit(b, on)
+    if on then
+      local g = W.ROLE.on
+      b:SetBackdropBorderColor(g[1], g[2], g[3], 1)
+      b:SetBackdropColor(g[1] * .35, g[2] * .35, g[3] * .35, 1)
+    elseif b.PaintRole then
+      b.PaintRole()
+    end
+  end
+  -- switches: green ON, red OFF (the pill and the word)
+  local Toggle = W.Toggle
+  W.Toggle = function(parent)
+    local b = Toggle(parent)
+    local set = b.Set
+    b.Set = function(on)
+      set(on)
+      if not on then
+        local r = W.ROLE.off
+        local regions = { b:GetRegions() }
+        for _, t in ipairs(regions) do
+          if t.GetDrawLayer and t:GetDrawLayer() == "ARTWORK" and t.SetVertexColor then t:SetVertexColor(r[1] * .7, r[2] * .7, r[3] * .7, 1) end
+        end
+      end
+    end
+    b.Set(b.on and true or false)
+    return b
+  end
+  local Switch = W.Switch
+  W.Switch = function(parent, get, set, tip)
+    local f = Switch(parent, get, set, tip)
+    local refresh = f.Refresh
+    f.Refresh = function()
+      refresh()
+      if not get() then
+        local r = W.ROLE.off
+        for _, fs in ipairs({ f:GetRegions() }) do
+          if fs.GetText and fs:GetText() == "OFF" then fs:SetTextColor(r[1], r[2] + .1, r[3] + .1) end
+        end
+      end
+    end
+    return f
+  end
+  -- tick boxes: green inside when ticked
+  local CheckBox = W.CheckBox
+  W.CheckBox = function(parent, size)
+    local cb = CheckBox(parent, size)
+    local t = cb:GetCheckedTexture()
+    local g = W.ROLE.on
+    if t then t:SetVertexColor(g[1], g[2], g[3], 1) end
+    return cb
+  end
+  -- dropdowns (pick one of many): a purple edge and arrow
+  local DropBox = W.DropBox
+  W.DropBox = function(parent, width)
+    local f, text, a, b = DropBox(parent, width)
+    local pc = W.ROLE.pick
+    f:SetBackdropBorderColor(pc[1] * .7, pc[2] * .7, pc[3] * .7, 1)
+    for _, t in ipairs({ f:GetRegions() }) do
+      if t.GetDrawLayer and t:GetDrawLayer() == "OVERLAY" and t.SetVertexColor and not t.GetText then t:SetVertexColor(pc[1], pc[2], pc[3], 1) end
+    end
+    return f, text, a, b
+  end
+
+  -- a picture on every card (user: "add more artwork throughout"): one given
+  -- by the page, else one found from the card's words (names checked in the
+  -- client's listfile, 25 Oct 2026)
+  W.CARDART = {
+    { { "automatic", "auto ", "status", "time" }, "INV_Misc_PocketWatch_01" },
+    { { "spec", "talent", "brain" }, "Spell_Shadow_ShadowWordDominate" },
+    { { "switch", "swap" }, "Spell_Arcane_Blink" },
+    { { "wait" }, "Spell_Nature_TimeStop" },
+    { { "colour", "color", "look", "skin", "border", "background" }, "INV_Fabric_Silk_02" },
+    { { "text", "font", "word", "name", "letter" }, "INV_Scroll_03" },
+    { { "preview", "test", "try", "sample" }, "INV_Misc_Spyglass_02" },
+    { { "where", "position", "place", "frame", "layout", "map", "zone" }, "INV_Misc_Map_01" },
+    { { "sound", "popup", "alert", "warn", "message", "notice" }, "INV_Misc_Bell_01" },
+    { { "key", "bind" }, "INV_Misc_Key_01" },
+    { { "gear", "set", "equip", "item", "wear" }, "INV_Chest_Cloth_17" },
+    { { "trinket", "ring" }, "INV_Jewelry_Ring_03" },
+    { { "threat", "tank", "aggro" }, "Ability_Warrior_DefensiveStance" },
+    { { "heal" }, "Spell_Holy_Heal02" },
+    { { "damage", "swing", "weapon", "melee" }, "INV_Sword_04" },
+    { { "cast", "spell" }, "Spell_Nature_Lightning" },
+    { { "aura", "buff", "debuff" }, "Spell_Holy_MagicalSentry" },
+    { { "chat", "whisper", "tell" }, "INV_Letter_15" },
+    { { "raid", "party", "group" }, "INV_Banner_02" },
+    { { "share", "profile", "export", "import", "report" }, "INV_Misc_Book_11" },
+    { { "boss", "elite" }, "INV_Misc_Head_Dragon_01" },
+    { { "data", "number", "fight", "segment" }, "INV_Misc_Book_08" },
+    { { "bar", "button", "slot" }, "INV_Misc_StoneTablet_05" },
+    { { "icon", "picture", "art" }, "INV_Misc_Gem_Pearl_04" },
+    { { "remove", "delete" }, "INV_Misc_Bomb_04" },
+    { { "window", "meter" }, "INV_Misc_EngGizmos_01" },
+  }
+  function W.CardArt(title)
+    local t = " " .. string.lower(string.gsub(title or "", "|c%x%x%x%x%x%x%x%x", "")) .. " "
+    for _, e in ipairs(W.CARDART) do
+      for _, w in ipairs(e[1]) do
+        if string.find(t, w, 1, true) then return "Interface\\Icons\\" .. e[2] end
+      end
+    end
+    return "Interface\\Icons\\INV_Misc_Rune_01"
+  end
+  local Card = W.Card
+  W.Card = function(p, title, o)
+    o = o or {}
+    if o.icon == nil then o.icon = W.CardArt(title) end
+    if o.icon == false then o.icon = nil end
+    return Card(p, title, o)
+  end
+
   -- ---------------------------------------------------------------- helpers for pages
 
   -- Check / slider / dropdown bound to a key of a settings table (tbl is a

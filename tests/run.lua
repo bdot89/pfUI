@@ -4483,6 +4483,19 @@ do
   end
 end
 
+-- one colour language (user, 25 Oct 2026): green go / on, red off / delete,
+-- purple pick one, gold save, blue open
+do
+  local W = pfUI.octoui.W
+  ok(W.RoleOf("Delete set") == "danger" and W.RoleOf("Reset positions") == "danger" and W.RoleOf("Save here") == "save"
+    and W.RoleOf("Activate") == "go" and W.RoleOf("Move frames") == "open" and W.RoleOf("Name") == nil,
+    "buttons get their colour from their words")
+  local b = W.Tint(W.Button(UIParent, "Delete", 80, 22), "danger")
+  ok(b.role == "danger" and b.PaintRole, "a danger button is painted red")
+  ok(W.CardArt("Automatic") and string.find(W.CardArt("Talent specs"), "ShadowWordDominate") and W.CardArt("zzz"),
+    "every card gets a picture")
+end
+
 -- talent specs at the Goblin Brainwashing Device (gear-specs.lua): the menu read,
 -- a switch, its gear set and its own spells
 do

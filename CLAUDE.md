@@ -733,3 +733,13 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    L.NAMES follows the list; specs' layout and bars follow renames), layouts page = coloured tiles (click =
    switch, right-click = rename / picture / colour / delete, + New layout), a card per layout in its colour.
    O:Rebuild(key) builds an Octo page again (new layout / new spec).
+19. One colour language (25 Oct 2026, NOT seen in game; user after the specs window: "keep it a rule Red for off
+   green for on ... purple for multi choice ... keep it all the same ... highly prof", "more artwork"). In
+   octo-options.lua (top), on top of octo-widgets so every Octo page follows: W.ROLE go/on green, danger/off red,
+   pick purple, save gold, open blue; W.Tint(b, role) (b.PaintRole, kept on mouse up); W.RoleOf(words) via
+   W.ROLEWORDS; W.Buttons rows tinted by d.role or their words (lit "on" buttons light green, W.Lit wrapped);
+   W.Toggle off = red pill, W.Switch "OFF" red; W.CheckBox ticked = green; W.DropBox (every dropdown) purple edge
+   and arrow; W.Card o.icon (false = none) else W.CardArt(title) from W.CARDART keywords (names checked in the
+   client's listfile; W.Card's o.icon support came with the meter session's 25 Oct widget change). Spec
+   window: rename boxes now select the old name (SetFocus + OnEditFocusGained HighlightText - typing used to
+   append: "Spec 1Shadow PvE"; same fix in gear set and layout rename), buy row one line, help line wraps.

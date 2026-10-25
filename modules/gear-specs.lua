@@ -435,7 +435,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
       if v and v ~= "" then s.name = string.sub(v, 1, 24) GS.Paint() end
     end, false, true)
     local d = _G["pfQuestionDialog"]
-    if d and d.input then d.input:SetText(s.name) d.input:HighlightText() end
+    if d and d.input then d.input:SetText(s.name) d.input:SetScript("OnEditFocusGained", function() this:HighlightText() end) d.input:SetFocus() d.input:HighlightText() end
   end
 
   -- ---------------------------------------------------------------- the window
@@ -498,7 +498,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
     end
   end
 
-  local WIDTH, ROWH, TOP = 720, 54, 96
+  local WIDTH, ROWH, TOP = 720, 54, 112
   local f = CreateFrame("Frame", "pfGearSpecs", UIParent)
   GS.frame = f
   f:SetWidth(WIDTH)
@@ -556,6 +556,8 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
   help:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -54)
   help:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -54)
   help:SetJustifyH("LEFT")
+  help:SetJustifyV("TOP")
+  help:SetHeight(30)
   f.help = help
 
   -- column heads
@@ -563,7 +565,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
   local COLS = { { "Spec  (click the picture or Activate to switch)", 12 }, { "Gear set", 262 }, { "UI layout", 404 }, { "Own spells", 494 } }
   for i, c in ipairs(COLS) do
     local h = Font(f:CreateFontString(nil, "OVERLAY"), 10, { Accent() })
-    h:SetPoint("TOPLEFT", f, "TOPLEFT", c[2], -80)
+    h:SetPoint("TOPLEFT", f, "TOPLEFT", c[2], -96)
     h:SetText(c[1])
     heads[i] = h
   end
@@ -785,7 +787,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
         if buy then
           r.icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
           r.name:SetText("|cffffd100Buy slot " .. slot .. "|r")
-          r.split:SetText("|cffffd100" .. buy.price .. " gold|r - room for one more spec")
+          r.split:SetText("|cffffd100" .. buy.price .. " gold|r")
           r.stripe:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
           Grad(r.wash, GOLD[1], GOLD[2], GOLD[3], .18, 0, true)
         elseif owned and (s or (menu and menu.activate[slot])) then

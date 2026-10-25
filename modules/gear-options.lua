@@ -292,7 +292,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
         end
       end, false, true)
       local d = _G["pfQuestionDialog"]
-      if d and d.input then d.input:SetText(setname) d.input:HighlightText() end
+      if d and d.input then d.input:SetText(setname) d.input:SetScript("OnEditFocusGained", function() this:HighlightText() end) d.input:SetFocus() d.input:HighlightText() end
     end
 
     local newBtn = W.Button(holder, "New set", 86, 22)
