@@ -297,7 +297,7 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       if base == "stop" then past = true
       elseif known[base] then table.insert(past and after or before, base) end
     end
-    table.insert(opts, { label = "In the queue - click: first", group = true })
+    table.insert(opts, { label = "In the queue - click: first, right-click: remove", group = true })
     if table.getn(before) == 0 then table.insert(opts, { label = "|cff888888(none yet)|r" }) end
     for i, base in ipairs(before) do
       local t = known[base]
@@ -315,6 +315,9 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       for i = table.getn(q.order), 1, -1 do if q.order[i] == base then table.remove(q.order, i) end end
       if pos == "first" then
         table.insert(q.order, 1, base)
+      elseif pos == "out" then
+        -- (after the red mark: known, but not used)
+        table.insert(q.order, base)
       else
         local at = table.getn(q.order) + 1
         for i, k in ipairs(q.order) do if k == "stop" then at = i break end end
@@ -331,12 +334,20 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       end
       local _, _, what, base = string.find(k, "^(%a+):(.+)$")
       if not base then return end
+      -- (right-click on one in the queue: out of it)
+      if what == "first" and arg1 == "RightButton" then
+        Move(base, "out")
+        Say((known[base] and known[base].name or "Trinket") .. " is out of the " .. (inv == 13 and "top" or "bottom") .. " queue.")
+        Q.Paint()
+        GR.Changed()
+        return
+      end
       Move(base, what == "first" and "first" or "end")
       -- (a trinket added means the queue is wanted)
       if q.on ~= "1" then q.on = "1" Say((inv == 13 and "Top" or "Bottom") .. " trinket queue on.") end
       Q.Paint()
       GR.Changed()
-    end)
+    end, true)
     GR.qmenu:SetFrameStrata("TOOLTIP")
     GR.qmenu:Show()
   end

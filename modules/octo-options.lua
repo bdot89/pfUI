@@ -186,8 +186,14 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   -- frames and on the world); without it a menu closes 1.5 s after the mouse
   -- has left it and what opened it
   local Menu = W.Menu
-  W.Menu = function(anchor, options, width, onPick)
+  -- (rightToo: its entries take right-clicks too; onPick reads arg1)
+  W.Menu = function(anchor, options, width, onPick, rightToo)
     local m = Menu(anchor, options, width, onPick)
+    if rightToo then
+      for _, e in ipairs({ m:GetChildren() }) do
+        if e.RegisterForClicks then e:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+      end
+    end
     m.anchor = anchor
     m.away = 0
     m:SetScript("OnUpdate", function()
