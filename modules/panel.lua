@@ -800,6 +800,11 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   -- Options: Chat & Panels > Panel arrow; in Move frames, right-click this bar.
   local arrow = pfUI.panel.right.hide
   local arrowShow = arrow.Show
+  -- (25 Oct 2026, user: "make it by default on - more people use it than not":
+  -- on once for everyone, the saved "off" from the first version included)
+  if C.panel.arrowon ~= "1" then C.panel.arrow = "1" C.panel.arrowon = "1" end
+  -- (a lighter arrow: pfUI's .25 grey was hard to see on the dark bar)
+  if arrow.texture then arrow.texture:SetVertexColor(.65, .65, .65, 1) end
   arrow.Show = function(self) if C.panel.arrow == "1" then arrowShow(self or arrow) end end
 
   function pfUI.panel.ArrowWindows()
