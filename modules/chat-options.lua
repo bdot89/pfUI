@@ -761,19 +761,28 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
         C.panel.arrow = v and "1" or "0"
         if pfUI.panel and pfUI.panel.ArrowApply then pfUI.panel.ArrowApply() end
       end, "The small arrow at the right end of the bottom-right bar." },
-      about = "A small arrow at the right end of the bottom-right bar (time and fps). Click it to show or hide the "
-        .. "windows ticked here - the right chat window (Loot & Spam) as it always did, and any meter windows. "
-        .. "In Move frames, right-click that bar to come here." })
-    W.Card(p, "What the arrow shows and hides", { tip = "Ticked windows hide together and come back together." })
-    W.Check(p, "Right chat window (Loot & Spam)", "Only while the right chat is on (Chat > Windows).",
-      function() return Has("chat") end, function(v) SetHas("chat", v) end)
+      about = "The small arrow at the right end of the bottom-right bar (time and fps), as pfUI always had it: a "
+        .. "click opens or shuts the window above it. Loot & Spam: the window opens with Loot & Spam in it, and on "
+        .. "shutting Loot & Spam goes back to a tab in the left chat. Meters: the window opens with your meter "
+        .. "windows docked in it, side by side. In Move frames, right-click that bar to come here." })
+    W.Card(p, "What the arrow opens", { tip = "One or the other." })
+    W.Dropdown(p, "The window above the bar holds", nil,
+      { { key = "chat", label = "Loot & Spam (as before)" }, { key = "meters", label = "Meter windows, docked" } },
+      function() return C.panel.arrowmode or "chat" end,
+      function(v) if pfUI.panel and pfUI.panel.ArrowMode then pfUI.panel.ArrowMode(v) else C.panel.arrowmode = v end end)
     local M = pfUI.meters
     for i = 1, (M and M.windows and table.getn(M.windows) or 0) do
       local n = i
-      W.Check(p, "Meter window " .. n, nil, function() return Has("m" .. n) end, function(v) SetHas("m" .. n, v) end)
+      W.Check(p, "Dock meter window " .. n, "Used when the window holds meter windows.",
+        function() return Has("m" .. n) end, function(v)
+          local open = pfUI.panel and pfUI.panel.ArrowIsOpen and C.panel.arrowmode == "meters" and pfUI.panel.ArrowIsOpen()
+          if open then pfUI.panel.ArrowSet(false) end
+          SetHas("m" .. n, v)
+          if open then pfUI.panel.ArrowSet(true) end
+        end)
     end
-    W.Buttons(p, { { "Show / hide them now", function() if pfUI.panel and pfUI.panel.ArrowToggle then pfUI.panel.ArrowToggle() end end,
-      170, "What a click on the arrow does." } })
+    W.Buttons(p, { { "Open / shut it now", function() if pfUI.panel and pfUI.panel.ArrowToggle then pfUI.panel.ArrowToggle() end end,
+      150, "What a click on the arrow does.", role = "go" } })
   end
 
   -- (replaced first: AddPage rebuilds the topic list)

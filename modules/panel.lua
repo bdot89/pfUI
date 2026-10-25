@@ -792,39 +792,113 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
 
   UpdateMovable(pfUI.panel.right)
 
-  -- octo: the arrow is an option (24 Oct 2026 the user had it removed - "it
-  -- just confuses"; 25 Oct a friend wanted it back as a frame toggle): off by
-  -- default; on, a click shows or hides the windows picked for it
-  -- (C.panel.arrowwins = "chat,m1,m2": the right chat - Loot & Spam - as before,
-  -- and any meter windows picked).
-  -- Options: Chat & Panels > Panel arrow; in Move frames, right-click this bar.
+  -- octo: the arrow (24 Oct 2026 the user had it removed - "it just confuses";
+  -- 25 Oct: back, on by default - "more people use it than not"). As pfUI's
+  -- old one: it opens and shuts the right chat window. C.panel.arrowmode:
+  --   chat    open: the right window shows with Loot & Spam (ChatFrame3) in it;
+  --           shut: the window hides and Loot & Spam goes back to a tab in the
+  --           left chat (C.chat.right.enable carries it over a reload)
+  --   meters  open: the window shows with the meter windows picked
+  --           (C.panel.arrowwins "m1,m2") docked side by side in it; shut: they
+  --           go back to free windows, hidden (C.panel.arrowopen)
+  -- Options: Chat > Panel arrow; in Move frames, right-click this bar.
   local arrow = pfUI.panel.right.hide
   local arrowShow = arrow.Show
-  -- (25 Oct 2026, user: "make it by default on - more people use it than not":
-  -- on once for everyone, the saved "off" from the first version included)
   if C.panel.arrowon ~= "1" then C.panel.arrow = "1" C.panel.arrowon = "1" end
   -- (a lighter arrow: pfUI's .25 grey was hard to see on the dark bar)
   if arrow.texture then arrow.texture:SetVertexColor(.65, .65, .65, 1) end
   arrow.Show = function(self) if C.panel.arrow == "1" then arrowShow(self or arrow) end end
 
-  function pfUI.panel.ArrowWindows()
-    local out = {}
+  local function Reshow(f) if f and f.Hide then f:Hide() f:Show() end end
+
+  -- Loot & Spam into the right window, or back to the left chat as a tab
+  local function LootRight(on)
+    local cf, tab = _G["ChatFrame3"], _G["ChatFrame3Tab"]
+    if not (pfUI.chat and pfUI.chat.right and cf) then return end
+    if on then
+      C.chat.right.enable = "1"
+      pfUI.chat.right:Show()
+      if cf.isDocked and FCF_UnDockFrame then FCF_UnDockFrame(cf) end
+      if pfUI.chat.RefreshChat then pfUI.chat.RefreshChat() end
+      -- (1.12: out of a hidden parent it stays unseen until shown again)
+      Reshow(cf) Reshow(tab)
+    else
+      C.chat.right.enable = "0"
+      -- (moved before the window hides, so it never sits in a hidden parent)
+      cf:SetParent(UIParent)
+      if tab then tab:SetParent(UIParent) end
+      if FCF_DockFrame then FCF_DockFrame(cf) end
+      if pfUI.chat.RefreshChat then pfUI.chat.RefreshChat() end
+      if FCF_DockUpdate then FCF_DockUpdate() end
+      pfUI.chat.right:Hide()
+      Reshow(tab)
+    end
+  end
+
+  function pfUI.panel.ArrowMeters()
+    local out, M = {}, pfUI.meters
     for key in string.gfind(C.panel.arrowwins or "", "[^,]+") do
       local n = tonumber(string.sub(key, 2))
-      local M = pfUI.meters
-      if key == "chat" and pfUI.chat and pfUI.chat.right and C.chat.right.enable == "1" then
-        table.insert(out, pfUI.chat.right)
-      elseif string.sub(key, 1, 1) == "m" and n and M and M.windows and M.windows[n] then
-        table.insert(out, M.windows[n])
-      end
+      if string.sub(key, 1, 1) == "m" and n and M and M.windows and M.windows[n] then table.insert(out, M.windows[n]) end
     end
     return out
   end
-  function pfUI.panel.ArrowToggle()
-    local wins = pfUI.panel.ArrowWindows()
-    local any
-    for _, w in ipairs(wins) do if w:IsShown() then any = true end end
-    for _, w in ipairs(wins) do if any then w:Hide() else w:Show() end end
+
+  -- the picked meter windows side by side in the right window, or free again
+  local function MetersIn(on)
+    local chat, M = pfUI.chat and pfUI.chat.right, pfUI.meters
+    if not (chat and M) then return end
+    local wins = pfUI.panel.ArrowMeters()
+    if on then
+      chat:Show()
+      local n = table.getn(wins)
+      local w = (chat:GetWidth() or 400) / math.max(1, n)
+      local bottom = pfUI.panel.right:GetHeight() or 0
+      for i, win in ipairs(wins) do
+        win:ClearAllPoints()
+        win:SetPoint("TOPLEFT", chat, "TOPLEFT", (i - 1) * w, 0)
+        win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", i * w, bottom)
+        win:SetFrameStrata(chat:GetFrameStrata())
+        win:SetFrameLevel(chat:GetFrameLevel() + 5)
+        if win.grip then win.grip:Hide() end
+        win.arrowDocked = true
+        win:Show()
+        if win.Refresh then pcall(win.Refresh, win) end
+        if M.Lift then M.Lift(win) end
+      end
+    else
+      for _, win in ipairs(wins) do
+        if win.arrowDocked then
+          win.arrowDocked = nil
+          -- (its own size and place again)
+          local ok = M.SetDocked and pcall(M.SetDocked, win, false)
+          if not ok then pcall(UpdateMovable, win) end
+        end
+        win:Hide()
+      end
+      if C.chat.right.enable ~= "1" then chat:Hide() end
+    end
+  end
+
+  function pfUI.panel.ArrowIsOpen()
+    if C.panel.arrowmode == "meters" then return C.panel.arrowopen == "1" end
+    return C.chat.right.enable == "1"
+  end
+  function pfUI.panel.ArrowSet(open)
+    if C.panel.arrowmode == "meters" then
+      C.panel.arrowopen = open and "1" or "0"
+      MetersIn(open)
+    else
+      LootRight(open)
+    end
+  end
+  function pfUI.panel.ArrowToggle() pfUI.panel.ArrowSet(not pfUI.panel.ArrowIsOpen()) end
+  -- the mode changed on the options page: shut the one before, open the new one
+  function pfUI.panel.ArrowMode(mode)
+    local was = pfUI.panel.ArrowIsOpen()
+    if was then pfUI.panel.ArrowSet(false) end
+    C.panel.arrowmode = mode
+    if was then pfUI.panel.ArrowSet(true) end
   end
   function pfUI.panel.ArrowApply()
     if C.panel.arrow == "1" then arrowShow(arrow) else arrow:Hide() end
@@ -833,12 +907,19 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   arrow:SetScript("OnClick", function() pfUI.panel.ArrowToggle() end)
   arrow:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT")
-    GameTooltip:AddLine("Show / hide windows")
-    GameTooltip:AddLine("Pick which in Chat & Panels > Panel arrow.", 1, 1, 1)
+    GameTooltip:AddLine(C.panel.arrowmode == "meters" and "Meters window" or "Loot & Spam window")
+    GameTooltip:AddLine("Click: open / shut it", 1, 1, 1)
+    GameTooltip:AddLine("Chat > Panel arrow: meters instead, or no arrow", .7, .7, .7)
     GameTooltip:Show()
   end)
   arrow:SetScript("OnLeave", function() GameTooltip:Hide() end)
   pfUI.panel.ArrowApply()
+  -- meters docked when the game starts, if they were open (after the meters exist)
+  if C.panel.arrowmode == "meters" and C.panel.arrowopen == "1" then
+    local boot = CreateFrame("Frame")
+    boot:RegisterEvent("PLAYER_ENTERING_WORLD")
+    boot:SetScript("OnEvent", function() this:UnregisterAllEvents() MetersIn(true) end)
+  end
 
   -- buttons for right panel
   local width = pfUI.panel.right:GetWidth() / 3 - 2
