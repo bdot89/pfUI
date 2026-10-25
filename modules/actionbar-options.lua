@@ -756,6 +756,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       local how = W.Font(band:CreateFontString(nil, "OVERLAY"), 11, 1, 1, 1)
       how:SetPoint("LEFT", band, "LEFT", 12, 0)
       how:SetText("Click a bar: its settings          Shift + wheel: button size          Move frames: move the bars")
+      if W.HowTo then W.HowTo(p, band, how:GetText()) end
     end)
   end
 

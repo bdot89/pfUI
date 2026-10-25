@@ -238,6 +238,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   -- not the mouse). Returns the stage; stage.view = the zoom state.
   W.ZOOM_MIN, W.ZOOM_MAX = 1, 5
   function W.ZoomBox(p, h)
+    p.hasZoom = true
     local box = W.Box(p, h)
     local bw = box:GetWidth() or 700
     local sf = CreateFrame("ScrollFrame", nil, box)
@@ -378,6 +379,15 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
 
   function W.HowToPairs(text)
     local out = {}
+    -- (plain "Key: what it does" pieces, three or more spaces apart, too)
+    if text and not string.find(text, "|c", 1, true) then
+      local t = string.gsub(text, "%s%s%s+", "~")
+      for seg in string.gfind(t, "[^~]+") do
+        local _, _, key, act = string.find(seg, "^%s*(.-):%s*(.-)%s*$")
+        if key and key ~= "" then table.insert(out, { key, act }) end
+      end
+      return out
+    end
     for key, act in string.gfind(text or "", "|c%x%x%x%x%x%x%x%x(.-)|r([^|]*)") do
       act = string.gsub(act, "^%s+", "")
       act = string.gsub(act, "%s+$", "")
@@ -385,17 +395,39 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
     return out
   end
+  -- the picture for a key: the game's own cursors (names checked in the
+  -- client's listfile) and a spyglass for zoom
+  function W.HowIcon(key, act)
+    local k, a = string.lower(key or ""), string.lower(act or "")
+    if string.find(a, "zoom", 1, true) then return "Interface\\Icons\\INV_Misc_Spyglass_02" end
+    if string.find(k, "drag", 1, true) then return "Interface\\Cursor\\Pickup" end
+    if string.find(k, "wheel", 1, true) then return "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up" end
+    if string.find(k, "move frames", 1, true) then return "Interface\\Icons\\INV_Misc_Map_01" end
+    if string.find(k, "right", 1, true) then return "Interface\\Cursor\\Interact" end
+    return "Interface\\Cursor\\Point"
+  end
   function W.HowTo(p, band, text, text2, reserve)
     if not band then return end
     local pairs_ = W.HowToPairs(text)
     for _, e in ipairs(W.HowToPairs(text2)) do table.insert(pairs_, e) end
     if table.getn(pairs_) == 0 then return end
+    -- a preview you can zoom: say how (user, 25 Oct 2026: "add how it can be
+    -- zoomed in on and dragged make it clear with icons")
+    if p and p.hasZoom then
+      local has
+      for _, e in ipairs(pairs_) do if string.find(string.lower(e[2] or ""), "zoom") then has = true end end
+      if not has then
+        table.insert(pairs_, { "Wheel", "zoom in / out" })
+        table.insert(pairs_, { "Drag", "empty space: move the view" })
+        table.insert(pairs_, { "Double-click", "fit the view again" })
+      end
+    end
     -- the old text and colour wash go
     for _, r in ipairs({ band:GetRegions() }) do
       if r.GetText then
         -- (only the old help lines: a status text beside them stays)
         local t = r:GetText()
-        if t and string.find(t, "|r", 1, true) and table.getn(W.HowToPairs(t)) > 0 then r:Hide() end
+        if t and table.getn(W.HowToPairs(t)) > 0 then r:Hide() end
       elseif r.GetDrawLayer and r:GetDrawLayer() == "BACKGROUND" then r:Hide() end
     end
     if band.howto then for _, c in ipairs(band.howto) do c:Hide() end end
@@ -422,9 +454,15 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       cell:SetWidth(colw)
       cell:SetHeight(ROW)
       cell:SetPoint("TOPLEFT", band, "TOPLEFT", 12 + col * colw, -5 - row * ROW)
+      -- a small picture of the mouse action before the key
+      local pic = cell:CreateTexture(nil, "ARTWORK")
+      pic:SetWidth(16)
+      pic:SetHeight(16)
+      pic:SetPoint("LEFT", cell, "LEFT", 0, 0)
+      pic:SetTexture(W.HowIcon(e[1], e[2]))
       local cap = CreateFrame("Frame", nil, cell)
       cap:SetHeight(17)
-      cap:SetPoint("LEFT", cell, "LEFT", 0, 0)
+      cap:SetPoint("LEFT", pic, "RIGHT", 4, 0)
       W.Flat(cap, W.C.btn, 1, W.C.line)
       cap:SetBackdropBorderColor(ar * .8, ag * .8, ab * .8, 1)
       local kt = W.Font(cap:CreateFontString(nil, "OVERLAY"), 10, 1, 1, 1)
