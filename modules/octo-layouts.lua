@@ -334,6 +334,9 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       end
     end,
     unlock = function() end, gui = function() end,
+    -- (the arrow's window and Loot & Spam: put back after the frames are placed)
+    chat = function() if pfUI.chat and pfUI.chat.RefreshChat then pfUI.chat.RefreshChat() end end,
+    panel = function() end,
   }
   -- the saved settings in, each changed part shown; the parts that cannot
   -- change without a reload, by name
@@ -342,6 +345,12 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     local changed, needs = {}, {}
     for k, v in pairs(cfg) do
       if not L.SHARED[k] and not Same(pfUI_config[k], v) then changed[k] = true end
+    end
+    -- (the bottom bars' own texts take a reload; the arrow's settings do not)
+    if changed.panel and type(cfg.panel) == "table" and type(pfUI_config.panel) == "table" then
+      for k, v in pairs(cfg.panel) do
+        if not string.find(k, "^arrow") and not Same(pfUI_config.panel[k], v) then table.insert(needs, "bottom bars") break end
+      end
     end
     -- (more or fewer meter windows: made at login)
     local wins = cfg.meters and cfg.meters.windows
@@ -430,6 +439,8 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     -- it takes the ones on now, and keeps them from here on)
     local needs = L.ApplyCfg(target.cfg)
     Place()
+    -- (the arrow's window as this layout had it: meters docked in it or not)
+    if pfUI.panel and pfUI.panel.ArrowRefresh then pcall(pfUI.panel.ArrowRefresh) end
     if pfUI.meters and pfUI.meters.ShowAll then pfUI.meters.ShowAll(target.meters ~= "0") end
     -- its own spells on the action bars (unless switched off for it)
     local spec = L.BarSpec()

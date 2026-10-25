@@ -3644,6 +3644,29 @@ do
       ok(table.getn(needs) == 1 and needs[1] == "octotestpart", "a part that cannot change live asks for a reload")
       pfUI_config.octotestpart = nil
     end
+    -- a meter window stays where it was put, in each layout (user, 25 Oct 2026)
+    do
+      local M = pfUI.meters
+      local SaveMovable = pfUI.api.SaveMovable
+      local w = M and M.windows and M.windows[1]
+      if w and w.free then
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 300, 500)
+        SaveMovable(w)
+        L.Switch("Normal")
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 600, 200)
+        SaveMovable(w)
+        L.Switch("Raid")
+        local function XY() local p = { w:GetPoint() } if type(p[2]) == "number" then return p[2], p[3] end return p[4], p[5] end
+        local x, y = XY()
+        ok(x == 300 and y == 500, "a meter window goes back where it was in Raid (" .. tostring(x) .. ", " .. tostring(y) .. ")")
+        L.Switch("Normal")
+        x, y = XY()
+        ok(x == 600 and y == 200, "and where it was in Normal (" .. tostring(x) .. ", " .. tostring(y) .. ")")
+        L.Switch("Raid")
+      end
+    end
     -- the on-screen buttons keep one place in every layout (user, 25 Oct 2026)
     pfUI_config.position.pfGearButton = { anchor = "CENTER", xpos = 77, ypos = 5 }
     L.Switch("Normal")

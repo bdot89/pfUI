@@ -900,6 +900,25 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     C.panel.arrowmode = mode
     if was then pfUI.panel.ArrowSet(true) end
   end
+  -- the arrow's window as this layout has it (a UI layout switch puts each
+  -- layout's own state back, after the frames are placed: user, 25 Oct 2026,
+  -- meters docked in it "not remembered")
+  function pfUI.panel.ArrowRefresh()
+    if C.panel.arrowmode == "meters" then
+      MetersIn(C.panel.arrowopen == "1")
+    elseif pfUI.chat and pfUI.chat.right then
+      -- (meters docked by a layout that used the arrow for them: free again)
+      for _, win in ipairs(pfUI.panel.ArrowMeters()) do
+        if win.arrowDocked then
+          win.arrowDocked = nil
+          local M = pfUI.meters
+          local ok = M and M.SetDocked and pcall(M.SetDocked, win, false)
+          if not ok then pcall(UpdateMovable, win) end
+        end
+      end
+      LootRight(C.chat.right.enable == "1")
+    end
+  end
   function pfUI.panel.ArrowApply()
     if C.panel.arrow == "1" then arrowShow(arrow) else arrow:Hide() end
   end
