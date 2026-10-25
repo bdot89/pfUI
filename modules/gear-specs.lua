@@ -490,11 +490,13 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
   end
   local function Grad(t, r, g, b, a1, a2, horiz)
     t:SetTexture(WHITE)
-    t:SetVertexColor(r, g, b, 1)
+    -- (the colour goes in the gradient itself: a gradient in white over a
+    -- vertex colour paints the corners white on the client)
     if t.SetGradientAlpha then
-      t:SetGradientAlpha(horiz and "HORIZONTAL" or "VERTICAL", 1, 1, 1, a1, 1, 1, 1, a2)
+      t:SetVertexColor(1, 1, 1, 1)
+      t:SetGradientAlpha(horiz and "HORIZONTAL" or "VERTICAL", r, g, b, a1, r, g, b, a2)
     else
-      t:SetAlpha(a2)
+      t:SetVertexColor(r, g, b, math.max(a1, a2))
     end
   end
 

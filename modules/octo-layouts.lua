@@ -517,6 +517,17 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     if L.PaintTiles then L.PaintTiles() end
   end
 
+  -- a soft wash of a colour, strongest at the bottom; the words stay white on
+  -- the dark card (user, 25 Oct 2026: coloured text on its own colour was hard
+  -- to read - SetVertexColor after SetGradientAlpha had filled the tile solid)
+  function L.Wash(t, r, g, b)
+    if t.SetGradientAlpha then
+      t:SetVertexColor(1, 1, 1, 1)
+      t:SetGradientAlpha("VERTICAL", r, g, b, .28, r, g, b, 0)
+    else
+      t:SetVertexColor(r, g, b, .14)
+    end
+  end
   -- the layouts as coloured tiles: click = switch, right-click = its menu
   local PER, TW, TH, GAP = 4, 183, 84, 8
   local function Tiles(p)
@@ -540,17 +551,20 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       t.glow:SetTexture("Interface\\Buttons\\WHITE8X8")
       t.glow:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -5)
       t.glow:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -1, 1)
-      if t.glow.SetGradientAlpha then t.glow:SetGradientAlpha("VERTICAL", 1, 1, 1, 0, 1, 1, 1, .22) end
       t.icon = t:CreateTexture(nil, "OVERLAY")
       t.icon:SetWidth(40)
       t.icon:SetHeight(40)
       t.icon:SetTexCoord(.07, .93, .07, .93)
       t.icon:SetPoint("LEFT", t, "LEFT", 10, -2)
       t.name = W.Font(t:CreateFontString(nil, "OVERLAY"), 14, 1, 1, 1)
+      t.name:SetShadowColor(0, 0, 0, 1)
+      t.name:SetShadowOffset(1, -1)
       t.name:SetPoint("TOPLEFT", t.icon, "TOPRIGHT", 10, -2)
       t.name:SetWidth(TW - 70)
       t.name:SetJustifyH("LEFT")
-      t.sub = W.Font(t:CreateFontString(nil, "OVERLAY"), 10, W.C.dim[1], W.C.dim[2], W.C.dim[3])
+      t.sub = W.Font(t:CreateFontString(nil, "OVERLAY"), 10, .82, .83, .87)
+      t.sub:SetShadowColor(0, 0, 0, 1)
+      t.sub:SetShadowOffset(1, -1)
       t.sub:SetPoint("TOPLEFT", t.name, "BOTTOMLEFT", 0, -4)
       t.sub:SetWidth(TW - 70)
       t.sub:SetJustifyH("LEFT")
@@ -604,11 +618,11 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
         local r, g, b = L.Color(nm)
         t.layout = nm
         t.band:SetVertexColor(r, g, b, 1)
-        t.glow:SetVertexColor(r, g, b, 1)
+        L.Wash(t.glow, r, g, b)
         t.icon:SetTexture(L.Icon(nm))
         t.icon:SetVertexColor(1, 1, 1)
         t.name:SetText(nm)
-        t.name:SetTextColor(r, g, b)
+        t.name:SetTextColor(1, 1, 1)
         local sv = s.saved[nm]
         local bits = {}
         if sv and sv.gear and sv.gear ~= "" then table.insert(bits, sv.gear) end
@@ -627,7 +641,7 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       local add = Tile(table.getn(L.NAMES) + 1)
       add.layout = nil
       add.band:SetVertexColor(.4, .42, .46, 1)
-      add.glow:SetVertexColor(.4, .42, .46, 1)
+      L.Wash(add.glow, .4, .42, .46)
       add.icon:SetTexture("Interface\\Icons\\Spell_ChargePositive")
       add.name:SetText("+ New layout")
       add.name:SetTextColor(.85, .86, .9)
