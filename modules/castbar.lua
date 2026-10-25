@@ -151,7 +151,10 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
 
         this.bar:SetValue(cur)
 
-        if this.showtimer then
+        -- the timer text only when its tenth of a second (or the delay) changes
+        local tenth = math.floor(cur * 10)
+        if this.showtimer and (tenth ~= this.lasttenth or this.delay ~= this.lastdelay) then
+          this.lasttenth, this.lastdelay = tenth, this.delay
           if this.delay and this.delay > 0 then
             local delay = "|cffffaaaa" .. (channel and "-" or "+") .. round(this.delay,1) .. " |r "
             this.bar.right:SetText(delay .. string.format("%.1f",cur) .. " / " .. round(max,1))
@@ -161,13 +164,33 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         end
 
         this.fadeout = nil
-      else
+      elseif this.endTime or not this.idle then
+        -- the cast just ended: full bar fading out, set once (pfUI set it on
+        -- every frame while nothing was cast). Your own cast stopped by an
+        -- interrupt or a failure flashes red (from the ClassicAPI pfUI fork).
+        this.endTime, this.idle, this.lasttenth = nil, true, nil
         this.bar:SetMinMaxValues(1,100)
         this.bar:SetValue(100)
+        if this.failedAt and GetTime() - this.failedAt < .4 then
+          this.bar:SetStatusBarColor(1, .15, .15, 1)
+        end
+        this.failedAt = nil
         this.fadeout = 1
         this.delay = 0
       end
+      if cast then this.idle = nil end
     end)
+
+    -- your own cast interrupted or failed (vanilla events): the bar flashes red
+    if pfUI.client <= 11200 then
+      local fail = CreateFrame("Frame", nil, cb)
+      fail:RegisterEvent("SPELLCAST_INTERRUPTED")
+      fail:RegisterEvent("SPELLCAST_FAILED")
+      fail:SetScript("OnEvent", function()
+        local bar = this:GetParent()
+        if bar.unitstr == "player" and bar.endTime then bar.failedAt = GetTime() end
+      end)
+    end
 
     -- register for spell delay
     local playerarg = nil
