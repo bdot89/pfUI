@@ -202,5 +202,20 @@ function libclient.SwingEvents()
   return true
 end
 
+--  libclient.SpellIcon(spellId)
+--    The spell's icon path: ClassicAPI C_Spell.GetSpellTexture, else SuperWoW
+--    SpellInfo (name, rank, texture). nil when neither is there.
+function libclient.SpellIcon(id)
+  if not id then return end
+  if C_Spell and C_Spell.GetSpellTexture then
+    local ok, tex = pcall(C_Spell.GetSpellTexture, id)
+    if ok and tex then return tex end
+  end
+  if SUPERWOW_VERSION and _G.SpellInfo then
+    local ok, _, _, tex = pcall(_G.SpellInfo, id)
+    if ok and tex then return tex end
+  end
+end
+
 -- add libclient to pfUI API
 pfUI.api.libclient = libclient

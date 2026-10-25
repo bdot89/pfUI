@@ -155,6 +155,9 @@ pfUI:RegisterModule("tooltip", "vanilla:tbc", function ()
   pfUI.tooltipStatusBar:SetScript("OnUpdate", function()
     local hp = GameTooltipStatusBar:GetValue()
     local _, hpmax = GameTooltipStatusBar:GetMinMaxValues()
+    -- the text again only when the health or the unit changed (it was every frame)
+    if hp == this.lasthp and hpmax == this.lastmax and this.name == this.lastname and (this.retext or 0) > GetTime() then return end
+    this.lasthp, this.lastmax, this.lastname, this.retext = hp, hpmax, this.name, GetTime() + .5
     local rhp, rhpmax, estimated
 
     if hpmax > 100 or (round(hpmax/100*hp) ~= hp) then
@@ -302,6 +305,79 @@ pfUI:RegisterModule("tooltip", "vanilla:tbc", function ()
           AddCaster(self, unit, index, harmful)
           return r
         end
+      end
+    end
+  end
+
+  -- octo: how many of an item you have, in bags / bank / worn (from the
+  -- ClassicAPI pfUI fork's item count). ClassicAPI counts the bank even when it
+  -- is shut; without it the bags and worn items are counted, the bank only
+  -- while it is open.
+  if C.tooltip.itemcount == "1" then
+    local function Count(id)
+      local bags, bank, worn = 0, 0, 0
+      local pattern = "item:" .. id .. ":"
+      local function In(bag)
+        local n = 0
+        for slot = 1, GetContainerNumSlots(bag) do
+          local link = GetContainerItemLink(bag, slot)
+          if link and string.find(link, pattern, 1, true) then
+            local _, c = GetContainerItemInfo(bag, slot)
+            n = n + (c or 1)
+          end
+        end
+        return n
+      end
+      for slot = 1, 19 do
+        local link = GetInventoryItemLink("player", slot)
+        if link and string.find(link, pattern, 1, true) then worn = worn + 1 end
+      end
+      local total
+      if C_Item and C_Item.GetItemCount then
+        local ok, all = pcall(C_Item.GetItemCount, id, true)
+        local ok2, carried = pcall(C_Item.GetItemCount, id, false)
+        if ok and ok2 and all and carried then
+          -- (ClassicAPI's carried count includes the worn ones)
+          bags = math.max(0, carried - worn)
+          bank = math.max(0, all - carried)
+          total = all
+        end
+      end
+      if not total then
+        for bag = 0, 4 do bags = bags + In(bag) end
+        if BankFrame and BankFrame:IsShown() then
+          bank = In(-1)
+          for bag = 5, 10 do bank = bank + In(bag) end
+        end
+        total = bags + bank + worn
+      end
+      return bags, bank, worn, total
+    end
+
+    local function AddCount(frame, id)
+      if not id then return end
+      local bags, bank, worn, total = Count(id)
+      if total < 1 then return end
+      frame:AddLine(" ")
+      if bags > 0 then frame:AddDoubleLine(T["Bags"] .. ":", bags, .7, .7, .7, 1, 1, 1) end
+      if bank > 0 then frame:AddDoubleLine(T["Bank"] .. ":", bank, .7, .7, .7, 1, 1, 1) end
+      if worn > 0 then frame:AddDoubleLine(T["Equipped"] .. ":", worn, .7, .7, .7, 1, 1, 1) end
+      local kinds = (bags > 0 and 1 or 0) + (bank > 0 and 1 or 0) + (worn > 0 and 1 or 0)
+      if kinds > 1 then frame:AddDoubleLine(T["Total"] .. ":", total, .7, .7, .7, 1, 1, 1) end
+      frame:Show()
+    end
+
+    local counter = CreateFrame("Frame", nil, GameTooltip)
+    counter:SetScript("OnShow", function()
+      if libtooltip and libtooltip:GetItemLink() then AddCount(GameTooltip, libtooltip:GetItemID()) end
+    end)
+
+    local HookSetItemRef = SetItemRef
+    _G.SetItemRef = function(link, text, button)
+      HookSetItemRef(link, text, button)
+      local _, _, id = string.find(link or "", "item:(%d+)")
+      if id and not IsShiftKeyDown() and not IsControlKeyDown() and ItemRefTooltip:IsShown() then
+        AddCount(ItemRefTooltip, tonumber(id))
       end
     end
   end

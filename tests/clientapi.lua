@@ -234,6 +234,15 @@ if Has then
   _G.GetAddOnInfo = realInfo
 end
 
+-- ---------------------------------------------------------------- spell icons (queued spell on the cast bar)
+do
+  local savedSpell = C_Spell
+  C_Spell = { GetSpellTexture = function(id) return id == 133 and "Interface\\Icons\\Spell_Fire_FlameBolt" or nil end }
+  ok(LC.SpellIcon(133) == "Interface\\Icons\\Spell_Fire_FlameBolt", "spell icon by id from ClassicAPI")
+  ok(LC.SpellIcon(nil) == nil, "no id, no icon")
+  C_Spell = savedSpell
+end
+
 -- ---------------------------------------------------------------- unit frame events
 -- ClassicAPI frame:RegisterUnitEvent: a unit frame hears only its own unit
 do

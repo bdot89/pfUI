@@ -255,6 +255,44 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
     end
 
     UpdateMovable(pfUI.castbar.player)
+
+    -- octo: nampower's spell queue (SPELL_QUEUE_EVENT; idea from the ClassicAPI
+    -- pfUI fork): the spell you queued shows at the bar's right end until it
+    -- goes off. Nothing without nampower (the plain client cannot tell).
+    if GetNampowerVersion and C.castbar.player.spellqueue == "1" then
+      local cb = pfUI.castbar.player
+      local q = CreateFrame("Frame", "pfSpellQueue", UIParent)
+      q:SetFrameStrata("HIGH")
+      q:SetPoint("LEFT", cb, "RIGHT", default_border * 3, 0)
+      q.icon = q:CreateTexture(nil, "OVERLAY")
+      q.icon:SetAllPoints(q)
+      q.icon:SetTexCoord(.08, .92, .08, .92)
+      CreateBackdrop(q)
+      q:Hide()
+      q:RegisterEvent("SPELL_QUEUE_EVENT")
+      q:SetScript("OnEvent", function()
+        -- arg1: 0 / 2 / 4 = queued (on swing / normal / off the GCD), 1 / 3 / 5 = it went
+        local code, id = tonumber(arg1), tonumber(arg2)
+        if code == 0 or code == 2 or code == 4 then
+          local lc = pfUI.api.libclient
+          local tex = lc and lc.SpellIcon and lc.SpellIcon(id)
+          if not tex then return end
+          local size = math.max(cb:GetHeight(), 14)
+          this:SetWidth(size)
+          this:SetHeight(size)
+          this.icon:SetTexture(tex)
+          this.till = GetTime() + 5
+          this:Show()
+        elseif code == 1 or code == 3 or code == 5 then
+          this:Hide()
+        end
+      end)
+      -- a queue that never reports going off is cleared after 5 s
+      q:SetScript("OnUpdate", function()
+        if (this.till or 0) < GetTime() then this:Hide() end
+      end)
+      pfUI.castbar.queue = q
+    end
   end
 
   -- [[ pfTargetCastbar ]] --

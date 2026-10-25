@@ -423,6 +423,8 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
     W.Card(p, "Icon and lag")
     Chk(p, "Spell icon", "At the left of the bar, as tall as it.", S, "showicon")
     Chk(p, "Lag", "Your latency in red at the end of the bar: you can start the next spell there.", S, "showlag")
+    PfChk(p, "Queued spell", "Your cast bar: the spell you queued shows at its right end until it goes off (needs nampower; after a reload).",
+      function() return C.castbar.player end, "spellqueue", Reload)
     W.Card(p, "All cast bars", { tip = "For the player, target and focus cast bars." })
     Color(p, "Casting", nil, A, "castbarcolor")
     Color(p, "Channeling", nil, A, "channelcolor")
