@@ -150,12 +150,65 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     hover  = { .05, .12, .18, .75,  1, 1, 1, 1,        1, 1, 1 },
     picked = { .08, .22, .32, .75,  .35, .8, 1, 1,     1, 1, 1 },
     source = { .22, .17, .02, .7,   1, .82, 0, 1,      1, .9, .4 },
+    off    = { .2, .03, .03, .65,   .9, .2, .2, 1,     1, .55, .55 },
   }
+
+  -- octo (25 Oct 2026, user: "a disable option here for quick removal"):
+  -- Hide in the nudge box takes a frame away, over reloads too
+  -- (C.unlock.hidden[name] = "1"). It sits under a hidden parent, so whatever
+  -- shows it stays unseen; while layout mode is open it is back (its box red,
+  -- the button "Show"), so it can always be put back without typing anything.
+  local hider = CreateFrame("Frame", "pfUnlockHider", UIParent)
+  hider:Hide()
+  local function IsHiddenFrame(f)
+    local n = f and f.GetName and f:GetName()
+    return n and C.unlock.hidden and C.unlock.hidden[n] == "1" and true or nil
+  end
+  local function HideAway(f)
+    if not f or f.octoHidden or not f.SetParent then return end
+    f.octoHidden = f:GetParent() or UIParent
+    f:SetParent(hider)
+  end
+  local function HideBack(f)
+    if not f or not f.octoHidden then return end
+    f:SetParent(f.octoHidden)
+    f.octoHidden = nil
+    -- (1.12: a frame out of a hidden parent is seen again only after hide + show)
+    if f:IsShown() then f:Hide() f:Show() end
+  end
+  local function ApplyHidden()
+    for name, v in pairs(C.unlock.hidden or {}) do
+      local f = (pfUI.movables and pfUI.movables[name]) or _G[name]
+      if v == "1" and f and not (pfUI.unlock and pfUI.unlock:IsShown()) then HideAway(f) end
+    end
+  end
+  pfUI.unlockHidden = { IsHidden = IsHiddenFrame, Away = HideAway, Back = HideBack, Apply = ApplyHidden }
+  -- at login, and again a little later for frames made after the first
+  local hidewatch = CreateFrame("Frame")
+  hidewatch:RegisterEvent("PLAYER_ENTERING_WORLD")
+  hidewatch:SetScript("OnEvent", function() ApplyHidden() this.again = GetTime() + 2 this:Show() end)
+  hidewatch:SetScript("OnUpdate", function()
+    if (this.again or 0) > GetTime() then return end
+    this:Hide()
+    ApplyHidden()
+  end)
+
   local matchFrom   -- the box Alt-clicked first: its size goes to the next one
+  local NiceLabel   -- (below)
   local function Paint(d, mode)
     if not d then return end
     if not d.backdrop then CreateBackdrop(d, nil, nil, .8) end
     if d == matchFrom and mode ~= "hover" then mode = "source" end
+    local off = IsHiddenFrame(d.frame)
+    if mode == "normal" and off then mode = "off" end
+    -- a hidden frame's box says so (tall boxes keep their one-letter-a-line label)
+    if d.text and d.label and d.off ~= off then
+      d.off = off
+      local label = NiceLabel(d.label)
+      if d:GetHeight() > (2 * d:GetWidth()) then label = strvertical(label)
+      elseif off then label = label .. "\n|cffff8080" .. T["(hidden)"] .. "|r" end
+      d.text:SetText(label)
+    end
     local p = PAINT[mode] or PAINT.normal
     d.backdrop:SetBackdropColor(p[1], p[2], p[3], p[4])
     d.backdrop:SetBackdropBorderColor(p[5], p[6], p[7], p[8])
@@ -167,7 +220,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
                  ChatInputBox = "Chat Input", CombatTextIncoming = "Combat Text: Incoming",
                  CombatTextOutgoing = "Combat Text: Outgoing", CombatTextHealing = "Combat Text: Healing",
                  CombatTextNotes = "Combat Text: Notes", CombatTextExtra = "Combat Text: Extra" }
-  local function NiceLabel(label)
+  function NiceLabel(label)
     if NICE[label] then return NICE[label] end
     local s = string.gsub(label, "(%l)(%u)", "%1 %2")
     s = string.gsub(s, "(%a)(%d)", "%1 %2")
@@ -882,6 +935,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     -- octo: the size readout
     if dock.size then dock.size:SetText(SizeText(frame)) end
 
+    if dock.PaintHide then dock.PaintHide() end
+
     -- update config button
     local cat, conf = GetConfigTable(drag.label)
     if cat then
@@ -1517,6 +1572,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     for name, frame in pairs(pfUI.movables) do
       local frame = frame or _G[name]
 
+      -- (hidden ones are back while the boxes are up, marked red)
+      HideBack(frame)
       if not frame:IsShown() then frame.hideLater = true end
       frame.drag = frame.drag or CreateDragger(frame)
       frame:SetMovable(true)
@@ -1556,6 +1613,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ShowGuides(nil, nil)
     menu:Hide()
     pfUI.unlock:Hide()
+    ApplyHidden()
     if this.fromGUI then pfUI.gui:Show() end
   end)
 
@@ -1978,11 +2036,40 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.config = CreateFrame("Button", "pfDragDockConfigOpen", pfUI.unlock.dock, "UIPanelButtonTemplate")
   pfUI.unlock.dock.config:SetHeight(18)
   pfUI.unlock.dock.config:SetPoint("BOTTOMLEFT", 5, 5)
-  pfUI.unlock.dock.config:SetPoint("BOTTOMRIGHT", -5, 5)
+  pfUI.unlock.dock.config:SetPoint("BOTTOMRIGHT", dock, "BOTTOM", -2, 5)
   pfUI.unlock.dock.config:SetText(T["Configure"])
   pfUI.unlock.dock.config:SetScript("OnClick", function()
     local cat, conf = GetConfigTable(pfUI.unlock.dock.parent.label)
     if cat then OpenConfigDialog(cat, conf) end
   end)
   SkinButton(pfUI.unlock.dock.config)
+
+  -- octo: Hide / Show this frame (red off, green on - W.ROLE's colours)
+  dock.hide = DockButton(T["Hide"], T["Hide this frame, over reloads too. While layout mode is open it stays here, "
+    .. "its box red, so you can bring it back with Show."], function()
+    local f = dock.parent and dock.parent.frame
+    local n = f and f:GetName()
+    if not n then return end
+    C.unlock.hidden = C.unlock.hidden or {}
+    if C.unlock.hidden[n] == "1" then C.unlock.hidden[n] = nil else C.unlock.hidden[n] = "1" end
+    UpdateDockValues()
+  end)
+  dock.hide:SetHeight(18)
+  dock.hide:SetPoint("BOTTOMLEFT", dock, "BOTTOM", 2, 5)
+  dock.hide:SetPoint("BOTTOMRIGHT", -5, 5)
+  function dock.PaintHide()
+    local off = dock.parent and IsHiddenFrame(dock.parent.frame)
+    dock.hide:SetText(off and T["Show"] or T["Hide"])
+    local fs = dock.hide:GetFontString()
+    if off then
+      dock.hide:SetBackdropColor(.05, .2, .07, 1)
+      dock.hide:SetBackdropBorderColor(.3, .85, .4, 1)
+      if fs then fs:SetTextColor(.5, 1, .55) end
+    else
+      dock.hide:SetBackdropColor(.22, .04, .04, 1)
+      dock.hide:SetBackdropBorderColor(.9, .25, .25, 1)
+      if fs then fs:SetTextColor(1, .55, .55) end
+    end
+    if dock.parent then Paint(dock.parent, "picked") end
+  end
 end)

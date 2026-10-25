@@ -274,6 +274,23 @@ if LH and LH.Refresh then
   C_UnitAuras, _G.C_LootHistory = savedAuras, savedLH
 end
 
+-- ---------------------------------------------------------------- layout mode: Hide a frame
+local UH = pfUI.unlockHidden
+ok(UH and UH.Apply, "layout mode can hide frames")
+if UH and UH.Apply then
+  local f = CreateFrame("Frame", "pfTestHideMe", UIParent)
+  pfUI.movables = pfUI.movables or {}
+  pfUI.movables["pfTestHideMe"] = f
+  pfUI_config.unlock.hidden = pfUI_config.unlock.hidden or {}
+  pfUI_config.unlock.hidden["pfTestHideMe"] = "1"
+  UH.Apply()
+  ok(f:GetParent() == _G.pfUnlockHider and UH.IsHidden(f), "a hidden frame sits under the hidden parent")
+  UH.Back(f)
+  ok(f:GetParent() == UIParent, "Show puts it back on its own parent")
+  pfUI_config.unlock.hidden["pfTestHideMe"] = nil
+  pfUI.movables["pfTestHideMe"] = nil
+end
+
 -- ---------------------------------------------------------------- bag sorting
 local BS = pfUI.api.libbagsort
 ok(BS and BS.Sort and BS.Step, "bag sort lib loaded")
