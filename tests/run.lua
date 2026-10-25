@@ -2287,6 +2287,13 @@ do
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map" and fake.alpha == 1, "or left on the map")
       pfUI.addonbuttons:ProcessButtons()
       ok(pfUI.addonbuttons:GetPlace("OctoTestMinimapButton") == "map", "and the next look round leaves it on the map")
+      -- on the map: in a row along the map's top, each its own size (user, 25 Oct 2026)
+      local _, rel, relpt = fake:GetPoint()
+      ok(fake:GetParent() == Minimap and rel == Minimap and relpt == "TOPLEFT", "a button on the map sits along the map's top")
+      pfUI.addonbuttons:SetSize("OctoTestMinimapButton", 30)
+      ok(math.abs(fake:GetScale() - 30 / 20) < .01, "and takes a size of its own (" .. tostring(fake:GetScale()) .. ")")
+      pfUI.addonbuttons:SetSize("OctoTestMinimapButton", 0)
+      ok(pfUI.addonbuttons:GetSize("OctoTestMinimapButton") == 0, "all the way left = the size for all")
       -- a size of their own (user, 25 Oct 2026: "the resizer hardly changes the buttons")
       local ab = pfUI_config.abuttons
       local was = { ab.size, ab.rowsize, ab.spacing, ab.position }

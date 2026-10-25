@@ -241,7 +241,7 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
   local parent
   local function GetTopFrame(frame)
     parent = frame:GetParent()
-    if not parent or parent == Minimap or parent == MinimapBackdrop or parent == UIParent then
+    if not parent or not parent.GetParent or parent == Minimap or parent == MinimapBackdrop or parent == UIParent then
       return frame
     else
       return GetTopFrame(parent)
@@ -306,6 +306,12 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     local top_frame, row_index, offsetX, offsetY, final_scale
     top_frame = GetTopFrame(frame)
     final_scale = GetScale()
+    -- (octo: a button with a size of its own)
+    local own = pfUI.addonbuttons.GetSize and pfUI.addonbuttons:GetSize(frame:GetName() or "") or 0
+    if own > 0 then
+      local h = (frame.backup and frame.backup.size and frame.backup.size[1]) or frame:GetHeight()
+      if h and h > 0 then final_scale = own / h end
+    end
     row_index = floor((index-1)/tonumber(C.abuttons.rowsize))
     frame:SetFrameStrata("HIGH")
     frame:SetClampedToScreen(true)
@@ -445,6 +451,60 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     self:ProcessButtons()
   end
 
+  -- octo (25 Oct 2026, user: "they are not showing actually they should show
+  -- on the top and be sizeable individually"): a button set to "On map" went
+  -- back to its addon's own spot round Blizzard's old map, out of sight. They
+  -- now sit in rows along the top of the map, each its own size; a size of
+  -- its own counts in the panel too. pfUI_cache.abuttons.size[name] = px.
+  pfUI_cache["abuttons"]["size"] = pfUI_cache["abuttons"]["size"] or {}
+  function pfUI.addonbuttons:GetSize(name)
+    return tonumber(pfUI_cache["abuttons"]["size"][name] or "") or 0
+  end
+  function pfUI.addonbuttons:SetSize(name, px)
+    px = tonumber(px) or 0
+    pfUI_cache["abuttons"]["size"][name] = px > 0 and px or nil
+    self:ProcessButtons()
+  end
+
+  local function OnMap(frame, cx, cy, scale)
+    local top = GetTopFrame(frame)
+    frame:SetFrameStrata("HIGH")
+    frame:SetMovable(false)
+    frame:SetScript("OnDragStart", nil)
+    frame:SetScript("OnDragStop", nil)
+    frame:SetScript("OnUpdate", nil)
+    frame:ClearAllPoints()
+    top:SetScale(scale)
+    if top ~= frame then top:ClearAllPoints() end
+    top:SetParent(Minimap)
+    frame:SetPoint("CENTER", Minimap, "TOPLEFT", cx / scale, cy / scale)
+    if top ~= frame then top:SetPoint("CENTER", Minimap, "TOPLEFT", cx / scale, cy / scale) end
+    if frame.SetFrameLevel then frame:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 5) end
+  end
+
+  function pfUI.addonbuttons:PlaceOnMap()
+    local width = Minimap:GetWidth() or 140
+    local base = tonumber(C.abuttons.size or "") or 0
+    if base <= 0 then base = 20 end
+    local x, y, rowh, gap = 3, -3, 0, 2
+    for _, name in ipairs(pfUI_cache["abuttons"]["del"]) do
+      local f = _G[name]
+      if type(f) == "table" and f.GetParent and f.SetPoint and f.GetHeight and not pfUI_cache["abuttons"]["hide"][name] then
+        BackupButton(f)
+        local h = (f.backup and f.backup.size and f.backup.size[1]) or f:GetHeight()
+        if not h or h <= 0 then h = 20 end
+        local px = self:GetSize(name)
+        if px <= 0 then px = base end
+        if x + px > width - 3 and x > 3 then
+          x, y, rowh = 3, y - rowh - gap, 0
+        end
+        OnMap(f, x + px / 2, y - px / 2, px / h)
+        x = x + px + gap
+        if px > rowh then rowh = px end
+      end
+    end
+  end
+
   -- every addon button found: gathered ones and those left on the map
   function pfUI.addonbuttons:List()
     self:ProcessButtons()
@@ -503,6 +563,7 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
         i = i + 1
       end
     end
+    pfUI.addonbuttons:PlaceOnMap()
   end
 
   function pfUI.addonbuttons:UpdateConfig()

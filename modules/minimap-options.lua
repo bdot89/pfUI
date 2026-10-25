@@ -682,6 +682,23 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
         end)
         row.btns[j] = b
       end
+      -- its own size (user, 25 Oct 2026: "sizeable individually ... a slider
+      -- next to each option ... next to Hidden"); 0 = the size for all
+      local s = W.SliderBar(row, 120)
+      s:SetPoint("LEFT", row, "LEFT", 270 + 3 * 86 + 8, 0)
+      s:SetMinMaxValues(0, 40)
+      s:SetValueStep(1)
+      s.text = W.Font(row:CreateFontString(nil, "OVERLAY"), 11, .85, .85, .85)
+      s.text:SetPoint("LEFT", s, "RIGHT", 8, 0)
+      s:SetScript("OnValueChanged", function()
+        local v = math.floor((this:GetValue() or 0) + .5)
+        this.text:SetText(v == 0 and "size: all" or (v .. " px"))
+        if this.painting then return end
+        local name = this:GetParent().button
+        if name and pfUI.addonbuttons and pfUI.addonbuttons.SetSize then pfUI.addonbuttons:SetSize(name, v) end
+      end)
+      W.Tip(s, "Size", "This button's own size, on the map or in the panel. All the way left = the size for all.")
+      row.size = s
       rows[i] = row
     end
     local function Paint()
@@ -698,6 +715,14 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
           row.name:SetText(pretty ~= "" and pretty or name)
           local at = ab:GetPlace(name)
           for _, b in ipairs(row.btns) do W.Pick(b, b.place == at) end
+          if row.size and ab.GetSize then
+            row.size.painting = true
+            row.size:SetValue(ab:GetSize(name))
+            row.size.painting = nil
+            local v = ab:GetSize(name)
+            row.size.text:SetText(v == 0 and "size: all" or (v .. " px"))
+            if at == "hide" then row.size:Hide() row.size.text:Hide() else row.size:Show() row.size.text:Show() end
+          end
         else
           row:SetHeight(.1)
           row:Hide()
