@@ -779,3 +779,45 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    (meter session told), LOSS_OF_CONTROL_* / C_LossOfControl.GetSchoolLockout on action buttons,
    NAME_PLATE_UNIT_ADDED for plates, GetInventoryItemsForSlot for item menus, texture:SetRotation for map art,
    UNIT_SPELLCAST_* for cast bars, C_EquipmentSet (Blizzard-style sets saved in a file).
+21. The ClassicAPI author's pfUI fork compared (25 Oct 2026, NOT seen in game). User's zip "pfUI-master (2)\pfui.zip"
+   = brues-code/pfUI "6.0.0", ClassicAPI + nampower REQUIRED (API_Check.lua gate; ClassicAPI redirects a read of
+   pfUI.toc to pfUI_ClassicAPI.toc / pfUI_Turtle.toc when those exist - never add files with those names here).
+   Diffed against master (5.5.4); it rewrites most files for ClassicAPI only, so ideas were taken, not code.
+   Brought over (each with the plain path kept):
+   - unit frames: ClassicAPI frame:RegisterUnitEvent per frame (pfUI.uf.RegisterUnitEvents, re-pointed in
+     UpdateVisibility; frames following a name keep plain events); health / power events refresh "base" only
+     (pfUI rescanned every aura and the portrait on each tick; coming into / out of sight still does "all");
+     heal prediction checked 20x a second (.predictAt, reset after a refresh); frames go quiet on PLAYER_LOGOUT
+     (the fork's crash #132 guard).
+   - nameplates: P.Calm - plates that are not the target, casting, moused over or animating (o.busy from P.Tick)
+     redraw C.plates.calmfps (30) times a second, 60 = every frame (General > Smoothness card). Aura timer loop
+     without a table per frame.
+   - action bars: usable / cooldown / state passes skip hidden buttons (stale -> full update when they show,
+     checked every .05 s). cooldown.lua: throttle first, cooldown frame kept (was a global name lookup per frame).
+   - cast bars: idle bar set once (was every frame), timer text only when its tenth changes, red flash when your
+     cast is interrupted / fails (SPELLCAST_INTERRUPTED / FAILED), nampower's queued spell icon right of the player
+     bar (SPELL_QUEUE_EVENT, C.castbar.player.spellqueue, Cast bars page; libclient.SpellIcon).
+   - focus: ClassicAPI's real focus unit - frames follow PLAYER_FOCUS_CHANGED (label "focus" / "focustarget"),
+     /focus and /clearfocus call FocusUnit / ClearFocus (both /focus commands now agree); SuperWoW GUID focus and
+     the name focus stay without it.
+   - map reveal: C_Map.GetMapOverlays tiles (OctoWoW's own zones too) before pfUI's measured table; fixed the
+     hover highlight (tiles were cached under the tooltip text) and stale tile caches.
+   - sell greys: C_MerchantFrame.SellAllJunkItems (one call, paced in the client), loop as fallback.
+   - tooltip: item counts bags / bank / worn (C.tooltip.itemcount; ClassicAPI counts the bank while shut, else
+     bags + worn and the bank while open); health text only redrawn on change.
+   - friend notes (socialmod.lua: "Note" in a friend's menu, shown on hover; ClassicAPI notes, else
+     pfUI_cache.friendnotes); loot roll history window /loothistory /lh (loot.lua, C_LootHistory; at the top of
+     the loot module so it runs in the mock); libunitscan reads NAME_PLATE_UNIT_ADDED units.
+   - api.lua: GetItemLinkByName cached + 2 misses max + ids to 61000 (custom items), GetColorGradient NaN guard,
+     LoadMovable point saved against the frame itself, autohide mouse check 20x a second.
+   - also sped up (not from the fork): chat tab hover (FCF_DockUpdate ran every frame while hovering chat),
+     minimap-style hover check, XP bar mouse check, libpredict housekeeping twice a second.
+   Left out: the ClassicAPI-only gate, Turtle / stock table split and locale rewrite, its EquipmentManager and
+   swing timer (Gear and swing.lua do more), libbagsort / C_NewItems / C_Container sort (bags session told, notes
+   folder), event-driven plate rewrite (NAME_PLATE_CREATED instead of the WorldFrame count - that check is already
+   cheap), raid frames at 10 fps (would delay health bars), libthrottle FPS menus (one Smoothness slider instead),
+   libpredict heal guesses from ClassicAPI casts of non-HealComm healers, castbar tradeskill merge, mark tracker
+   (markN tokens), macro icon picker, UnitXP behind indicator, BG score mover, Innervate call-out, reactive
+   indicator (actionbar-octo has proc glows), /disenchantall, C_EncodingUtil profile strings (would change the
+   string format), extra bar grid shapes (action bar session). Tests: tests\clientapi.lua (unit frame events,
+   SpellIcon, loot history).
