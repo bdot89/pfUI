@@ -661,9 +661,23 @@ function pfUI.api.LoadMovable(frame, init)
     end
 
     if pfUI_config["position"][frame:GetName()]["xpos"] then
-      local anchor = pfUI_config["position"][frame:GetName()]["anchor"] or "TOPLEFT"
+      local pos = pfUI_config["position"][frame:GetName()]
+      local anchor = pos["anchor"] or "TOPLEFT"
       frame:ClearAllPoints()
-      frame:SetPoint(anchor, pfUI_config["position"][frame:GetName()].xpos, pfUI_config["position"][frame:GetName()].ypos)
+      -- octo: locked to another frame (layout mode's "Lock to"): it moves
+      -- with that frame. A frame made later than this one: tried again on
+      -- the next screen update (a few times).
+      local to = pos.attach and _G[pos.attach]
+      if to and to ~= frame then
+        frame:SetPoint(anchor, to, pos.relpoint or anchor, pos.xpos, pos.ypos)
+        frame.attachTries = nil
+      else
+        frame:SetPoint(anchor, pos.xpos, pos.ypos)
+        if pos.attach and (frame.attachTries or 0) < 5 then
+          frame.attachTries = (frame.attachTries or 0) + 1
+          pfUI.api.QueueFunction(pfUI.api.LoadMovable, frame)
+        end
+      end
     end
   elseif frame.posdata and frame.posdata.pos[1] then
     frame:ClearAllPoints()
@@ -686,11 +700,21 @@ end
 -- Save the positions of a Frame.
 -- 'frame'      [frame]        the frame that should be saved.
 function pfUI.api.SaveMovable(frame, scale)
-  local anchor, _, _, xpos, ypos = frame:GetPoint()
+  local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
   C.position[frame:GetName()] = C.position[frame:GetName()] or {}
   C.position[frame:GetName()]["xpos"] = round(xpos)
   C.position[frame:GetName()]["ypos"] = round(ypos)
   C.position[frame:GetName()]["anchor"] = anchor
+  -- octo: placed on another movable frame = locked to it (see LoadMovable)
+  local relname = type(rel) == "table" and rel ~= frame:GetParent() and rel.GetName and rel:GetName()
+  if type(rel) == "string" then relname = rel end
+  if relname and pfUI.movables and pfUI.movables[relname] and relname ~= frame:GetName() then
+    C.position[frame:GetName()]["attach"] = relname
+    C.position[frame:GetName()]["relpoint"] = relpoint
+  else
+    C.position[frame:GetName()]["attach"] = nil
+    C.position[frame:GetName()]["relpoint"] = nil
+  end
   C.position[frame:GetName()]["parent"] = frame:GetParent() and frame:GetParent():GetName() or nil
   if scale then
     C.position[frame:GetName()]["scale"] = frame:GetScale()

@@ -80,13 +80,23 @@ if AB and main and top then
   local onlyBars = table.getn(list) > 0
   for _, e in ipairs(list) do if not AB.BarIndex(e[2]) then onlyBars = false end end
   ok(onlyBars, "a bar's Match menu lists only other bars (" .. table.getn(list) .. ")")
+  -- first page: what can be done; Match opens the list of bars
   U.OpenMatchMenu(main.drag)
   local menu = _G.pfUnlockMatchMenu
+  local words = {}
+  for _, r in ipairs(menu.rows) do if r:IsShown() then table.insert(words, r.text:GetText()) end end
+  local said = table.concat(words, " | ")
+  ok(string.find(said, "Match the size of") and string.find(said, "Lock to another box") and string.find(said, "Lock other boxes"),
+    "the menu: match, lock to, lock others here (" .. said .. ")")
+  Mock.Run(menu.rows[1], "OnClick", "LeftButton")
+  ok(menu:IsShown() and menu.rows[1].role == "pick", "Match opens the bars to pick from, the menu stays up")
+  U.OpenMatchMenu(main.drag)
+  ok(menu.rows[2].role == "save" and string.find(menu.rows[2].text:GetText(), "Every other bar"), "then 'every other bar like this one' (gold)")
+  U.OpenMatchMenu(main.drag, nil, "match")
+  local first = menu.rows[1]
   local last
   for _, r in ipairs(menu.rows) do if r:IsShown() then last = r end end
-  ok(menu:IsShown() and last and last.role == "save" and string.find(last.text:GetText(), "Every other bar"), "the menu ends with 'every other bar like this one' (gold)")
-  local first = menu.rows[1]
-  ok(first and first.role == "pick", "the bars to pick from are purple (pick one)")
+  ok(first and first.role == "pick" and last.role == "back", "the bars to pick from are purple (pick one), Back at the end")
   if first then
     Mock.Run(first, "OnClick", "LeftButton")
     ok(not menu:IsShown(), "picking one closes the menu")
@@ -116,6 +126,70 @@ if AB and main and top then
   for i = 2, 10 do C.bars["bar" .. i].scale = "1" end
   if C.position.pfActionBarMain then C.position.pfActionBarMain.scale = nil end
   pfUI.bars:UpdateConfig()
+end
+
+-- ---------------------------------------------------------------- locks
+-- (user, 25 Oct 2026: the druid mana bar dragged off the player frame "wont lock back")
+do
+  local real = pfUI.movables
+  local A = CreateFrame("Frame", "pfTestLockA", UIParent)
+  local B = CreateFrame("Frame", "pfTestLockB", UIParent)
+  local D = CreateFrame("Frame", "pfTestMana", UIParent)
+  for _, f in ipairs({ A, B, D }) do f:SetWidth(100) f:SetHeight(20) end
+  B:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  A:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
+  -- a bar docked under B by default, as pfDruidMana under pfPlayer
+  D:SetPoint("TOPLEFT", B, "BOTTOMLEFT", 0, -2)
+  pfUI.movables = { pfTestLockA = A, pfTestLockB = B, pfTestMana = D }
+  C.position.pfTestLockA, C.position.pfTestLockB, C.position.pfTestMana = nil, nil, nil
+  for _, f in ipairs({ A, B, D }) do pfUI.api.UpdateMovable(f, true) end
+  U:Show()
+  ok(U.Holder(D) == B, "a docked bar moves with the frame it hangs on")
+  -- dragged off (saved on the screen), then locked back
+  D:ClearAllPoints()
+  D:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
+  pfUI.api.SaveMovable(D)
+  ok(C.position.pfTestMana and not C.position.pfTestMana.attach and U.Holder(D) == nil, "dragged off: free")
+  U.OpenMatchMenu(D.drag)
+  local back
+  for _, r in ipairs(_G.pfUnlockMatchMenu.rows) do
+    if r:IsShown() and string.find(r.text:GetText() or "", "Lock back on") then back = r end
+  end
+  ok(back and back.role == "go", "the menu offers 'Lock back on' its frame (green)")
+  if back then Mock.Run(back, "OnClick", "LeftButton") end
+  local _, rel = D:GetPoint()
+  ok(C.position.pfTestMana == nil and rel == B, "locked back on its frame, as it was")
+  -- lock A to B: saved on B, loaded on B
+  U.LockTo(A, B)
+  local pa = C.position.pfTestLockA
+  ok(pa and pa.attach == "pfTestLockB" and pa.relpoint == "BOTTOMLEFT", "Lock to: saved on the other box (" .. tostring(pa and pa.attach) .. ")")
+  A:ClearAllPoints()
+  pfUI.api.LoadMovable(A)
+  _, rel = A:GetPoint()
+  ok(rel == B, "and loaded on it after a reload")
+  ok(U.Holder(A) == B, "it moves with B")
+  -- no loops: B cannot lock to A now
+  local loops
+  for _, e in ipairs(U.LockChoices(B)) do if e[2] == A then loops = true end end
+  ok(not loops, "B is not offered to lock to A (that would be a loop)")
+  -- a nudge keeps the lock (the arrows set a point on the same frame)
+  local an, r2, rp, x0, y0 = A:GetPoint()
+  A:ClearAllPoints()
+  A:SetPoint(an, r2, rp, x0 + 1, y0)
+  pfUI.api.SaveMovable(A)
+  ok(C.position.pfTestLockA.attach == "pfTestLockB", "nudging keeps it locked")
+  -- unlock: free, where it is
+  U.Unlock(A)
+  ok(C.position.pfTestLockA and not C.position.pfTestLockA.attach and U.Holder(A) == nil, "Unlock: free again")
+  -- lock others to this one (a group)
+  U.OpenMatchMenu(B.drag, nil, "lockhere")
+  local row
+  for _, r in ipairs(_G.pfUnlockMatchMenu.rows) do if r:IsShown() and r.text:GetText() == "Test Lock A" then row = r end end
+  if row then Mock.Run(row, "OnClick", "LeftButton") end
+  ok(C.position.pfTestLockA.attach == "pfTestLockB", "Lock other boxes to this one: A joins B's group")
+  U:Hide()
+  C.position.pfTestLockA, C.position.pfTestLockB, C.position.pfTestMana = nil, nil, nil
+  pfUI.movables = real
 end
 
 -- ---------------------------------------------------------------- the raid grid

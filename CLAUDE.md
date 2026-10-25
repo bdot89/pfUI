@@ -316,6 +316,19 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      columns x rows, fill, growth, frame width / height / power height, gap, labels, Move button;
      the Raid frame tab opens on it. Preview raid grid follows columns and growth.
      Tests: tests\layout-size.lua.
+   - Locks (25 Oct 2026, NOT seen in game; user: druid mana bar dragged off the Player frame "wont
+     lock back", wants to lock boxes to others and group them, in the Match menu). api.lua:
+     C.position[name].attach / relpoint = saved on another movable's point (SaveMovable sets it when
+     GetPoint's relative frame is a movable other than the parent; LoadMovable anchors to it, retried
+     5 times via QueueFunction if that frame is made later). unlock.lua: LockedTo / HomeOf (posdata's
+     relative frame = where its default place hangs, pfDruidMana -> pfPlayer) / Holder / HeldBy;
+     LockTo (BOTTOMLEFT on BOTTOMLEFT, stays where it is), Unlock, LockBack (= middle-click reset).
+     Nudge-box button "Match / Lock...": first page Match the size of > / Every other bar (bars) /
+     Lock to another box > / Lock other boxes to this one > / Lock back on <home> (green, when moved
+     off it) / Unlock from X (red); lists nearest first, no loops, Back row. Dropping a locked frame
+     keeps it locked at the new offset; boxes that move with the dragged one are not snap lines;
+     arrows / X / Y keep the relative frame (they used to re-anchor to the parent); KeepPlaces skips
+     locked frames. The size tag says "on <frame>".
    - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
      .children on frames) and has a real SetParent.
    - Seen in game 20 Oct ("looking better"). Then: right-click on a box only closed layout mode

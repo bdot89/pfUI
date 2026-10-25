@@ -284,6 +284,37 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
   end
 
+  -- [ locks ]
+  -- octo (user, 25 Oct 2026: "I have undocked my mana bar ... it wont lock
+  -- back ... you should be able to lock the plate to another as it was or ...
+  -- lock other plates to group them"). A frame locked to another is saved
+  -- on that frame's corner (C.position attach / relpoint, api.lua) and moves
+  -- with it. A frame's home: what its default place hangs on (pfDruidMana
+  -- on pfPlayer), its posdata from UpdateMovable.
+  local function LockedTo(f)
+    local pos = C.position[f:GetName() or ""]
+    return pos and pos.attach and _G[pos.attach]
+  end
+  local function HomeOf(f)
+    local p = f.posdata and f.posdata.pos and f.posdata.pos[1]
+    local rel = p and p[2]
+    if type(rel) == "string" then rel = _G[rel] end
+    if type(rel) == "table" and rel ~= UIParent and rel ~= f and rel.GetName and rel:GetName() then return rel end
+  end
+  -- what f moves with: its lock, or its home while on its default place
+  local function Holder(f)
+    if C.position[f:GetName() or ""] then return LockedTo(f) end
+    return HomeOf(f)
+  end
+  -- is f (through its holders) moved by one of these / by target
+  local function HeldBy(f, test)
+    local t, n = Holder(f), 0
+    while t and n < 20 do
+      if test(t) then return true end
+      t, n = Holder(t), n + 1
+    end
+  end
+
   -- best move (delta) of one of the values in mine onto a target line;
   -- frame and screen lines win over grid lines (ElvUI's sticky frames)
   local function Nearest(mine, targets, gridpos, best, bestline)
@@ -311,7 +342,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local xs, ys = { 0, width, width/2 }, { 0, height, height/2 }
     for name, other in pairs(pfUI.movables) do
       other = other or _G[name]
-      if other and other ~= frame and other:IsShown() and not InSelection(other) then
+      -- (frames that move with the selection are no lines to snap to)
+      if other and other ~= frame and other:IsShown() and not InSelection(other) and not HeldBy(other, InSelection) then
         local ol, or_, ocx, ob, ot, ocy = Edges(other)
         if ol then
           table.insert(xs, ol) table.insert(xs, or_) table.insert(xs, ocx)
@@ -482,7 +514,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   local function FixedPoint(f)
     local pos = C.position[f:GetName() or ""]
     if not pos or not pos.xpos or not pos.ypos then return end
-    if pos.parent and pos.parent ~= "UIParent" or f:GetParent() ~= UIParent then return end
+    -- (a frame locked to another stays on that one's corner)
+    if pos.attach or pos.parent and pos.parent ~= "UIParent" or f:GetParent() ~= UIParent then return end
     local fix = f.unlockFix
     if fix and fix.anchor == pos.anchor and fix.xpos == pos.xpos and fix.ypos == pos.ypos then
       return fix.anchor, fix.px, fix.py
@@ -522,7 +555,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
   -- the readout: on the box while it changes or the mouse is on it, and in
   -- the nudge box
-  local function SizeText(f)
+  local function SizeOnly(f)
     local w, h = ScreenSize(f)
     local txt = floor(w + .5) .. " x " .. floor(h + .5)
     if f == _G.pfRaidCluster then
@@ -537,6 +570,12 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       return txt .. "\n" .. pct .. ", " .. T["buttons"] .. " " .. (floor(px * 10 + .5) / 10) .. " px"
     end
     return txt .. "\n" .. pct
+  end
+  -- (and what it is locked to)
+  local function SizeText(f)
+    local to = Holder(f)
+    if not to then return SizeOnly(f) end
+    return SizeOnly(f) .. "\n|cff88ccff" .. T["on"] .. " " .. NiceLabel(to.drag and to.drag.label or to:GetName() or "?") .. "|r"
   end
 
   local function SizeOnUpdate()
@@ -818,7 +857,21 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       local x, y = AnchorOffsets(anchor, box.il + dx, box.ir + dx, box.ib + dy, box.it + dy, box.s)
       Paint(f.drag, "normal")
       f:ClearAllPoints()
-      f:SetPoint(anchor, UIParent, anchor, x, y)
+      -- octo: a locked frame stays locked, on its new spot on that frame
+      -- (its holder's left / bottom: where it was dropped too if it moved)
+      local to = LockedTo(f)
+      local tl, tb
+      if to then
+        for _, tbox in ipairs(drag.boxes) do
+          if tbox.frame == to then tl, tb = tbox.il + dx, tbox.ib + dy end
+        end
+        if not tl and to:GetLeft() then tl, tb = to:GetLeft() * UIScale(to), to:GetBottom() * UIScale(to) end
+      end
+      if tl then
+        f:SetPoint("BOTTOMLEFT", to, "BOTTOMLEFT", (box.il + dx - tl) / box.s, (box.ib + dy - tb) / box.s)
+      else
+        f:SetPoint(anchor, UIParent, anchor, x, y)
+      end
       SavePosition(f)
       if f.OnMove then f:OnMove() end
     end
@@ -954,8 +1007,10 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   menu.title:SetTextColor(.7, .75, .8)
   menu.rows = {}
 
-  -- colour roles (as the options window: purple = pick one, gold = copy / match)
-  local ROLE = { pick = { .68, .45, 1 }, save = { 1, .78, .2 } }
+  -- colour roles (as the options window: purple = pick one, gold = copy /
+  -- match, blue = opens more, green = go, red = off; grey = back)
+  local ROLE = { pick = { .68, .45, 1 }, save = { 1, .78, .2 }, open = { .35, .7, 1 }, go = { .25, .85, .4 },
+                 off = { .95, .3, .3 }, back = { .55, .58, .62 } }
   local function MenuRow(n)
     local b = menu.rows[n]
     if b then return b end
@@ -980,7 +1035,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     b:SetScript("OnEnter", function() this.Paint(true) end)
     b:SetScript("OnLeave", function() this.Paint(false) end)
     b:SetScript("OnClick", function()
-      menu:Hide()
+      -- (a row that opens a list keeps the menu up)
+      if not this.keep then menu:Hide() end
       if this.run then this.run() end
       UpdateDockValues()
     end)
@@ -1007,37 +1063,123 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return other
   end
 
-  local function OpenMatchMenu(d, anchor)
-    local list = MatchChoices(d)
+  -- [ locking ] (see "locks" above)
+  -- f stays where it is, now saved on target's bottom left corner
+  local function LockTo(f, target)
+    local l, b, tl, tb = f:GetLeft(), f:GetBottom(), target:GetLeft(), target:GetBottom()
+    if not l or not tl then return end
+    local s, ts = UIScale(f), UIScale(target)
+    f:ClearAllPoints()
+    f:SetPoint("BOTTOMLEFT", target, "BOTTOMLEFT", (l * s - tl * ts) / s, (b * s - tb * ts) / s)
+    SavePosition(f)
+    if f.OnMove then f:OnMove() end
+    Say(NiceLabel(f.drag and f.drag.label or f:GetName()) .. " " .. T["is locked to"] .. " "
+      .. NiceLabel(target.drag and target.drag.label or target:GetName()) .. " " .. T["and moves with it."])
+  end
+  -- free again, where it is now
+  local function Unlock(f)
+    local l, r, b, t = f:GetLeft(), f:GetRight(), f:GetBottom(), f:GetTop()
+    if not l then return end
+    local s = UIScale(f)
+    l, r, b, t = l * s, r * s, b * s, t * s
+    local a = AnchorFor(l, r, b, t)
+    local x, y = AnchorOffsets(a, l, r, b, t, s)
+    f:ClearAllPoints()
+    f:SetPoint(a, UIParent, a, x, y)
+    SavePosition(f)
+    if f.OnMove then f:OnMove() end
+  end
+  -- back on its default place, on the frame it hung on (as middle-click)
+  local function LockBack(f)
+    C.position[f:GetName()] = nil
+    f:ClearAllPoints()
+    UpdateMovable(f)
+    if f.OnMove then f:OnMove() end
+  end
+
+  -- boxes f could lock to (here = boxes that could lock to f), nearest first
+  local function LockChoices(f, here)
+    local fl, fr, fcx, fb, ft, fcy = Edges(f)
+    local out = {}
+    for name, o in pairs(pfUI.movables) do
+      o = o or _G[name]
+      if o and o ~= f and o.drag and o:IsShown() then
+        local holder, held = f, o
+        if here then holder, held = o, f end
+        -- (no loops: the one that holds may not move with the one locked)
+        if not HeldBy(holder, function(t) return t == held end) and LockedTo(held) ~= holder then
+          local _, _, ocx, _, _, ocy = Edges(o)
+          local dist = (fcx and ocx) and ((ocx - fcx) * (ocx - fcx) + (ocy - fcy) * (ocy - fcy)) or 1e9
+          table.insert(out, { NiceLabel(o.drag.label), o, dist })
+        end
+      end
+    end
+    table.sort(out, function(a, b) return a[3] < b[3] end)
+    while table.getn(out) > 14 do table.remove(out) end
+    return out
+  end
+
+  local function OpenMatchMenu(d, anchor, page)
+    local f = d.frame
     local n = 0
-    local function Add(text, role, run)
+    local function Add(text, role, run, keep)
       n = n + 1
       local b = MenuRow(n)
       b.text:SetText(text)
-      b.role, b.run = role, run
+      b.role, b.run, b.keep = role, run, keep
       b.Paint(false)
       b:Show()
     end
-    menu.title:SetText(T["Give"] .. " " .. NiceLabel(d.label) .. " " .. T["the size of"] .. ":")
-    for _, e in ipairs(list) do
-      local f = e[2]
-      Add(e[1], "pick", function() MatchSize(f, d.frame) end)
-    end
-    local bi = BarIndex(d.frame)
-    if bi then
-      Add(T["Every other bar like this one"], "save", function()
-        local frames = {}
-        for i = 1, 10 do if i ~= bi and pfUI.bars[i] then table.insert(frames, pfUI.bars[i]) end end
-        local count = 0
-        KeepPlaces(frames, function()
-          count = pfUI.barsOcto.MatchAll(bi)
-          pfUI.bars:UpdateConfig()
+    local function Go(to) return function() OpenMatchMenu(d, anchor, to) end end
+    local name = NiceLabel(d.label)
+    if page == "match" then
+      menu.title:SetText(T["Give"] .. " " .. name .. " " .. T["the size of"] .. ":")
+      for _, e in ipairs(MatchChoices(d)) do
+        local src = e[2]
+        Add(e[1], "pick", function() MatchSize(src, f) end)
+      end
+    elseif page == "lockto" or page == "lockhere" then
+      menu.title:SetText(page == "lockto" and (T["Lock"] .. " " .. name .. " " .. T["to (moves with it)"] .. ":")
+        or (T["Lock to"] .. " " .. name .. ":"))
+      for _, e in ipairs(LockChoices(f, page == "lockhere")) do
+        local o = e[2]
+        if page == "lockto" then
+          Add(e[1], "pick", function() LockTo(f, o) end)
+        else
+          Add(e[1], "pick", function() LockTo(o, f) end)
+        end
+      end
+    else
+      -- the first page: what can be done
+      menu.title:SetText(name)
+      Add(T["Match the size of"] .. "  >", "open", Go("match"), true)
+      local bi = BarIndex(f)
+      if bi then
+        Add(T["Every other bar like this one"], "save", function()
+          local frames = {}
+          for i = 1, 10 do if i ~= bi and pfUI.bars[i] then table.insert(frames, pfUI.bars[i]) end end
+          local count = 0
+          KeepPlaces(frames, function()
+            count = pfUI.barsOcto.MatchAll(bi)
+            pfUI.bars:UpdateConfig()
+          end)
+          Say(count .. " " .. T["bars now match"] .. " " .. name)
         end)
-        Say(count .. " " .. T["bars now match"] .. " " .. NiceLabel(d.label))
-      end)
+      end
+      Add(T["Lock to another box"] .. "  >", "open", Go("lockto"), true)
+      Add(T["Lock other boxes to this one"] .. "  >", "open", Go("lockhere"), true)
+      local home = HomeOf(f)
+      if home and C.position[f:GetName()] then
+        Add(T["Lock back on"] .. " " .. NiceLabel(home.drag and home.drag.label or home:GetName()), "go", function() LockBack(f) end)
+      end
+      local to = LockedTo(f)
+      if to then
+        Add(T["Unlock from"] .. " " .. NiceLabel(to.drag and to.drag.label or to:GetName()) .. " " .. T["(stays here)"], "off", function() Unlock(f) end)
+      end
     end
-    if n == 0 then
-      menu.title:SetText(T["Nothing to match with here."])
+    if page then
+      if n == 0 then Add(T["Nothing here"], "back", nil, true) end
+      Add("<  " .. T["Back"], "back", Go(nil), true)
     end
     for i = n + 1, table.getn(menu.rows) do menu.rows[i]:Hide() end
     menu:SetHeight(28 + n * 22)
@@ -1295,7 +1437,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       .. L(T["[Drag]"], T["move the frame - it snaps to other frames and the grid"])
       .. L(T["[Left-click]"], T["nudge box: arrows, X / Y, anchor, size, Match"])
       .. L(T["[Right-click]"], T["open this frame's options"])
-      .. L(T["[Match] in the nudge box"], T["take the size of another box (bars: of another bar)"])
+      .. L(T["[Match / Lock] in the nudge box"], T["take another box's size, or lock boxes together (they move as one)"])
       .. L(T["[Alt-click] two boxes"], T["the second gets the first one's size"])
       .. L(T["[Middle-click]"], T["back to its default place"])
       .. L(T["[Mouse wheel]"], T["size, 2% a notch (raid frames: 1 px)"])
@@ -1345,6 +1487,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.Resize = Resize
   pfUI.unlock.MatchChoices = MatchChoices
   pfUI.unlock.OpenMatchMenu = OpenMatchMenu
+  pfUI.unlock.LockTo, pfUI.unlock.Unlock, pfUI.unlock.LockBack = LockTo, Unlock, LockBack
+  pfUI.unlock.LockChoices, pfUI.unlock.Holder = LockChoices, Holder
 
   -- /moveui (ElvUI's command), /pfmove
   _G.SLASH_PFMOVEUI1, _G.SLASH_PFMOVEUI2 = "/moveui", "/pfmove"
@@ -1423,8 +1567,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local newXPos = tonumber(this:GetText())
     if newXPos then
       local frame = pfUI.unlock.dock.parent.frame
-      local anchor, _, _, xpos, ypos = frame:GetPoint()
-      frame:SetPoint(anchor, newXPos, ypos)
+      local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+      frame:ClearAllPoints()
+      frame:SetPoint(anchor, rel or UIParent, relpoint or anchor, newXPos, ypos)
       SavePosition(frame)
     else
       UpdateDockValues()
@@ -1461,8 +1606,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local newYPos = tonumber(this:GetText())
     if newYPos then
       local frame = pfUI.unlock.dock.parent.frame
-      local anchor, _, _, xpos, ypos = frame:GetPoint()
-      frame:SetPoint(anchor, xpos, newYPos)
+      local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+      frame:ClearAllPoints()
+      frame:SetPoint(anchor, rel or UIParent, relpoint or anchor, xpos, newYPos)
       SavePosition(frame)
     else
       UpdateDockValues()
@@ -1516,8 +1662,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.left.texture:SetPoint("BOTTOMRIGHT", pfUI.unlock.dock.left, "BOTTOMRIGHT", -4, 2)
   pfUI.unlock.dock.left:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
-    local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos - (IsShiftKeyDown() and 10 or 1), ypos)
+    local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+    frame:ClearAllPoints()
+    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relpoint or anchor or "TOPLEFT", xpos - (IsShiftKeyDown() and 10 or 1), ypos)
     SavePosition(frame)
     UpdateDockValues()
   end)
@@ -1535,8 +1682,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.right.texture:SetPoint("BOTTOMRIGHT", pfUI.unlock.dock.right, "BOTTOMRIGHT", -4, 2)
   pfUI.unlock.dock.right:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
-    local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos + (IsShiftKeyDown() and 10 or 1), ypos)
+    local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+    frame:ClearAllPoints()
+    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relpoint or anchor or "TOPLEFT", xpos + (IsShiftKeyDown() and 10 or 1), ypos)
     SavePosition(frame)
     UpdateDockValues()
   end)
@@ -1554,8 +1702,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.up.texture:SetPoint("BOTTOMRIGHT", pfUI.unlock.dock.up, "BOTTOMRIGHT", -4, 2)
   pfUI.unlock.dock.up:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
-    local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos + (IsShiftKeyDown() and 10 or 1))
+    local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+    frame:ClearAllPoints()
+    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relpoint or anchor or "TOPLEFT", xpos, ypos + (IsShiftKeyDown() and 10 or 1))
     SavePosition(frame)
     UpdateDockValues()
   end)
@@ -1573,8 +1722,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.dock.down.texture:SetPoint("BOTTOMRIGHT", pfUI.unlock.dock.down, "BOTTOMRIGHT", -4, 2)
   pfUI.unlock.dock.down:SetScript("OnClick", function()
     local frame = pfUI.unlock.dock.parent.frame
-    local anchor, _, _, xpos, ypos = frame:GetPoint()
-    frame:SetPoint(anchor or "TOPLEFT", xpos, ypos - (IsShiftKeyDown() and 10 or 1))
+    local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
+    frame:ClearAllPoints()
+    frame:SetPoint(anchor or "TOPLEFT", rel or UIParent, relpoint or anchor or "TOPLEFT", xpos, ypos - (IsShiftKeyDown() and 10 or 1))
     SavePosition(frame)
     UpdateDockValues()
   end)
@@ -1583,13 +1733,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   -- octo (25 Oct 2026): the size - readout, smaller / bigger by one notch
   -- of the wheel (Shift / Ctrl as on the wheel), and Match
   local dock = pfUI.unlock.dock
-  dock:SetHeight(214)
+  dock:SetHeight(228)
   dock.size = dock:CreateFontString(nil, "DIALOG")
   dock.size:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
   dock.size:SetTextColor(1, .82, 0)
   dock.size:SetPoint("TOPLEFT", 5, -134)
   dock.size:SetPoint("TOPRIGHT", -5, -134)
-  dock.size:SetHeight(28)
+  dock.size:SetHeight(42)
   dock.size:SetJustifyH("CENTER")
   local function DockButton(text, tip, run)
     local b = CreateFrame("Button", nil, dock, "UIPanelButtonTemplate")
@@ -1611,14 +1761,15 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     if dock.parent then Resize(dock.parent, -1) UpdateDockValues() end
   end)
   dock.smaller:SetWidth(22)
-  dock.smaller:SetPoint("TOPLEFT", 5, -166)
+  dock.smaller:SetPoint("TOPLEFT", 5, -180)
   dock.bigger = DockButton("+", T["Bigger by one notch of the wheel."] .. "\n" .. SIZETIP, function()
     if dock.parent then Resize(dock.parent, 1) UpdateDockValues() end
   end)
   dock.bigger:SetWidth(22)
   dock.bigger:SetPoint("LEFT", dock.smaller, "RIGHT", 4, 0)
-  dock.match = DockButton(T["Match size..."], T["Give this box the size of another one: pick it from the list. Action bars "
-    .. "take the other bar's button size, spacing and scale."], function()
+  dock.match = DockButton(T["Match / Lock..."], T["Match: give this box the size of another one (action bars take the other "
+    .. "bar's button size, spacing and scale). Lock: fix it to another box so it moves with that one, lock others to it to "
+    .. "move them as a group, or lock it back where it was (a mana bar back on the Player frame)."], function()
     if dock.parent then OpenMatchMenu(dock.parent, this) end
   end)
   dock.match:SetPoint("LEFT", dock.bigger, "RIGHT", 4, 0)
