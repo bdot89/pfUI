@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "octo-context", "octo-layouts" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "gear-specs", "octo-context", "octo-layouts" }
 
 -- ---------------------------------------------------------------- load
 
@@ -4451,6 +4451,100 @@ do
     pfUI_config.gear.current, pfUI_config.gear.before = wasCur, wasBefore
     GR.queue = nil
     for name, fn in pairs(saved) do _G[name] = fn end
+  end
+end
+
+-- talent specs at the Goblin Brainwashing Device (gear-specs.lua): the menu read,
+-- a switch, its gear set and its own spells
+do
+  local GR = pfUI.gear
+  local GS = GR and GR.specs
+  ok(GS and GS.Read and GS.Activate and pfUI.octoui.Options.BUILD.gearspecs, "talent specs and their page are there")
+  if GS then
+    local m = GS.Read({
+      { text = "Reset my talents. (1g0s0c)", index = 1 },
+      { text = "Activate 1st Specialization  (31/20/0)", index = 2 },
+      { text = "Save 1st Specialization.", index = 3 },
+      { text = "Activate 2nd Specialization  (0/21/30)", index = 4 },
+      { text = "Save 2nd Specialization.", index = 5 },
+      { text = "Buy 3rd Specialization tab for 200 gold.", index = 6 } })
+    ok(m and m.slots == 3 and m.activate[1].index == 2 and m.save[2].index == 5 and m.buy[3].price == 200,
+      "the device's menu: activate, save and buy per slot")
+    ok(m and m.split[2][3] == 30 and m.reset and m.reset.price == "1g", "talent splits and the reset price")
+    ok(GS.Read({ { text = "I would like to train.", index = 1 } }) == nil, "any other NPC is not the device")
+
+    local specs, wasNow = pfUI_config.gear.specs, pfUI_config.gear.specnow
+    pfUI_config.gear.specs = {}
+    local split = { 31, 20, 0 }
+    local picked, worn, bars, wrote
+    local now = 1000
+    local saved = { GetGossipOptions, SelectGossipOption, GetTalentTabInfo, CreateQuestionDialog, GetTime, C_GossipInfo,
+      UnitAffectingCombat }
+    local GE, RB, WB = GR.Equip, pfUI.layouts.ReadBars, pfUI.layouts.WriteBars
+    _G.C_GossipInfo = nil
+    _G.GetGossipOptions = function()
+      return "Activate 1st Specialization  (31/20/0)", "gossip", "Save 1st Specialization.", "gossip",
+        "Activate 2nd Specialization  (0/21/30)", "gossip", "Save 2nd Specialization.", "gossip"
+    end
+    _G.SelectGossipOption = function(i) picked = i end
+    _G.GetTalentTabInfo = function(i) return "Tree" .. i, "tex" .. i, split[i] end
+    local ask = GS.Ask GS.Ask = function(text, yes) yes() end
+    _G.GetTime = function() return now end
+    _G.UnitAffectingCombat = function() return nil end
+    GR.Equip = function(name) worn = name end
+    pfUI.layouts.ReadBars = function() return { ["1"] = { t = "spell", name = bars } } end
+    pfUI.layouts.WriteBars = function(b) wrote = b["1"] and b["1"].name end
+    pfUI_config.gear.sets.Healing = pfUI_config.gear.sets.Healing or { slots = {} }
+    local hadHealing = pfUI_config.gear.sets.Healing
+
+    GS.OnGossip()
+    ok(GS.frame:IsShown(), "talking to the device opens the specs window")
+    ok(GS.IsActive(1) and not GS.IsActive(2), "the spec you are in is marked active")
+    GS.Ensure(2).set = "Healing"
+    pfUI_config.gear.specnow = "1"
+    bars = "Smite"
+    GS.Activate(2)
+    ok(picked == 3, "Activate picks the device's option for that slot (" .. tostring(picked) .. ")")
+    ok(GS.Spec(1).bars[pfUI.layouts.Store().current] and GS.Spec(1).bars[pfUI.layouts.Store().current]["1"].name == "Smite",
+      "the spec left keeps the spells on the bars")
+    split = { 0, 21, 30 }
+    GS.OnTalents(true)
+    now = now + 1
+    GS.Tick()
+    ok(worn == nil, "nothing goes on before the talents settle")
+    now = now + 2
+    GS.Tick()
+    ok(worn == "Healing" and pfUI_config.gear.specnow == "2", "once the talents are in, the spec's gear set goes on")
+    -- back to spec 1: its spells come back
+    bars = "Holy Fire"
+    GS.OnGossip()
+    GS.Activate(1)
+    split = { 31, 20, 0 }
+    GS.OnTalents(true)
+    now = now + 3
+    GS.Tick()
+    ok(wrote == "Smite" and pfUI_config.gear.specnow == "1", "coming back puts that spec's own spells back")
+    ok(GS.Spec(2).bars[pfUI.layouts.Store().current]["1"].name == "Holy Fire", "and spec 2 kept its own")
+    -- changed some other way: a split that is one spec's
+    worn = nil
+    split = { 0, 21, 30 }
+    GS.OnTalents(true)
+    now = now + 3
+    GS.Tick()
+    ok(worn == "Healing" and pfUI_config.gear.specnow == "2", "talents changed elsewhere that match a spec put its gear on")
+    GS.frame:Hide()
+    GS.Open()
+    ok(GS.frame:IsShown(), "/gear specs opens the window away from the device")
+    GS.frame:Hide()
+    local pg, pe = pcall(function() pfUI.octoui.Options:Page("gearspecs") end)
+    ok(pg, "the Talent specs page builds: " .. tostring(pe))
+
+    if not hadHealing.icon and next(hadHealing.slots) == nil then pfUI_config.gear.sets.Healing = nil end
+    pfUI_config.gear.specs, pfUI_config.gear.specnow = specs, wasNow
+    _G.GetGossipOptions, _G.SelectGossipOption, _G.GetTalentTabInfo, _G.CreateQuestionDialog, _G.GetTime, _G.C_GossipInfo,
+      _G.UnitAffectingCombat = saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7]
+    GR.Equip, pfUI.layouts.ReadBars, pfUI.layouts.WriteBars = GE, RB, WB
+    GS.Ask = ask
   end
 end
 

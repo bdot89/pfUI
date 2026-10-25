@@ -702,3 +702,22 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      rank / PickupMacro / bag or worn item, PlaceAction, ClearCursor; empty = PickupAction + ClearCursor;
      slots already right are left alone; not found -> kept, counted in chat). Per layout "its own spells"
      (ownbars, on by default).
+18. Talent specs at the Goblin Brainwashing Device (25 Oct 2026, NOT seen in game). User: Brainwasher Pro
+   (Fostercare5988, after Horyoshi; no licence stated) "implement this into our addon ... seamlessly work with
+   our itemchanger ... match a set of gear to a spec ... resemble our UI". Written fresh; only the device's
+   menu texts (read in play by its author) are taken: "Activate 1st Specialization  (31/20/0)", "Save 1st
+   Specialization.", "Buy 4th Specialization tab for 200 gold.", "Reset my talents. (1g0s0c)".
+   modules/gear-specs.lua (GR.specs = GS): GOSSIP_SHOW -> GS.Read(GS.Options()) (ClassicAPI C_GossipInfo
+   GetOptions / SelectOption + flags when there - unverified; else GetGossipOptions pairs /
+   SelectGossipOption(index)); window pfGearSpecs in the Octo palette (W.C): a row per slot - icon (click =
+   activate / buy, right-click = GO.IconPicker), name + ACTIVE, split, gear set and UI layout W.MiniDrops,
+   own-spells box, Name / Save; Reset talents, Gear sets, Options, Show original. GossipFrame is shrunk
+   (alpha 0, scale .01) while it shows, as Brainwasher Pro did; x = CloseGossip, Escape = device menu back.
+   Brainwasher Pro's frame is hidden if that addon is on too; its names / icons / splits copied once
+   (C.gear.specimport). C.gear.specs["<slot>"] = { name, icon, t1-3, set, layout, ownbars, bars[layout] },
+   C.gear.specnow. Switch: GS.Leave (the spec left keeps L.ReadBars() for the layout on now), option picked,
+   then CHARACTER_POINTS_CHANGED / SPELLS_CHANGED settle 1.5 s (60 s timeout) -> GS.Apply: GR.Equip(set),
+   L.Switch(layout) with L.holdBars, L.WriteBars(spec bars); layout / spells wait for combat. Layouts:
+   while a spec with own spells is on, L.SaveCurrent / Switch keep bars in that spec (L.BarSpec) instead of
+   the layout. Talents changed some other way that match exactly one spec apply it too (C.gear.specnotice).
+   /gear specs, /specs = the window away from the device (links only). Page gearspecs "Talent specs".

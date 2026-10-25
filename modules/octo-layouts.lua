@@ -157,6 +157,12 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     if missing > 0 then Say(missing .. " action button" .. (missing == 1 and "" or "s") .. " kept what they had - not found in your spellbook, macros or bags.") end
   end
 
+  -- the talent spec on now when it keeps its own spells (gear-specs.lua)
+  function L.BarSpec()
+    local GS = pfUI.gear and pfUI.gear.specs
+    return GS and GS.BarSpec and GS.BarSpec()
+  end
+
   -- what the layout you are in looks like now
   local function Snapshot()
     local M = pfUI.meters
@@ -167,7 +173,13 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     local s = Store()
     local keep = s.saved[s.current] or {}
     local snap = Snapshot()
-    keep.pos, keep.meters, keep.bars = snap.pos, snap.meters, snap.bars
+    keep.pos, keep.meters = snap.pos, snap.meters
+    -- (a talent spec with its own spells keeps the bars, per layout; L.holdBars
+    -- while a spec swap switches layout: the bars on now belong to the spec left)
+    if not L.holdBars then
+      local spec = L.BarSpec()
+      if spec then spec.bars[s.current] = snap.bars else keep.bars = snap.bars end
+    end
     keep.gear = keep.gear or ""
     s.saved[s.current] = keep
   end
@@ -210,7 +222,12 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     Place()
     if pfUI.meters and pfUI.meters.ShowAll then pfUI.meters.ShowAll(target.meters ~= "0") end
     -- its own spells on the action bars (unless switched off for it)
-    if target.bars and target.ownbars ~= "0" then L.WriteBars(target.bars) end
+    local spec = L.BarSpec()
+    if spec then
+      if spec.bars[name] and not L.holdBars then L.WriteBars(spec.bars[name]) end
+    elseif target.bars and target.ownbars ~= "0" then
+      L.WriteBars(target.bars)
+    end
     if target.gear and target.gear ~= "" and pfUI.gear and C.gear.sets[target.gear] then pfUI.gear.Equip(target.gear) end
     L.Paint()
     Say(name .. (why and (" (" .. why .. ")") or "") .. ".")
