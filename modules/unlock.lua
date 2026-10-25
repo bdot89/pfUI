@@ -62,7 +62,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     -- panel
     ["PanelLeft"]        = { T["Panel"], T["General"] },
-    ["PanelRight"]       = { T["Panel"], T["General"] },
+    -- (octo: its arrow and what that shows and hides)
+    ["PanelRight"]       = { "chpanel", nil },
     ["PanelMinimap"]     = { T["Panel"], T["General"] },
     ["PanelMicroButton"] = { T["Panel"], T["General"] },
 

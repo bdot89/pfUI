@@ -743,6 +743,39 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
     Sld(p, "Bubble opacity", "Takes a reload.", 0, 1, .05, BB, "alpha", function(v) return math.floor(v * 100 + .5) .. "%" end, Reload)
   end
 
+  -- the arrow on the bottom-right bar (25 Oct 2026: off for the user, wanted
+  -- by a friend for the Loot & Spam window): on / off and what it shows and
+  -- hides. Move frames: right-click that bar opens this page.
+  local function Has(key)
+    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k == key then return true end end
+  end
+  local function SetHas(key, on)
+    local out = {}
+    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k ~= key then table.insert(out, k) end end
+    if on then table.insert(out, key) end
+    C.panel.arrowwins = table.concat(out, ",")
+  end
+  local function BuildArrow(p)
+    W.Heading(p, "Panel arrow", {
+      on = { function() return C.panel.arrow == "1" end, function(v)
+        C.panel.arrow = v and "1" or "0"
+        if pfUI.panel and pfUI.panel.ArrowApply then pfUI.panel.ArrowApply() end
+      end, "The small arrow at the right end of the bottom-right bar." },
+      about = "A small arrow at the right end of the bottom-right bar (time and fps). Click it to show or hide the "
+        .. "windows ticked here - the right chat window (Loot & Spam) as it always did, and any meter windows. "
+        .. "In Move frames, right-click that bar to come here." })
+    W.Card(p, "What the arrow shows and hides", { tip = "Ticked windows hide together and come back together." })
+    W.Check(p, "Right chat window (Loot & Spam)", "Only while the right chat is on (Chat > Windows).",
+      function() return Has("chat") end, function(v) SetHas("chat", v) end)
+    local M = pfUI.meters
+    for i = 1, (M and M.windows and table.getn(M.windows) or 0) do
+      local n = i
+      W.Check(p, "Meter window " .. n, nil, function() return Has("m" .. n) end, function(v) SetHas("m" .. n, v) end)
+    end
+    W.Buttons(p, { { "Show / hide them now", function() if pfUI.panel and pfUI.panel.ArrowToggle then pfUI.panel.ArrowToggle() end end,
+      170, "What a click on the arrow does." } })
+  end
+
   -- (replaced first: AddPage rebuilds the topic list)
   O.replaced[T["Chat"]] = true
   O:AddPage("Chat", "chwindows", "Windows", BuildWindows)
@@ -750,4 +783,5 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   O:AddPage("Chat", "chwhispers", "Whispers", BuildWhispers)
   O:AddPage("Chat", "chinput", "Typing and bubbles", BuildInput)
   O:AddPage("Chat", "chtools", "Tools", BuildTools)
+  O:AddPage("Chat", "chpanel", "Panel arrow", BuildArrow)
 end)

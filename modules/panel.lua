@@ -792,15 +792,48 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
 
   UpdateMovable(pfUI.panel.right)
 
-  pfUI.panel.right.hide:SetScript("OnClick", function()
-    if pfUI.chat.right:IsShown() then pfUI.chat.right:Hide() else pfUI.chat.right:Show() end
-  end)
+  -- octo: the arrow is an option (24 Oct 2026 the user had it removed - "it
+  -- just confuses"; 25 Oct a friend wanted it back as a frame toggle): off by
+  -- default; on, a click shows or hides the windows picked for it
+  -- (C.panel.arrowwins = "chat,m1,m2": the right chat - Loot & Spam - as before,
+  -- and any meter windows picked).
+  -- Options: Chat & Panels > Panel arrow; in Move frames, right-click this bar.
+  local arrow = pfUI.panel.right.hide
+  local arrowShow = arrow.Show
+  arrow.Show = function(self) if C.panel.arrow == "1" then arrowShow(self or arrow) end end
 
-  -- octo: the toggle button is gone (user, 24 Oct 2026: it swapped the chat
-  -- for docked meters and back - "it just confuses and makes a mess of the
-  -- UI"); the meters are free windows now (meters-window.lua)
-  pfUI.panel.right.hide:Hide()
-  pfUI.panel.right.hide.Show = function() end
+  function pfUI.panel.ArrowWindows()
+    local out = {}
+    for key in string.gfind(C.panel.arrowwins or "", "[^,]+") do
+      local n = tonumber(string.sub(key, 2))
+      local M = pfUI.meters
+      if key == "chat" and pfUI.chat and pfUI.chat.right and C.chat.right.enable == "1" then
+        table.insert(out, pfUI.chat.right)
+      elseif string.sub(key, 1, 1) == "m" and n and M and M.windows and M.windows[n] then
+        table.insert(out, M.windows[n])
+      end
+    end
+    return out
+  end
+  function pfUI.panel.ArrowToggle()
+    local wins = pfUI.panel.ArrowWindows()
+    local any
+    for _, w in ipairs(wins) do if w:IsShown() then any = true end end
+    for _, w in ipairs(wins) do if any then w:Hide() else w:Show() end end
+  end
+  function pfUI.panel.ArrowApply()
+    if C.panel.arrow == "1" then arrowShow(arrow) else arrow:Hide() end
+  end
+
+  arrow:SetScript("OnClick", function() pfUI.panel.ArrowToggle() end)
+  arrow:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT")
+    GameTooltip:AddLine("Show / hide windows")
+    GameTooltip:AddLine("Pick which in Chat & Panels > Panel arrow.", 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  arrow:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  pfUI.panel.ArrowApply()
 
   -- buttons for right panel
   local width = pfUI.panel.right:GetWidth() / 3 - 2
