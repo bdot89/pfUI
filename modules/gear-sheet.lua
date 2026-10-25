@@ -45,6 +45,10 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   local scan = CreateFrame("GameTooltip", "pfGearScan", UIParent, "GameTooltipTemplate")
   scan:SetOwner(UIParent, "ANCHOR_NONE")
   function GR.Bound(bag, slot)
+    -- (ClassicAPI reads the soulbound bit itself: no tooltip scan)
+    local LC = pfUI.api.libclient
+    local b = LC and LC.IsBound and LC.IsBound(bag, slot)
+    if b ~= nil then return b end
     scan:ClearLines()
     scan:SetOwner(UIParent, "ANCHOR_NONE")
     scan:SetBagItem(bag, slot)
@@ -114,7 +118,10 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
   function GR.EquipItem(inv, item)
     -- (the very copy clicked: its whole link and where it is - two items with
     -- one name and id used to be taken for each other)
+    local LC = GR.LC and GR.LC() or {}
+    local guid = item ~= "empty" and LC.ItemGUID and ((item.bag and LC.ItemGUID(item.bag, item.slot)) or (item.worn and LC.ItemGUID(nil, item.worn))) or nil
     local want = item == "empty" and "empty" or { id = item.id, name = item.name, tex = item.tex, full = GR.FullOf(item.link),
+      guid = guid,
       from = (item.bag and { bag = item.bag, slot = item.slot }) or (item.worn and { inv = item.worn }) or nil }
     GR.Wear(GR.NAME[inv] or "Item", { [GR.Key(inv)] = want })
   end

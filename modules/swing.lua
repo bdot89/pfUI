@@ -465,6 +465,8 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       if queued == "cleave" then r, g, b, a = Col(C.swing.warrior.cleavecolor)
       elseif queued == "maul" then r, g, b, a = Col(C.swing.warrior.maulcolor)
       elseif queued then r, g, b, a = Col(C.swing.warrior.queuecolor) end
+      -- (ClassicAPI: your target out of melee reach - the bar dims)
+      if st.outMelee and not st.preview then r, g, b = r * .4, g * .4, b * .4 end
       local tr, tg, tb = Col(set.textcolor)
       Draw(f.main, mhp, r, g, b, a, set.lefttext == "1" and (Hex(tr, tg, tb) .. "Main hand|r") or "",
         set.righttext == "1" and (Hex(tr, tg, tb) .. Left(st.mhSpeed - (t - st.mhStart)) .. "|r") or "", fills)
@@ -516,6 +518,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
       local reload = math.max(.01, speed - .5)
       local cr, cg, cb, ca = Col(set.cooldowncolor)
       local ar, ag, ab, aa = Col(set.castcolor)
+      if st.outRanged and not st.preview then cr, cg, cb, ar, ag, ab = cr * .4, cg * .4, cb * .4, ar * .4, ag * .4, ab * .4 end
       local text = set.text == "1"
       if st.wand then
         -- a wand: one bar over the whole shot time; full = the next shot is ready
@@ -671,9 +674,56 @@ pfUI:RegisterModule("swing", "vanilla", function ()
                        "SPELLCAST_INTERRUPTED", "SPELLCAST_DELAYED", "LEARNED_SPELL_IN_TAB" }) do
     pcall(ev.RegisterEvent, ev, e)
   end
+  -- ClassicAPI (25 Oct 2026, NOT seen in game): PLAYER_SWING = each reset of
+  -- one of your attack timers (arg1 = seconds to the next, arg2 = 0 main hand /
+  -- 1 off hand / 2 ranged) - exact, so SuperWoW and the log stand aside for your
+  -- own swings; PLAYER_SWING_RANGE_UPDATE = your target in or out of reach
+  -- (arg1 = kind, arg2 = in reach, arg3 = it could tell): the bar dims
+  local LC = pfUI.api.libclient
+  ST.classic = LC and LC.SwingEvents and LC.SwingEvents() or nil
+  if ST.classic then
+    pcall(ev.RegisterEvent, ev, "PLAYER_SWING")
+    pcall(ev.RegisterEvent, ev, "PLAYER_SWING_RANGE_UPDATE")
+  end
+  function ST.Reach()
+    if not ST.classic then return end
+    for _, kind in ipairs({ 0, 2 }) do
+      pcall(C_SwingTimer.EnableRangeCheck, kind, true)
+      -- (nil = it cannot tell: no target, no weapon - not "out of reach")
+      local ok, inr = pcall(C_SwingTimer.IsTargetWithinSwingRange, kind)
+      local out = (ok and inr == false) and true or false
+      if kind == 0 then s.outMelee = out else s.outRanged = out end
+    end
+  end
   function ST.OnEvent(evt, a1, a2, a3, a4)
+    if evt == "PLAYER_SWING" then
+      local left, kind = tonumber(a1) or 0, tonumber(a2) or 0
+      Speeds()
+      local t = now()
+      if kind == 2 then
+        ST.Shot(myClass ~= "HUNTER")
+        if s.rgSpeed and s.rgSpeed > 0 then s.rgStart = t + left - s.rgSpeed end
+        s.rsw, s.cwr = true, true
+      else
+        local hand = kind == 1 and "off" or "main"
+        ST.Swing(hand)
+        -- (a parried hit can make it shorter than the weapon's speed)
+        local speed = hand == "off" and s.ohSpeed or s.mhSpeed
+        if speed and speed > 0 and left > 0 then
+          if hand == "off" then s.ohStart = t + left - speed else s.mhStart = t + left - speed end
+        end
+        s.sw, s.cw = true, true
+      end
+      return
+    end
+    if evt == "PLAYER_SWING_RANGE_UPDATE" then
+      local out = (a3 and not a2) and true or false
+      if tonumber(a1) == 2 then s.outRanged = out elseif tonumber(a1) == 0 then s.outMelee = out end
+      return
+    end
     if evt == "PLAYER_ENTERING_WORLD" then
       _, playerGUID = UnitExists("player")
+      ST.Reach()
       ST.ScanSlots()
       ST.ScanSpells()
       ST.ApplyLayout()
@@ -689,6 +739,7 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     end
     if evt == "PLAYER_TARGET_CHANGED" then
       Speeds()
+      ST.Reach()
       s.tgName = UnitName("target")
       s.tgSeen = 0
       local _, g = UnitExists("target")
@@ -716,7 +767,10 @@ pfUI:RegisterModule("swing", "vanilla", function ()
     if evt == "UNIT_CASTEVENT" then
       local caster, kind, id = a1, a3, a4
       if caster == playerGUID then
-        if kind == "MAINHAND" then ST.Swing("main") s.sw = true
+        -- (ClassicAPI's PLAYER_SWING tells your own swings exactly: leave them to it)
+        if s.cw and (kind == "MAINHAND" or kind == "OFFHAND" or (kind == "CAST" and ST.QUEUE_SPELLS[id])) then
+        elseif s.cwr and kind == "CAST" and (id == 75 or id == 5019) then
+        elseif kind == "MAINHAND" then ST.Swing("main") s.sw = true
         elseif kind == "OFFHAND" then ST.Swing("off") s.sw = true
         elseif kind == "CAST" and (id == 75 or id == 5019) then Speeds() ST.Shot(id == 5019) s.rsw = true
         elseif kind == "CAST" and ST.QUEUE_SPELLS[id] then ST.Swing("main") s.sw = true end

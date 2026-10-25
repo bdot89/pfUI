@@ -135,7 +135,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       if not only or only[GR.Key(inv)] ~= nil then
         local id, link = GR.Worn(inv)
         if id then
-          slots[GR.Key(inv)] = { id = id, full = GR.FullOf(link), name = NameOf(link) or "", tex = GR.InvTex(inv) or "" }
+          slots[GR.Key(inv)] = { id = id, full = GR.FullOf(link), guid = GR.LC().ItemGUID and GR.LC().ItemGUID(nil, inv), name = NameOf(link) or "", tex = GR.InvTex(inv) or "" }
         else
           slots[GR.Key(inv)] = "empty"
         end
@@ -155,6 +155,35 @@ pfUI:RegisterModule("gear", "vanilla", function ()
 
   -- a slot of a set worn right now
   -- is this very copy anywhere: worn or in the bags
+  -- ClassicAPI item GUIDs (25 Oct 2026): the very copy, wherever it went
+  function GR.LC() return pfUI.api.libclient or {} end
+  -- (one look round per moment: set buttons ask for every slot of every set)
+  local where, whereAt = {}, -1
+  function GR.GUIDWhere(guid)
+    local LC = GR.LC()
+    if not guid or not LC.ItemGUID then return end
+    local t = GetTime()
+    if t ~= whereAt then
+      whereAt, where = t, {}
+      for _, s in ipairs(GR.SLOTS) do
+        local g = LC.ItemGUID(nil, s[1])
+        if g then where[g] = { inv = s[1] } end
+      end
+      for bag = 0, 4 do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+          local g = LC.ItemGUID(bag, slot)
+          if g and not where[g] then where[g] = { bag = bag, slot = slot } end
+        end
+      end
+    end
+    local at = where[guid]
+    if not at then return end
+    if at.inv then return { inv = at.inv } end
+    local link = GetContainerItemLink(at.bag, at.slot)
+    return { bag = at.bag, slot = at.slot, id = GR.IdOf(link), link = link }
+  end
+  -- (a move made this moment must be seen by the next look)
+  function GR.ForgetWhere() whereAt = -1 end
   function GR.HasCopy(full)
     for _, s in ipairs(GR.SLOTS) do
       local _, link = GR.Worn(s[1])
@@ -172,6 +201,11 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     local id, link = GR.Worn(inv)
     if want == "empty" then return id == nil end
     if id == nil or id ~= want.id then return false end
+    -- (ClassicAPI: the item's own GUID says it is the very copy)
+    if want.guid and GR.LC().ItemGUID then
+      if GR.LC().ItemGUID(nil, inv) == want.guid then return true end
+      if GR.GUIDWhere(want.guid) then return false end
+    end
     -- (the very copy, when the set or pick knows it and it is still about;
     -- gone - sold, banked - the same item will do)
     if not want.full or GR.FullOf(link) == want.full then return true end
@@ -250,6 +284,11 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   -- then the same item with another enchant). skip = worn slots to leave.
   function GR.Find(want, skip)
     if type(want) ~= "table" then return end
+    -- (ClassicAPI) the copy by its own GUID
+    if want.guid then
+      local at = GR.GUIDWhere(want.guid)
+      if at and not (at.inv and skip[at.inv]) then return at end
+    end
     -- the copy that was clicked, if it is still where it was
     local from = want.from
     if from and from.bag and want.full then
@@ -391,6 +430,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   end
   function GR.Tick()
     local q = GR.queue
+    GR.ForgetWhere()
     if not q then runner:Hide() return end
     if Busy() then return end
     -- dead or casting: everything waits (the runner keeps looking)
@@ -549,6 +589,9 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   ev:RegisterEvent("PLAYER_REGEN_ENABLED")
   ev:RegisterEvent("UNIT_INVENTORY_CHANGED")
   ev:RegisterEvent("PLAYER_ENTERING_WORLD")
+  -- (ClassicAPI, 25 Oct 2026: one event per worn slot that changed, at once;
+  -- a plain client never sends it)
+  pcall(ev.RegisterEvent, ev, "PLAYER_EQUIPMENT_CHANGED")
   ev:SetScript("OnEvent", function()
     if event == "PLAYER_REGEN_ENABLED" and GR.queue then
       GR.queue.told = nil

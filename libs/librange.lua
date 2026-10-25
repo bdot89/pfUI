@@ -269,6 +269,12 @@ function librange:UnitInSpellRange(unit)
       if ok and checked then direct = inrange and true or false end
     end
     if direct == nil then direct = libclient.InRange(unit, 45) end
+    -- (ClassicAPI, 25 Oct 2026: in range but behind a wall or hill cannot be
+    -- healed either - it fades like one out of range; C.unitframes.losfade)
+    if direct and libclient.LineOfSight and not (C.unitframes and C.unitframes.losfade == "0")
+      and libclient.LineOfSight(unit) == false then
+      direct = false
+    end
     if direct ~= nil then return direct and 1 or nil end
   end
 

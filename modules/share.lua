@@ -580,6 +580,12 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
         f.scroll.text:SetText(compressed)
         f.scroll.text.value = compressed
         f.scroll:SetVerticalScroll(0)
+        -- octo (ClassicAPI CopyToClipboard, 25 Oct 2026): straight onto the
+        -- clipboard, no select-all and Ctrl+C in the box
+        local LC = pfUI.api.libclient
+        if LC and LC.Copy and LC.Copy(compressed) then
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r profile: copied to your clipboard - paste it anywhere with Ctrl+V.")
+        end
       end)
     end
 

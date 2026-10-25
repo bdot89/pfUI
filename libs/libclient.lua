@@ -150,5 +150,57 @@ function libclient.PlayerAura(spellId)
   return ok and data and true or nil
 end
 
+-- ---------------------------------------------------------------- 25 Oct 2026
+-- (user: "I have updated classic api use this wherever we can"; shapes from
+-- brues-code/ClassicAPI docs/API.md of that day - NOT seen in game yet)
+
+--  libclient.ItemGUID(bag, slot) / libclient.ItemGUID(nil, invSlot)
+--    The item instance's GUID ("0x..."): the very copy, through moves between
+--    bags and the character. nil without ClassicAPI or for an empty place.
+function libclient.ItemGUID(bag, slot)
+  if not (C_Item and C_Item.GetItemGUID) then return end
+  local loc = bag and { bagID = bag, slotIndex = slot } or { equipmentSlotIndex = slot }
+  local ok, guid = pcall(C_Item.GetItemGUID, loc)
+  if ok and guid and guid ~= "" then return guid end
+end
+
+--  libclient.IsBound(bag, slot)
+--    true / false from ClassicAPI's soulbound bit; nil without it (the caller
+--    reads the tooltip then).
+function libclient.IsBound(bag, slot)
+  if not (C_Item and C_Item.IsBound) then return end
+  local ok, bound = pcall(C_Item.IsBound, { bagID = bag, slotIndex = slot })
+  if ok then return bound and true or false end
+end
+
+--  libclient.LineOfSight(unit)
+--    true / false when ClassicAPI can tell (terrain, buildings), nil when not.
+function libclient.LineOfSight(unit)
+  if not (C_UnitAuras and _G.UnitInLineOfSight) or not unit or not UnitExists(unit) then return end
+  local ok, los = pcall(_G.UnitInLineOfSight, unit)
+  if ok and los ~= nil then return los and true or false end
+end
+
+--  libclient.Copy(text [, plain])
+--    Puts text on the Windows clipboard (ClassicAPI CopyToClipboard); plain =
+--    without colour codes and links. Returns true when it was copied.
+function libclient.Copy(text, plain)
+  if not _G.CopyToClipboard or not text then return end
+  local ok, n = pcall(_G.CopyToClipboard, text, plain and true or nil)
+  return ok and n and n > 0 or nil
+end
+
+--  libclient.SwingEvents()
+--    true when the client sends PLAYER_SWING (each reset of an attack timer,
+--    arg1 = seconds to the next swing, arg2 = 0 main hand / 1 off hand / 2 ranged).
+function libclient.SwingEvents()
+  if not C_SwingTimer then return end
+  if C_EventUtils and C_EventUtils.IsEventValid then
+    local ok, valid = pcall(C_EventUtils.IsEventValid, "PLAYER_SWING")
+    if ok and not valid then return end
+  end
+  return true
+end
+
 -- add libclient to pfUI API
 pfUI.api.libclient = libclient

@@ -4525,6 +4525,50 @@ do
   end
 end
 
+-- the updated ClassicAPI (25 Oct 2026): item GUIDs, soulbound bit, line of
+-- sight, clipboard, PLAYER_SWING - stand-ins shaped like its docs
+do
+  local LC = pfUI.api.libclient
+  local was = { C_Item = _G.C_Item, UnitInLineOfSight = _G.UnitInLineOfSight, CopyToClipboard = _G.CopyToClipboard,
+                C_UnitAuras = _G.C_UnitAuras, C_SwingTimer = _G.C_SwingTimer, C_EventUtils = _G.C_EventUtils }
+  ok(LC.ItemGUID(0, 1) == nil and LC.IsBound(0, 1) == nil and LC.Copy("x") == nil, "without ClassicAPI the new calls say nothing")
+  local copied
+  _G.C_Item = {
+    GetItemGUID = function(loc) return loc.bagID and ("0xB" .. loc.bagID .. loc.slotIndex) or ("0xE" .. loc.equipmentSlotIndex) end,
+    IsBound = function(loc) return loc.bagID == 0 end,
+  }
+  _G.CopyToClipboard = function(text) copied = text return string.len(text) end
+  _G.C_UnitAuras = _G.C_UnitAuras or {}
+  _G.UnitInLineOfSight = function(u) return u ~= "party1" end
+  ok(LC.ItemGUID(1, 3) == "0xB13" and LC.ItemGUID(nil, 11) == "0xE11", "an item's GUID in a bag or worn")
+  ok(LC.IsBound(0, 2) == true and LC.IsBound(1, 2) == false, "the soulbound bit, no tooltip")
+  ok(LC.Copy("hello") and copied == "hello", "text onto the clipboard")
+  local exists = _G.UnitExists
+  _G.UnitExists = function() return 1 end
+  ok(LC.LineOfSight("party1") == false and LC.LineOfSight("party2") == true, "line of sight")
+  _G.UnitExists = exists
+  _G.C_SwingTimer = { EnableRangeCheck = function() end, IsTargetWithinSwingRange = function() return nil end }
+  _G.C_EventUtils = { IsEventValid = function(e) return e == "PLAYER_SWING" end }
+  ok(LC.SwingEvents() == true, "PLAYER_SWING is there")
+  _G.C_EventUtils = { IsEventValid = function() return false end }
+  ok(LC.SwingEvents() == nil, "and not when the client says the event is unknown")
+  -- the swing timer takes PLAYER_SWING's time to the next swing
+  local ST = pfUI.swing
+  if ST and ST.OnEvent and ST.state then
+    local st = ST.state
+    local keep = { st.mhStart, st.mhSpeed, st.cw }
+    st.mhSpeed = 2.6
+    ST.OnEvent("PLAYER_SWING", 1.5, 0)
+    ok(st.cw and math.abs((st.mhStart + st.mhSpeed) - (GetTime() + 1.5)) < .05, "PLAYER_SWING sets when the next main-hand swing lands")
+    ST.OnEvent("PLAYER_SWING_RANGE_UPDATE", 0, nil, 1)
+    ok(st.outMelee == true, "out of reach dims the bar")
+    ST.OnEvent("PLAYER_SWING_RANGE_UPDATE", 0, 1, 1)
+    ok(st.outMelee == false, "back in reach")
+    st.mhStart, st.mhSpeed, st.cw = keep[1], keep[2], keep[3]
+  end
+  for k, v in pairs(was) do _G[k] = v end
+end
+
 -- one colour language (user, 25 Oct 2026): green go / on, red off / delete,
 -- purple pick one, gold save, blue open
 do

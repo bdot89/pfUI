@@ -743,3 +743,22 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    client's listfile; W.Card's o.icon support came with the meter session's 25 Oct widget change). Spec
    window: rename boxes now select the old name (SetFocus + OnEditFocusGained HighlightText - typing used to
    append: "Spec 1Shadow PvE"; same fix in gear set and layout rename), buy row one line, help line wraps.
+20. ClassicAPI update (25 Oct 2026, NOT seen in game; user: "I HAVE UPDATED CLASSIC API USE THIS WHEREEVER WE CAN").
+   ClassicAPI.dll of 25 Oct 07:53: 364 "Usage:" strings; docs = brues-code/ClassicAPI docs/API.md (scratchpad
+   capidocs). libclient gained ItemGUID(bag, slot | nil, inv) (C_Item.GetItemGUID {bagID, slotIndex} /
+   {equipmentSlotIndex}), IsBound (C_Item.IsBound), LineOfSight (UnitInLineOfSight: true / false / nil), Copy
+   (CopyToClipboard), SwingEvents (C_SwingTimer + C_EventUtils.IsEventValid "PLAYER_SWING"). Used by:
+   - gear: picks / Snapshot keep .guid; Done / Find use the GUID first (GR.GUIDWhere, one bag look per GetTime,
+     GR.ForgetWhere each Tick), then .full, then id; a GUID no longer anywhere is ignored. GR.Bound asks
+     C_Item.IsBound before the tooltip scan. PLAYER_EQUIPMENT_CHANGED -> GR.Changed (instant slot bar).
+   - swing: PLAYER_SWING (arg1 = seconds to the next swing, arg2 = 0 main / 1 off / 2 ranged) sets the bar's
+     start so it ends then (a parried swing shortens it); s.cw / s.cwr make SuperWoW's MAINHAND / OFFHAND /
+     shot casts and the log stand aside. PLAYER_SWING_RANGE_UPDATE (kind, inRange, checksRange) and
+     C_SwingTimer.IsTargetWithinSwingRange on target change -> s.outMelee / outRanged dim the bars (x .4).
+   - librange: in range but UnitInLineOfSight false = out of range (C.unitframes.losfade, Frames page box).
+   - layouts: GetActionInfo's spell id kept (sid); PutSlot finds it with FindSpellBookSlotByID (player book).
+   - share.lua: Export copies the string to the clipboard.
+   Left for later / other sessions: COMBAT_LOG_EVENT_UNFILTERED + CombatLogGetCurrentEventInfo for the meters
+   (meter session told), LOSS_OF_CONTROL_* / C_LossOfControl.GetSchoolLockout on action buttons,
+   NAME_PLATE_UNIT_ADDED for plates, GetInventoryItemsForSlot for item menus, texture:SetRotation for map art,
+   UNIT_SPELLCAST_* for cast bars, C_EquipmentSet (Blizzard-style sets saved in a file).

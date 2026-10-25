@@ -956,6 +956,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     W.Card(p, "All frames: party and raid")
     Chk(p, "Range check", "Fades members more than 40 yards away.", G, "rangecheck", Reload)
     Drop(p, "Range check every", nil, DD("uf_rangecheckinterval"), G, "rangechecki", Reload)
+    -- (ClassicAPI UnitInLineOfSight, 25 Oct 2026)
+    if _G.UnitInLineOfSight then
+      Chk(p, "Out of sight fades too", "Members behind a wall or a hill fade like ones out of range: you cannot heal them.", G, "losfade")
+    end
     Chk(p, "Raid frames for the party", nil, G, "raidforgroup", UF.ApplyAll)
     Chk(p, "Yourself in the raid frames", nil, G, "selfinraid", UF.ApplyAll)
     Chk(p, "Yourself in the party frames", nil, G, "selfingroup", Reload)

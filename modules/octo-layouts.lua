@@ -178,17 +178,19 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
 
   function L.ReadSlot(slot)
     if not HasAction(slot) then return nil end
-    local kind
+    local kind, sid
     if GetActionInfo then
-      local ok, k = pcall(GetActionInfo, slot)
+      local ok, k, id = pcall(GetActionInfo, slot)
       if ok and type(k) == "string" then kind = k end
+      -- (ClassicAPI: a spell's own id - the exact rank comes back with it)
+      if ok and k == "spell" then sid = tonumber(id) end
     end
     local macro = GetActionText and GetActionText(slot)
     if kind == "macro" or (not kind and macro) then return { t = "macro", name = macro } end
     local name, rank = TipName(slot)
     if not name then return nil end
     if kind == "item" then return { t = "item", name = name } end
-    if kind == "spell" or SpellIndex(name) then return { t = "spell", name = name, rank = rank } end
+    if kind == "spell" or SpellIndex(name) then return { t = "spell", name = name, rank = rank, sid = sid } end
     return { t = "item", name = name }
   end
 
@@ -230,7 +232,12 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       return true
     end
     if e.t == "spell" then
-      local i = SpellIndex(e.name, e.rank)
+      local i
+      if e.sid and _G.FindSpellBookSlotByID then
+        local ok, at, book = pcall(_G.FindSpellBookSlotByID, e.sid)
+        if ok and tonumber(at) and (book == nil or book == "spell") then i = tonumber(at) end
+      end
+      i = i or SpellIndex(e.name, e.rank)
       if not i then return false end
       PickupSpell(i, BOOKTYPE_SPELL or "spell")
     elseif e.t == "macro" then
