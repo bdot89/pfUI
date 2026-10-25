@@ -112,6 +112,15 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
     U()
   end
   MO.Mode, MO.SetMode = Mode, SetMode
+  -- a part set to "never" that you drag or size in the preview comes on, so
+  -- you see what you change (user, 25 Oct 2026: "nothing moves or edits when
+  -- i do it in the preview" - the zone name was set to never)
+  function MO.Wake(key)
+    if key and key ~= "map" and Mode(key) == "hide" then
+      SetMode(key, "show")
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r map: " .. (NAMES[key] or key) .. " was set to never show - it shows again.")
+    end
+  end
   local MODEWORD = { show = "always", hover = "while the mouse is over the map", hide = "never" }
   local MODES = { { key = "show", label = "Always" }, { key = "hover", label = "Mouse over the map" }, { key = "hide", label = "Never" } }
   local ONOFF = { { key = "show", label = "Always" }, { key = "hide", label = "Never" } }
@@ -428,6 +437,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
               MM().size = tostring(math.max(80, math.min(400, (tonumber(MM().size) or 140) + 5 * (arg1 or 0))))
               MapSize()
             else
+              MO.Wake(key)
               map.SizePart(key, (tonumber(S()[key .. "scale"]) or 100) + 10 * (arg1 or 0))
             end
             Layout()
@@ -464,6 +474,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
             local k = (holder:GetEffectiveScale() or 1) * Scale()
             local dx, dy = (x - d[1]) / k, (y - d[2]) / k
             if h.moved or math.abs(dx) + math.abs(dy) >= 3 / Scale() then
+              if not h.moved then MO.Wake(h.key) end
               h.moved, h.dragged = true, true
               map.MovePart(h.key, d[3] + dx, d[4] + dy)
               Layout()

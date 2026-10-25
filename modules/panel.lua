@@ -2,6 +2,14 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   -- initialize gold cache if not yet happened
   pfUI_cache["gold"] = pfUI_cache["gold"] or {}
 
+  -- octo (25 Oct 2026, user: "There was one underneath before ... not sure where
+  -- that has gone"): the bar under the map (zone name) had been set to "none" -
+  -- put it back once; the Minimap page can still hide it
+  if C.panel.other.minimap == "none" and (not C.mapstyle or C.mapstyle.barback ~= "1") then
+    C.panel.other.minimap = (C.mapstyle and C.mapstyle.barwas and C.mapstyle.barwas ~= "none" and C.mapstyle.barwas) or "zone"
+  end
+  if C.mapstyle then C.mapstyle.barback = "1" end
+
   local font = C.panel.use_unitfonts == "1" and pfUI.font_unit or pfUI.font_default
   local font_size = C.panel.use_unitfonts == "1" and C.global.font_unit_size or C.global.font_size
   local rawborder, default_border = GetBorderSize("panels")
