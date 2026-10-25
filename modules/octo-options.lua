@@ -43,7 +43,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     { "Meters", { "Meters" } },
     { "Chat & Panels", { "Chat", "Panel", "XP Bar" } },
     { "Minimap & Buffs", { "Minimap", "Buffs" } },
-    { "Bags & Loot", { "Bags & Bank", "Loot" } },
+    { "Bags & Loot", { "Bags", "Bags & Bank", "Loot" } },
     { "Tooltip", { "Tooltip" } },
     { "Add-ons", { "Thirdparty", "Components" } },
     { "About", { "About" } },

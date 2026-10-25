@@ -833,3 +833,20 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      type / subtype / name, greys from the end), one move per .05 s after locks clear, 30 s / 500 moves cap;
      normal bags only. Sort button via pfUI.thirdparty.RegisterBagSort when no sort addon took it. The bags
      session's window calls the same Sort.
+22. Bagnon-style bags (25 Oct 2026, NOT seen in game; user: "we need a addon building in like Bagnon", Bagnon 12.1.7
+   zip - All Rights Reserved, so feature list only, written fresh, no art). Picked by the user: the core window only
+   (not item glow, other characters / tooltip counts, auto open). modules/bags-octo.lua (`pfUI.bagsOcto` = BO) wraps
+   pfUI.bag:CreateBags / UpdateSlot / ReanchorAdditions (bags.lua untouched: its slots, cooldowns, locks, search
+   and small buttons stay) and lays both windows out again: BO.Metrics(which, sizes) = the measures (title bar,
+   search, bag bar, grid, footer) used by the real windows and the options preview; BO.Places(order, sizes, cols,
+   hidden, brk, rev) = slot grid. Title bar = class / accent / own colour wash (SetGradientAlpha only), name,
+   pfUI's buttons re-chained into it (close, bag bar arrow, libbagsort's sort, keys, open, pick lock,
+   disenchant); drag title or body to move (C.bagsocto bagsx/bagsy = bottom-right, bankx/banky = top-left, in
+   UIParent units), right-click title = options. Bag bar: a button per bag (keyring last; bank -1, 5-10): click =
+   show / hide its slots (C.bagsocto.hidden "2,5"; keyring = pfUI.bag.showKeyring), item on cursor = put in bag,
+   drag = PickupBagFromSlot, red edge = hidden / not bought (click at the banker buys the next). Footer: free / all
+   (ClassicAPI C_Container.GetContainerNumFreeSlots for bags 0-4, else counted) and money; refreshed on
+   BAG_UPDATE_DELAYED when C_EventUtils says it is valid, else BAG_UPDATE throttled .1 s. Off = needs a reload.
+   modules/bags-options.lua: page "Bags" (bagsocto, section "Bags" first under "Bags & Loot"): switch, pinned
+   preview (your items, or samples; click its bags), Open / Sort / Reset positions, cards Window, What it shows,
+   Slot order, Which bags, Title bar colour. Tests: tests\bags.lua. New files: needs a full client restart.

@@ -112,7 +112,7 @@ FONT_COLOR_CODE_CLOSE = "|r"
 local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
-  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "gear-specs", "octo-context", "octo-layouts" }
+  "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "gear-specs", "octo-context", "octo-layouts", "bags-octo", "bags-options" }
 
 -- ---------------------------------------------------------------- load
 
@@ -4907,6 +4907,9 @@ end
 -- SuperWoW / ClassicAPI use across the modules (libs\libclient.lua)
 octo_ok, octo_dir = ok, DIR
 dofile(DIR .. "/tests/clientapi.lua")
+
+-- the Bagnon-style bag windows (modules/bags-octo.lua)
+dofile(DIR .. "/tests/bags.lua")
 
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do

@@ -1,0 +1,627 @@
+pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
+  -- pfUI Octo :: Bagnon-style bag and bank windows (25 Oct 2026).
+  -- User: "we need a addon building in like Bagnon" (Bagnon 12.1.7 zip; its
+  -- licence is All Rights Reserved, so only its feature list was read and
+  -- this is written fresh for 1.12). Chosen with the user: the core window -
+  -- one inventory and one bank window with a title bar, search, a bag bar
+  -- that shows / hides each bag, money and free slots, sort, moving, and
+  -- columns / size / spacing / scale / colours.
+  --
+  -- Built on pfUI's own bag module (modules/bags.lua, untouched): its slot
+  -- buttons, cooldowns, item locks, search and buttons stay; this wraps
+  -- pfUI.bag:CreateBags / UpdateSlot / ReanchorAdditions and lays the
+  -- windows out again after pfUI did. Sort = libbagsort's button (ClassicAPI
+  -- C_Container.SortBags when present, else one item at a time).
+  -- Settings: C.bagsocto (api/config.lua), page "Bags" (bags-options.lua).
+  local PB = pfUI.bag
+  if not PB or not PB.CreateBags or not PB.UpdateSlot then return end
+
+  local BO = {}
+  pfUI.bagsOcto = BO
+
+  local function S() return C.bagsocto end
+  local function N(v, d) return tonumber(v) or d end
+
+  -- the bags of each window in the order they are drawn (keyring last)
+  BO.ORDER = { bags = { 0, 1, 2, 3, 4, -2 }, bank = { -1, 5, 6, 7, 8, 9, 10 } }
+  BO.PAD, BO.HEAD, BO.SEARCH, BO.BAR, BO.FOOT, BO.MINW = 6, 20, 18, 24, 16, 230
+
+  function BO.On() return S().enable == "1" end
+
+  -- ---------------------------------------------------------------- hidden bags
+
+  -- C.bagsocto.hidden = "2,3,-2" (the bags whose slots are not drawn)
+  function BO.Hidden(bag)
+    return string.find("," .. (S().hidden or "") .. ",", "," .. bag .. ",", 1, true) and true or false
+  end
+
+  function BO.SetHidden(bag, hide)
+    local out = {}
+    for b in string.gfind(S().hidden or "", "([^,]+)") do
+      if tonumber(b) ~= bag then table.insert(out, b) end
+    end
+    if hide then table.insert(out, tostring(bag)) end
+    S().hidden = table.concat(out, ",")
+  end
+
+  function BO.ToggleBag(bag)
+    -- the keyring's slots are pfUI's own keyring switch
+    if bag == -2 then
+      PB.showKeyring = not PB.showKeyring and true or nil
+      BO.SetHidden(-2, false)
+      if PB.CheckFullUpdate then PB:CheckFullUpdate() end
+    else
+      BO.SetHidden(bag, not BO.Hidden(bag))
+    end
+    BO.Refresh()
+  end
+
+  -- ---------------------------------------------------------------- sizes
+
+  -- slots of one bag as drawn (the keyring only while pfUI shows it)
+  function BO.BagSize(bag)
+    if bag == -2 then
+      if not PB.showKeyring or not GetKeyRingSize then return 0 end
+      return GetKeyRingSize() or 0
+    end
+    return GetContainerNumSlots(bag) or 0
+  end
+
+  -- where every slot goes: { { bag, slot, col, row }, ... } and the row
+  -- count. sizes[bag] = slots; hidden(bag) leaves a bag out; brk = each bag
+  -- starts a new row; rev = last slot first.
+  function BO.Places(order, sizes, cols, hidden, brk, rev)
+    local list = {}
+    for _, bag in ipairs(order) do
+      if not (hidden and hidden(bag)) then
+        for slot = 1, (sizes[bag] or 0) do table.insert(list, { bag = bag, slot = slot }) end
+      end
+    end
+    if rev then
+      local n = table.getn(list)
+      for i = 1, math.floor(n / 2) do list[i], list[n - i + 1] = list[n - i + 1], list[i] end
+    end
+    cols = math.max(1, cols)
+    local col, row, last = 0, 0, nil
+    for _, e in ipairs(list) do
+      if brk and last ~= nil and e.bag ~= last and col > 0 then col, row = 0, row + 1 end
+      e.col, e.row = col, row
+      last = e.bag
+      col = col + 1
+      if col >= cols then col, row = 0, row + 1 end
+    end
+    local rows = row + ((col > 0) and 1 or 0)
+    return list, rows
+  end
+
+  -- the whole window's measures (the real windows and the options preview
+  -- use the same numbers). which = "bags" | "bank"
+  function BO.Metrics(which, sizes)
+    local s = S()
+    local bank = which == "bank"
+    local size, gap = N(s.size, 32), N(s.spacing, 3)
+    local cols = N(bank and s.bankcolumns or s.columns, 10)
+    local places, rows = BO.Places(BO.ORDER[which], sizes, cols, BO.Hidden, s.bagbreak == "1", s.reverse == "1")
+    local m = { size = size, gap = gap, cols = cols, places = places, rows = rows, pad = BO.PAD }
+    local y = BO.PAD
+    m.headY = y
+    y = y + BO.HEAD + 4
+    if not bank and s.search == "1" then m.searchY = y y = y + BO.SEARCH + 4 end
+    if s.bagbar == "1" then m.barY = y y = y + BO.BAR + 4 end
+    m.gridY = y
+    local used = math.min(cols, table.getn(places))
+    if rows > 1 then used = cols end
+    m.gridW = math.max(0, used * (size + gap) - gap)
+    m.gridH = math.max(0, rows * (size + gap) - gap)
+    y = y + m.gridH
+    if s.free == "1" or (not bank and s.money == "1") then
+      y = y + 4
+      m.footY = y
+      y = y + BO.FOOT
+    end
+    m.h = y + BO.PAD
+    m.w = math.max(m.gridW, BO.MINW) + 2 * BO.PAD
+    return m
+  end
+
+  function BO.Sizes(which)
+    local t = {}
+    for _, bag in ipairs(BO.ORDER[which]) do t[bag] = BO.BagSize(bag) end
+    return t
+  end
+
+  -- free / total slots of a window (the keyring never counts)
+  function BO.Free(which)
+    local free, total = 0, 0
+    local CC = _G.C_UnitAuras and _G.C_Container
+    for _, bag in ipairs(BO.ORDER[which]) do
+      if bag ~= -2 then
+        local n = GetContainerNumSlots(bag) or 0
+        total = total + n
+        local f
+        -- ClassicAPI counts the backpack and bags 1-4 itself
+        if CC and CC.GetContainerNumFreeSlots and bag >= 0 and bag <= 4 then
+          local ok, v = pcall(CC.GetContainerNumFreeSlots, bag)
+          if ok and type(v) == "number" then f = v end
+        end
+        if not f then
+          f = 0
+          for slot = 1, n do
+            if not GetContainerItemInfo(bag, slot) then f = f + 1 end
+          end
+        end
+        free = free + f
+      end
+    end
+    return free, total
+  end
+
+  -- ---------------------------------------------------------------- colours
+
+  function BO.Wash(which)
+    local s = S()
+    local mode = which == "bank" and s.bankwash or s.wash
+    if mode == "class" then
+      local _, cls = UnitClass("player")
+      local c = cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+      if c then return c.r, c.g, c.b end
+    elseif mode == "accent" and GetAccentColor then
+      return GetAccentColor()
+    end
+    local r, g, b = GetStringColor(which == "bank" and s.bankwashcolor or s.washcolor)
+    return tonumber(r) or .2, tonumber(g) or .7, tonumber(b) or 1
+  end
+
+  -- a soft colour wash fading to the right (one texture, gradient alpha only)
+  function BO.PaintWash(t, r, g, b, a)
+    t:SetTexture("Interface\\Buttons\\WHITE8X8")
+    t:SetGradientAlpha("HORIZONTAL", r, g, b, a or .35, r, g, b, .02)
+  end
+
+  local function Text(parent, size)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFont(pfUI.font_default, size or 12, "OUTLINE")
+    fs:SetShadowColor(0, 0, 0, 1)
+    fs:SetShadowOffset(1, -1)
+    fs:SetTextColor(1, 1, 1, 1)
+    return fs
+  end
+  BO.Text = Text
+
+  -- ---------------------------------------------------------------- bag bar
+
+  local function InvSlot(bag)
+    if bag >= 1 and bag <= 4 then
+      local id = GetInventorySlotInfo("Bag" .. (bag - 1) .. "Slot")
+      if id then return id end
+    end
+    if _G.ContainerIDToInventoryID then return _G.ContainerIDToInventoryID(bag) end
+    if bag >= 5 and _G.BankButtonIDToInvSlotID then return _G.BankButtonIDToInvSlotID(bag - 4, 1) end
+  end
+  BO.InvSlot = InvSlot
+
+  -- a bank bag slot not bought yet
+  function BO.Locked(bag)
+    return bag >= 5 and (bag - 4) > (GetNumBankSlots and GetNumBankSlots() or 0)
+  end
+
+  function BO.BagIcon(bag)
+    if bag == 0 then return "Interface\\Buttons\\Button-Backpack-Up" end
+    if bag == -1 then return "Interface\\Icons\\INV_Box_02" end
+    if bag == -2 then return "Interface\\Icons\\INV_Misc_Key_03" end
+    local inv = InvSlot(bag)
+    local tex = inv and GetInventoryItemTexture("player", inv)
+    return tex or "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag"
+  end
+
+  function BO.BagName(bag)
+    if bag == 0 then return BACKPACK_TOOLTIP or "Backpack" end
+    if bag == -1 then return "Bank" end
+    if bag == -2 then return KEYRING or "Keyring" end
+    return GetBagName(bag) or (bag >= 5 and ("Bank bag " .. (bag - 4)) or ("Bag " .. bag))
+  end
+
+  local function BagEnter()
+    local bag = this.bag
+    GameTooltip:SetOwner(this, "ANCHOR_TOP")
+    local inv = (bag >= 1) and InvSlot(bag)
+    if BO.Locked(bag) then
+      GameTooltip:SetText(BANK_BAG_PURCHASE or "Buy a bank bag slot")
+      if GetBankSlotCost then
+        GameTooltip:AddLine("Cost: " .. CreateGoldString(GetBankSlotCost(GetNumBankSlots())), 1, 1, 1)
+      end
+      GameTooltip:AddLine("Click at the bank to buy it.", .35, .7, 1)
+    else
+      if not (inv and GameTooltip:SetInventoryItem("player", inv)) then GameTooltip:SetText(BO.BagName(bag)) end
+      local shown = bag == -2 and PB.showKeyring or (bag ~= -2 and not BO.Hidden(bag))
+      if shown then
+        GameTooltip:AddLine("Click: hide its slots", .95, .3, .3)
+      else
+        GameTooltip:AddLine("Click: show its slots", .25, .85, .4)
+      end
+      if bag >= 1 then GameTooltip:AddLine("Drag: pick the bag up", .6, .61, .65) end
+    end
+    GameTooltip:Show()
+  end
+
+  local function BagPut(bag)
+    if not CursorHasItem() then return end
+    if bag == 0 then PutItemInBackpack() return true end
+    local inv = bag >= 1 and InvSlot(bag)
+    if inv then PutItemInBag(inv) return true end
+  end
+
+  local function BagClick()
+    local bag = this.bag
+    if BagPut(bag) then return end
+    if BO.Locked(bag) then
+      if BankFrame and BankFrame:IsVisible() and bag - 4 == GetNumBankSlots() + 1 then
+        StaticPopup_Show("CONFIRM_BUY_BANK_SLOT")
+      end
+      return
+    end
+    BO.ToggleBag(bag)
+    BagEnter()
+  end
+
+  function BO.BagButton(parent, bag)
+    local b = CreateFrame("Button", nil, parent)
+    b.bag = bag
+    CreateBackdrop(b, 1)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
+    b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+    b.icon:SetTexCoord(.08, .92, .08, .92)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(b.icon)
+    hl:SetTexture(1, 1, 1, .15)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnClick", BagClick)
+    b:SetScript("OnReceiveDrag", function() BagPut(this.bag) end)
+    b:SetScript("OnDragStart", function()
+      local inv = this.bag >= 1 and not BO.Locked(this.bag) and InvSlot(this.bag)
+      if inv then PickupBagFromSlot(inv) end
+    end)
+    b:SetScript("OnEnter", BagEnter)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+  end
+
+  -- one bag button's look: shown = its picture, hidden = grey with a red
+  -- edge, not bought = dark with a red edge
+  function BO.PaintBag(b)
+    local bag = b.bag
+    b.icon:SetTexture(BO.BagIcon(bag))
+    local off = BO.Locked(bag) or (bag == -2 and not PB.showKeyring) or (bag ~= -2 and BO.Hidden(bag))
+    if b.icon.SetDesaturated then b.icon:SetDesaturated(off and 1 or nil) end
+    b.icon:SetAlpha(off and .45 or 1)
+    if off then
+      b.backdrop:SetBackdropBorderColor(.95, .3, .3, 1)
+    else
+      b.backdrop:SetBackdropBorderColor(.25, .85, .4, .9)
+    end
+  end
+
+  -- ---------------------------------------------------------------- one window
+
+  -- dragging a window by its title bar or its body (unless locked)
+  local function StartMove()
+    local f = this.octoWindow or this
+    if S().locked == "1" then return end
+    f:SetMovable(true)
+    f:StartMoving()
+  end
+  local function StopMove()
+    local f = this.octoWindow or this
+    f:StopMovingOrSizing()
+    BO.SavePlace(f, f.octoWhich)
+    BO.Place(f, f.octoWhich)
+  end
+
+  function BO.SavePlace(f, which)
+    local k = (f:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    local s = S()
+    if which == "bags" then
+      if not f:GetRight() then return end
+      s.bagsx, s.bagsy = tostring(math.floor(f:GetRight() * k + .5)), tostring(math.floor(f:GetBottom() * k + .5))
+    else
+      if not f:GetLeft() then return end
+      s.bankx, s.banky = tostring(math.floor(f:GetLeft() * k + .5)), tostring(math.floor(f:GetTop() * k + .5))
+    end
+  end
+
+  function BO.Place(f, which)
+    local s = S()
+    local x, y = tonumber(s[which .. "x"]), tonumber(s[which .. "y"])
+    f:ClearAllPoints()
+    if x and y then
+      local k = (UIParent:GetEffectiveScale() or 1) / (f:GetEffectiveScale() or 1)
+      if which == "bags" then
+        f:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMLEFT", x * k, y * k)
+      else
+        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x * k, y * k)
+      end
+    elseif which == "bags" then
+      f:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -40, 190)
+    else
+      f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 40, -110)
+    end
+  end
+
+  function BO.ResetPlaces()
+    local s = S()
+    s.bagsx, s.bagsy, s.bankx, s.banky = "", "", "", ""
+    BO.Refresh()
+  end
+
+  -- the parts this module adds to a pfUI window (once)
+  function BO.Build(f, which)
+    if f.octo then return f.octo end
+    local o = {}
+    f.octo = o
+    f.octoWhich = which
+    o.head = CreateFrame("Button", nil, f)
+    o.head.octoWindow = f
+    o.head:SetHeight(BO.HEAD)
+    o.head:RegisterForDrag("LeftButton")
+    o.head:RegisterForClicks("RightButtonUp")
+    o.head:SetScript("OnDragStart", StartMove)
+    o.head:SetScript("OnDragStop", StopMove)
+    o.head:SetScript("OnClick", function() BO.OpenOptions() end)
+    o.head:SetScript("OnEnter", function()
+      GameTooltip:SetOwner(this, "ANCHOR_TOP")
+      GameTooltip:SetText(which == "bank" and "Bank" or "Bags")
+      if S().locked ~= "1" then GameTooltip:AddLine("Drag: move the window", .6, .61, .65) end
+      GameTooltip:AddLine("Right-click: bag options", .35, .7, 1)
+      GameTooltip:Show()
+    end)
+    o.head:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    o.wash = o.head:CreateTexture(nil, "BACKGROUND")
+    o.wash:SetAllPoints(o.head)
+    o.title = Text(o.head, 12)
+    o.title:SetPoint("LEFT", o.head, "LEFT", 6, 0)
+    o.title:SetJustifyH("LEFT")
+
+    o.bar = CreateFrame("Frame", nil, f)
+    o.bar:SetHeight(BO.BAR)
+    o.bags = {}
+    for i, bag in ipairs(BO.ORDER[which]) do
+      local b = BO.BagButton(o.bar, bag)
+      b:SetWidth(BO.BAR)
+      b:SetHeight(BO.BAR)
+      b:SetPoint("LEFT", o.bar, "LEFT", (i - 1) * (BO.BAR + 4), 0)
+      o.bags[i] = b
+    end
+
+    o.foot = CreateFrame("Frame", nil, f)
+    o.foot:SetHeight(BO.FOOT)
+    o.free = Text(o.foot, 11)
+    o.free:SetPoint("LEFT", o.foot, "LEFT", 2, 0)
+    o.money = Text(o.foot, 11)
+    o.money:SetPoint("RIGHT", o.foot, "RIGHT", -2, 0)
+
+    -- the window body drags too
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", StartMove)
+    f:SetScript("OnDragStop", StopMove)
+    return o
+  end
+
+  -- pfUI's small buttons in the title bar, right to left
+  function BO.Header(f)
+    local o = f and f.octo
+    if not o then return end
+    local list = { f.close, f.bags, f.sort, f.keys, f.open, f.picklock, f.disenchant }
+    local prev
+    for _, b in ipairs(list) do
+      local use = b ~= nil
+      if b == f.sort and S().sortbtn ~= "1" then use = false end
+      if (b == f.picklock or b == f.disenchant) and b and not (b:GetID() and b:GetID() > 0) then use = false end
+      if b then
+        if use then
+          b:SetParent(o.head)
+          b:ClearAllPoints()
+          b:SetWidth(16)
+          b:SetHeight(16)
+          if prev then
+            b:SetPoint("RIGHT", prev, "LEFT", -4, 0)
+          else
+            b:SetPoint("RIGHT", o.head, "RIGHT", -3, 0)
+          end
+          b:SetFrameLevel(o.head:GetFrameLevel() + 2)
+          b:Hide() b:Show()
+          prev = b
+        else
+          b:Hide()
+        end
+      end
+    end
+    if f.bags then
+      f.bags:SetScript("OnClick", function()
+        S().bagbar = S().bagbar == "1" and "0" or "1"
+        BO.Refresh()
+      end)
+    end
+  end
+
+  function BO.Footer(f)
+    local o = f and f.octo
+    if not o then return end
+    local which, s = f.octoWhich, S()
+    if s.free == "1" then
+      local free, total = BO.Free(which)
+      local r, g, b = .25, .85, .4
+      if free == 0 then r, g, b = .95, .3, .3 elseif free <= 4 then r, g, b = 1, .78, .2 end
+      o.free:SetText(string.format("|cff%02x%02x%02x%d|r |cff999aa6/ %d free|r", r * 255, g * 255, b * 255, free, total))
+      o.free:Show()
+    else
+      o.free:Hide()
+    end
+    if which == "bags" and s.money == "1" then
+      o.money:SetText(CreateGoldString(GetMoney()))
+      o.money:Show()
+    else
+      o.money:Hide()
+    end
+    for _, b in ipairs(o.bags) do BO.PaintBag(b) end
+  end
+
+  -- lay a window out again (after pfUI's CreateBags placed it its own way)
+  function BO.Layout(which)
+    local f = which == "bank" and PB.left or PB.right
+    if not f then return end
+    local s = S()
+    local o = BO.Build(f, which)
+    f:SetScale(N(s.scale, 1))
+    local m = BO.Metrics(which, BO.Sizes(which))
+    f:SetWidth(m.w)
+    f:SetHeight(m.h)
+    BO.Place(f, which)
+    if f.backdrop then
+      f.backdrop:SetBackdropColor(.06, .065, .075, N(s.bgalpha, .92))
+    end
+
+    o.head:ClearAllPoints()
+    o.head:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad, -m.headY)
+    o.head:SetPoint("TOPRIGHT", f, "TOPRIGHT", -m.pad, -m.headY)
+    local r, g, b = BO.Wash(which)
+    BO.PaintWash(o.wash, r, g, b, .4)
+    if s.title == "1" then
+      local name = UnitName("player") or ""
+      o.title:SetText(which == "bank" and (name .. "'s bank") or (name .. "'s bags"))
+      o.title:Show()
+    else
+      o.title:Hide()
+    end
+    BO.Header(f)
+
+    if f.search then
+      if m.searchY then
+        f.search:SetParent(f)
+        f.search:ClearAllPoints()
+        f.search:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad, -m.searchY)
+        f.search:SetPoint("TOPRIGHT", f, "TOPRIGHT", -m.pad, -m.searchY)
+        f.search:SetHeight(BO.SEARCH)
+        f.search:Show()
+      else
+        f.search:Hide()
+      end
+    end
+    if f.bagslots then f.bagslots:Hide() end
+    if f.gold then f.gold:Hide() end
+
+    if m.barY then
+      o.bar:ClearAllPoints()
+      o.bar:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad, -m.barY)
+      o.bar:SetWidth(m.w - 2 * m.pad)
+      o.bar:Show()
+      for _, bt in ipairs(o.bags) do
+        bt:Show()
+        if bt.bag == -2 and not GetKeyRingSize then bt:Hide() end
+      end
+    else
+      o.bar:Hide()
+    end
+
+    -- the slots: hidden bags' slots away, the rest on the grid
+    for _, bag in ipairs(BO.ORDER[which]) do
+      local holder = pfUI.bags[bag]
+      if holder and holder.slots then
+        for _, sl in pairs(holder.slots) do
+          if sl.frame and BO.Hidden(bag) then sl.frame:Hide() end
+        end
+      end
+    end
+    local step = m.size + m.gap
+    for _, e in ipairs(m.places) do
+      local holder = pfUI.bags[e.bag]
+      local sl = holder and holder.slots and holder.slots[e.slot]
+      if sl and sl.frame then
+        sl.frame:ClearAllPoints()
+        sl.frame:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad + e.col * step, -(m.gridY + e.row * step))
+        sl.frame:SetWidth(m.size)
+        sl.frame:SetHeight(m.size)
+      end
+    end
+
+    if m.footY then
+      o.foot:ClearAllPoints()
+      o.foot:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad, -m.footY)
+      o.foot:SetPoint("TOPRIGHT", f, "TOPRIGHT", -m.pad, -m.footY)
+      o.foot:Show()
+    else
+      o.foot:Hide()
+    end
+    BO.Footer(f)
+    if BO.onLayout then BO.onLayout(which) end
+  end
+
+  -- both windows again (from the options, a bag click...)
+  function BO.Refresh()
+    if not BO.On() then return end
+    if PB.right then PB:CreateBags() end
+    if PB.left then PB:CreateBags("bank") end
+  end
+
+  function BO.OpenOptions()
+    local O = pfUI.octoui and pfUI.octoui.Options
+    if O and O.Open then O:Open("bagsocto") end
+  end
+
+  -- ---------------------------------------------------------------- hooks
+
+  local rawCreate = PB.CreateBags
+  function PB:CreateBags(object)
+    rawCreate(self, object)
+    if BO.On() then BO.Layout(object == "bank" and "bank" or "bags") end
+  end
+
+  local rawSlot = PB.UpdateSlot
+  function PB:UpdateSlot(bag, slot)
+    rawSlot(self, bag, slot)
+    if BO.On() and BO.Hidden(bag) then
+      local holder = pfUI.bags[bag]
+      local sl = holder and holder.slots and holder.slots[slot]
+      if sl and sl.frame then sl.frame:Hide() end
+    end
+  end
+
+  if PB.ReanchorAdditions then
+    local rawAnchor = PB.ReanchorAdditions
+    function PB:ReanchorAdditions()
+      rawAnchor(self)
+      if BO.On() then BO.Header(PB.right) end
+    end
+  end
+
+  -- money / free slots / bag pictures: once per frame of bag changes
+  -- (ClassicAPI's BAG_UPDATE_DELAYED when the client has it), else 10 a second
+  local watch = CreateFrame("Frame")
+  BO.watch = watch
+  local delayed
+  if _G.C_EventUtils and _G.C_EventUtils.IsEventValid then
+    local ok, valid = pcall(_G.C_EventUtils.IsEventValid, "BAG_UPDATE_DELAYED")
+    delayed = ok and valid
+  end
+  watch:RegisterEvent(delayed and "BAG_UPDATE_DELAYED" or "BAG_UPDATE")
+  watch:RegisterEvent("PLAYER_MONEY")
+  watch:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+  watch:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
+  watch:RegisterEvent("UNIT_INVENTORY_CHANGED")
+  watch:SetScript("OnEvent", function()
+    if event == "BAG_UPDATE_DELAYED" then BO.UpdateShown() else this.dirty = true end
+  end)
+  watch:SetScript("OnUpdate", function()
+    if not this.dirty or (this.tick or 0) > GetTime() then return end
+    this.tick, this.dirty = GetTime() + .1, nil
+    BO.UpdateShown()
+  end)
+
+  function BO.UpdateShown()
+    if not BO.On() then return end
+    if PB.right and PB.right:IsShown() then BO.Footer(PB.right) end
+    if PB.left and PB.left:IsShown() then BO.Footer(PB.left) end
+  end
+end)
