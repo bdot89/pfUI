@@ -197,6 +197,9 @@ pfUI:RegisterModule("superwow", "vanilla", function ()
     -- extend the builtin /focus slash command
     local legacyfocus = SlashCmdList.PFFOCUS
     function SlashCmdList.PFFOCUS(msg)
+      -- octo: ClassicAPI's real focus unit first (focus.lua follows it)
+      if msg == "" and C_UnitAuras and _G.FocusUnit then return legacyfocus(msg) end
+
       -- try to perform guid based focus
       local guid = focus("target")
 

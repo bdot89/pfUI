@@ -115,7 +115,9 @@ end
   local function OnUpdate(self)
     local self = self or this
 
-    if self.text_mouse == "1" then
+    -- (the mouse looked for 20 times a second, not on every frame)
+    if self.text_mouse == "1" and (self.mousetick or 0) <= GetTime() then
+      self.mousetick = GetTime() + .05
       if MouseIsOver(self) then
         self.bar.text:Show()
       else
