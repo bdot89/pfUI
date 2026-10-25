@@ -578,36 +578,154 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return SizeOnly(f) .. "\n|cff88ccff" .. T["on"] .. " " .. NiceLabel(to.drag and to.drag.label or to:GetName() or "?") .. "|r"
   end
 
+  -- the one line under the numbers: button size, raid grid, what it is on
+  local function SizeInfo(f)
+    local info = {}
+    if f == _G.pfRaidCluster then
+      local cfg = C.unitframes.raid
+      local cols, rows = SZ.RaidGrid(cfg.raidlayout)
+      table.insert(info, T["each"] .. " " .. (cfg.width or "?") .. " x " .. (cfg.height or "?") .. ", " .. cols .. " x " .. rows)
+    end
+    local i = BarIndex(f)
+    if i then
+      local px = (tonumber(C.bars["bar" .. i].icon_size) or 0) * f:GetScale()
+      table.insert(info, T["buttons"] .. " " .. (floor(px * 10 + .5) / 10) .. " px")
+    end
+    local to = Holder(f)
+    if to then table.insert(info, "|cff88ccff" .. T["on"] .. " " .. NiceLabel(to.drag and to.drag.label or to:GetName() or "?") .. "|r") end
+    return table.concat(info, "  ")
+  end
+
+  local Resize, SetBoxSize -- (below)
+
   local function SizeOnUpdate()
+    local sb = this.sizebox
+    -- (kept while the mouse is on it or a number is being typed)
+    if sb and (sb.editing or MouseIsOver(sb)) then this.sizeUntil = GetTime() + .4 return end
     if this.sizeUntil and GetTime() < this.sizeUntil then return end
     if this.hover then return end
     this.sizeUntil = nil
-    if this.sizebox then this.sizebox:Hide() end
+    if sb then sb:Hide() end
     this:SetScript("OnUpdate", nil)
   end
 
-  -- a small dark tag under the box (over it near the bottom of the screen)
-  -- with the size in gold: the box's own label stays as it is
+  -- octo (user, 25 Oct 2026: "you should be [able to] edit here for quick
+  -- resizing ... make it clear small and easy"): the tag under the box is a
+  -- small editor - width x height and the scale in %, typed (Enter) or
+  -- turned with the mouse wheel over the number (Shift: 10 a notch), and
+  -- - / + for one notch of the box's own wheel.
+  local function NumBox(sb, width, apply, step)
+    local e = CreateFrame("EditBox", nil, sb)
+    e:SetWidth(width)
+    e:SetHeight(16)
+    e:SetAutoFocus(false)
+    e:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+    e:SetJustifyH("CENTER")
+    e:SetTextColor(1, .82, 0)
+    e:SetTextInsets(2, 2, 0, 0)
+    CreateBackdrop(e, nil, true)
+    e:SetBackdropColor(0, 0, 0, .85)
+    e.apply, e.step = apply, step
+    e:SetScript("OnEditFocusGained", function() this:GetParent().editing = this this:HighlightText() end)
+    e:SetScript("OnEditFocusLost", function()
+      if this:GetParent().editing == this then this:GetParent().editing = nil end
+    end)
+    e:SetScript("OnEscapePressed", function() this:ClearFocus() ShowSize(this:GetParent().d) end)
+    e:SetScript("OnEnterPressed", function()
+      local v = tonumber((string.gsub(this:GetText() or "", "[^%d%.]", "")))
+      this:ClearFocus()
+      if v then this.apply(v) end
+      ShowSize(this:GetParent().d)
+    end)
+    e:EnableMouseWheel(true)
+    e:SetScript("OnMouseWheel", function()
+      local v = tonumber((string.gsub(this:GetText() or "", "[^%d%.]", "")))
+      if not v then return end
+      this:ClearFocus()
+      this.apply(v + (arg1 or 0) * this.step * (IsShiftKeyDown() and 10 or 1))
+      ShowSize(this:GetParent().d)
+    end)
+    -- (a tooltip on the numbers: what they do)
+    e:SetScript("OnEnter", function()
+      GameTooltip:SetOwner(this, "ANCHOR_BOTTOMRIGHT")
+      GameTooltip:SetText(this.tipTitle or "", 1, 1, 1)
+      GameTooltip:AddLine(T["Type a number and press Enter, or turn the mouse wheel over it (Shift: 10 at a time)."], .8, .8, .8, 1)
+      GameTooltip:Show()
+    end)
+    e:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return e
+  end
+
+  local function SmallButton(sb, text, run)
+    local b = CreateFrame("Button", nil, sb)
+    b:SetWidth(16)
+    b:SetHeight(16)
+    CreateBackdrop(b, nil, true)
+    b:SetBackdropColor(.05, .05, .05, .9)
+    b.text = b:CreateFontString(nil, "OVERLAY")
+    b.text:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE")
+    b.text:SetPoint("CENTER", 0, 1)
+    b.text:SetText(text)
+    b.text:SetTextColor(1, .82, 0)
+    b:SetScript("OnEnter", function() this:SetBackdropBorderColor(1, .82, 0, 1) end)
+    b:SetScript("OnLeave", function() this:SetBackdropBorderColor(GetStringColor(C.appearance.border.color)) end)
+    b:SetScript("OnClick", run)
+    return b
+  end
+
+  local function SizeEditor(d)
+    local sb = CreateFrame("Frame", nil, d)
+    sb.d = d
+    sb:SetFrameLevel(d:GetFrameLevel() + 4)
+    sb:SetWidth(150)
+    sb:SetHeight(44)
+    sb:EnableMouse(true)
+    CreateBackdrop(sb, nil, true, .92)
+    local function Font(fs, r, g, b)
+      fs:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+      fs:SetTextColor(r, g, b)
+      return fs
+    end
+    -- width x height
+    sb.wbox = NumBox(sb, 44, function(v) SetBoxSize(d.frame, v, nil) end, 1)
+    sb.wbox.tipTitle = T["Width"]
+    sb.wbox:SetPoint("TOPRIGHT", sb, "TOP", -8, -5)
+    sb.xmark = Font(sb:CreateFontString(nil, "OVERLAY"), .6, .6, .6)
+    sb.xmark:SetPoint("LEFT", sb.wbox, "RIGHT", 3, 0)
+    sb.xmark:SetText("x")
+    sb.hbox = NumBox(sb, 44, function(v) SetBoxSize(d.frame, nil, v) end, 1)
+    sb.hbox.tipTitle = T["Height"]
+    sb.hbox:SetPoint("TOPLEFT", sb, "TOP", 8, -5)
+    -- - [ % ] +
+    sb.pbox = NumBox(sb, 44, function(v) SetBoxSize(d.frame, nil, nil, v / 100) end, 1)
+    sb.pbox.tipTitle = T["Scale in %"]
+    sb.pbox:SetPoint("TOP", sb, "TOP", 0, -24)
+    sb.minus = SmallButton(sb, "-", function() Resize(d, -1) end)
+    sb.minus:SetPoint("RIGHT", sb.pbox, "LEFT", -6, 0)
+    sb.plus = SmallButton(sb, "+", function() Resize(d, 1) end)
+    sb.plus:SetPoint("LEFT", sb.pbox, "RIGHT", 6, 0)
+    sb.info = Font(sb:CreateFontString(nil, "OVERLAY"), .8, .8, .8)
+    sb.info:SetPoint("TOP", sb, "TOP", 0, -45)
+    return sb
+  end
+
+  -- the editor under the box (over it near the bottom of the screen): the
+  -- box's own label stays as it is
   ShowSize = function(d, hold)
     if not d or not d.frame then return end
-    if not d.sizebox then
-      local sb = CreateFrame("Frame", nil, d)
-      sb:SetFrameLevel(d:GetFrameLevel() + 4)
-      sb:SetHeight(30)
-      CreateBackdrop(sb, nil, true, .9)
-      sb.text = sb:CreateFontString(nil, "OVERLAY")
-      sb.text:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
-      sb.text:SetPoint("CENTER", 0, 0)
-      sb.text:SetTextColor(1, .82, 0)
-      d.sizebox = sb
-    end
+    if not d.sizebox then d.sizebox = SizeEditor(d) end
     local sb = d.sizebox
     -- (the same size on screen however the frame is scaled)
     local s = UIScale(d)
     if s > 0 then sb:SetScale(1 / s) end
-    sb.text:SetText(SizeText(d.frame))
-    sb:SetWidth(math.max(60, (sb.text:GetStringWidth() or 60) + 14))
-    sb:SetHeight((sb.text:GetHeight() or 24) + 8)
+    local w, h = ScreenSize(d.frame)
+    if sb.editing ~= sb.wbox then sb.wbox:SetText(floor(w + .5)) end
+    if sb.editing ~= sb.hbox then sb.hbox:SetText(floor(h + .5)) end
+    if sb.editing ~= sb.pbox then sb.pbox:SetText(floor(d.frame:GetScale() * 100 + .5) .. "%") end
+    local info = SizeInfo(d.frame)
+    sb.info:SetText(info)
+    sb:SetWidth(math.max(150, (sb.info:GetStringWidth() or 0) + 16))
+    sb:SetHeight(info ~= "" and 60 or 44)
     sb:ClearAllPoints()
     local bottom = d:GetBottom()
     if bottom and bottom * UIScale(d) < 60 then
@@ -654,7 +772,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   end
 
   -- one notch of the wheel (dir 1 / -1) or of the nudge box's - / +
-  local function Resize(d, dir)
+  Resize = function(d, dir)
     if d.frame == _G.pfRaidCluster then
       ResizeRaid(d, dir, IsShiftKeyDown() and 5 or 1)
       return
@@ -961,7 +1079,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       end
       if to.UpdateFrameSize then to:UpdateFrameSize() end
     elseif meter then
-      C.meters["width" .. meter], C.meters["height" .. meter] = tostring(w), tostring(h)
+      -- (each window's own settings since the meters' phase 1: C.meters.winN)
+      local mc = C.meters["win" .. meter] or C.meters
+      mc.width, mc.height = tostring(w), tostring(h)
       to:SetWidth(w)
       to:SetHeight(h)
       if to.OnMove then to:OnMove() end
@@ -975,6 +1095,79 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     if to.drag then ShowSize(to.drag) end
     Say(NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " "
       .. NiceLabel(from.drag.label) .. " (" .. w .. (tk and fk and fk[1] == tk[1] and "" or (" x " .. h)) .. ")")
+  end
+
+  -- a box to a typed size (UIParent px; nil = leave it) or scale. Frames
+  -- whose size is a setting get the setting: unit frames and cast bars
+  -- (their own width / height, the portrait kept), the meter windows, the
+  -- raid frames (each frame's size from the whole raid's, the grid kept).
+  -- Anything else is scaled: to the width, else the height, else scale.
+  SetBoxSize = function(f, w, h, scale)
+    local cw, ch, s = ScreenSize(f)
+    if cw <= 0 or ch <= 0 or s <= 0 then return end
+    local name = f:GetName() or ""
+    local tk = SIZES[name]
+    local _, _, meter = string.find(name, "^pfMeter(%d)$")
+    local raid = pfUI.uf and pfUI.uf.raid
+    if scale then
+      scale = math.max(SZ.MIN, math.min(SZ.MAX, scale))
+      KeepPlaces({ f }, function() SaveScale(f, floor(scale * 1000 + .5) / 1000) end)
+    elseif f == _G.pfRaidCluster and raid and raid[1] and raid.UpdateConfig then
+      local cfg = C.unitframes.raid
+      local cols, rows = SZ.RaidGrid(cfg.raidlayout)
+      local gap = (tonumber(cfg.raidpadding) or 0) * GetPerfectPixel()
+      local _, border = GetBorderSize("unitframes")
+      KeepPlaces({ f }, function()
+        if math.abs(f:GetScale() - 1) > .001 then
+          f:SetScale(1)
+          if C.position[name] then C.position[name].scale = nil end
+        end
+        if w then
+          local extra = (raid[1]:GetWidth() or 0) - (tonumber(cfg.width) or 0)
+          cfg.width = tostring(math.max(20, math.min(400, floor(SZ.RaidFrameWidth(w, cols, gap, border) - extra + .5))))
+        end
+        if h then
+          local extra = (raid[1]:GetHeight() or 0) - (tonumber(cfg.height) or 0)
+          cfg.height = tostring(math.max(4, math.min(100, floor(SZ.RaidFrameWidth(h, rows, gap, border) - extra + .5))))
+        end
+        raid:UpdateConfig()
+      end)
+    elseif tk then
+      local cfg = C[tk[1]][tk[2]]
+      KeepPlaces({ f }, function()
+        if w then
+          local own = tonumber(cfg.width) or 0
+          local extra = own > 0 and ((f:GetWidth() or 0) - own) or 0
+          cfg.width = tostring(math.max(10, floor(w / s - extra + .5)))
+        end
+        if h then
+          local own = tonumber(cfg.height) or 0
+          local extra = own > 0 and ((f:GetHeight() or 0) - own) or 0
+          cfg.height = tostring(math.max(2, floor(h / s - extra + .5)))
+        end
+        if tk[1] == "castbar" then
+          if w then f:SetWidth(tonumber(cfg.width)) end
+          if h then f:SetHeight(tonumber(cfg.height)) end
+          if pfUI.castbarOcto and pfUI.castbarOcto.Apply then pfUI.castbarOcto.Apply(tk[2]) end
+        elseif pfUI.ufOcto and pfUI.ufOcto.Apply then
+          pfUI.ufOcto.Apply(tk[2])
+        elseif f.UpdateFrameSize then
+          f:UpdateFrameSize()
+        end
+      end)
+    elseif meter then
+      local mc = C.meters["win" .. meter] or C.meters
+      if w then mc.width = tostring(floor(w / s + .5)) f:SetWidth(tonumber(mc.width)) end
+      if h then mc.height = tostring(floor(h / s + .5)) f:SetHeight(tonumber(mc.height)) end
+      SavePosition(f)
+      if f.OnMove then f:OnMove() end
+    else
+      local k = w and (w / cw) or h and (h / ch) or 1
+      local ns = math.max(SZ.MIN, math.min(SZ.MAX, f:GetScale() * k))
+      KeepPlaces({ f }, function() SaveScale(f, floor(ns * 1000 + .5) / 1000) end)
+    end
+    if f.drag then ShowSize(f.drag) end
+    UpdateDockValues()
   end
 
   -- [ match menu ]
@@ -1489,6 +1682,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.OpenMatchMenu = OpenMatchMenu
   pfUI.unlock.LockTo, pfUI.unlock.Unlock, pfUI.unlock.LockBack = LockTo, Unlock, LockBack
   pfUI.unlock.LockChoices, pfUI.unlock.Holder = LockChoices, Holder
+  pfUI.unlock.SetBoxSize = SetBoxSize
 
   -- /moveui (ElvUI's command), /pfmove
   _G.SLASH_PFMOVEUI1, _G.SLASH_PFMOVEUI2 = "/moveui", "/pfmove"

@@ -344,6 +344,15 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      the old values for UF.Undo; gold "Copy from..." at the end of the section tabs (section "Size and
      bars" is now "Size") = W.Menu of frames, then of parts, and Undo. Cast bars page: CB.Copy /
      CB.Undo / CB.CopyMenu (all but hide_*).
+   - Size tag = editor (25 Oct 2026, NOT seen in game; user: "you should be [able to] edit here for
+     quick resizing ... clear small and easy"). unlock.lua SizeEditor(d): width x height and % as
+     small gold EditBoxes (Enter applies, Esc puts back, wheel over one = +-1, Shift 10), - / + =
+     one notch (Resize); a grey line under them (button size, raid grid, "on <frame>"). Stays up
+     while the mouse is on it or a number is being typed. Field names wbox / hbox / pbox (the test
+     mock keeps sizes in .w / .h). SetBoxSize(f, w, h, scale): unit frames / cast bars set their
+     width / height settings (portrait part kept), meters C.meters.winN, raid per-frame sizes from
+     the whole raid (grid kept), anything else scaled to the width / height; MatchSize's meter
+     branch now writes C.meters.winN too (it wrote the old pre-phase-1 keys).
    - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
      .children on frames) and has a real SetParent.
    - Seen in game 20 Oct ("looking better"). Then: right-click on a box only closed layout mode

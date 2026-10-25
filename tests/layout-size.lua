@@ -115,7 +115,32 @@ if AB and main and top then
   _G.this, _G.arg1 = main.drag, 1
   main.drag:GetScript("OnMouseWheel")()
   ok(near(main:GetScale(), s0 + .02), "one notch of the wheel = 2% (" .. s0 .. " -> " .. main:GetScale() .. ")")
-  ok(main.drag.sizebox and main.drag.sizebox:IsShown() and string.find(main.drag.sizebox.text:GetText(), "buttons"), "the size shows under the box while it changes")
+  local sb = main.drag.sizebox
+  ok(sb and sb:IsShown() and string.find(sb.info:GetText(), "buttons") and tonumber(sb.wbox:GetText()), "the size shows under the box while it changes")
+  -- the tag is an editor: type the % and press Enter
+  if sb then
+    sb.pbox:SetText("110%")
+    _G.this = sb.pbox
+    Mock.Run(sb.pbox, "OnEnterPressed")
+    ok(near(main:GetScale(), 1.1) and sb.pbox:GetText() == "110%", "typing 110% in the tag scales the bar (" .. main:GetScale() .. ")")
+    -- the wheel over the % turns it a point
+    _G.this = sb.pbox
+    Mock.Run(sb.pbox, "OnMouseWheel", 1)
+    ok(near(main:GetScale(), 1.11), "the wheel over the % adds one (" .. main:GetScale() .. ")")
+    -- - / + = a notch of the box's wheel
+    local s1 = main:GetScale()
+    _G.this = sb.minus
+    Mock.Run(sb.minus, "OnClick", "LeftButton")
+    ok(near(main:GetScale(), s1 - .02), "- in the tag = one notch smaller")
+    -- a width typed: a bar is scaled to it (the mock's frames report scale 1
+    -- on screen, so the shown width is the frame's own)
+    local s2, w0 = main:GetScale(), main:GetWidth()
+    sb.wbox:SetText(tostring(w0 * 1.2))
+    _G.this = sb.wbox
+    Mock.Run(sb.wbox, "OnEnterPressed")
+    ok(near(main:GetScale(), s2 * 1.2, .002), "typing a width scales the bar to it (" .. s2 .. " -> " .. main:GetScale() .. ")")
+  end
+  s0 = main:GetScale() - .02  -- (so s0 - .08 = 10% under where it is)
   Mock.shift = true
   _G.this, _G.arg1 = main.drag, -1
   main.drag:GetScript("OnMouseWheel")()
@@ -190,6 +215,20 @@ do
   U:Hide()
   C.position.pfTestLockA, C.position.pfTestLockB, C.position.pfTestMana = nil, nil, nil
   pfUI.movables = real
+end
+
+-- a typed size on a frame whose size is a setting: the setting changes
+do
+  local pf, set = _G.pfPlayer, U.SetBoxSize
+  ok(set, "pfUI.unlock.SetBoxSize")
+  if pf and set and C.unitframes.player then
+    local keep = { C.unitframes.player.width, C.unitframes.player.height }
+    set(pf, (pf:GetWidth() or 0) + 20, nil)
+    ok(tonumber(C.unitframes.player.width) == tonumber(keep[1]) + 20, "a typed width on the player frame is its Width setting ("
+      .. tostring(keep[1]) .. " -> " .. tostring(C.unitframes.player.width) .. ")")
+    C.unitframes.player.width, C.unitframes.player.height = keep[1], keep[2]
+    if pfUI.ufOcto then pfUI.ufOcto.Apply("player") end
+  end
 end
 
 -- ---------------------------------------------------------------- the raid grid
