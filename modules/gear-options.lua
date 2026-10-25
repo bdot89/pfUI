@@ -692,6 +692,8 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     Chk(p, "Item menu on the slots", "Hover a slot of your character for what can go in it.", "sheet")
     Chk(p, "Only with Shift held", nil, "sheetshift")
     Chk(p, "Sets beside the window", nil, "sheetpanel")
+    Chk(p, "Tooltips under the sets", "While the character window is open, item tooltips from its slots and menus sit in one place under the gear sets.", "sheettip")
+    Sld(p, "Gear tooltip size", "Item tooltips on the gear buttons, menus and under the sets.", .5, 1.2, .05, "sheettipscale", function(v) return math.floor(v * 100 + .5) .. "%" end)
     W.Dropdown(p, "Which side", nil, { { key = "right", label = "Right" }, { key = "left", label = "Left" } },
       function() return C.gear.sheetside end, function(v) C.gear.sheetside = v U() end)
 

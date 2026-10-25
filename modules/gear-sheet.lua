@@ -185,7 +185,8 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
       end
       if fly.hint then GameTooltip:AddLine(fly.hint, .6, .8, 1) end
       GameTooltip:Show()
-      GR.TipClear(true)
+      -- (from the character window: the tooltip goes under the gear sets)
+      if fly.sheet and PaperDollFrame and PaperDollFrame:IsVisible() and C.gear.sheettip ~= "0" then GR.DockTip() else GR.TipClear(true) end
     end)
     b:SetScript("OnLeave", function()
       this:SetBackdropBorderColor(.2, .2, .24, 1)
@@ -202,6 +203,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     if opts.empty ~= false and GR.Worn(inv) and C.gear.allowempty ~= "0" then table.insert(items, "empty") end
     if table.getn(items) == 0 then fly:Hide() return end
     fly.owner, fly.onPick, fly.hint = owner, onPick, opts.hint
+    fly.sheet = nil
     fly.args = { owner, inv, onPick, opts }
     -- (the Gear page lists its own items: no hiding there)
     fly.noHide = opts.items ~= nil
@@ -233,43 +235,53 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     fly:Show()
   end
   -- it closes a moment after the mouse leaves it and its slot
-  -- A tooltip never covers the item menu (user, 25 Oct 2026: "it should always
-  -- NEVER cover this and move around the gear selection frame"): an item in the
-  -- menu shows its tooltip beside the menu, away from the slot it opened from;
-  -- the slot's own tooltip moves to the slot's other side.
+  -- A tooltip never covers an item menu or the button that opened it (user,
+  -- 25 Oct 2026: "it should always NEVER cover this", "stop tooltips doing this
+  -- anywhere its ugly"): it sits beside the two of them together, on the side
+  -- with more room, lined up with their bottom in the lower half of the screen
+  -- (their top in the upper half), and a little smaller (C.gear.sheettipscale).
   local function Rect(f)
     local s = f:GetEffectiveScale() or 1
     local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
     if not (l and r and t and b) then return end
     return l * s, r * s, t * s, b * s
   end
-  function GR.TipClear(item)
-    if not fly:IsShown() or not GameTooltip:IsShown() then return end
-    local fl, fr, ft, fb = Rect(fly)
-    if not fl then return end
-    local tl, tr, tt, tb = Rect(GameTooltip)
-    -- (just placed with no anchor yet: always place it)
-    if tl and not item and (tr <= fl or tl >= fr or tt <= fb or tb >= ft) then return end
-    local owner = fly.owner
-    local ol, or2, ot, ob
-    if owner and owner.GetLeft then ol, or2, ot, ob = Rect(owner) end
-    GameTooltip:ClearAllPoints()
-    if item or MouseIsOver(fly) then
-      -- beside the menu, on the side away from its slot
-      if ol and or2 <= fl + 1 then GameTooltip:SetPoint("TOPLEFT", fly, "TOPRIGHT", 4, 0)
-      elseif ol and ol >= fr - 1 then GameTooltip:SetPoint("TOPRIGHT", fly, "TOPLEFT", -4, 0)
-      elseif ol and ob >= ft - 1 then GameTooltip:SetPoint("TOPLEFT", fly, "BOTTOMLEFT", 0, -4)
-      else GameTooltip:SetPoint("BOTTOMLEFT", fly, "TOPLEFT", 0, 4) end
-    elseif ol then
-      -- the slot's tooltip: on the slot's other side from the menu
-      if fr <= ol + 1 then GameTooltip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
-      elseif fl >= or2 - 1 then GameTooltip:SetPoint("TOPRIGHT", owner, "TOPLEFT", -4, 0)
-      elseif fb >= ot - 1 then GameTooltip:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -4)
-      else GameTooltip:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 4) end
-    else
-      GameTooltip:SetPoint("BOTTOMLEFT", fly, "TOPLEFT", 0, 4)
+  function GR.ShrinkTip()
+    if not GR.tipScaled then
+      GR.tipScaled = GameTooltip:GetScale() or 1
+      GameTooltip:SetScale((tonumber(C.gear.sheettipscale) or .85) * GR.tipScaled)
     end
   end
+  function GR.TipClear(force)
+    if not fly:IsShown() or not GameTooltip:IsShown() then return end
+    -- (docked under the gear sets: it stays there)
+    if GR.tipDocked then return end
+    local l, r, t, b = Rect(fly)
+    if not l then return end
+    local owner = fly.owner
+    if owner and owner.GetLeft then
+      local ol, or2, ot, ob = Rect(owner)
+      if ol then l, r, t, b = math.min(l, ol), math.max(r, or2), math.max(t, ot), math.min(b, ob) end
+    end
+    local tl, tr, tt, tb = Rect(GameTooltip)
+    if not force and tl and (tr <= l or tl >= r or tt <= b or tb >= t) then return end
+    GR.ShrinkTip()
+    local ui = UIParent:GetEffectiveScale() or 1
+    local sw = (GetScreenWidth() or 1024) * ui
+    local sh = (GetScreenHeight() or 768) * ui
+    local ts = GameTooltip:GetEffectiveScale() or 1
+    local right = (sw - r) >= l
+    local low = (t + b) / 2 < sh / 2
+    local pt = (low and "BOTTOM" or "TOP") .. (right and "LEFT" or "RIGHT")
+    local x = right and (r + 4) or (l - 4)
+    local y = low and b or t
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint(pt, UIParent, "BOTTOMLEFT", x / ts, y / ts)
+  end
+  -- (the tooltip's own size back for every other tooltip)
+  HookScript(GameTooltip, "OnHide", function()
+    if GR.tipScaled then GameTooltip:SetScale(GR.tipScaled) GR.tipScaled = nil end
+  end)
 
   fly:SetScript("OnUpdate", function()
     GR.TipClear()
@@ -311,9 +323,35 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
           local left = inv == 1 or inv == 2 or inv == 3 or inv == 15 or inv == 5 or inv == 4 or inv == 19 or inv == 9
           local side = (inv == 16 or inv == 17 or inv == 18) and "BOTTOM" or (left and "RIGHT" or "LEFT")
           GR.Flyout(this, inv, function(item) GR.EquipItem(inv, item) end, { side = side })
+          GR.flyout.sheet = true
+          GR.DockTip()
         end)
       end
     end
+  end
+
+  -- While the character window is open, item tooltips from its slots and their
+  -- item menus sit in one place: under the gear sets panel, a little smaller
+  -- (user, 25 Oct 2026: "a dedicated tooltip window on the right side of the
+  -- character frame under gear sets" - they jumped about near the screen edge).
+  -- C.gear.sheettip on / off, C.gear.sheettipscale.
+  function GR.DockTip()
+    if C.gear.sheettip == "0" or not (PaperDollFrame and PaperDollFrame:IsVisible()) or not GameTooltip:IsShown() then return end
+    local at = GR.sheet and GR.sheet:IsShown() and GR.sheet or (CharacterFrame or PaperDollFrame)
+    GR.ShrinkTip()
+    GameTooltip:ClearAllPoints()
+    if at == GR.sheet then
+      if C.gear.sheetside == "left" then GameTooltip:SetPoint("TOPRIGHT", at, "BOTTOMRIGHT", 0, -4)
+      else GameTooltip:SetPoint("TOPLEFT", at, "BOTTOMLEFT", 0, -4) end
+    else
+      GameTooltip:SetPoint("TOPLEFT", at, "TOPRIGHT", -28, -16)
+    end
+    GR.tipDocked = true
+  end
+  HookScript(GameTooltip, "OnHide", function() GR.tipDocked = nil end)
+  if hooksecurefunc and PaperDollItemSlotButton_OnEnter then
+    -- (the slot sets its tooltip again every moment it is hovered)
+    hooksecurefunc("PaperDollItemSlotButton_OnEnter", function() GR.DockTip() end)
   end
 
   -- the gear sets panel beside the character window
@@ -508,6 +546,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
         GameTooltip:Show()
       end
       if C.gear.trinketmenu ~= "0" and C.gear.trinketmenuclick ~= "1" and (C.gear.trinketshift ~= "1" or IsShiftKeyDown()) then GR.TrinketMenu(this) end
+      if GR.TipClear then GR.TipClear(true) end
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     bar.slots[i] = b
