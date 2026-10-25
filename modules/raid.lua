@@ -46,22 +46,25 @@ pfUI:RegisterModule("raid", "vanilla:tbc", function ()
     -- one box layout mode shows for them (user, 20 Oct 2026: "the raid frame
     -- is one big window not lots of multiple ones"). Frames moved one by one
     -- before go back into the grid.
+    -- (25 Oct 2026) growth: o_growy UP (first row at the bottom, pfUI's way)
+    -- or DOWN, o_growx RIGHT or LEFT (first column on the right)
+    local cfg = pfUI.uf.raid[1].config
+    local down, left = cfg.o_growy == "DOWN", cfg.o_growx == "LEFT"
+    local corner = (down and "TOP" or "BOTTOM") .. (left and "RIGHT" or "LEFT")
+    local sx, sy = left and -1 or 1, down and -1 or 1
+    local function Put(f, r, g)
+      f:ClearAllPoints()
+      f:SetPoint(corner, cluster, corner, sx*(r-1)*(padding+width), sy*(g-1)*(padding+height))
+      RemoveMovable(f)
+    end
     if fill == "VERTICAL" then
       for r=1, x do for g=1, y do
-        if pfUI.uf.raid[i] then
-          pfUI.uf.raid[i]:ClearAllPoints()
-          pfUI.uf.raid[i]:SetPoint("BOTTOMLEFT", (r-1)*(padding+width), (g-1)*(padding+height))
-          RemoveMovable(pfUI.uf.raid[i])
-        end
+        if pfUI.uf.raid[i] then Put(pfUI.uf.raid[i], r, g) end
         i = i + 1
       end end
     else
       for g=1, y do for r=1, x do
-        if pfUI.uf.raid[i] then
-          pfUI.uf.raid[i]:ClearAllPoints()
-          pfUI.uf.raid[i]:SetPoint("BOTTOMLEFT", (r-1)*(padding+width), (g-1)*(padding+height))
-          RemoveMovable(pfUI.uf.raid[i])
-        end
+        if pfUI.uf.raid[i] then Put(pfUI.uf.raid[i], r, g) end
         i = i + 1
       end end
     end

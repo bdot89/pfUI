@@ -41,9 +41,10 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["Combo%d"]       = { "ufframes", nil },
 
     -- groupframes
-    ["Raid%d"]        = { "ufframes", "raid" },
-    ["Raid%d%d"]      = { "ufframes", "raid" },
-    ["RaidCluster"]   = { "ufframes", "raid" },
+    -- (octo: the third field = the card that opens, here the raid layout)
+    ["Raid%d"]        = { "ufframes", "raid", "Raid layout" },
+    ["Raid%d%d"]      = { "ufframes", "raid", "Raid layout" },
+    ["RaidCluster"]   = { "ufframes", "raid", "Raid layout" },
 
     -- octo: meters and combat text (an Octo page key opens that page)
     ["Meter%d"]       = { "mtwindows", nil },
@@ -100,12 +101,12 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["TargetDebuffBar"] = { "bfbuffs", "tdebuff" },
   }
 
-  local function GetFrames()
+  local function GetFrames(base)
     -- Return frames based on Ctrl and Shift state
-    -- 'this'   [frame]       the base frame
+    -- 'this'   [frame]       the base frame (octo: or base, from the nudge box)
     -- return   [list]        all frames that should be selected
 
-    local frame = this.frame
+    local frame = base or this.frame
     local frames = { frame }
 
     if IsShiftKeyDown() or IsControlKeyDown() then
@@ -174,14 +175,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return s
   end
 
-  local function DraggerOnUpdate()
-    this.text:SetAlpha(this.text:GetAlpha() -0.05)
-    if this.text:GetAlpha() < 0.1 then
-      this.text:SetText(NiceLabel(strsub(this:GetParent():GetName(),3)))
-      this.text:SetAlpha(1)
-      this:SetScript("OnUpdate", function() return end)
-    end
-  end
+  local ShowSize -- (below: the box's size readout)
 
   local function SaveScale(frame, scale)
     frame:SetScale(scale)
@@ -194,10 +188,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     -- takes the new size there too, so its next refresh keeps it
     if frame.OnScale then frame:OnScale(scale) end
 
-    frame.drag.text:SetText(T["Scale"] .. ": " .. scale)
-    frame.drag.text:SetAlpha(1)
-
-    frame.drag:SetScript("OnUpdate", DraggerOnUpdate)
+    if frame.drag then ShowSize(frame.drag) end
   end
 
   local function SavePosition(frame)
@@ -427,23 +418,242 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return x / s, y / s
   end
 
+  -- [ sizes ]
+  -- octo (user, 25 Oct 2026: "when resizing ... they jump in size between
+  -- its not smooth ... hard to match sizes to other bars"). The wheel changed
+  -- the scale by 0.1 a notch (a 500 px bar jumped 50 px) and the saved place,
+  -- kept in the frame's own units, moved with the scale. Now a notch is 2%
+  -- (Shift 10%, Ctrl 0.5%), the point the frame is saved at stays put
+  -- (KeepPlaces), the box shows its size while it changes, and the raid
+  -- frames get a real width and height (raid.lua lays the grid out again)
+  -- instead of a scale that left uneven gaps between them.
+  local SZ = { MIN = .3, MAX = 3 }
+  function SZ.Step(shift, ctrl)
+    if shift then return .1 elseif ctrl then return .005 end
+    return .02
+  end
+  function SZ.Next(cur, dir, step)
+    local v = (tonumber(cur) or 1) + (dir or 0) * (step or .02)
+    if v < SZ.MIN then v = SZ.MIN elseif v > SZ.MAX then v = SZ.MAX end
+    return floor(v * 1000 + .5) / 1000
+  end
+  -- a frame's anchor point on screen (UIParent units) from its offsets
+  -- (frame units at scale s), and back
+  function SZ.Point(anchor, x, y, s, w, h)
+    local px, py = x * s, y * s
+    if strfind(anchor, "RIGHT") then px = w + px elseif not strfind(anchor, "LEFT") then px = w / 2 + px end
+    if strfind(anchor, "TOP") then py = h + py elseif not strfind(anchor, "BOTTOM") then py = h / 2 + py end
+    return px, py
+  end
+  function SZ.Offsets(anchor, px, py, s, w, h)
+    if strfind(anchor, "RIGHT") then px = px - w elseif not strfind(anchor, "LEFT") then px = px - w / 2 end
+    if strfind(anchor, "TOP") then py = py - h elseif not strfind(anchor, "BOTTOM") then py = py - h / 2 end
+    return px / s, py / s
+  end
+  -- raid.lua: cluster width = cols * (frame + 2 borders + gap) - gap
+  function SZ.RaidFrameWidth(clusterw, cols, gap, border)
+    return (clusterw + gap) / cols - gap - 2 * border
+  end
+  -- a raid frame one step wider or narrower; the height follows (ratio =
+  -- height / width when the sizing started, so the shape does not drift)
+  function SZ.RaidStep(w, ratio, dir, step)
+    local nw = w + dir * step
+    if nw < 20 then nw = 20 elseif nw > 400 then nw = 400 end
+    local nh = floor(nw * ratio + .5)
+    if nh < 4 then nh = 4 elseif nh > 100 then nh = 100 end
+    return nw, nh
+  end
+  -- columns and rows of the raid grid ("5x8")
+  function SZ.RaidGrid(layout)
+    local _, _, x, y = string.find(layout or "", "(%d+)x(%d+)")
+    return tonumber(x) or 5, tonumber(y) or 8
+  end
+
+  local function ScreenSize(f)
+    local s = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    return (f:GetWidth() or 0) * s, (f:GetHeight() or 0) * s, s
+  end
+
+  -- where a frame is saved, on screen: from its saved offsets, never from its
+  -- edges (the client reports those a screen update late). The point from
+  -- the last resize is reused while the saved numbers are the ones it left,
+  -- so pfUI's whole-number rounding does not creep in notch after notch.
+  -- Frames on their default place (often tied to another frame) have none.
+  local function FixedPoint(f)
+    local pos = C.position[f:GetName() or ""]
+    if not pos or not pos.xpos or not pos.ypos then return end
+    if pos.parent and pos.parent ~= "UIParent" or f:GetParent() ~= UIParent then return end
+    local fix = f.unlockFix
+    if fix and fix.anchor == pos.anchor and fix.xpos == pos.xpos and fix.ypos == pos.ypos then
+      return fix.anchor, fix.px, fix.py
+    end
+    local a = pos.anchor or "TOPLEFT"
+    local px, py = SZ.Point(a, tonumber(pos.xpos) or 0, tonumber(pos.ypos) or 0, UIScale(f), GetScreenWidth(), GetScreenHeight())
+    return a, px, py
+  end
+
+  -- fn() changes the size of these frames; each stays on the point it is
+  -- saved at (the anchor of its screen third: a bar at the bottom grows up)
+  local function KeepPlaces(frames, fn)
+    local keep = {}
+    for _, f in pairs(frames) do
+      local a, px, py = FixedPoint(f)
+      if a then table.insert(keep, { f, a, px, py }) end
+    end
+    fn()
+    local w, h = GetScreenWidth(), GetScreenHeight()
+    for _, k in ipairs(keep) do
+      local f, a, px, py = k[1], k[2], k[3], k[4]
+      local x, y = SZ.Offsets(a, px, py, UIScale(f), w, h)
+      f:ClearAllPoints()
+      f:SetPoint(a, UIParent, a, x, y)
+      SaveMovable(f)
+      local pos = C.position[f:GetName()]
+      f.unlockFix = { anchor = pos.anchor, xpos = pos.xpos, ypos = pos.ypos, px = px, py = py }
+      UpdateMovable(f)
+      if f.OnMove then f:OnMove() end
+    end
+  end
+
+  local function BarIndex(f)
+    local AB = pfUI.barsOcto
+    return AB and AB.BarIndex and AB.BarIndex(f)
+  end
+
+  -- the readout: on the box while it changes or the mouse is on it, and in
+  -- the nudge box
+  local function SizeText(f)
+    local w, h = ScreenSize(f)
+    local txt = floor(w + .5) .. " x " .. floor(h + .5)
+    if f == _G.pfRaidCluster then
+      local cfg = C.unitframes.raid
+      local cols, rows = SZ.RaidGrid(cfg.raidlayout)
+      return txt .. "\n" .. T["each"] .. " " .. (cfg.width or "?") .. " x " .. (cfg.height or "?") .. ", " .. cols .. " x " .. rows
+    end
+    local pct = floor(f:GetScale() * 100 + .5) .. "%"
+    local i = BarIndex(f)
+    if i then
+      local px = (tonumber(C.bars["bar" .. i].icon_size) or 0) * f:GetScale()
+      return txt .. "\n" .. pct .. ", " .. T["buttons"] .. " " .. (floor(px * 10 + .5) / 10) .. " px"
+    end
+    return txt .. "\n" .. pct
+  end
+
+  local function SizeOnUpdate()
+    if this.sizeUntil and GetTime() < this.sizeUntil then return end
+    if this.hover then return end
+    this.sizeUntil = nil
+    if this.sizebox then this.sizebox:Hide() end
+    this:SetScript("OnUpdate", nil)
+  end
+
+  -- a small dark tag under the box (over it near the bottom of the screen)
+  -- with the size in gold: the box's own label stays as it is
+  ShowSize = function(d, hold)
+    if not d or not d.frame then return end
+    if not d.sizebox then
+      local sb = CreateFrame("Frame", nil, d)
+      sb:SetFrameLevel(d:GetFrameLevel() + 4)
+      sb:SetHeight(30)
+      CreateBackdrop(sb, nil, true, .9)
+      sb.text = sb:CreateFontString(nil, "OVERLAY")
+      sb.text:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+      sb.text:SetPoint("CENTER", 0, 0)
+      sb.text:SetTextColor(1, .82, 0)
+      d.sizebox = sb
+    end
+    local sb = d.sizebox
+    -- (the same size on screen however the frame is scaled)
+    local s = UIScale(d)
+    if s > 0 then sb:SetScale(1 / s) end
+    sb.text:SetText(SizeText(d.frame))
+    sb:SetWidth(math.max(60, (sb.text:GetStringWidth() or 60) + 14))
+    sb:SetHeight((sb.text:GetHeight() or 24) + 8)
+    sb:ClearAllPoints()
+    local bottom = d:GetBottom()
+    if bottom and bottom * UIScale(d) < 60 then
+      sb:SetPoint("BOTTOM", d, "TOP", 0, 4)
+    else
+      sb:SetPoint("TOP", d, "BOTTOM", 0, -4)
+    end
+    sb:Show()
+    d.sizeUntil = GetTime() + (hold or 1.5)
+    -- (not while it is dragged: the drag runs on this OnUpdate)
+    if not (drag.boxes and drag.boxes[1]) then d:SetScript("OnUpdate", SizeOnUpdate) end
+    if pfUI.unlock.dock and pfUI.unlock.dock.parent == d and pfUI.unlock.dock.size then
+      pfUI.unlock.dock.size:SetText(SizeText(d.frame))
+    end
+  end
+
+  -- the raid frames: a pixel wider or narrower a notch (Shift: 5), the
+  -- height in step, every frame laid out again by raid.lua
+  local function ResizeRaid(d, dir, step)
+    local cluster, raid = d.frame, pfUI.uf and pfUI.uf.raid
+    if not raid or not raid.UpdateConfig then return end
+    local cfg = C.unitframes.raid
+    local w, h = tonumber(cfg.width) or 50, tonumber(cfg.height) or 20
+    -- a scale left from before: becomes the frames' real size
+    local sc = cluster:GetScale()
+    if math.abs(sc - 1) > .001 then w, h = floor(w * sc + .5), floor(h * sc + .5) end
+    if not (d.raidShape and d.raidShape.w == w and d.raidShape.h == h) then
+      d.raidShape = { ratio = h / math.max(1, w) }
+    end
+    local nw, nh = SZ.RaidStep(w, d.raidShape.ratio, dir, step)
+    d.raidShape.w, d.raidShape.h = nw, nh
+    KeepPlaces({ cluster }, function()
+      if math.abs(sc - 1) > .001 then
+        cluster:SetScale(1)
+        if C.position[cluster:GetName()] then C.position[cluster:GetName()].scale = nil end
+      end
+      cfg.width, cfg.height = tostring(nw), tostring(nh)
+      raid:UpdateConfig()
+      -- (the options' preview of the raid frames too)
+      local UF = pfUI.ufOcto
+      if UF and UF.mini and UF.mini.Reconfigure then UF.mini.Reconfigure("raid") end
+    end)
+    ShowSize(d)
+  end
+
+  -- one notch of the wheel (dir 1 / -1) or of the nudge box's - / +
+  local function Resize(d, dir)
+    if d.frame == _G.pfRaidCluster then
+      ResizeRaid(d, dir, IsShiftKeyDown() and 5 or 1)
+      return
+    end
+    local frame = d.frame
+    local scale = SZ.Next(frame:GetScale(), dir, SZ.Step(IsShiftKeyDown(), IsControlKeyDown()))
+    pfUI.unlock.selection = GetFrames(frame)
+    KeepPlaces(pfUI.unlock.selection, function()
+      for _, f in pairs(pfUI.unlock.selection) do SaveScale(f, scale) end
+    end)
+    -- repaint hackfix for panels
+    if pfUI.panel and pfUI.chat and pfUI.panel.left and pfUI.chat.left and pfUI.panel.right and pfUI.chat.right then
+      pfUI.panel.left:SetScale(pfUI.chat.left:GetScale())
+      pfUI.panel.right:SetScale(pfUI.chat.right:GetScale())
+    end
+    if frame.OnMove then frame:OnMove() end
+    ShowSize(d)
+  end
+
   local function GetConfigTable(dlabel)
-    local cat, conf = nil, nil
+    local cat, conf, card = nil, nil, nil
     for label, config in pairs(frame_configs) do
       if string.gsub(dlabel, label, "") == "" then
-        cat, conf = config[1], config[2]
+        cat, conf, card = config[1], config[2], config[3]
       end
     end
 
-    return cat, conf
+    return cat, conf, card
   end
 
-  local function OpenConfigDialog(category, view)
+  local function OpenConfigDialog(category, view, card)
     -- octo: the OctoBG-style window opens the page itself
     local O = pfUI.octoui and pfUI.octoui.Options
     if O and O.Open and O.frame then
       pfUI.gui.keepLayout = true
       O:Open(category, view)
+      -- (a card of that page: opened, scrolled to and flashed)
+      if card and pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection(category, card) end
       pfUI.gui.keepLayout = nil
       return
     end
@@ -512,6 +722,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       dock.right.texture:SetVertexColor(.4,.4,.4)
     end
 
+    -- octo: the size readout
+    if dock.size then dock.size:SetText(SizeText(frame)) end
+
     -- update config button
     local cat, conf = GetConfigTable(drag.label)
     if cat then
@@ -540,26 +753,14 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   end
 
   local function DraggerOnMouseWheel()
-    local frame = this.frame
-    local scale = round(frame:GetScale() + arg1/10, 1)
-
-    pfUI.unlock.selection = GetFrames()
-    for id, frame in pairs(pfUI.unlock.selection) do
-      SaveScale(frame, scale)
-    end
-
-    -- repaint hackfix for panels
-    if pfUI.panel and pfUI.chat and pfUI.panel.left and pfUI.chat.left and pfUI.panel.right and pfUI.chat.right then
-      pfUI.panel.left:SetScale(pfUI.chat.left:GetScale())
-      pfUI.panel.right:SetScale(pfUI.chat.right:GetScale())
-    end
-
-    if frame.OnMove then frame:OnMove() end
+    Resize(this, (arg1 or 0) > 0 and 1 or -1)
     QueueFunction(UpdateDockValues)
   end
 
   local function DraggerOnDragStart()
     local frame = this.frame
+    if this.sizebox then this.sizebox:Hide() end
+    if _G.pfUnlockMatchMenu then _G.pfUnlockMatchMenu:Hide() end
 
     pfUI.unlock.selection = GetFrames()
 
@@ -640,9 +841,18 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     pfPlayerCastbar = { "castbar", "player" }, pfTargetCastbar = { "castbar", "target" }, pfFocusCastbar = { "castbar", "focus" },
   }
 
-  local function ScreenSize(f)
-    local s = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    return (f:GetWidth() or 0) * s, (f:GetHeight() or 0) * s, s
+  local function Say(msg)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. msg)
+  end
+
+  -- what a box is, for Match: boxes of the same kind are offered first
+  local function KindOf(f)
+    local name = f:GetName() or ""
+    if BarIndex(f) then return "bar" end
+    if SIZES[name] then return SIZES[name][1] end
+    if string.find(name, "^pfMeter%d$") then return "meter" end
+    if f == _G.pfRaidCluster then return "raid" end
+    return "other"
   end
 
   local function MatchSize(from, to)
@@ -652,6 +862,39 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local w, h = round(fw / ts), round(fh / ts)
     local fk, tk = SIZES[from:GetName()], SIZES[to:GetName()]
     local _, _, meter = string.find(to:GetName() or "", "^pfMeter(%d)$")
+    -- octo (25 Oct 2026): two action bars - the same button size, gap and
+    -- scale (pfUI.barsOcto.CopySize), so bars with the same buttons line up
+    local fi, ti = BarIndex(from), BarIndex(to)
+    if fi and ti then
+      KeepPlaces({ to }, function()
+        pfUI.barsOcto.CopySize(fi, ti)
+        pfUI.bars:UpdateConfig()
+      end)
+      if to.drag then ShowSize(to.drag) end
+      Say(NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " " .. NiceLabel(from.drag.label)
+        .. " (" .. T["buttons"] .. " " .. C.bars["bar" .. ti].icon_size .. " px, " .. floor(to:GetScale() * 100 + .5) .. "%)")
+      return
+    end
+    -- the raid frames: as wide as the other box, by their own width (the
+    -- grid, rows and columns stay)
+    if to == _G.pfRaidCluster and pfUI.uf and pfUI.uf.raid and pfUI.uf.raid[1] then
+      local cfg = C.unitframes.raid
+      local cols = SZ.RaidGrid(cfg.raidlayout)
+      local gap = (tonumber(cfg.raidpadding) or 0) * GetPerfectPixel()
+      local _, border = GetBorderSize("unitframes")
+      local extra = (pfUI.uf.raid[1]:GetWidth() or 0) - (tonumber(cfg.width) or 0)
+      local nw = floor(SZ.RaidFrameWidth(fw, cols, gap, border) - extra + .5)
+      if nw < 20 then nw = 20 elseif nw > 400 then nw = 400 end
+      KeepPlaces({ to }, function()
+        to:SetScale(1)
+        if C.position[to:GetName()] then C.position[to:GetName()].scale = nil end
+        cfg.width = tostring(nw)
+        pfUI.uf.raid:UpdateConfig()
+      end)
+      if to.drag then ShowSize(to.drag) end
+      Say(NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " " .. NiceLabel(from.drag.label) .. " (" .. T["each"] .. " " .. nw .. " px)")
+      return
+    end
     if tk then
       local cfg = C[tk[1]][tk[2]]
       cfg.width = tostring(w)
@@ -672,12 +915,135 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     else
       local tw = (to:GetWidth() or 0) * to:GetScale()
       if tw <= 0 then return end
-      SaveScale(to, round(to:GetScale() * (w * to:GetScale()) / tw, 2))
+      KeepPlaces({ to }, function() SaveScale(to, round(to:GetScale() * (w * to:GetScale()) / tw, 3)) end)
     end
     SavePosition(to)
     if to.OnMove then to:OnMove() end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " "
+    if to.drag then ShowSize(to.drag) end
+    Say(NiceLabel(to.drag.label) .. " " .. T["now matches"] .. " "
       .. NiceLabel(from.drag.label) .. " (" .. w .. (tk and fk and fk[1] == tk[1] and "" or (" x " .. h)) .. ")")
+  end
+
+  -- [ match menu ]
+  -- octo (user, 25 Oct 2026: "There should be match size buttons"): the
+  -- nudge box's Match button lists the boxes this one can take the size of,
+  -- the same kind first (action bars: the other bars, and "every bar like
+  -- this one"). Closes on a click outside it.
+  -- (made before pfUI.unlock: on UIParent, hidden with layout mode)
+  local menu = CreateFrame("Frame", "pfUnlockMatchMenu", UIParent)
+  local catch = CreateFrame("Button", nil, UIParent)
+  catch:SetFrameStrata("FULLSCREEN_DIALOG")
+  catch:SetFrameLevel(1)
+  catch:SetAllPoints(WorldFrame)
+  catch:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  catch:SetScript("OnClick", function() menu:Hide() end)
+  catch:Hide()
+  menu:SetFrameStrata("FULLSCREEN_DIALOG")
+  menu:SetFrameLevel(20)
+  menu:SetWidth(220)
+  menu:EnableMouse(true)
+  menu:Hide()
+  CreateBackdrop(menu, nil, nil, .95)
+  menu:SetScript("OnShow", function() catch:Show() end)
+  menu:SetScript("OnHide", function() catch:Hide() end)
+  menu.title = menu:CreateFontString(nil, "OVERLAY")
+  menu.title:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  menu.title:SetPoint("TOPLEFT", 8, -7)
+  menu.title:SetPoint("TOPRIGHT", -8, -7)
+  menu.title:SetJustifyH("LEFT")
+  menu.title:SetTextColor(.7, .75, .8)
+  menu.rows = {}
+
+  -- colour roles (as the options window: purple = pick one, gold = copy / match)
+  local ROLE = { pick = { .68, .45, 1 }, save = { 1, .78, .2 } }
+  local function MenuRow(n)
+    local b = menu.rows[n]
+    if b then return b end
+    b = CreateFrame("Button", nil, menu)
+    b:SetHeight(20)
+    b:SetPoint("TOPLEFT", 6, -22 - (n - 1) * 22)
+    b:SetPoint("TOPRIGHT", -6, -22 - (n - 1) * 22)
+    CreateBackdrop(b, nil, true)
+    b.text = b:CreateFontString(nil, "OVERLAY")
+    b.text:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+    b.text:SetShadowOffset(1, -1)
+    b.text:SetPoint("LEFT", 8, 0)
+    b.text:SetPoint("RIGHT", -8, 0)
+    b.text:SetJustifyH("LEFT")
+    b.text:SetTextColor(1, 1, 1)
+    b.Paint = function(hover)
+      local c = ROLE[b.role] or ROLE.pick
+      local k = hover and .45 or .22
+      b:SetBackdropColor(c[1] * k, c[2] * k, c[3] * k, .95)
+      b:SetBackdropBorderColor(c[1] * .8, c[2] * .8, c[3] * .8, 1)
+    end
+    b:SetScript("OnEnter", function() this.Paint(true) end)
+    b:SetScript("OnLeave", function() this.Paint(false) end)
+    b:SetScript("OnClick", function()
+      menu:Hide()
+      if this.run then this.run() end
+      UpdateDockValues()
+    end)
+    menu.rows[n] = b
+    return b
+  end
+
+  -- the boxes d can take the size of: { label, frame }, same kind first
+  local function MatchChoices(d)
+    local kind = KindOf(d.frame)
+    local same, other = {}, {}
+    for name, f in pairs(pfUI.movables) do
+      f = f or _G[name]
+      if f and f ~= d.frame and f.drag and f:IsShown() and (f:GetWidth() or 0) > 0 then
+        local e = { NiceLabel(f.drag.label), f }
+        if KindOf(f) == kind then table.insert(same, e) else table.insert(other, e) end
+      end
+    end
+    local function ByName(a, b) return a[1] < b[1] end
+    table.sort(same, ByName)
+    table.sort(other, ByName)
+    -- bars only match bars; a box with no kind of its own is offered them all
+    if kind == "bar" or table.getn(same) > 0 then return same end
+    return other
+  end
+
+  local function OpenMatchMenu(d, anchor)
+    local list = MatchChoices(d)
+    local n = 0
+    local function Add(text, role, run)
+      n = n + 1
+      local b = MenuRow(n)
+      b.text:SetText(text)
+      b.role, b.run = role, run
+      b.Paint(false)
+      b:Show()
+    end
+    menu.title:SetText(T["Give"] .. " " .. NiceLabel(d.label) .. " " .. T["the size of"] .. ":")
+    for _, e in ipairs(list) do
+      local f = e[2]
+      Add(e[1], "pick", function() MatchSize(f, d.frame) end)
+    end
+    local bi = BarIndex(d.frame)
+    if bi then
+      Add(T["Every other bar like this one"], "save", function()
+        local frames = {}
+        for i = 1, 10 do if i ~= bi and pfUI.bars[i] then table.insert(frames, pfUI.bars[i]) end end
+        local count = 0
+        KeepPlaces(frames, function()
+          count = pfUI.barsOcto.MatchAll(bi)
+          pfUI.bars:UpdateConfig()
+        end)
+        Say(count .. " " .. T["bars now match"] .. " " .. NiceLabel(d.label))
+      end)
+    end
+    if n == 0 then
+      menu.title:SetText(T["Nothing to match with here."])
+    end
+    for i = n + 1, table.getn(menu.rows) do menu.rows[i]:Hide() end
+    menu:SetHeight(28 + n * 22)
+    menu:ClearAllPoints()
+    SetAutoPoint(menu, anchor or d, 4)
+    menu:Show()
   end
 
   local function DraggerOnClick()
@@ -710,9 +1076,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       return
     elseif arg1 == "RightButton" then
       -- ElvUI: right-click = this frame's options
-      local cat, conf = GetConfigTable(this.label)
+      local cat, conf, card = GetConfigTable(this.label)
       if cat then
-        OpenConfigDialog(cat, conf)
+        OpenConfigDialog(cat, conf, card)
       else
         SetDockToFrame(this)
       end
@@ -730,16 +1096,20 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
   end
 
+  -- (octo: the size shows while the mouse is on a box)
   local function DraggerOnEnter()
     if pfUI.unlock.dock.parent ~= this then
       Paint(this, "hover")
     end
+    this.hover = true
+    if not (drag.boxes and drag.boxes[1]) then ShowSize(this, 0) end
   end
 
   local function DraggerOnLeave()
     if pfUI.unlock.dock.parent ~= this then
       Paint(this, "normal")
     end
+    this.hover = nil
   end
 
   local function CreateDragger(f)
@@ -849,6 +1219,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     SetDockToFrame(nil)
     ShowGuides(nil, nil)
+    menu:Hide()
     pfUI.unlock:Hide()
     if this.fromGUI then pfUI.gui:Show() end
   end)
@@ -922,11 +1293,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local function L(key, text) return a .. key .. "|r " .. text .. "\n" end
     local txt = T["Layout mode: move, size and reset frames."] .. "\n\n"
       .. L(T["[Drag]"], T["move the frame - it snaps to other frames and the grid"])
-      .. L(T["[Left-click]"], T["nudge box: arrows, X / Y, anchor"])
+      .. L(T["[Left-click]"], T["nudge box: arrows, X / Y, anchor, size, Match"])
       .. L(T["[Right-click]"], T["open this frame's options"])
+      .. L(T["[Match] in the nudge box"], T["take the size of another box (bars: of another bar)"])
       .. L(T["[Alt-click] two boxes"], T["the second gets the first one's size"])
       .. L(T["[Middle-click]"], T["back to its default place"])
-      .. L(T["[Mouse wheel]"], T["scale"])
+      .. L(T["[Mouse wheel]"], T["size, 2% a notch (raid frames: 1 px)"])
+      .. L(T["[Shift] / [Ctrl] + wheel"], T["10% / 0.5% a notch (raid frames: 5 px)"])
       .. "\n"
       .. L(T["[Shift]"], T["select all frames of the same kind"])
       .. L(T["[Ctrl]"], T["select all frames of the same group"])
@@ -934,7 +1307,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       .. L(T["[Shift] on the arrows"], T["move 10 pixels"])
       .. "\n"
       .. L(T["[Esc]"], T["or a click on an empty spot: done"])
-    CreateInfoBox(txt, 15, pfUI.unlock, 210)
+    CreateInfoBox(txt, 15, pfUI.unlock, 250)
   end
   bar.help = BarButton("?", 18, function() bar:ShowHelp() end)
   bar.help:SetPoint("LEFT", bar.gridmore, "RIGHT", 14, 0)
@@ -965,6 +1338,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
   -- for tests\run.lua
   pfUI.unlock.GetSnap = GetSnap
+  -- the size maths, Match and keeping a frame's place (tests; the Bars page)
+  pfUI.unlock.size = SZ
+  pfUI.unlock.MatchSize = MatchSize
+  pfUI.unlock.KeepPlaces = KeepPlaces
+  pfUI.unlock.Resize = Resize
+  pfUI.unlock.MatchChoices = MatchChoices
+  pfUI.unlock.OpenMatchMenu = OpenMatchMenu
 
   -- /moveui (ElvUI's command), /pfmove
   _G.SLASH_PFMOVEUI1, _G.SLASH_PFMOVEUI2 = "/moveui", "/pfmove"
@@ -1199,6 +1579,55 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     UpdateDockValues()
   end)
   SkinButton(pfUI.unlock.dock.down)
+
+  -- octo (25 Oct 2026): the size - readout, smaller / bigger by one notch
+  -- of the wheel (Shift / Ctrl as on the wheel), and Match
+  local dock = pfUI.unlock.dock
+  dock:SetHeight(214)
+  dock.size = dock:CreateFontString(nil, "DIALOG")
+  dock.size:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  dock.size:SetTextColor(1, .82, 0)
+  dock.size:SetPoint("TOPLEFT", 5, -134)
+  dock.size:SetPoint("TOPRIGHT", -5, -134)
+  dock.size:SetHeight(28)
+  dock.size:SetJustifyH("CENTER")
+  local function DockButton(text, tip, run)
+    local b = CreateFrame("Button", nil, dock, "UIPanelButtonTemplate")
+    b:SetHeight(20)
+    b:SetText(text)
+    SkinButton(b)
+    b:SetScript("OnClick", run)
+    b:SetScript("OnEnter", function()
+      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+      GameTooltip:SetText(text, 1, 1, 1)
+      GameTooltip:AddLine(tip, .8, .8, .8, 1)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+  end
+  local SIZETIP = T["Shift: 10% (raid frames 5 px). Ctrl: 0.5%."]
+  dock.smaller = DockButton("-", T["Smaller by one notch of the wheel."] .. "\n" .. SIZETIP, function()
+    if dock.parent then Resize(dock.parent, -1) UpdateDockValues() end
+  end)
+  dock.smaller:SetWidth(22)
+  dock.smaller:SetPoint("TOPLEFT", 5, -166)
+  dock.bigger = DockButton("+", T["Bigger by one notch of the wheel."] .. "\n" .. SIZETIP, function()
+    if dock.parent then Resize(dock.parent, 1) UpdateDockValues() end
+  end)
+  dock.bigger:SetWidth(22)
+  dock.bigger:SetPoint("LEFT", dock.smaller, "RIGHT", 4, 0)
+  dock.match = DockButton(T["Match size..."], T["Give this box the size of another one: pick it from the list. Action bars "
+    .. "take the other bar's button size, spacing and scale."], function()
+    if dock.parent then OpenMatchMenu(dock.parent, this) end
+  end)
+  dock.match:SetPoint("LEFT", dock.bigger, "RIGHT", 4, 0)
+  dock.match:SetPoint("RIGHT", dock, "RIGHT", -5, 0)
+  -- (gold: it copies a size, as Match on the options pages)
+  dock.match:SetBackdropColor(.25, .2, .05, 1)
+  dock.match:SetBackdropBorderColor(.85, .66, .17, 1)
+  local mt = dock.match:GetFontString()
+  if mt then mt:SetTextColor(1, .85, .4) end
 
   -- open config
   pfUI.unlock.dock.config = CreateFrame("Button", "pfDragDockConfigOpen", pfUI.unlock.dock, "UIPanelButtonTemplate")

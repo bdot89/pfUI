@@ -3970,7 +3970,8 @@ do
     local sized = bar:GetScale()
     pfUI.unlock:Hide()
     pfUI.bars:UpdateConfig()
-    ok(math.abs(sized - was) > .1 and math.abs(bar:GetScale() - sized) < .01,
+    -- (25 Oct 2026: a notch is 2% now, it was 10%)
+    ok(math.abs(sized - was) > .01 and math.abs(bar:GetScale() - sized) < .001,
       "a bar sized in layout mode keeps its size after Esc (" .. was .. " -> " .. sized .. " -> " .. bar:GetScale() .. ")")
     ok(pfUI_config.bars.bar1.scale == tostring(sized), "and the Bars page's Scale shows it (" .. tostring(pfUI_config.bars.bar1.scale) .. ")")
     -- the Scale setting changed on the page: layout mode's saved size follows
@@ -4937,6 +4938,9 @@ dofile(DIR .. "/tests/clientapi.lua")
 
 -- the Bagnon-style bag windows (modules/bags-octo.lua)
 dofile(DIR .. "/tests/bags.lua")
+
+-- layout mode sizes, Match, the raid grid and the Unit Frames sections (25 Oct 2026)
+dofile(DIR .. "/tests/layout-size.lua")
 
 local started, broken = 0, 0
 for _, m in ipairs(pfUI.modules) do

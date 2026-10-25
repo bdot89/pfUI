@@ -945,6 +945,22 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
       Tick("Empty slots", "Show buttons with nothing on them.", BAR, "showempty"),
       Tick("Pageable", "This bar changes with the action bar page.", BAR, "pageable"),
     })
+    -- (user, 25 Oct 2026: "match size buttons so you can easily match your
+    -- other action bars"; one bar at a time: layout mode's Match size...)
+    W.Buttons(p, { { "Match all bars to this one", function()
+      local frames = {}
+      for i = 1, 10 do if i ~= TAB.cur and pfUI.bars[i] then table.insert(frames, pfUI.bars[i]) end end
+      local n = 0
+      local function Do()
+        n = AB.MatchAll(TAB.cur)
+        U()
+      end
+      -- (bars stay where they are saved: pfUI.unlock.KeepPlaces)
+      if pfUI.unlock and pfUI.unlock.KeepPlaces then pfUI.unlock.KeepPlaces(frames, Do) else Do() end
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. n .. " bars now match the " .. AB.NAMES[TAB.cur] .. ".")
+      O:Refresh()
+    end, 210, "Every other bar that is on gets this bar's button size, spacing and scale, so bars with the same buttons are the "
+      .. "same size. Each stays where it is. One bar at a time: Move frames, click a bar, Match size..." } })
     W.Card(p, "Visibility", { icon = ICON .. "INV_Misc_Eye_01", tip = "When the bar shows. All the rules have to agree." })
     W.Dropdown(p, "Combat", nil, VIS_COMBAT, function() return BAR().vis_combat end, function(v) BAR().vis_combat = v; U() end)
     W.Dropdown(p, "Pet", nil, VIS_PET, function() return BAR().vis_pet end, function(v) BAR().vis_pet = v; U() end)

@@ -127,6 +127,123 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     debuffs = { "debuffsize", 8, 40 }, icons = { "raidiconsize", 8, 48 },
   }
 
+  -- ---------------------------------------------------------------- sections
+  -- (user, 25 Oct 2026: "there is no raid layout options easily accessible
+  -- this menu is a bit of a mess can we tidy it up and scale the menu better
+  -- so more is seen"). The Frames page had 19 cards in one long list under
+  -- a preview that took half the window. Now a row of section tabs under the
+  -- preview (purple: pick one) shows only that section's cards, opened:
+  -- { key, tab label, picture, card titles in order }.
+  local ICON = "Interface\\Icons\\"
+  UF.SECTIONS = {
+    { "size", "Size and bars", "Spell_Holy_Heal", { "Frame", "Health bar", "Power bar", "Portrait" } },
+    { "text", "Text", "INV_Misc_Note_01", { "All frames: text", "Texts", "Text colours and font" } },
+    { "auras", "Buffs", "Spell_Holy_WordFortitude", { "Buffs", "Debuffs", "Buff and dispel markers" } },
+    { "icons", "Icons", "INV_Banner_01", { "Icons", "Class and status", "Glow and indicators" } },
+    { "look", "Look", "INV_Misc_Gem_Variety_01", { "Try it on the preview", "Border and background", "Colours", "All frames: colours" } },
+    { "raid", "Raid layout", "Spell_Holy_PrayerOfHealing", { "Raid layout", "All frames: party and raid" } },
+    { "all", "All frames", "INV_Misc_Gear_01", { "All frames: basics", "All frames: class extras" } },
+  }
+  UF.sec = "size"
+  UF.SECTION_OF = {}
+  for _, s in ipairs(UF.SECTIONS) do
+    for _, title in ipairs(s[4]) do UF.SECTION_OF[title] = s[1] end
+  end
+
+  -- every card with a game picture (the UI rule: a picture on each card)
+  UF.CARDICON = {
+    ["Frame"] = "INV_Misc_Head_Human_01", ["Health bar"] = "Spell_Holy_Heal02", ["Power bar"] = "INV_Potion_51",
+    ["Portrait"] = "INV_Misc_Head_Dragon_01", ["All frames: text"] = "INV_Letter_15", ["Texts"] = "INV_Misc_Note_01",
+    ["Text colours and font"] = "INV_Fabric_Silk_02", ["Buffs"] = "Spell_Holy_WordFortitude",
+    ["Debuffs"] = "Spell_Shadow_ShadowWordPain", ["Buff and dispel markers"] = "Spell_Holy_DispelMagic",
+    ["Icons"] = "INV_Banner_01", ["Class and status"] = "INV_Misc_Bone_HumanSkull_01",
+    ["Glow and indicators"] = "Spell_Nature_WispSplode", ["Border and background"] = "INV_Misc_StoneTablet_05",
+    ["Colours"] = "INV_Misc_Gem_Variety_01", ["All frames: colours"] = "INV_Misc_Gem_Ruby_02",
+    ["Raid layout"] = "Spell_Holy_PrayerOfHealing", ["All frames: party and raid"] = "Spell_Nature_Rejuvenation",
+    ["All frames: basics"] = "INV_Misc_Gear_01", ["All frames: class extras"] = "Ability_Druid_CatForm",
+  }
+  local function Card(p, title, o)
+    o = o or {}
+    if not o.icon and UF.CARDICON[title] then o.icon = ICON .. UF.CARDICON[title] end
+    return W.Card(p, title, o)
+  end
+
+  -- only the cards of the section picked, one under the other (W.Card chains
+  -- every card under the one before: hidden ones are skipped here)
+  function UF.Filter(p)
+    p = p or O.pages.ufframes
+    if not p or not p.cards or not p.ufFirst then return end
+    local prev, gap = p.ufFirst, 13
+    for _, c in ipairs(p.cards) do
+      if UF.SECTION_OF[c.title] == UF.sec then
+        c.card:ClearAllPoints()
+        c.card:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -gap)
+        c.card:Show()
+        prev, gap = c.card, 9
+      else
+        c.card:Hide()
+      end
+    end
+    p.last = prev
+  end
+
+  -- a section's cards, opened, from the top of the page
+  function UF.SetSection(key, keepFolds)
+    UF.sec = key
+    local p = O.pages.ufframes
+    if p then
+      if not keepFolds then
+        for _, c in ipairs(p.cards) do
+          if UF.SECTION_OF[c.title] == key and not W.IsOpen(c) then W.SetOpen(c, true) end
+        end
+      end
+      UF.Filter(p)
+      local sb = getglobal((p.frame:GetName() or "") .. "ScrollBar")
+      if sb then sb:SetValue(0) elseif p.frame.SetVerticalScroll then p.frame:SetVerticalScroll(0) end
+    end
+    -- (the raid layout is the raid frames': their preview)
+    if key == "raid" and UF.cur ~= "raid" then
+      UF.cur = "raid"
+      if UF.mini then UF.mini.FitView() end
+    end
+    if O.Refresh then O:Refresh() end
+  end
+
+  -- the tabs, in the pinned strip under the preview
+  function UF.SectionTabs(p)
+    local row = W.Row(p, 24, 0, 6)
+    local n = table.getn(UF.SECTIONS)
+    local w = math.floor((W.CW - (n - 1) * 4) / n)
+    local tabs = {}
+    for i, s in ipairs(UF.SECTIONS) do
+      local b = W.Button(row, s[2], w, 22)
+      b:SetPoint("LEFT", row, "LEFT", (i - 1) * (w + 4), 0)
+      b.key = s[1]
+      local pic = b:CreateTexture(nil, "OVERLAY")
+      pic:SetTexture(ICON .. s[3])
+      pic:SetTexCoord(.08, .92, .08, .92)
+      pic:SetWidth(16)
+      pic:SetHeight(16)
+      pic:SetPoint("LEFT", b, "LEFT", 5, 0)
+      if b.label then
+        b.label:ClearAllPoints()
+        b.label:SetPoint("LEFT", pic, "RIGHT", 5, 0)
+        b.label:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+        b.label:SetJustifyH("LEFT")
+      end
+      local tip = {}
+      for _, t in ipairs(s[4]) do table.insert(tip, t) end
+      W.Tip(b, s[2], "Shows: " .. table.concat(tip, ", ") .. ".")
+      b:SetScript("OnClick", function() UF.SetSection(this.key) end)
+      tabs[i] = b
+    end
+    UF.secTabs = tabs
+    table.insert(p.items, { Refresh = function()
+      for _, b in ipairs(tabs) do W.Pick(b, b.key == UF.sec) end
+    end })
+    return row
+  end
+
   function UF.Open(what)
     local title = UF.GO[what] or "Frame"
     if title == "Texts" then
@@ -611,15 +728,22 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       local n = table.getn(set.frames)
       local fw, fh = set.frames[1]:GetWidth() or 100, set.frames[1]:GetHeight() or 30
       local cols, gap = 1, 12 + (tonumber(cfg.buffsize) or 0)
+      local down, left = true, false
       if key == "raid" then
-        cols, gap = 5, tonumber(cfg.raidpadding) or 3
+        -- (25 Oct 2026) as many columns as the raid layout has, growing the
+        -- way the real raid frames grow (raid.lua)
+        local _, _, x = string.find(cfg.raidlayout or "", "(%d+)x")
+        cols, gap = math.max(1, math.min(tonumber(x) or 5, n)), tonumber(cfg.raidpadding) or 3
+        down, left = cfg.o_growy == "DOWN", cfg.o_growx == "LEFT"
       end
+      local rows = math.ceil(n / cols)
       for i, f in ipairs(set.frames) do
         local c, r = math.mod(i - 1, cols), math.floor((i - 1) / cols)
+        if not down then r = rows - 1 - r end
+        if left then c = cols - 1 - c end
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", stage, "TOPLEFT", c * (fw + gap), -r * (fh + gap))
       end
-      local rows = math.ceil(n / cols)
       stage:SetWidth(math.max(10, cols * fw + (cols - 1) * gap))
       stage:SetHeight(math.max(10, rows * fh + (rows - 1) * gap))
     end
@@ -823,54 +947,19 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
             UF.mini.FitView()
             UF.mini.Refresh()
           end
+          -- (the raid tab opens on its layout, the rest of its cards a tab away)
+          if this.key == "raid" and UF.sec == "size" then UF.SetSection("raid", true) return end
           O:Refresh()
         end)
         tabs[n] = b
       end
-      local mini = UF.Mini(W.Box(p, 170))
+      -- (25 Oct 2026: 170 -> 136 high, so more of the page shows under it)
+      local mini = UF.Mini(W.Box(p, 136))
       table.insert(p.items, { Refresh = function()
         for _, b in ipairs(tabs) do W.Pick(b, b.key == UF.cur) end
         mini.Refresh()
       end })
-      -- test buttons: what only happens in a fight, played on the preview
-      local X = pfUI.ufExtras
-      if X then
-        local trow = W.Row(p, 24, 0, 3)
-        local TESTS = {
-          { "Hit flash", "A red flash round the frame when it takes a hit (Border and background: Combat flash).",
-            function(f) X.Flash(f, false) end },
-          { "Heal flash", "A green flash when it is healed.", function(f) X.Flash(f, true) end },
-          { "Debuff colour", "The frame in a debuff's colour for 3 seconds (Border and background: Debuff highlight).",
-            function(f)
-              f.octoForceDebuff = GetTime() + 3
-              local mode = f.config.o_debuffhl
-              X.ShowDebuff(f, "Magic", (mode and mode ~= "none") and mode or "both")
-            end },
-          { "Dead", "How a dead unit shows for 3 seconds (Class and status).", function(f) f.octoForceStatus = { nil, "Dead", GetTime() + 3 } X.Update(f) end },
-          { "Offline", "How an offline unit shows for 3 seconds.", function(f) f.octoForceStatus = { "uf-offline", nil, GetTime() + 3 } X.Update(f) end },
-        }
-        local x = 0
-        for _, tt in ipairs(TESTS) do
-          local bt = W.Button(trow, "Test: " .. tt[1], 124, 22)
-          bt:SetPoint("LEFT", trow, "LEFT", x, 0)
-          bt.run = tt[3]
-          bt:SetScript("OnClick", function()
-            this.litUntil = GetTime() + 3
-            local set = mini.sets[UF.cur]
-            for _, f in ipairs(set and set.frames or {}) do this.run(f) end
-          end)
-          W.Tip(bt, "Test: " .. tt[1], tt[2])
-          x = x + 128
-        end
-        -- (each test is lit while it shows)
-        trow:SetScript("OnUpdate", function()
-          if (this.tick or 0) > GetTime() then return end
-          this.tick = GetTime() + .2
-          for _, b in ipairs({ this:GetChildren() }) do
-            if b.run then W.Lit(b, GetTime() < (b.litUntil or 0)) end
-          end
-        end)
-      end
+      UF.SectionTabs(p)
       -- every mouse control, spelled out (user: "add how to do this so
       -- people know on the screens")
       local band = W.Row(p, 36, 0, 3)
@@ -895,6 +984,52 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     end)
   end
 
+  -- what only happens in a fight, played on the preview (was a row under
+  -- it; now a card of the Look section, 25 Oct 2026)
+  local function TestCard(p)
+    local X = pfUI.ufExtras
+    local mini = UF.mini
+    if X and mini then
+      W.Card(p, "Try it on the preview", { icon = ICON .. "Spell_Nature_Lightning",
+        tip = "What only happens in a fight, played on the preview for a few seconds." })
+      local trow = W.Row(p, 24, 0, 3)
+      local TESTS = {
+        { "Hit flash", "A red flash round the frame when it takes a hit (Border and background: Combat flash).",
+          function(f) X.Flash(f, false) end },
+        { "Heal flash", "A green flash when it is healed.", function(f) X.Flash(f, true) end },
+        { "Debuff colour", "The frame in a debuff's colour for 3 seconds (Border and background: Debuff highlight).",
+          function(f)
+            f.octoForceDebuff = GetTime() + 3
+            local mode = f.config.o_debuffhl
+            X.ShowDebuff(f, "Magic", (mode and mode ~= "none") and mode or "both")
+          end },
+        { "Dead", "How a dead unit shows for 3 seconds (Class and status).", function(f) f.octoForceStatus = { nil, "Dead", GetTime() + 3 } X.Update(f) end },
+        { "Offline", "How an offline unit shows for 3 seconds.", function(f) f.octoForceStatus = { "uf-offline", nil, GetTime() + 3 } X.Update(f) end },
+      }
+      local x = 0
+      for _, tt in ipairs(TESTS) do
+        local bt = W.Button(trow, "Test: " .. tt[1], 124, 22)
+        bt:SetPoint("LEFT", trow, "LEFT", x, 0)
+        bt.run = tt[3]
+        bt:SetScript("OnClick", function()
+          this.litUntil = GetTime() + 3
+          local set = mini.sets[UF.cur]
+          for _, f in ipairs(set and set.frames or {}) do this.run(f) end
+        end)
+        W.Tip(bt, "Test: " .. tt[1], tt[2])
+        x = x + 128
+      end
+      -- (each test is lit while it shows)
+      trow:SetScript("OnUpdate", function()
+        if (this.tick or 0) > GetTime() then return end
+        this.tick = GetTime() + .2
+        for _, b in ipairs({ this:GetChildren() }) do
+          if b.run then W.Lit(b, GetTime() < (b.litUntil or 0)) end
+        end
+      end)
+    end
+  end
+
   -- ---------------------------------------------------------------- general
 
   -- What every frame shares, on the Frames page with the preview (user, 22
@@ -909,7 +1044,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   UF.FontNow = FontNow
 
   local function SharedTop(p)
-    W.Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Text colours and font." })
+    Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Text colours and font." })
     Drop(p, "Font", nil, DD("fonts", "font"), GL, "font_unit", FontNow)
     Sld(p, "Size", nil, 6, 24, 1, GL, "font_unit_size", Px, UF.ApplyAll)
     Drop(p, "Outline", nil, DD("fontstyle"), GL, "font_unit_style", UF.ApplyAll)
@@ -919,18 +1054,18 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   end
 
   local function SharedBottom(p)
-    W.Card(p, "All frames: basics")
+    Card(p, "All frames: basics")
     W.Check(p, "Use pfUI's unit frames", "Off = the game's own frames (after a reload).", function() return G().disable ~= "1" end, function(v)
       G().disable = v and "0" or "1"
       Reload()
     end)
     Drop(p, "Layout", "Needs a reload.", DD("uf_layout"), G, "layout", Reload)
     Chk(p, "Target sounds", "A sound as you pick an enemy, a friend or nothing.", G, "o_targetsound", function() end)
-    W.Card(p, "All frames: portraits")
+    -- (portraits of every frame: were a card of their own)
     Sld(p, "Portrait on the bar: opacity", "For portraits drawn on the health bar.", 0, 1, .05, G, "portraitalpha", Pct, UF.ApplyAll)
     Chk(p, "Always flat pictures", "2D pictures instead of 3D models.", G, "always2dportrait", UF.ApplyAll)
     Chk(p, "Flat picture when no model", nil, G, "portraittexture", UF.ApplyAll)
-    W.Card(p, "All frames: colours", { tip = "For every frame, unless a frame has its own (its Colours card)." })
+    Card(p, "All frames: colours", { tip = "For every frame, unless a frame has its own (its Colours card)." })
     Chk(p, "Soft (pastel) colours", nil, G, "pastel", UF.ApplyAll)
     Drop(p, "Health bar colour", nil, DD("uf_color"), G, "custom", UF.ApplyAll)
     Color(p, "Own health colour", nil, G, "customcolor", UF.ApplyAll)
@@ -944,7 +1079,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Color(p, "Rage", nil, G, "ragecolor", UF.ApplyAll)
     Color(p, "Energy", nil, G, "energycolor", UF.ApplyAll)
     Color(p, "Focus", nil, G, "focuscolor", UF.ApplyAll)
-    W.Card(p, "All frames: class extras")
+    Card(p, "All frames: class extras")
     Sld(p, "Combo point width", nil, 2, 30, 1, G, "combowidth", Px, Reload)
     Sld(p, "Combo point height", nil, 2, 30, 1, G, "comboheight", Px, Reload)
     Chk(p, "Energy ticks", "A spark on your power bar for the next energy tick.", function() return C.unitframes.player end, "energy", Reload)
@@ -954,7 +1089,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Druid mana bar height", nil, 1, 10, 1, G, "druidmanaheight", Px, Reload)
     Chk(p, "Druid mana text", nil, G, "druidmanatext", Reload)
     Chk(p, "Read enemy buffs", "Shows enemies' buffs on their frames.", G, "buffdetect", Reload)
-    W.Card(p, "All frames: party and raid")
+    Card(p, "All frames: party and raid")
     Chk(p, "Range check", "Fades members more than 40 yards away.", G, "rangecheck", Reload)
     Drop(p, "Range check every", nil, DD("uf_rangecheckinterval"), G, "rangechecki", Reload)
     -- (ClassicAPI UnitInLineOfSight, 25 Oct 2026)
@@ -971,12 +1106,27 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- frames
 
   BUILD.ufframes = function(p)
-    W.Heading(p, "Unit frames", { on = { function() return C.unitframes.disable ~= "1" end, function(v) C.unitframes.disable = v and "0" or "1" pfUI.gui.settingChanged = true end, "pfUI's unit frames on or off (takes a reload)." }, about = "Pick a frame with the tabs: its preview shows at the top, its settings below, one card per "
-      .. "part. Click a part of the preview to jump to its card. The cards named \"All frames\" change every frame." })
+    W.Heading(p, "Unit frames", { on = { function() return C.unitframes.disable ~= "1" end, function(v) C.unitframes.disable = v and "0" or "1" pfUI.gui.settingChanged = true end, "pfUI's unit frames on or off (takes a reload)." }, about = "Pick a frame with the tabs: its preview shows at the top. Under it, pick what "
+      .. "to change: size and bars, text, buffs, icons, look, the raid layout or what all frames share. Click a part of the "
+      .. "preview to jump to its card. The cards named \"All frames\" change every frame." })
     Preview(p)
+    -- (the cards start under the heading; UF.Filter chains the shown ones)
+    p.ufFirst = p.last
+    -- a card in another section (a click on the preview, layout mode's
+    -- right-click): that section first
+    local P = pfUI.plates
+    if P and P.OpenSection and not UF.wrapped then
+      UF.wrapped = true
+      local OpenSection = P.OpenSection
+      P.OpenSection = function(key, title)
+        local sec = key == "ufframes" and UF.SECTION_OF[title]
+        if sec and sec ~= UF.sec then UF.SetSection(sec, true) end
+        return OpenSection(key, title)
+      end
+    end
     SharedTop(p)
 
-    W.Card(p, "Frame", { tip = "Whether the frame shows, its tooltip and how see-through it is." })
+    Card(p, "Frame", { tip = "Whether the frame shows, its tooltip and how see-through it is." })
     Chk(p, "Show this frame", nil, U, "visible")
     Chk(p, "Tooltip on mouse-over", nil, U, "showtooltip")
     Sld(p, "Opacity", nil, .1, 1, .05, U, "alpha_visible", Pct)
@@ -984,7 +1134,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Out of range opacity", nil, 0, 1, .05, U, "alpha_outrange", Pct)
     Sld(p, "Offline opacity", nil, 0, 1, .05, U, "alpha_offline", Pct)
 
-    W.Card(p, "Health bar")
+    Card(p, "Health bar")
     Sld(p, "Width", "The width of the whole frame.", 20, 400, 1, U, "width", Px)
     Sld(p, "Height", nil, 2, 100, 1, U, "height", Px)
     Drop(p, "Texture", nil, DD("uf_bartexture", "texture"), U, "bartexture")
@@ -997,7 +1147,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Color(p, "Fading part", nil, U, "o_fadecolor")
 
     -- the six texts: one tab each (a click on a text in the preview picks it)
-    W.Card(p, "Texts", { tip = "Three texts on the health bar and three on the power bar. Pick one with the tabs, "
+    Card(p, "Texts", { tip = "Three texts on the health bar and three on the power bar. Pick one with the tabs, "
       .. "or click it in the preview." })
     local trows, tbtns = { W.Row(p, 24, 0, 4), W.Row(p, 24, 0, 4) }, {}
     for i, t in ipairs(UF.TEXTS) do
@@ -1037,7 +1187,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       O:Refresh()
     end, 110, "Its place and its own colours again." } })
 
-    W.Card(p, "Text colours and font", { tip = "What \"its own colours\" means for this frame, and its font." })
+    Card(p, "Text colours and font", { tip = "What \"its own colours\" means for this frame, and its font." })
     Chk(p, "Health in its colour", nil, U, "healthcolor")
     Chk(p, "Power in its colour", nil, U, "powercolor")
     Chk(p, "Level in its colour", nil, U, "levelcolor")
@@ -1047,7 +1197,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Font size", nil, 6, 30, 1, U, "customfont_size", Px)
     Drop(p, "Outline", nil, DD("fontstyle"), U, "customfont_style")
 
-    W.Card(p, "Power bar")
+    Card(p, "Power bar")
     Sld(p, "Height", "0 or less hides it.", -1, 40, 1, U, "pheight", Px)
     Sld(p, "Width", "-1 = as wide as the health bar.", -1, 400, 1, U, "pwidth", Px)
     Drop(p, "Under the health bar at", nil, DD("uf_powerbar_position"), U, "panchor")
@@ -1056,12 +1206,12 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Gap to the health bar", "Below 0 the bars overlap.", -10, 20, 1, U, "pspace", Px)
     Drop(p, "Texture", nil, DD("uf_bartexture", "texture"), U, "pbartexture")
 
-    W.Card(p, "Portrait")
+    Card(p, "Portrait")
     Drop(p, "Where", nil, DD("uf_portrait_position"), U, "portrait")
     Sld(p, "Width", "-1 = as tall as the frame.", -1, 200, 1, U, "portraitwidth", Px)
     Sld(p, "Height", "-1 = as tall as the frame.", -1, 200, 1, U, "portraitheight", Px)
 
-    W.Card(p, "Buffs")
+    Card(p, "Buffs")
     Drop(p, "Where", "The corner they start from; drag them in the preview to move them from there.", DD("uf_buff_position"), U, "buffs")
     Sld(p, "Across", "Or drag them in the preview.", -200, 200, 1, U, "o_buffx", Px)
     Sld(p, "Up / down", nil, -200, 200, 1, U, "o_buffy", Px)
@@ -1074,7 +1224,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       function() return C.unitframes.player end, "o_flashexpire", function() UF.Apply("player") end)
     Chk(p, "Frame enemy buffs you can purge", "Magic buffs on enemies get a blue frame. Needs ClassicAPI (the plain game does not say a buff's type); with it others' buffs also show their time left.", U, "o_purge")
 
-    W.Card(p, "Debuffs")
+    Card(p, "Debuffs")
     Drop(p, "Where", "The corner they start from; drag them in the preview to move them from there.", DD("uf_buff_position"), U, "debuffs")
     Sld(p, "Across", "Or drag them in the preview.", -200, 200, 1, U, "o_debuffx", Px)
     Sld(p, "Up / down", nil, -200, 200, 1, U, "o_debuffy", Px)
@@ -1083,7 +1233,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Sld(p, "Per row", nil, 1, 32, 1, U, "debuffperrow")
     Chk(p, "Only your own", "Not on your own frame. Experimental.", U, "selfdebuff")
 
-    W.Card(p, "Icons", { tip = "Raid mark, PvP flag, leader, loot master and (pet) happiness." })
+    Card(p, "Icons", { tip = "Raid mark, PvP flag, leader, loot master and (pet) happiness." })
     Chk(p, "Raid mark", nil, U, "raidicon")
     Drop(p, "Raid mark at", nil, DD("positions"), U, "raidiconalign")
     Sld(p, "Raid mark size", nil, 8, 64, 1, U, "raidiconsize", Px)
@@ -1107,7 +1257,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       for _, s in ipairs(src or {}) do table.insert(out, { key = s.key, label = s.label, texture = s.tex and (X.ART .. s.tex) or nil }) end
       return out
     end
-    W.Card(p, "Border and background", { tip = "A border round the whole frame, a shade behind the bars, and flashes and highlights on it." })
+    Card(p, "Border and background", { tip = "A border round the whole frame, a shade behind the bars, and flashes and highlights on it." })
     Drop(p, "Border", nil, L(X and X.SKINS), U, "o_skin")
     Drop(p, "Shade behind the bars", nil, L(X and X.GRADIENTS), U, "o_grad")
     Color(p, "Shade from", nil, U, "o_gradstart")
@@ -1118,7 +1268,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       L(X and X.HIGHLIGHTS), U, "o_debuffhl")
     Chk(p, "Only what you can cure", nil, U, "o_curable")
 
-    W.Card(p, "Class and status", { tip = "Class icon, class picture, the elite / rare / boss badge, and AFK, offline and dead marks." })
+    Card(p, "Class and status", { tip = "Class icon, class picture, the elite / rare / boss badge, and AFK, offline and dead marks." })
     Drop(p, "Class icon", "Players only.", L(X and X.CLASSICON), U, "o_classicon")
     Sld(p, "Class icon size", nil, 8, 40, 1, U, "o_classsize", Px)
     Chk(p, "Class picture as portrait", "Players show their class icon in place of the portrait.", U, "o_classport")
@@ -1126,7 +1276,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Drop(p, "Badge at", nil, L(X and X.CORNERS), U, "o_elitepos")
     Chk(p, "AFK, offline and dead marks", nil, U, "o_status")
 
-    W.Card(p, "Glow and indicators", { tip = "A glow round the frame and a small square for aggro and combat; combat text on the frame." })
+    Card(p, "Glow and indicators", { tip = "A glow round the frame and a small square for aggro and combat; combat text on the frame." })
     Chk(p, "Glow with aggro", nil, U, "glowaggro")
     Chk(p, "Glow in combat", nil, U, "glowcombat")
     Chk(p, "Square with aggro", nil, U, "squareaggro")
@@ -1137,7 +1287,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Drop(p, "Combat text font", nil, DD("fonts", "font"), U, "hitindicatorfont")
     Sld(p, "Combat text size", nil, 8, 40, 1, U, "hitindicatorsize", Px)
 
-    W.Card(p, "Buff and dispel markers", { tip = "Small markers for your buffs, HoTs and procs, and for debuffs you can dispel. Best on party and raid frames." })
+    Card(p, "Buff and dispel markers", { tip = "Small markers for your buffs, HoTs and procs, and for debuffs you can dispel. Best on party and raid frames." })
     Chk(p, "Buff markers", nil, U, "buff_indicator")
     Chk(p, "Your buffs", nil, U, "show_buffs")
     Chk(p, "HoTs", nil, U, "show_hots")
@@ -1155,7 +1305,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Drop(p, "Dispel marker at", nil, DD("positions"), U, "debuff_ind_pos")
     Drop(p, "Dispel marker size", nil, DD("uf_debuff_indicator_size"), U, "debuff_ind_size")
 
-    W.Card(p, "Colours", { tip = "This frame's own colours (off = the ones on General)." })
+    Card(p, "Colours", { tip = "This frame's own colours (off = the ones on General)." })
     Chk(p, "Use the colours on General", nil, U, "defcolor")
     Drop(p, "Health bar colour", nil, DD("uf_color"), U, "custom")
     Color(p, "Own health colour", nil, U, "customcolor")
@@ -1170,18 +1320,49 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Color(p, "Energy", nil, U, "energycolor")
     Color(p, "Focus", nil, U, "focuscolor")
 
+    -- the raid frames' grid (user, 25 Oct 2026: "no raid layout options
+    -- easily accessible"): its own section and card, opened by layout mode's
+    -- right-click on the raid box. Every change lays the real grid out again.
     local function R() return C.unitframes.raid end
     local function UR() UF.Apply("raid") end
-    W.Card(p, "Raid layout", { tip = "How the raid frames are laid out (the Raid tab)." })
-    Drop(p, "Groups", nil, DD("uf_raidlayout"), R, "raidlayout", UR)
+    Card(p, "Raid layout", { tip = "How the raid frames are laid out: columns and rows, which way they grow, the gap, and "
+      .. "the size of each frame. Layout mode (Move frames) moves the whole raid as one box; its mouse wheel sizes the "
+      .. "frames a pixel at a time and keeps the grid." })
+    W.Live(p, function()
+      local cfg = R()
+      local _, _, x, y = string.find(cfg.raidlayout or "", "(%d+)x(%d+)")
+      local cl = _G.pfRaidCluster
+      local size = cl and cl:GetWidth() and (math.floor(cl:GetWidth() * cl:GetScale() + .5) .. " x "
+        .. math.floor(cl:GetHeight() * cl:GetScale() + .5) .. " px") or "?"
+      return "|cffffffff" .. (x or "?") .. " columns x " .. (y or "?") .. " rows|r of " .. (cfg.width or "?") .. " x "
+        .. (cfg.height or "?") .. " px frames - the whole raid " .. size
+    end)
+    Drop(p, "Columns x rows", "Columns across, rows up or down. 5 x 8 = the eight groups as rows of five.", DD("uf_raidlayout"), R, "raidlayout", UR)
+    Drop(p, "Fill", "Which way the grid fills: a row at a time, or a column at a time.", DD("orientation"), R, "raidfill", UR)
+    W.Dropdown(p, "Rows grow", "Where the first row is: at the bottom, the next ones above it (pfUI's way), or at the top.",
+      { { key = "UP", label = "Up (first row at the bottom)" }, { key = "DOWN", label = "Down (first row at the top)" } },
+      function() return R().o_growy or "UP" end, function(v) R().o_growy = v UR() end)
+    W.Dropdown(p, "Columns grow", "Where the first column is.",
+      { { key = "RIGHT", label = "Right (first column on the left)" }, { key = "LEFT", label = "Left (first column on the right)" } },
+      function() return R().o_growx or "RIGHT" end, function(v) R().o_growx = v UR() end)
+    Sld(p, "Frame width", "Each raid frame. The grid keeps its columns and rows.", 20, 400, 1, R, "width", Px, UR)
+    Sld(p, "Frame height", "Each raid frame's health bar.", 4, 100, 1, R, "height", Px, UR)
+    Sld(p, "Power bar height", "0 or less hides it.", -1, 40, 1, R, "pheight", Px, UR)
     Sld(p, "Gap between frames", nil, 0, 20, 1, R, "raidpadding", Px, UR)
-    Drop(p, "Fill", nil, DD("orientation"), R, "raidfill", UR)
     Chk(p, "Group labels", nil, R, "raidgrouplabel", UR)
     Sld(p, "Labels: across", nil, -50, 50, 1, R, "grouplabelxoff", Px, UR)
     Sld(p, "Labels: up / down", nil, -50, 50, 1, R, "grouplabelyoff", Px, UR)
+    W.Buttons(p, { { "Move the raid frames", function()
+      if _G.SlashCmdList and _G.SlashCmdList.PFMOVEUI then _G.SlashCmdList.PFMOVEUI("") end
+    end, 170, "Layout mode: drag the raid box; the mouse wheel over it sizes the frames (Shift: 5 px a notch)." } })
 
     -- what all frames share, after this frame's own cards
     SharedBottom(p)
+    TestCard(p)
+
+    -- only the picked section shows (also after every refresh)
+    UF.Filter(p)
+    table.insert(p.items, { Refresh = function() UF.Filter(p) end })
   end
 
   -- ---------------------------------------------------------------- click casting
@@ -1211,6 +1392,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   O.tabs.ufframes = function(key)
     if BY[key] then
       UF.cur = key
+      if key == "raid" then UF.sec = "raid" end
       if UF.mini then UF.mini.Refresh() end
     end
   end

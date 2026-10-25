@@ -290,6 +290,32 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      pfRaidN movers are removed (old per-frame positions no longer apply). Healer layout centres
      the cluster with xpos 0. Not verified: a cluster saved with a TOP anchor shifts the grid down
      by its new height once.
+   - Sizes in layout mode (25 Oct 2026, NOT seen in game; user: resizing "jump[s] in size ... not
+     smooth", wants "match size buttons", raid "messes up" when made bigger, raid options hard to
+     find, Unit Frames page "a bit of a mess"). unlock.lua `SZ` (= pfUI.unlock.size): a wheel notch
+     is 2% (Shift 10%, Ctrl 0.5%; was 0.1 with round(..., 1)); `KeepPlaces(frames, fn)` keeps each
+     frame on the screen point it is saved at (from C.position offsets via SZ.Point / SZ.Offsets,
+     never from edges; f.unlockFix keeps the exact point between notches so pfUI's whole-number
+     xpos does not creep). Frames on their default place are left there. Size readout = a gold
+     tag under the box (d.sizebox, scale 1 / UIScale) on hover and while sizing, and in the nudge
+     box, which gained - / + and "Match size..." (pfUnlockMatchMenu: same-kind boxes, purple;
+     action bars only list bars, plus gold "Every other bar like this one"; closes on an outside
+     click via a full-screen catcher). MatchSize: two bars = pfUI.barsOcto.CopySize (icon_size,
+     spacing, scale; also C.position scale) + MatchAll; raid = width per frame from the other box
+     (SZ.RaidFrameWidth). Raid wheel (ResizeRaid): C.unitframes.raid width +1 px (Shift 5), height
+     keeps the shape, raid:UpdateConfig re-grids; an old cluster scale is folded into the sizes and
+     reset to 1 (non-integer scale left uneven gaps - the likely "messed up" raid). raid.lua:
+     o_growy UP|DOWN, o_growx RIGHT|LEFT (nil = pfUI's up / right). frame_configs 3rd field = the
+     card OpenConfigDialog opens (RaidCluster -> "Raid layout"). Bars page: "Match all bars to this
+     one". Unit Frames > Frames (item 11): UF.SECTIONS = 7 section tabs under the preview (Size and
+     bars, Text, Buffs, Icons, Look, Raid layout, All frames; purple, game icons) show only that
+     section's cards (UF.Filter re-chains shown cards, p.last = last shown; UF.SetSection opens
+     them; pfUI.plates.OpenSection is wrapped to switch section first); preview box 170 -> 136,
+     Test buttons moved to a "Try it on the preview" card (Look); every card has a picture
+     (UF.CARDICON); "All frames: portraits" merged into basics; Raid layout card: live summary,
+     columns x rows, fill, growth, frame width / height / power height, gap, labels, Move button;
+     the Raid frame tab opens on it. Preview raid grid follows columns and growth.
+     Tests: tests\layout-size.lua.
    - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
      .children on frames) and has a real SetParent.
    - Seen in game 20 Oct ("looking better"). Then: right-click on a box only closed layout mode

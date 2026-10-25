@@ -884,6 +884,34 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
     AB.Visibility()
   end
 
+  -- one bar the size of another (user, 25 Oct 2026: "match size buttons so
+  -- you can easily match your other action bars"): button size, the gap
+  -- between buttons and the bar's scale. Bars with the same buttons and rows
+  -- then have boxes of the same size. Layout mode's Match and the Bars
+  -- page's "Match all bars" use it; the caller runs pfUI.bars:UpdateConfig().
+  AB.SIZEKEYS = { "icon_size", "spacing", "scale" }
+  function AB.BarIndex(frame)
+    for i = 1, 12 do if BARS[i] and BARS[i] == frame then return i end end
+  end
+  function AB.CopySize(from, to)
+    local s, d = DB(from), DB(to)
+    if not s or not d or from == to then return end
+    for _, k in ipairs(AB.SIZEKEYS) do d[k] = s[k] end
+    -- layout mode keeps the scale in C.position too (see AB.Apply)
+    local bar = BARS[to]
+    local pos = bar and bar.GetName and bar:GetName() and C.position[bar:GetName()]
+    if pos and pos.scale then pos.scale = tonumber(d.scale) or 1 end
+    return true
+  end
+  -- every other bar that is on (1 - 10: stance and pet bars keep their own)
+  function AB.MatchAll(from)
+    local n = 0
+    for i = 1, 10 do
+      if i ~= from and DB(i) and DB(i).enable == "1" and AB.CopySize(from, i) then n = n + 1 end
+    end
+    return n
+  end
+
   -- after every pfUI bar update
   local UpdateConfig = BARS.UpdateConfig
   BARS.UpdateConfig = function(self)
