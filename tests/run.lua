@@ -3625,6 +3625,25 @@ do
     ok(pfUI_config.position.pfTestFrameA.xpos == 10, "Normal keeps its own places")
     L.Switch("Raid")
     ok(pfUI_config.position.pfTestFrameA.xpos == 99, "Raid keeps what was arranged in it")
+    -- every setting is the layout's own (user, 25 Oct 2026: "ANY MENU SELECTION ANYTHING")
+    do
+      local m = pfUI_config.meters
+      local was = m.win1 and m.win1.width
+      if m.win1 then
+        m.win1.width = "333"
+        L.Switch("Normal")
+        m.win1.width = "222"
+        L.Switch("Raid")
+        ok(m.win1.width == "333", "a meter window's size is kept in each layout (" .. tostring(m.win1.width) .. ")")
+        L.Switch("Normal")
+        ok(m.win1.width == "222" and pfUI_config.meters == m, "and the other layout's, filled into the same settings table")
+        L.Switch("Raid")
+        m.win1.width = was
+      end
+      local needs = L.ApplyCfg({ octotestpart = { a = "1" } })
+      ok(table.getn(needs) == 1 and needs[1] == "octotestpart", "a part that cannot change live asks for a reload")
+      pfUI_config.octotestpart = nil
+    end
     -- the on-screen buttons keep one place in every layout (user, 25 Oct 2026)
     pfUI_config.position.pfGearButton = { anchor = "CENTER", xpos = 77, ypos = 5 }
     L.Switch("Normal")

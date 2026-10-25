@@ -889,3 +889,12 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    modules/bags-options.lua: page "Bags" (bagsocto, section "Bags" first under "Bags & Loot"): switch, pinned
    preview (your items, or samples; click its bags), Open / Sort / Reset positions, cards Window, What it shows,
    Slot order, Which bags, Title bar colour. Tests: tests\bags.lua. New files: needs a full client restart.
+21. UI layouts keep EVERY setting (25 Oct 2026, NOT seen in game; user: "every setting you have chosen should be saved
+   inside that UI layout ... ANY MENU SELECTION ANYTHING", after meters did not follow a layout). octo-layouts.lua:
+   saved[name].cfg = L.CfgCopy() (pfUI_config minus L.SHARED: layouts, position (kept as .pos), gear, version);
+   L.Switch -> L.ApplyCfg(target.cfg): changed top-level parts are filled into the live pfUI_config IN PLACE (modules
+   hold handles on sub-tables; keys missing from an older copy keep their value), then L.LIVE[part]() shows them
+   (unitframes UF.ApplyAll, bars UpdateConfig, meters RestyleAll, plates Refresh, castbar CB.Apply, swing ApplyLayout,
+   mapstyle ApplyStyle, bagsocto Refresh, abuttons, blizz BZ.Set per C.blizz); a changed part with no live apply (or
+   a different meter window count) -> "Reload now?" question, never an automatic reload. A layout saved before this
+   has no cfg and takes the settings on now. L.FIXED buttons (gear set, meters, layout) keep one place in all layouts.

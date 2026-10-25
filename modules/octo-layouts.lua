@@ -271,17 +271,110 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     return GS and GS.BarSpec and GS.BarSpec()
   end
 
+  -- ---------------------------------------------------------------- every setting
+
+  -- A layout keeps every setting (user, 25 Oct 2026: "every setting you have
+  -- chosen should be saved inside that UI layout ... ANY MENU SELECTION
+  -- ANYTHING"): a copy of pfUI_config, but not what belongs to the character
+  -- in every layout - the layouts themselves, gear (sets, specs, queues),
+  -- places (kept as .pos) and the version.
+  L.SHARED = { layouts = true, position = true, gear = true, version = true }
+  function L.CfgCopy()
+    local out = {}
+    for k, v in pairs(pfUI_config) do
+      if not L.SHARED[k] then out[k] = Copy(v) end
+    end
+    return out
+  end
+  local function Same(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, v in pairs(a) do if not Same(v, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+  end
+  L.Same = Same
+  -- into the live settings in place: modules keep their own handles on parts
+  -- of pfUI_config, so tables are filled, never swapped; a setting the saved
+  -- copy does not have (newer than it) keeps its value
+  local function Assign(dst, src)
+    for k, v in pairs(src) do
+      if type(v) == "table" then
+        if type(dst[k]) ~= "table" then dst[k] = {} end
+        Assign(dst[k], v)
+      else
+        dst[k] = v
+      end
+    end
+  end
+  -- what each part does to show new settings at once; a changed part without
+  -- one takes a reload
+  L.LIVE = {
+    unitframes = function() if pfUI.ufOcto and pfUI.ufOcto.ApplyAll then pfUI.ufOcto.ApplyAll() end end,
+    bars = function() if pfUI.bars and pfUI.bars.UpdateConfig then pfUI.bars:UpdateConfig() end end,
+    meters = function()
+      local M = pfUI.meters
+      if M and M.RestyleAll then M.RestyleAll() end
+    end,
+    plates = function() if pfUI.plates and pfUI.plates.Refresh then pfUI.plates.Refresh() end end,
+    castbar = function()
+      local CB = pfUI.castbarOcto
+      if CB and CB.Apply then for _, u in ipairs({ "player", "target", "focus" }) do pcall(CB.Apply, u) end end
+    end,
+    swing = function() if pfUI.swing and pfUI.swing.ApplyLayout then pfUI.swing.ApplyLayout() end end,
+    mapstyle = function() if pfUI.minimap and pfUI.minimap.ApplyStyle then pfUI.minimap.ApplyStyle() end end,
+    mapauto = function() end,
+    bagsocto = function() if pfUI.bagsOcto and pfUI.bagsOcto.Refresh then pfUI.bagsOcto.Refresh() end end,
+    abuttons = function() if pfUI.addonbuttons and pfUI.addonbuttons.UpdateConfig then pfUI.addonbuttons:UpdateConfig() end end,
+    blizz = function()
+      local BZ = pfUI.blizz
+      if not (BZ and BZ.S) then return end
+      for id in pairs(BZ.S) do
+        local want = C.blizz[id] == "1"
+        if (BZ.state[id] == "blizz") ~= want then BZ.Set(id, want and "blizz" or "octo") end
+      end
+    end,
+    unlock = function() end, gui = function() end,
+  }
+  -- the saved settings in, each changed part shown; the parts that cannot
+  -- change without a reload, by name
+  function L.ApplyCfg(cfg)
+    if type(cfg) ~= "table" then return {} end
+    local changed, needs = {}, {}
+    for k, v in pairs(cfg) do
+      if not L.SHARED[k] and not Same(pfUI_config[k], v) then changed[k] = true end
+    end
+    -- (more or fewer meter windows: made at login)
+    local wins = cfg.meters and cfg.meters.windows
+    if wins and C.meters and wins ~= C.meters.windows then table.insert(needs, "meter windows") end
+    for k, v in pairs(cfg) do
+      if not L.SHARED[k] and changed[k] then
+        if type(v) == "table" then
+          if type(pfUI_config[k]) ~= "table" then pfUI_config[k] = {} end
+          Assign(pfUI_config[k], v)
+        else
+          pfUI_config[k] = v
+        end
+      end
+    end
+    for k in pairs(changed) do
+      local fn = L.LIVE[k]
+      if fn then pcall(fn) else table.insert(needs, k) end
+    end
+    return needs
+  end
+
   -- what the layout you are in looks like now
   local function Snapshot()
     local M = pfUI.meters
     return { pos = Copy(C.position or {}), meters = (C.meters and C.meters.hidden == "1") and "0" or "1", bars = L.ReadBars(),
+             cfg = L.CfgCopy(),
              gear = Store().saved[Store().current] and Store().saved[Store().current].gear or "" }
   end
   function L.SaveCurrent()
     local s = Store()
     local keep = s.saved[s.current] or {}
     local snap = Snapshot()
-    keep.pos, keep.meters = snap.pos, snap.meters
+    keep.pos, keep.meters, keep.cfg = snap.pos, snap.meters, snap.cfg
     -- (a talent spec with its own spells keeps the bars, per layout; L.holdBars
     -- while a spec swap switches layout: the bars on now belong to the spec left)
     if not L.holdBars then
@@ -333,6 +426,9 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     for _, n in ipairs(L.FIXED) do C.position[n] = fixed[n] and Copy(fixed[n]) or nil end
     pfUI_config.position = C.position
     s.current = name
+    -- every other setting of the layout (a layout saved before this has none:
+    -- it takes the ones on now, and keeps them from here on)
+    local needs = L.ApplyCfg(target.cfg)
     Place()
     if pfUI.meters and pfUI.meters.ShowAll then pfUI.meters.ShowAll(target.meters ~= "0") end
     -- its own spells on the action bars (unless switched off for it)
@@ -345,6 +441,14 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     if target.gear and target.gear ~= "" and pfUI.gear and C.gear.sets[target.gear] then pfUI.gear.Equip(target.gear) end
     L.Paint()
     Say(name .. (why and (" (" .. why .. ")") or "") .. ".")
+    -- (settings that show only after a reload: ask, never reload by itself)
+    if needs and table.getn(needs) > 0 then
+      L.needsReload = table.concat(needs, ", ")
+      local open = _G["pfQuestionDialog"]
+      if open and open:IsShown() then open:Hide() _G["pfQuestionDialog"] = nil end
+      CreateQuestionDialog("The " .. name .. " layout has settings that show after a reload ("
+        .. L.needsReload .. ").\n\nReload now?", function() ReloadUI() end)
+    end
   end
 
   function L.Next()
