@@ -821,3 +821,15 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    indicator (actionbar-octo has proc glows), /disenchantall, C_EncodingUtil profile strings (would change the
    string format), extra bar grid shapes (action bar session). Tests: tests\clientapi.lua (unit frame events,
    SpellIcon, loot history).
+   Then (25 Oct; the user's friend: brues' pfUI was better only at "instant gear swap" and "instant bag sorting"):
+   - gear.lua GR.Tick: with ClassicAPI (GR.Instant, C.gear.instant) every slot that may change goes in one
+     cursor-free pass, C_Item.EquipItemByName({bagID, slotIndex} | {equipmentSlotIndex}, inv) on the copy GR.Find
+     picks (GUID / full / id); q.sent waits 1 s for the server, 3 tries a slot, then the cursor queue. Taking off
+     and combat / dead / casting waits stay on the queue. (brues' fork uses C_EquipmentSet.UseEquipmentSet with
+     sets saved in ClassicAPI; ours stay ours.)
+   - libs\libbagsort.lua (new file, full restart): pfUI.api.libbagsort:Sort("bags" | "bank"), :IsSorting(),
+     .onDone. ClassicAPI: C_Container.SortBags / SortBankBags (the client sorts, special bags respected). Plain:
+     Step() tops up stacks (SplitContainerItem), then swaps the first wrong slot (hearthstone, gear by slot,
+     type / subtype / name, greys from the end), one move per .05 s after locks clear, 30 s / 500 moves cap;
+     normal bags only. Sort button via pfUI.thirdparty.RegisterBagSort when no sort addon took it. The bags
+     session's window calls the same Sort.
