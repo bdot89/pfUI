@@ -14,6 +14,8 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
   local L = {}
   pfUI.layouts = L
   L.NAMES = { "Normal", "Raid", "PvP" }
+  -- frames that keep one place in all layouts: the gear set, meters and layout buttons
+  L.FIXED = { "pfGearButton", "pfMeterToggle", "pfLayoutButton" }
   L.ICON = { Normal = "Interface\\Icons\\INV_Misc_Map_01", Raid = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
              PvP = "Interface\\Icons\\INV_BannerPVP_02" }
 
@@ -322,7 +324,13 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
       target.gear = ""
       s.saved[name] = target
     end
+    -- the small on-screen buttons stay where they are in every layout, those
+    -- made later too (user, 25 Oct 2026: "hard locked in place in whichever
+    -- UI layout you use")
+    local fixed = {}
+    for _, n in ipairs(L.FIXED) do fixed[n] = C.position and C.position[n] end
     C.position = Copy(target.pos or {})
+    for _, n in ipairs(L.FIXED) do C.position[n] = fixed[n] and Copy(fixed[n]) or nil end
     pfUI_config.position = C.position
     s.current = name
     Place()

@@ -3625,6 +3625,14 @@ do
     ok(pfUI_config.position.pfTestFrameA.xpos == 10, "Normal keeps its own places")
     L.Switch("Raid")
     ok(pfUI_config.position.pfTestFrameA.xpos == 99, "Raid keeps what was arranged in it")
+    -- the on-screen buttons keep one place in every layout (user, 25 Oct 2026)
+    pfUI_config.position.pfGearButton = { anchor = "CENTER", xpos = 77, ypos = 5 }
+    L.Switch("Normal")
+    ok(pfUI_config.position.pfGearButton and pfUI_config.position.pfGearButton.xpos == 77, "the gear button stays put when the layout changes")
+    pfUI_config.position.pfGearButton.xpos = 88
+    L.Switch("Raid")
+    ok(pfUI_config.position.pfGearButton.xpos == 88 and pfUI_config.position.pfTestFrameA.xpos == 99, "moved in one layout, it is there in the others")
+    pfUI_config.position.pfGearButton = nil
     -- each layout keeps its own spells (user, 24 Oct 2026): a made-up action bar
     do
       local bar, cursor = { [1] = { t = "spell", name = "Smite", rank = "Rank 2" } }, nil
