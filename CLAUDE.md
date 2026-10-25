@@ -242,6 +242,23 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    tooltip's name colour). Art from tools\MakePlateArt.ps1 -> img\bars. The preview's sample
    plays a 13 s loop of all of them; the note under it opens what it shows. Not seen in game;
    unverified: Model SetAlpha(0) hiding the clock, keystate on key presses, tooltip quality colour.
+   25 Oct, looks rebuilt (NOT seen in game). User's screenshot: Neon was a thick grey-white box round every
+   button, empty ones too - pfUI's glow texture 6 px wide in the accent colour (class colour: a priest's is
+   white), on a frame parented to the button (pfUI hides only an empty slot's backdrop). Now AB.SKINS are
+   parts (edge {size, off, "bevel"}, line2, outer {size, off, glow|glow2}, gloss, shade, frame =
+   UI-Quickslot2) drawn by AB.Draw(f, key, own) on frames under f.backdrop (gloss / shade / frame are BORDER
+   textures on f, shown / hidden by the backdrop's OnShow / OnHide). Each part's colour C.bars.skin_<part>
+   ("" = the skin's own, "accent" allowed) + _class, sizes skin_edgesize / skin_outersize, bar backdrop
+   colour bar_bg; AB.ClearColors on every look / border pick. 14 looks (AB.PRESETS, 5th field = the idea):
+   ideas from Masque's Apathy (thin square lines) / Entropy (the same in metal colours) / Dream / Zoomed,
+   ElvUI pixel borders and shadows, the game's frame (Bartender / Dominos default) - nothing copied. Slot
+   style "game" = UI-Quickslot (crop .14-.86 guessed). Options: General = Looks as picture tiles (7 a row,
+   picked one purple and in your colours), Look colours card (12 colours, unused ones dimmed), Behaviour;
+   every card's small controls via Grid(p, cols, items) in even columns; tabs purple (pick-one). Preview:
+   each bar's buttons are copies at real size scaled by the view (MiniButton) drawn with AB.Draw, empty
+   slots only where the bar shows them, the bar's backdrop only where it has one, outline only on hover /
+   the open tab. Tests: W.ColorMade(label, get) registers grid colours for the "every colour has a picker"
+   check.
 9. OctoBG's look for the whole options window (20 Oct, not seen in game). User (ElvUI screenshots +
    OctoBG's options): "copy Octo BGS style of UI and update PFUI into being my own addon", and
    "PLEASE GET SCROLLING COMBAT TEXT OPTION PANEL IT WAS IN OCTO BG" (the CreateConfig pages

@@ -214,6 +214,8 @@ if pfUI.octoui and pfUI.octoui.W then
     table.insert(OCTO_COLOR_GETS, { get = get, label = label })
     return made(p, label, desc, get, set)
   end
+  -- (colours in a grid of their own: actionbar-options.lua Grid)
+  W0.ColorMade = function(label, get) table.insert(OCTO_COLOR_GETS, { get = get, label = label }) end
 end
 
 -- ---------------------------------------------------------------- phase 1: Octo look
@@ -1727,7 +1729,30 @@ do
     AB.Drain(b, Mock.now, 10, 1)
     ok(b.octoDrain and b.octoDrain:IsShown() and b.octoDrain.edge:IsShown(), "drain swipe with its edge line")
     AB.Drain(b, Mock.now, 1, 1)
+    -- every skin draws; Neon is its own colour, not the class / accent white
+    -- (25 Oct 2026: a priest's Neon was a thick grey-white box round every slot)
+    for _, sk in ipairs(AB.SKINS) do
+      pfUI_config.bars.skin = sk.key
+      local good, err = pcall(AB.Draw, b, sk.key)
+      ok(good, "skin " .. sk.key .. " draws: " .. tostring(err or ""))
+    end
+    AB.ApplyPreset("neon")
+    local r, g = AB.PartColor(AB.SKINBY.neon, "edge")
+    ok(r < .5 and g > .9, "Neon's line is its own cyan")
+    pfUI_config.bars.skin_edge = "1,0,0,1"
+    r, g = AB.PartColor(AB.SKINBY.neon, "edge")
+    ok(r == 1 and g == 0, "a picked border colour wins")
+    local look, _, exact = AB.CurrentLook()
+    ok(look == "neon" and exact, "a colour change keeps the look lit")
+    AB.ApplyPreset("neon")
+    ok(pfUI_config.bars.skin_edge == "", "picking a look starts from its own colours")
+    -- the skin hangs on pfUI's backdrop: an empty slot pfUI hides takes it along
+    ok(b.octoSkin and b.backdrop and b.octoSkin:GetParent() == b.backdrop, "the skin follows the button's backdrop")
+    ok(b.octoOuter and b.octoOuter:GetParent() == b.backdrop, "Neon's halo too")
+    AB.ApplyPreset("game")
+    ok(b.octoFrame and b.octoFrame.want, "the Game look uses the game's frame")
     ok(not b.octoDrain:IsShown(), "no swipe for the global cooldown")
+    ok(not (b.octoFrame.want or b.octoGloss.want), "pfUI's look adds nothing over the icon")
     cb.cd_style = "clock"
     pfUI.bars:UpdateConfig()
     ok(b.cd.pfCooldownStyleAnimation == 1, "clock style keeps the game's clock")

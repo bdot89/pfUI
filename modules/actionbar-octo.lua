@@ -28,37 +28,215 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- button skins
 
   local WHITE = "Interface\\Buttons\\WHITE8X8"
+  local ART = "Interface\\AddOns\\pfUI\\img\\bars\\"
+  AB.ART = ART
+
+  -- A skin is a set of parts drawn round and over each button (25 Oct 2026,
+  -- user: "Why is neon looking like this ... add more bar looks from other
+  -- addons"). Neon used to be pfUI's glow texture 6 px wide in the accent
+  -- colour - for a priest the class colour is white, so every button, empty
+  -- ones too, sat in a thick grey-white box. Parts (each with its own colour
+  -- setting C.bars.skin_<part>, "" = the skin's own colour):
+  --   edge   { size, off, "bevel" }  a line off px out from the icon; bevel =
+  --          light top and left, dark bottom and right (a raised frame)
+  --   line2  a 1 px outline round the edge line (two-tone)
+  --   outer  { size, off, "glow" | "glow2" }  a soft halo or shadow outside
+  --   gloss  a shine over the icon's top    shade  dark inner edges
+  --   frame  the game's own button frame (UI-Quickslot2, as Bartender's and
+  --          Dominos' default buttons)
+  -- Ideas from Masque's skins (Apathy: thin square lines; Entropy: the same in
+  -- metal colours; Dream; Zoomed), ElvUI's pixel borders and shadows and the
+  -- game's frame. Only the ideas: nothing of their code or art is used.
+  -- Everything hangs on pfUI's backdrop, so a hidden empty slot hides it all.
   AB.SKINS = {
     { key = "pfui", label = "Thin black (pfUI)" },
-    { key = "shadow", label = "Soft shadow", edge = pfUI.media["img:glow2"], size = 6, off = 4, color = { 0, 0, 0, .9 } },
-    { key = "thick", label = "Thick black", edge = WHITE, size = 2, off = 2, color = { 0, 0, 0, 1 } },
-    { key = "accent", label = "Accent line", edge = WHITE, size = 1, off = 1, color = { 1, 1, 1, 1 }, accent = true },
-    { key = "neon", label = "Neon glow (accent)", edge = pfUI.media["img:glow"], size = 6, off = 5, color = { 1, 1, 1, .8 }, accent = true },
-    { key = "gold", label = "Gold line", edge = WHITE, size = 1, off = 1, color = { .85, .68, .3, 1 } },
+    { key = "shadow", label = "Soft shadow", outer = { 5, 0, "glow2" }, colors = { outer = "0,0,0,.85" } },
+    { key = "thick", label = "Thick black", edge = { 2, 0 }, colors = { edge = "0,0,0,1" } },
+    { key = "accent", label = "Thin colour line", edge = { 1, 0 }, colors = { edge = "accent" } },
+    { key = "outlined", label = "Colour line, black outline", edge = { 1, 0 }, line2 = true,
+      colors = { edge = "accent", line2 = "0,0,0,1" } },
+    { key = "neon", label = "Neon", edge = { 1, 0 }, outer = { 5, 1, "glow" }, shade = true,
+      colors = { edge = ".2,.95,1,1", outer = ".05,.75,1,.6", shade = "0,0,0,.35" } },
+    { key = "gold", label = "Gold line", edge = { 1, 0 }, outer = { 4, 1, "glow2" }, colors = { edge = ".9,.72,.3,1", outer = "0,0,0,.7" } },
+    { key = "gloss", label = "Glossy", edge = { 1, 0 }, gloss = true, shade = true,
+      colors = { edge = "0,0,0,1", gloss = "1,1,1,.4", shade = "0,0,0,.3" } },
+    { key = "bevel", label = "Bevel", edge = { 2, 0, "bevel" }, shade = true, colors = { edge = ".5,.52,.56,1", shade = "0,0,0,.25" } },
+    { key = "steel", label = "Metal", edge = { 3, 0, "bevel" }, line2 = true, outer = { 4, 3, "glow2" }, gloss = true,
+      colors = { edge = ".7,.73,.8,1", line2 = "0,0,0,1", outer = "0,0,0,.6", gloss = "1,1,1,.18" } },
+    { key = "glass", label = "Glass", edge = { 1, 0 }, gloss = true, colors = { edge = "1,1,1,.4", gloss = "1,1,1,.6" } },
+    { key = "dark", label = "Dark frame", edge = { 3, 0 }, line2 = true, outer = { 4, 3, "glow2" }, shade = true,
+      colors = { edge = ".08,.08,.09,1", line2 = ".32,.33,.36,1", outer = "0,0,0,.6", shade = "0,0,0,.4" } },
+    { key = "blizz", label = "Game frame", frame = true, colors = { frame = "1,1,1,1" } },
   }
   local SKINBY = {}
   for _, s in ipairs(AB.SKINS) do SKINBY[s.key] = s end
+  AB.SKINBY = SKINBY
+  -- the parts with a colour each, in the order the options show them
+  AB.PARTS = { "edge", "line2", "outer", "gloss", "shade", "frame" }
 
-  local function Skin(f)
-    local sk = SKINBY[C.bars.skin or "pfui"]
-    if not sk or not sk.edge then
-      if f.octoSkin then f.octoSkin:Hide() end
-      return
-    end
-    if not f.octoSkin then f.octoSkin = CreateFrame("Frame", nil, f) end
-    local s = f.octoSkin
-    s:ClearAllPoints()
-    s:SetPoint("TOPLEFT", f, "TOPLEFT", -sk.off - 1, sk.off + 1)
-    s:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", sk.off + 1, -sk.off - 1)
-    s:SetBackdrop({ edgeFile = sk.edge, edgeSize = sk.size, insets = { left = 0, right = 0, top = 0, bottom = 0 } })
-    local c = sk.color
-    if sk.accent and GetAccentColor then
-      local r, g, b = GetAccentColor()
-      c = { r, g, b, c[4] }
-    end
-    s:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
-    s:Show()
+  local function ClassRGB()
+    local _, class = UnitClass("player")
+    local c = class and RAID_CLASS_COLORS[class]
+    if c then return c.r, c.g, c.b end
   end
+
+  -- "r,g,b,a", or "accent" for the UI's accent colour
+  local function ParseColor(str)
+    if str == "accent" then
+      if GetAccentColor then
+        local r, g, b = GetAccentColor()
+        return r, g, b, 1
+      end
+      return .2, .7, 1, 1
+    end
+    local r, g, b, a = GetStringColor(str or "1,1,1,1")
+    return tonumber(r) or 1, tonumber(g) or 1, tonumber(b) or 1, tonumber(a) or 1
+  end
+  AB.ParseColor = ParseColor
+
+  -- a part's colour: your setting, else the skin's own (own = true: always
+  -- the skin's own, for the look tiles)
+  function AB.PartColor(sk, part, own)
+    local str = not own and C.bars["skin_" .. part]
+    if not str or str == "" then str = sk.colors and sk.colors[part] or "1,1,1,1" end
+    local r, g, b, a = ParseColor(str)
+    if not own and C.bars["skin_" .. part .. "_class"] == "1" then
+      local cr, cg, cb = ClassRGB()
+      if cr then r, g, b = cr, cg, cb end
+    end
+    return r, g, b, a
+  end
+  -- edge / outer thickness: your setting, else the skin's own
+  function AB.PartSize(sk, part, own)
+    local v = not own and tonumber(C.bars["skin_" .. part .. "size"])
+    return v or (sk[part] and sk[part][1]) or 0
+  end
+
+  -- four lines: the band from off to off + size px outside f
+  local function Band(t, first, f, size, off, r, g, b, a, bevel)
+    local o = off + size
+    local top, bottom, left, right = t[first], t[first + 1], t[first + 2], t[first + 3]
+    top:ClearAllPoints()
+    top:SetPoint("TOPLEFT", f, "TOPLEFT", -o, o) top:SetPoint("TOPRIGHT", f, "TOPRIGHT", o, o) top:SetHeight(size)
+    bottom:ClearAllPoints()
+    bottom:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -o, -o) bottom:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", o, -o) bottom:SetHeight(size)
+    left:ClearAllPoints()
+    left:SetPoint("TOPLEFT", f, "TOPLEFT", -o, o - size) left:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -o, -o + size) left:SetWidth(size)
+    right:ClearAllPoints()
+    right:SetPoint("TOPRIGHT", f, "TOPRIGHT", o, o - size) right:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", o, -o + size) right:SetWidth(size)
+    if bevel then
+      local lr, lg, lb = math.min(1, r * 1.45 + .08), math.min(1, g * 1.45 + .08), math.min(1, b * 1.45 + .08)
+      top:SetVertexColor(lr, lg, lb, a) left:SetVertexColor(lr, lg, lb, a)
+      bottom:SetVertexColor(r * .4, g * .4, b * .4, a) right:SetVertexColor(r * .4, g * .4, b * .4, a)
+    else
+      for i = first, first + 3 do t[i]:SetVertexColor(r, g, b, a) end
+    end
+    for i = first, first + 3 do t[i]:Show() end
+  end
+
+  -- gloss, shade and the game frame are drawn on the button itself (over the
+  -- icon, under its texts) and follow pfUI's backdrop: shown with it, hidden
+  -- with it (pfUI hides the backdrop of an empty slot it does not show)
+  local OVER = { "octoGloss", "octoShade", "octoFrame" }
+  local function OverShow()
+    local f = this:GetParent()
+    for _, k in ipairs(OVER) do
+      local t = f and f[k]
+      if t then if t.want then t:Show() else t:Hide() end end
+    end
+  end
+  local function OverHide()
+    local f = this:GetParent()
+    for _, k in ipairs(OVER) do if f and f[k] then f[k]:Hide() end end
+  end
+  local function Over(f, key, tex, blend)
+    local t = f[key]
+    if not t then
+      t = f:CreateTexture(nil, "BORDER")
+      t:SetTexture(tex)
+      t:SetBlendMode(blend)
+      f[key] = t
+    end
+    return t
+  end
+
+  -- draw skin `key` on button f (own: in the skin's own colours and sizes)
+  function AB.Draw(f, key, own)
+    local sk = SKINBY[key or "pfui"] or SKINBY.pfui
+    local holder = f.backdrop or f
+    if holder ~= f and not holder.octoOver then
+      holder.octoOver = true
+      holder:SetScript("OnShow", OverShow)
+      holder:SetScript("OnHide", OverHide)
+    end
+    -- edge and its outline
+    local es = sk.edge and AB.PartSize(sk, "edge", own) or 0
+    if es > 0 then
+      if not f.octoSkin then
+        f.octoSkin = CreateFrame("Frame", nil, holder)
+        f.octoSkin.t = {}
+        for i = 1, 8 do
+          f.octoSkin.t[i] = f.octoSkin:CreateTexture(nil, "OVERLAY")
+          f.octoSkin.t[i]:SetTexture(WHITE)
+        end
+      end
+      local s = f.octoSkin
+      s:SetFrameLevel(holder:GetFrameLevel() + 1)
+      local off = sk.edge[2] or 0
+      local r, g, b, a = AB.PartColor(sk, "edge", own)
+      Band(s.t, 1, f, es, off, r, g, b, a, sk.edge[3] == "bevel")
+      if sk.line2 then
+        local r2, g2, b2, a2 = AB.PartColor(sk, "line2", own)
+        Band(s.t, 5, f, 1, off + es, r2, g2, b2, a2)
+      else
+        for i = 5, 8 do s.t[i]:Hide() end
+      end
+      s:Show()
+    elseif f.octoSkin then
+      f.octoSkin:Hide()
+    end
+    -- halo / shadow
+    local os = sk.outer and AB.PartSize(sk, "outer", own) or 0
+    if os > 0 then
+      if not f.octoOuter then f.octoOuter = CreateFrame("Frame", nil, holder) end
+      local o = f.octoOuter
+      o:SetFrameLevel(holder:GetFrameLevel())
+      local d = (sk.outer[2] or 0) + os
+      o:ClearAllPoints()
+      o:SetPoint("TOPLEFT", f, "TOPLEFT", -d, d)
+      o:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", d, -d)
+      o:SetBackdrop({ edgeFile = pfUI.media["img:" .. (sk.outer[3] or "glow2")], edgeSize = os,
+                      insets = { left = 0, right = 0, top = 0, bottom = 0 } })
+      o:SetBackdropBorderColor(AB.PartColor(sk, "outer", own))
+      o:Show()
+    elseif f.octoOuter then
+      f.octoOuter:Hide()
+    end
+    -- over the icon
+    local showing = holder == f or holder:IsShown()
+    local t = Over(f, "octoGloss", ART .. "btn-gloss", "ADD")
+    t:SetAllPoints(f)
+    t:SetVertexColor(AB.PartColor(sk, "gloss", own))
+    t.want = sk.gloss and true or nil
+    t = Over(f, "octoShade", ART .. "btn-inner", "BLEND")
+    t:SetAllPoints(f)
+    t:SetVertexColor(AB.PartColor(sk, "shade", own))
+    t.want = sk.shade and true or nil
+    -- (the game's frame is 66 px round a 36 px button)
+    t = Over(f, "octoFrame", "Interface\\Buttons\\UI-Quickslot2", "BLEND")
+    local w = tonumber(f:GetWidth()) or 36
+    t:ClearAllPoints()
+    t:SetPoint("CENTER", f, "CENTER", 0, 0)
+    t:SetWidth(w * 66 / 36)
+    t:SetHeight(w * 66 / 36)
+    t:SetVertexColor(AB.PartColor(sk, "frame", own))
+    t.want = sk.frame and true or nil
+    for _, k in ipairs(OVER) do
+      if f[k].want and showing then f[k]:Show() else f[k]:Hide() end
+    end
+  end
+
+  local function Skin(f) AB.Draw(f, C.bars.skin) end
 
   local function Zoom(f)
     if not f.icon then return end
@@ -73,9 +251,6 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
   -- and hover looks, proc glows, cooldown swipe and edge, empty slot fill,
   -- equipped border. EllesmereUI's licence reserves its rights: only its
   -- feature list was read. Art: tools\MakePlateArt.ps1 -> img\bars.)
-
-  local ART = "Interface\\AddOns\\pfUI\\img\\bars\\"
-  AB.ART = ART
 
   -- a setting's colour, or the class colour when its "_class" switch is on
   local function Col(key)
@@ -174,12 +349,13 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
     { key = "grad", label = "Gradient", tex = "btn-grad" },
     { key = "stripes", label = "Stripes", tex = "btn-stripes" },
     { key = "dots", label = "Dots", tex = "btn-dots" },
+    { key = "game", label = "The game's empty slot", path = "Interface\\Buttons\\UI-Quickslot" },
   }
   local SLOTBY = {}
   for _, s in ipairs(AB.SLOTS) do SLOTBY[s.key] = s end
-  function AB.Slot(f, holder)
+  function AB.Slot(f, holder, style)
     holder = holder or f.backdrop or f
-    local s = SLOTBY[C.bars.slot_style or "pfui"]
+    local s = SLOTBY[style or C.bars.slot_style or "pfui"]
     if not s or s.key == "pfui" then
       if f.octoSlot then f.octoSlot:Hide() end
       return
@@ -189,8 +365,17 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
       f.octoSlot:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
       f.octoSlot:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
     end
-    f.octoSlot:SetTexture(s.tex and (ART .. s.tex) or WHITE)
-    f.octoSlot:SetVertexColor(Col("slot_color"))
+    f.octoSlot:SetTexture(s.path or (s.tex and (ART .. s.tex)) or WHITE)
+    -- (the game's slot is a picture: its own colours, a tint only)
+    if s.path then
+      -- (the slot is the middle of its 64 px picture: unverified crop)
+      f.octoSlot:SetTexCoord(.14, .86, .14, .86)
+      local r, g, b = Col("slot_color")
+      f.octoSlot:SetVertexColor(math.min(1, r + .6), math.min(1, g + .6), math.min(1, b + .6), 1)
+    else
+      f.octoSlot:SetTexCoord(0, 1, 0, 1)
+      f.octoSlot:SetVertexColor(Col("slot_color"))
+    end
     f.octoSlot:Show()
   end
 
@@ -683,6 +868,9 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
         bar.fadeTo = math.min(alpha, tonumber(d.fadeto) or 0)
         -- (autohide moves the opacity itself; else it is the bar's own)
         if d.autohide ~= "1" then bar:SetAlpha(alpha) end
+        -- the bar's backdrop colour ("" = pfUI's)
+        local bbg = C.bars.bar_bg
+        if bar.backdrop and bbg and bbg ~= "" then bar.backdrop:SetBackdropColor(ParseColor(bbg)) end
         for j = 1, 12 do
           local f = bar[j]
           if f then
@@ -705,15 +893,35 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- looks
 
-  -- one-click looks: { key, label, global keys, every bar's keys }
+  -- one-click looks: { key, label, global keys, every bar's keys, the idea }
+  local function L(key, label, skin, zoom, slot, spacing, background, showempty, idea)
+    return { key, label, { skin = skin, zoom = zoom, slot_style = slot },
+             { spacing = spacing, background = background, showempty = showempty }, idea }
+  end
   AB.PRESETS = {
-    { "pfui", "pfUI", { skin = "pfui", zoom = ".08" }, { spacing = "1", background = "1", showempty = "1" } },
-    { "clean", "Clean", { skin = "shadow", zoom = ".1" }, { spacing = "3", background = "0", showempty = "0" } },
-    { "bold", "Bold", { skin = "thick", zoom = ".12" }, { spacing = "4", background = "0", showempty = "1" } },
-    { "neon", "Neon", { skin = "neon", zoom = ".1" }, { spacing = "5", background = "0", showempty = "0" } },
-    { "classic", "Classic", { skin = "gold", zoom = "0" }, { spacing = "2", background = "1", showempty = "1" } },
-    { "minimal", "Minimal", { skin = "accent", zoom = ".15" }, { spacing = "2", background = "0", showempty = "0" } },
+    L("pfui", "pfUI", "pfui", ".08", "pfui", "1", "1", "1", "pfUI's own: thin black borders on a bar backdrop."),
+    L("clean", "Clean", "shadow", ".1", "pfui", "3", "0", "0", "A soft shadow under each button, no bar backdrop (ElvUI's idea)."),
+    L("bold", "Bold", "thick", ".12", "pfui", "4", "0", "1", "Thick black frames, empty slots kept."),
+    L("neon", "Neon", "neon", ".1", "pfui", "6", "0", "0", "A bright line with a coloured halo. Pick its colours under Look colours."),
+    L("classic", "Classic", "gold", "0", "pfui", "2", "1", "1", "Gold lines round whole icons."),
+    L("minimal", "Minimal", "accent", ".15", "pfui", "2", "0", "0", "One thin line in the UI's accent colour (Masque's Apathy idea)."),
+    L("pixel", "Pixel", "outlined", ".08", "pfui", "3", "0", "0", "A coloured line in a black outline (ElvUI's pixel borders)."),
+    L("zoomed", "Zoomed", "pfui", ".2", "pfui", "1", "0", "0", "Big icons packed close together (Masque's Zoomed idea)."),
+    L("glossy", "Glossy", "gloss", ".08", "grad", "3", "0", "1", "A shine on top and darker edges (Masque's gloss skins)."),
+    L("bevel", "Bevel", "bevel", ".08", "grad", "3", "0", "1", "Raised frames: light on top, dark below."),
+    L("metal", "Metal", "steel", ".08", "grad", "5", "0", "1", "Metal frames; colour them copper, gold or cobalt (Masque's Entropy idea)."),
+    L("glass", "Glass", "glass", ".08", "solid", "3", "0", "0", "See-through edges with a strong shine."),
+    L("dark", "Dark", "dark", ".1", "solid", "5", "0", "1", "Heavy dark frames with a light rim (retail's buttons)."),
+    L("game", "Game", "blizz", "0", "game", "6", "0", "1", "The game's own button frame (Bartender's and Dominos' default)."),
   }
+  -- back to a skin's own colours and sizes
+  function AB.ClearColors()
+    for _, part in ipairs(AB.PARTS) do
+      C.bars["skin_" .. part] = ""
+      C.bars["skin_" .. part .. "_class"] = "0"
+    end
+    C.bars.skin_edgesize, C.bars.skin_outersize = "", ""
+  end
   function AB.ApplyPreset(key)
     for _, p in ipairs(AB.PRESETS) do
       if p[1] == key then
@@ -721,19 +929,25 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
         for i = 1, 12 do
           for k, v in pairs(p[4]) do DB(i)[k] = v end
         end
+        AB.ClearColors()
       end
     end
     BARS:UpdateConfig()
   end
+  -- the look in use: one that matches every key; else the first with the same
+  -- skin (third return false: your changes on top of it)
   function AB.CurrentLook()
+    local near
     for _, p in ipairs(AB.PRESETS) do
       local same = true
       for k, v in pairs(p[3]) do if C.bars[k] ~= v then same = false end end
       for i = 1, 12 do
         for k, v in pairs(p[4]) do if DB(i)[k] ~= v then same = false end end
       end
-      if same then return p[1], p[2] end
+      if same then return p[1], p[2], true end
+      if not near and p[3].skin == C.bars.skin then near = p end
     end
+    if near then return near[1], near[2], false end
   end
 
   AB.Apply()
