@@ -62,7 +62,7 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       local base = Base(b.id)
       if not out[base] and IsTrinket(b.link) then
         local _, _, nm = string.find(b.link, "%[(.-)%]")
-        out[base] = { base = base, id = b.id, name = nm or "?", tex = (GetContainerItemInfo(b.bag, b.slot)), bag = b.bag, slot = b.slot }
+        out[base] = { base = base, id = b.id, link = b.link, name = nm or "?", tex = (GetContainerItemInfo(b.bag, b.slot)), bag = b.bag, slot = b.slot }
       end
     end
     return out
@@ -176,7 +176,7 @@ pfUI:RegisterModule("gear-queue", "vanilla", function ()
       local t = Q.Pick(inv)
       if t and GR.EquipItem then
         if C.gear.tqtell == "1" then Say((inv == 13 and "top" or "bottom") .. " trinket: " .. t.name .. ".") end
-        GR.EquipItem(inv, { id = t.id, name = t.name, tex = t.tex })
+        GR.EquipItem(inv, { id = t.id, link = t.link, bag = t.bag, slot = t.slot, name = t.name, tex = t.tex })
         return                                                     -- one swap at a time
       end
     end

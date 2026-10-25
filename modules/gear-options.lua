@@ -623,7 +623,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     GR.Flyout(s, inv, function(item)
       local s2 = GO.Set()
       if not s2 then return end
-      s2.slots[GR.Key(inv)] = (item == "empty") and "empty" or { id = item.id, name = item.name, tex = item.tex }
+      s2.slots[GR.Key(inv)] = (item == "empty") and "empty" or { id = item.id, full = GR.FullOf and GR.FullOf(item.link), name = item.name, tex = item.tex }
       GR.Changed()
     end, { items = items, empty = false, side = (s:GetLeft() or 0) > (GO.holder:GetLeft() or 0) + 300 and "LEFT" or "RIGHT",
            hint = "Puts it in this set (Wear puts the set on)." })

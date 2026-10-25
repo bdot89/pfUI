@@ -4104,6 +4104,31 @@ do
     GR.EquipItem(14, trinkets[1])
     Run()
     ok(inv[14] == trink2, "picking one from the menu puts it on")
+    -- two rings with one name and id, told apart only by the link's 4th number
+    -- (user's friend, 25 Oct 2026: "Jasper Link of Fire Resistance" +19 / +20)
+    do
+      local j19 = { link = "|cff1eff00|Hitem:500:0:1200:19|h[Jasper Link of Fire Resistance]|h|r", loc = "INVTYPE_FINGER", tex = "x" }
+      local j20 = { link = "|cff1eff00|Hitem:500:0:1200:20|h[Jasper Link of Fire Resistance]|h|r", loc = "INVTYPE_FINGER", tex = "x" }
+      ok(GR.IdOf(j19.link) == GR.IdOf(j20.link) and GR.FullOf(j19.link) ~= GR.FullOf(j20.link), "the 4th number tells the two rings apart")
+      local keep11, keep12, keep10 = inv[11], inv[12], bags[1][1]
+      inv[11], inv[12], bags[1][1] = j19, nil, j20
+      GR.EquipItem(11, { bag = 1, slot = 1, id = GR.IdOf(j20.link), link = j20.link, name = "Jasper", tex = "x" })
+      Run()
+      ok(inv[11] == j20 and bags[1][1] == j19, "picking the +20 ring puts on the +20 ring, not nothing")
+      -- the other one worn in the other ring slot stays there
+      inv[11], inv[12], bags[1][1] = nil, j19, j20
+      GR.EquipItem(11, { bag = 1, slot = 1, id = GR.IdOf(j20.link), link = j20.link, name = "Jasper", tex = "x" })
+      Run()
+      ok(inv[11] == j20 and inv[12] == j19, "and does not take the +19 from the other ring slot")
+      -- a set keeps which copy it wants
+      local snap = GR.Snapshot({ s11 = true, s12 = true })
+      ok(snap.s11.full == GR.FullOf(j20.link) and snap.s12.full == GR.FullOf(j19.link), "a set saves the very copy")
+      inv[11], inv[12] = j19, j20
+      GR.Wear("Rings", snap)
+      Run()
+      ok(inv[11] == j20 and inv[12] == j19, "and wearing it swaps the two rings round")
+      inv[11], inv[12], bags[1][1] = keep11, keep12, keep10
+    end
     -- key bindings and /gear
     sets.Tank.key = "3"
     GR.Changed()

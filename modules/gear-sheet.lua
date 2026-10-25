@@ -112,7 +112,10 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
 
   -- one slot, one item (through the same queue as sets: in combat only weapons)
   function GR.EquipItem(inv, item)
-    local want = item == "empty" and "empty" or { id = item.id, name = item.name, tex = item.tex }
+    -- (the very copy clicked: its whole link and where it is - two items with
+    -- one name and id used to be taken for each other)
+    local want = item == "empty" and "empty" or { id = item.id, name = item.name, tex = item.tex, full = GR.FullOf(item.link),
+      from = (item.bag and { bag = item.bag, slot = item.slot }) or (item.worn and { inv = item.worn }) or nil }
     GR.Wear(GR.NAME[inv] or "Item", { [GR.Key(inv)] = want })
   end
 

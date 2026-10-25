@@ -53,6 +53,17 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     if not id then return nil end
     return id .. ":" .. (ench ~= "" and ench or "0") .. ":" .. (suffix ~= "" and suffix or "0")
   end
+  -- the whole identity, with the link's 4th number: two copies with one name,
+  -- id, enchant and suffix can still differ there (user's friend, 25 Oct 2026:
+  -- two "Jasper Link of Fire Resistance", +19 and +20 - picking one swapped in
+  -- the other or did nothing). Sets and picks keep it as .full
+  function GR.FullOf(link)
+    if not link then return nil end
+    local _, _, id, ench, suffix, uniq = string.find(link, "item:(%d+):(%-?%d*):(%-?%d*):?(%-?%d*)")
+    if not id then return nil end
+    local function N(v) return (v and v ~= "") and v or "0" end
+    return id .. ":" .. N(ench) .. ":" .. N(suffix) .. ":" .. N(uniq)
+  end
   local function Base(id) return id and (string.gsub(id, ":.*$", "")) end
   local function NameOf(link)
     if not link then return nil end
@@ -110,7 +121,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     for bag = 0, 4 do
       for slot = 1, (GetContainerNumSlots(bag) or 0) do
         local link = GetContainerItemLink(bag, slot)
-        if link then table.insert(out, { bag = bag, slot = slot, id = GR.IdOf(link), link = link }) end
+        if link then table.insert(out, { bag = bag, slot = slot, id = GR.IdOf(link), full = GR.FullOf(link), link = link }) end
       end
     end
     return out
@@ -124,7 +135,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
       if not only or only[GR.Key(inv)] ~= nil then
         local id, link = GR.Worn(inv)
         if id then
-          slots[GR.Key(inv)] = { id = id, name = NameOf(link) or "", tex = GR.InvTex(inv) or "" }
+          slots[GR.Key(inv)] = { id = id, full = GR.FullOf(link), name = NameOf(link) or "", tex = GR.InvTex(inv) or "" }
         else
           slots[GR.Key(inv)] = "empty"
         end
@@ -143,10 +154,28 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   end
 
   -- a slot of a set worn right now
+  -- is this very copy anywhere: worn or in the bags
+  function GR.HasCopy(full)
+    for _, s in ipairs(GR.SLOTS) do
+      local _, link = GR.Worn(s[1])
+      if link and GR.FullOf(link) == full then return true end
+    end
+    for bag = 0, 4 do
+      for slot = 1, (GetContainerNumSlots(bag) or 0) do
+        local link = GetContainerItemLink(bag, slot)
+        if link and GR.FullOf(link) == full then return true end
+      end
+    end
+    return false
+  end
   local function Done(inv, want)
-    local id = GR.Worn(inv)
+    local id, link = GR.Worn(inv)
     if want == "empty" then return id == nil end
-    return id ~= nil and id == want.id
+    if id == nil or id ~= want.id then return false end
+    -- (the very copy, when the set or pick knows it and it is still about;
+    -- gone - sold, banked - the same item will do)
+    if not want.full or GR.FullOf(link) == want.full then return true end
+    return not GR.HasCopy(want.full)
   end
 
   function GR.IsEquipped(name)
@@ -221,11 +250,31 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   -- then the same item with another enchant). skip = worn slots to leave.
   function GR.Find(want, skip)
     if type(want) ~= "table" then return end
+    -- the copy that was clicked, if it is still where it was
+    local from = want.from
+    if from and from.bag and want.full then
+      local link = GetContainerItemLink(from.bag, from.slot)
+      if link and GR.FullOf(link) == want.full then return { bag = from.bag, slot = from.slot, id = GR.IdOf(link), link = link } end
+    elseif from and from.inv and want.full and not skip[from.inv] then
+      local _, link = GR.Worn(from.inv)
+      if link and GR.FullOf(link) == want.full then return { inv = from.inv } end
+    end
+    local bags = GR.Bags()
+    -- the very copy (4th number too), worn elsewhere or in a bag
+    if want.full then
+      for _, s in ipairs(GR.SLOTS) do
+        local inv = s[1]
+        if not skip[inv] then
+          local _, link = GR.Worn(inv)
+          if link and GR.FullOf(link) == want.full then return { inv = inv } end
+        end
+      end
+      for _, b in ipairs(bags) do if b.full == want.full then return b end end
+    end
     for _, s in ipairs(GR.SLOTS) do
       local inv = s[1]
       if not skip[inv] and GR.Worn(inv) == want.id then return { inv = inv } end
     end
-    local bags = GR.Bags()
     for _, b in ipairs(bags) do if b.id == want.id then return b end end
     for _, b in ipairs(bags) do if Base(b.id) == Base(want.id) then return b end end
   end
