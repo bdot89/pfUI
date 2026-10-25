@@ -136,7 +136,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   -- { key, tab label, picture, card titles in order }.
   local ICON = "Interface\\Icons\\"
   UF.SECTIONS = {
-    { "size", "Size and bars", "Spell_Holy_Heal", { "Frame", "Health bar", "Power bar", "Portrait" } },
+    { "size", "Size", "Spell_Holy_Heal", { "Frame", "Health bar", "Power bar", "Portrait" } },
     { "text", "Text", "INV_Misc_Note_01", { "All frames: text", "Texts", "Text colours and font" } },
     { "auras", "Buffs", "Spell_Holy_WordFortitude", { "Buffs", "Debuffs", "Buff and dispel markers" } },
     { "icons", "Icons", "INV_Banner_01", { "Icons", "Class and status", "Glow and indicators" } },
@@ -209,11 +209,117 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     if O.Refresh then O:Refresh() end
   end
 
+  -- ---------------------------------------------------------------- copy
+  -- (user, 25 Oct 2026: "Everyframe that can match something like unit frame
+  -- should have an option ... match the size, layout, style, art of another.
+  -- Player and Target bars for example you can easily copy ALL the settings")
+  -- A frame's settings in the parts the sections show: a key goes to the
+  -- first part with a pattern it matches (keys of no part: Everything only).
+  UF.COPYPARTS = {
+    { "all", "Everything" },
+    { "size", "Size and bars", { "^width$", "^height$", "^pheight$", "^pwidth$", "^pspace$", "^panchor$", "^poff",
+      "^portrait", "bartexture$", "^invert", "^vertical", "^o_fade", "^overheal", "^healcolor$" } },
+    { "text", "Text", { "^txt", "^o_tc", "^healthcolor$", "^powercolor$", "^levelcolor$", "^classcolor$", "^customfont" } },
+    { "auras", "Buffs and debuffs", { "^buff", "^debuff", "^o_buff[xy]$", "^o_debuff[xy]$", "^cooldown_", "^selfdebuff$",
+      "^o_purge$", "^o_flashexpire$", "^indicator", "^show_", "^all_" } },
+    { "icons", "Icons and status", { "icon", "^showPVP$", "^happiness", "^o_happy", "^o_class", "^o_elite", "^o_status$",
+      "^glow", "^square", "^hitindicator" } },
+    { "look", "Look and colours", { "^o_skin", "^o_grad", "^o_flash$", "^o_selhl$", "^o_debuffhl$", "^o_curable$", "^defcolor$",
+      "^custom", "color$", "^alpha_", "^faderange$" } },
+  }
+  -- never copied: where and whether it shows, the raid grid, click casting
+  UF.NOCOPY = { visible = true, raidlayout = true, raidpadding = true, raidfill = true, raidgrouplabel = true,
+    grouplabelxoff = true, grouplabelyoff = true, o_growx = true, o_growy = true }
+  function UF.PartOf(key)
+    if UF.NOCOPY[key] or string.find(key, "^clickcast") then return nil end
+    for _, part in ipairs(UF.COPYPARTS) do
+      for _, pat in ipairs(part[3] or {}) do
+        if string.find(key, pat) then return part[1] end
+      end
+    end
+    return "other"
+  end
+  -- copies part ("all" or a COPYPARTS key) of frame from's settings to frame
+  -- to's; the values it had are kept for UF.Undo. Returns how many changed.
+  function UF.Copy(from, to, part)
+    local src, dst = C.unitframes[from], C.unitframes[to]
+    if not src or not dst or from == to then return 0 end
+    local was, n = {}, 0
+    for k, v in pairs(src) do
+      local pk = UF.PartOf(k)
+      if pk and (part == "all" or pk == part) and type(v) ~= "table" and dst[k] ~= v then
+        was[k] = dst[k] == nil and false or dst[k]
+        dst[k] = v
+        n = n + 1
+      end
+    end
+    UF.lastCopy = { to = to, was = was, from = from, part = part }
+    UF.Apply(to)
+    return n
+  end
+  function UF.Undo()
+    local lc = UF.lastCopy
+    if not lc then return end
+    local dst = C.unitframes[lc.to]
+    for k, v in pairs(lc.was) do
+      if v == false then dst[k] = nil else dst[k] = v end
+    end
+    UF.lastCopy = nil
+    UF.Apply(lc.to)
+  end
+
+  -- "Copy from...": first the frame to copy from, then what
+  local function Label(key) return BY[key] and BY[key][2] or key end
+  function UF.CopyMenu(anchor)
+    W.CloseMenus()
+    local to = UF.cur
+    local opts = {}
+    if UF.lastCopy then
+      table.insert(opts, { key = "!undo", label = "Undo: " .. Label(UF.lastCopy.to) .. " as before the copy", icon = ICON .. "Spell_Nature_TimeStop" })
+    end
+    table.insert(opts, { label = "Copy into " .. Label(to) .. " from:", group = true })
+    for _, u in ipairs(UF.UNITS) do
+      if u[1] ~= to then table.insert(opts, { key = u[1], label = u[2] }) end
+    end
+    local m = W.Menu(anchor, opts, 210, function(from)
+      if from == "!undo" then
+        local lc = UF.lastCopy
+        UF.Undo()
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. Label(lc.to) .. " is as it was before the copy.")
+        if O.Refresh then O:Refresh() end
+        return
+      end
+      local parts = { { label = "Copy from " .. Label(from) .. ":", group = true } }
+      for _, part in ipairs(UF.COPYPARTS) do table.insert(parts, { key = part[1], label = part[2] }) end
+      local m2 = W.Menu(anchor, parts, 210, function(part)
+        local n = UF.Copy(from, to, part)
+        local pl
+        for _, cp in ipairs(UF.COPYPARTS) do if cp[1] == part then pl = cp[2] end end
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. Label(to) .. " now has " .. Label(from) .. "'s "
+          .. string.lower(pl or part) .. " (" .. n .. " settings). Copy from... > Undo puts it back.")
+        if O.Refresh then O:Refresh() end
+      end)
+      m2:Show()
+      UF.copyMenu = m2
+    end)
+    m:Show()
+    UF.copyMenu = m
+    return m
+  end
+
   -- the tabs, in the pinned strip under the preview
   function UF.SectionTabs(p)
     local row = W.Row(p, 24, 0, 6)
     local n = table.getn(UF.SECTIONS)
-    local w = math.floor((W.CW - (n - 1) * 4) / n)
+    -- (room at the right end for "Copy from...")
+    local w = math.floor((W.CW - 118 - (n - 1) * 4) / n)
+    local copy = W.Button(row, "Copy from...", 114, 22)
+    copy:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    if W.Tint then W.Tint(copy, "save") end
+    W.Tip(copy, "Copy from another frame", "Give this frame the settings of another one: everything, or only its size and "
+      .. "bars, text, buffs, icons or look. Position and whether it shows stay its own. The last copy can be undone here.")
+    copy:SetScript("OnClick", function() UF.CopyMenu(this) end)
+    UF.copyButton = copy
     local tabs = {}
     for i, s in ipairs(UF.SECTIONS) do
       local b = W.Button(row, s[2], w, 22)
@@ -337,12 +443,10 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       stage:ClearAllPoints()
       stage:SetPoint("CENTER", box, "CENTER", M.dx, M.dy)
     end
+    -- (25 Oct 2026, user: "if you scroll outside of anything you can edit
+    -- it will zoom" - the plain wheel zooms now, Alt is not needed)
     local function Wheel(fr)
-      if IsAltKeyDown() then
-        Zoom(arg1 or 0)
-      elseif pfUI.plates and pfUI.plates.PassWheel then
-        pfUI.plates.PassWheel(fr)
-      end
+      Zoom(arg1 or 0)
     end
     M.Wheel = Wheel
 
@@ -932,7 +1036,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     W.Pin(p, "Preview", "The chosen frame, built by pfUI from its settings. Pick a frame with the tabs. Click any part of it "
       .. "for its settings; drag a text, the raid mark, the PvP flag, the power bar, the buffs, the portrait, the class icon or "
       .. "the elite badge to move it (right-click puts it back); "
-      .. "hold Shift and scroll over a bar, the buffs or a mark to resize it. Hold Alt and scroll to zoom, drag empty "
+      .. "hold Shift and scroll over a bar, the buffs or a mark to resize it. Scroll the mouse wheel to zoom, drag empty "
       .. "space to move the view, double-click to fit it again. Click this bar to fold it away.", function(p)
       -- the frames as tabs, two rows of six
       local rows = { W.Row(p, 24, 0, 4), W.Row(p, 24, 0, 6) }
@@ -978,7 +1082,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
       local how2 = band:CreateFontString(nil, "OVERLAY")
       how2:SetFont(W.UIFont(), 11, "OUTLINE")
       how2:SetPoint("TOPLEFT", band, "TOPLEFT", 12, -19)
-      how2:SetText(k .. "Alt + wheel|r  zoom     " .. k .. "Drag|r empty space  move the view     " .. k .. "Double-click|r  fit the view     "
+      how2:SetText(k .. "Wheel|r  zoom     " .. k .. "Drag|r empty space  move the view     " .. k .. "Double-click|r  fit the view     "
         .. k .. "Move frames|r  move them on screen")
       W.HowTo(p, band, how:GetText(), how2:GetText())
     end)

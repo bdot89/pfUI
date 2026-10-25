@@ -329,6 +329,21 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
      keeps it locked at the new offset; boxes that move with the dragged one are not snap lines;
      arrows / X / Y keep the relative frame (they used to re-anchor to the parent); KeepPlaces skips
      locked frames. The size tag says "on <frame>".
+   - Zooming previews and copying a frame (25 Oct 2026, NOT seen in game; user: "all preview windows
+     able to be zoomed in and out on and dragged ... if you scroll outside of anything you can edit
+     it will zoom", and copy ALL settings Player <-> Target). octo-options.lua W.ZoomBox(p, h) = W.Box
+     + ScrollFrame (FULLSCREEN, clips) + canvas + stage (returned, box-sized; stage.view = { z, x, y,
+     Zoom, Fit, pan, fit }). Wheel zooms 1-5x towards the mouse, drag empty space pans (a Button
+     behind the stage), double-click / corner "Fit" resets; parts pushed outside the box get
+     EnableMouse(false) (octoNoMouse) since the clip does not stop the mouse. Stage and canvas have
+     OnMouseWheel, so every PassWheel(part) reaches the zoom. Used by the previews of action bars
+     (+ gryphons), bags, buffs, cast bars, chat, gear bar, meters (+ threat), minimap, nameplates,
+     combat text, swing (`(W.ZoomBox or W.Box)`). Unit frame preview: plain wheel zooms (was Alt).
+     Copy: unitframes-options UF.COPYPARTS (all / size / text / auras / icons / look by key
+     patterns, UF.PartOf; never visible, click casting, raid grid), UF.Copy(from, to, part) keeps
+     the old values for UF.Undo; gold "Copy from..." at the end of the section tabs (section "Size and
+     bars" is now "Size") = W.Menu of frames, then of parts, and Undo. Cast bars page: CB.Copy /
+     CB.Undo / CB.CopyMenu (all but hide_*).
    - Tests: tests\mock.lua keeps its own bookkeeping in `_parent` / `_kids` (pfUI uses .parent and
      .children on frames) and has a real SetParent.
    - Seen in game 20 Oct ("looking better"). Then: right-click on a box only closed layout mode

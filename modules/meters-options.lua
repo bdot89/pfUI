@@ -503,7 +503,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     local TH = M.threat
     W.Pin(p, "Preview", "A nameplate with your threat label, going through safe, near your cap, past it and aggro. "
       .. "Click the label or the plate for their settings, drag the label to move it.", function(pp)
-      local box = W.Box(pp, 120)
+      local box = (W.ZoomBox or W.Box)(pp, 120)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

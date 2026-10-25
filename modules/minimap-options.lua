@@ -203,7 +203,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
     W.Pin(p, "Preview", "Your map with every part around it, where it sits in game. Click a part to pick it, drag it - "
       .. "or the map - to move it, hold Shift and scroll the mouse wheel over it to make it bigger or smaller, right-click "
       .. "it to put it back. Parts set to Never are left out until you pick them. Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 236)
+      local box = (W.ZoomBox or W.Box)(pp, 236)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

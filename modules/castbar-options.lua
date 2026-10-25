@@ -360,6 +360,56 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
     return M
   end
 
+  -- one cast bar's settings onto another (not whether it is on), undoable
+  function CB.Copy(from, to)
+    local src, dst = C.castbar[from], C.castbar[to]
+    if not src or not dst or from == to then return 0 end
+    local was, n = {}, 0
+    for k, v in pairs(src) do
+      if not string.find(k, "^hide_") and type(v) ~= "table" and dst[k] ~= v then
+        was[k] = dst[k] == nil and false or dst[k]
+        dst[k] = v
+        n = n + 1
+      end
+    end
+    CB.lastCopy = { to = to, was = was }
+    CB.Apply(to)
+    return n
+  end
+  function CB.Undo()
+    local lc = CB.lastCopy
+    if not lc then return end
+    for k, v in pairs(lc.was) do
+      if v == false then C.castbar[lc.to][k] = nil else C.castbar[lc.to][k] = v end
+    end
+    CB.lastCopy = nil
+    CB.Apply(lc.to)
+  end
+  function CB.CopyMenu(anchor)
+    W.CloseMenus()
+    local function Label(key) for _, u in ipairs(CB.UNITS) do if u[1] == key then return u[2] end end return key end
+    local opts = {}
+    if CB.lastCopy then table.insert(opts, { key = "!undo", label = "Undo: " .. Label(CB.lastCopy.to) .. " as before" }) end
+    table.insert(opts, { label = "Copy into " .. Label(CB.cur) .. " from:", group = true })
+    for _, u in ipairs(CB.UNITS) do
+      if u[1] ~= CB.cur then table.insert(opts, { key = u[1], label = u[2] }) end
+    end
+    local m = W.Menu(anchor, opts, 200, function(from)
+      if from == "!undo" then
+        CB.Undo()
+      else
+        local n = CB.Copy(from, CB.cur)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. Label(CB.cur) .. " cast bar now has " .. Label(from)
+          .. "'s settings (" .. n .. " changed). Copy from... > Undo puts it back.")
+      end
+      if CB.mini then CB.mini.Refresh() end
+      if O.Refresh then O:Refresh() end
+    end)
+    m:Show()
+    CB.copyMenu = m
+    return m
+  end
+
   local function Preview(p)
     W.Pin(p, "Preview", "A sample cast bar with your settings, casting and channeling on a loop. Pick a cast bar with the "
       .. "tabs. Click a part for its settings; hold Shift and scroll the mouse wheel over the bar to make it taller "
@@ -377,7 +427,14 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
         end)
         tabs[n] = b
       end
-      local mini = CB.Mini(W.Box(p, 110))
+      -- (25 Oct 2026, user: copy ALL the settings of one frame to another)
+      local copy = W.Button(row, "Copy from...", 114, 22)
+      copy:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+      if W.Tint then W.Tint(copy, "save") end
+      W.Tip(copy, "Copy from another cast bar", "This cast bar gets the size, texts, icon and offsets of another one. "
+        .. "Whether it is on stays its own. The last copy can be undone here.")
+      copy:SetScript("OnClick", function() CB.CopyMenu(this) end)
+      local mini = CB.Mini((W.ZoomBox or W.Box)(p, 110))
       table.insert(p.items, { Refresh = function()
         for _, b in ipairs(tabs) do W.Pick(b, b.key == CB.cur) end
         mini.Refresh()

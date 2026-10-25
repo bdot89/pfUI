@@ -225,6 +225,157 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
   -- an accent edge), what it does in light grey beside it, columns lined up;
   -- the band becomes a dark card with an accent edge and grows to fit.
   -- reserve = px kept free at the right end (a status text there).
+  -- A preview box you can look closer into (user, 25 Oct 2026: "make all
+  -- preview windows able to be zoomed in and out on and dragged ... if you
+  -- scroll outside of anything you can edit it will zoom and you can drag").
+  -- W.Box with a ScrollFrame in it (the client clips what is drawn there),
+  -- a canvas as its child and a stage on the canvas: callers draw on the
+  -- stage, which is as big as the box. The wheel anywhere that does not use
+  -- it itself zooms (towards the mouse; parts that pass a plain wheel on with
+  -- PassWheel reach the stage's OnMouseWheel), dragging empty space moves
+  -- the view, a double-click or "Fit" puts it back. Parts the zoom pushed
+  -- out of the box stop taking the mouse (the client clips the drawing but
+  -- not the mouse). Returns the stage; stage.view = the zoom state.
+  W.ZOOM_MIN, W.ZOOM_MAX = 1, 5
+  function W.ZoomBox(p, h)
+    local box = W.Box(p, h)
+    local bw = box:GetWidth() or 700
+    local sf = CreateFrame("ScrollFrame", nil, box)
+    sf:SetPoint("TOPLEFT", box, "TOPLEFT", 1, -1)
+    sf:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -1, 1)
+    -- (the previews draw in the FULLSCREEN layer, over the window: the clip
+    -- is in that layer too, so what they put there is cut at the box)
+    sf:SetFrameStrata("FULLSCREEN")
+    local canvas = CreateFrame("Frame", nil, sf)
+    canvas:SetWidth(bw - 2)
+    canvas:SetHeight(h - 2)
+    sf:SetScrollChild(canvas)
+    local stage = CreateFrame("Frame", nil, canvas)
+    stage:SetWidth(bw)
+    stage:SetHeight(h)
+    stage:SetPoint("CENTER", canvas, "CENTER", 0, 0)
+    stage.outer = box
+    local V = { z = 1, x = 0, y = 0, stage = stage, box = box }
+    stage.view = V
+
+    -- the mouse's spot on the canvas, from its centre (canvas units)
+    local function Cursor()
+      local cx, cy = GetCursorPosition()
+      local s = canvas:GetEffectiveScale() or 1
+      local l, b = canvas:GetLeft(), canvas:GetBottom()
+      if not l then return 0, 0 end
+      return cx / s - l - canvas:GetWidth() / 2, cy / s - b - canvas:GetHeight() / 2
+    end
+    -- parts pushed out of the box by the zoom: no mouse there
+    local function Shield()
+      local l, r, b, t = sf:GetLeft(), sf:GetRight(), sf:GetBottom(), sf:GetTop()
+      if not l then return end
+      local ss = sf:GetEffectiveScale()
+      local function Walk(f)
+        for _, k in ipairs({ f:GetChildren() }) do
+          if k.IsMouseEnabled and (k:IsMouseEnabled() or k.octoNoMouse) then
+            local x, y = k:GetCenter()
+            local ks = k:GetEffectiveScale() / ss
+            local out = x and (x * ks < l or x * ks > r or y * ks < b or y * ks > t)
+            if out and not k.octoNoMouse then
+              k.octoNoMouse = true
+              k:EnableMouse(false)
+            elseif not out and k.octoNoMouse then
+              k.octoNoMouse = nil
+              k:EnableMouse(true)
+            end
+          end
+          Walk(k)
+        end
+      end
+      Walk(stage)
+    end
+    local function Place()
+      stage:SetScale(V.z)
+      stage:ClearAllPoints()
+      -- (offsets are in the stage's own units: scaled by the zoom)
+      stage:SetPoint("CENTER", canvas, "CENTER", V.x / V.z, V.y / V.z)
+      V.shield = 2
+      if V.fit then
+        local zoomed = V.z > 1.001 or V.x ~= 0 or V.y ~= 0
+        V.fit.text:SetText(zoomed and (math.floor(V.z * 100 + .5) .. "%   |cffffffffFit|r") or "wheel: zoom")
+        V.fit.text:SetAlpha(zoomed and 1 or .5)
+      end
+    end
+    -- keep some of the picture in the box
+    local function Clamp()
+      local mx, my = (bw * V.z) / 2, (h * V.z) / 2
+      V.x = math.max(-mx, math.min(mx, V.x))
+      V.y = math.max(-my, math.min(my, V.y))
+    end
+    function V.Zoom(dir)
+      local z1 = V.z
+      local z2 = math.max(W.ZOOM_MIN, math.min(W.ZOOM_MAX, z1 * (dir > 0 and 1.2 or 1 / 1.2)))
+      if z2 == z1 then return end
+      -- the spot under the mouse stays under it
+      local ux, uy = Cursor()
+      V.x = ux - (ux - V.x) * z2 / z1
+      V.y = uy - (uy - V.y) * z2 / z1
+      V.z = z2
+      if z2 <= W.ZOOM_MIN + .001 then V.x, V.y = 0, 0 end
+      Clamp()
+      Place()
+    end
+    function V.Fit()
+      V.z, V.x, V.y = 1, 0, 0
+      Place()
+    end
+    -- (PassWheel(part) walks up from the part's parent: the stage or, for
+    -- the stage itself, the canvas)
+    stage:SetScript("OnMouseWheel", function() V.Zoom(arg1 or 0) end)
+    canvas:SetScript("OnMouseWheel", function() V.Zoom(arg1 or 0) end)
+
+    -- empty space: behind everything drawn on the stage
+    local pan = CreateFrame("Button", nil, canvas)
+    pan:SetAllPoints(sf)
+    pan:SetFrameLevel(canvas:GetFrameLevel())
+    stage:SetFrameLevel(canvas:GetFrameLevel() + 2)
+    pan:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    pan:EnableMouseWheel(true)
+    pan:SetScript("OnMouseWheel", function() V.Zoom(arg1 or 0) end)
+    pan:SetScript("OnMouseDown", function()
+      local ux, uy = Cursor()
+      this.from = { ux, uy, V.x, V.y }
+    end)
+    pan:SetScript("OnMouseUp", function() this.from = nil end)
+    pan:SetScript("OnDoubleClick", function() V.Fit() end)
+    pan:SetScript("OnUpdate", function()
+      local f = this.from
+      if f and V.z > W.ZOOM_MIN + .001 then
+        local ux, uy = Cursor()
+        V.x, V.y = f[3] + ux - f[1], f[4] + uy - f[2]
+        Clamp()
+        Place()
+      end
+      if V.shield then
+        V.shield = V.shield - 1
+        if V.shield <= 0 then V.shield = nil Shield() end
+      end
+    end)
+    V.pan = pan
+
+    -- the zoom and "Fit" in the top right corner (only while zoomed)
+    local fit = CreateFrame("Button", nil, box)
+    fit:SetFrameLevel(canvas:GetFrameLevel() + 30)
+    fit:SetWidth(90)
+    fit:SetHeight(16)
+    fit:SetPoint("TOPRIGHT", box, "TOPRIGHT", -6, -4)
+    fit.text = fit:CreateFontString(nil, "OVERLAY")
+    fit.text:SetFont(W.UIFont(), 10, "OUTLINE")
+    fit.text:SetAllPoints(fit)
+    fit.text:SetJustifyH("RIGHT")
+    fit.text:SetTextColor(.75, .78, .82)
+    fit:SetScript("OnClick", function() V.Fit() end)
+    V.fit = fit
+    Place()
+    return stage
+  end
+
   function W.HowToPairs(text)
     local out = {}
     for key, act in string.gfind(text or "", "|c%x%x%x%x%x%x%x%x(.-)|r([^|]*)") do

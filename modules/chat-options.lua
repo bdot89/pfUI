@@ -295,7 +295,7 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
         x = x + w + 4
       end
 
-      local box = W.Box(pp, 230)
+      local box = (W.ZoomBox or W.Box)(pp, 230)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

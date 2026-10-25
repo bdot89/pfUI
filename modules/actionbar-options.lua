@@ -716,7 +716,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     W.Pin(p, "Preview", "Your bars on a small copy of the screen, drawn in their look, and a sample button. Click a bar for its "
       .. "settings, hold Shift and scroll the mouse wheel over it for bigger or smaller buttons. Move frames (top) "
       .. "moves the bars themselves. Click this bar to fold it away.", function(p)
-      local mini = Mini(W.Box(p, 150), select)
+      local mini = Mini((W.ZoomBox or W.Box)(p, 150), select)
       table.insert(p.items, { Refresh = function() mini.Refresh() mini.Sample() end })
       -- test buttons: one effect on the sample now, or all of them on your bars
       if tests then
@@ -1137,7 +1137,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   local function GryPreview(p)
     W.Pin(p, "Preview", "A bar with your end art, as it will look. Click a picture under it to use it; hold Shift and "
       .. "scroll the mouse wheel over the art for a bigger or smaller one. Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 130)
+      local box = (W.ZoomBox or W.Box)(pp, 130)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

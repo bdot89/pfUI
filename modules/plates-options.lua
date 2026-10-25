@@ -166,7 +166,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once. Click this bar to fold it away.", function(p)
-    local box = W.Box(p, h or 215)
+    local box = (W.ZoomBox or W.Box)(p, h or 215)
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page

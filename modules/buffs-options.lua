@@ -85,7 +85,7 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
     W.Pin(p, "Preview", "Your buffs, debuffs and weapon buffs as buff.lua lays them out, a buff bar and your totems. "
       .. "Click a part for its settings; hold Shift and scroll the mouse wheel over the icons for bigger or smaller "
       .. "ones. Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 210)
+      local box = (W.ZoomBox or W.Box)(pp, 210)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

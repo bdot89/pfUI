@@ -715,7 +715,7 @@ pfUI:RegisterModule("gear-options", "vanilla", function ()
     W.Pin(p, "Preview", "Left: every slot - click one to put it on your bar or take it off (or Alt-click it in your "
       .. "character window). Right: your bar as it will look; Shift + wheel over it for bigger or smaller buttons. "
       .. "Click this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 168)
+      local box = (W.ZoomBox or W.Box)(pp, 168)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")

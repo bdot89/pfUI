@@ -247,6 +247,96 @@ else
   ok(true, "(the raid frames do not start in the mock)")
 end
 
+-- ---------------------------------------------------------------- zooming previews
+-- (user, 25 Oct 2026: "make all preview windows able to be zoomed in and out on and dragged")
+do
+  local W = pfUI.octoui and pfUI.octoui.W
+  ok(W and W.ZoomBox, "W.ZoomBox: a preview box you can zoom into")
+  if W and W.ZoomBox then
+    local pg = W.Page(UIParent)
+    local stage = W.ZoomBox(pg, 120)
+    local V = stage.view
+    ok(V and V.z == 1 and stage.outer and stage:GetParent():GetParent() ~= stage.outer and stage:GetWidth() == stage.outer:GetWidth(),
+      "the stage is as big as the box, inside its clip")
+    Mock.cx, Mock.cy = 0, 0
+    V.Zoom(1)
+    ok(math.abs(V.z - 1.2) < .001 and math.abs(stage:GetScale() - 1.2) < .001, "the wheel zooms in (" .. V.z .. ")")
+    V.Zoom(1) V.Zoom(1)
+    ok(string.find(V.fit.text:GetText(), "Fit"), "while zoomed: the zoom and Fit in the corner")
+    for i = 1, 30 do V.Zoom(1) end
+    ok(V.z == W.ZOOM_MAX, "no further than " .. W.ZOOM_MAX .. "x")
+    for i = 1, 30 do V.Zoom(-1) end
+    ok(V.z == 1 and V.x == 0 and V.y == 0, "out to the whole picture, centred again")
+    -- a part that hands on the plain wheel (as the previews' parts do) zooms
+    local part = CreateFrame("Button", nil, stage)
+    _G.arg1 = 1
+    pfUI.plates.PassWheel(part)
+    ok(V.z > 1, "a part's plain wheel reaches the zoom (PassWheel)")
+    _G.arg1 = 1
+    pfUI.plates.PassWheel(stage)
+    ok(V.z > 1.3, "the stage's own wheel too")
+    -- dragging empty space moves the view
+    Mock.cx, Mock.cy = 0, 0
+    _G.this = V.pan
+    Mock.Run(V.pan, "OnMouseDown", "LeftButton")
+    Mock.cx, Mock.cy = 30, -10
+    Mock.Run(V.pan, "OnUpdate", .02)
+    Mock.Run(V.pan, "OnMouseUp", "LeftButton")
+    ok(V.x ~= 0 or V.y ~= 0, "dragging empty space moves the view (" .. V.x .. ", " .. V.y .. ")")
+    Mock.Run(V.pan, "OnDoubleClick", "LeftButton")
+    ok(V.z == 1 and V.x == 0, "a double-click fits it again")
+    Mock.cx, Mock.cy = nil, nil
+  end
+end
+
+-- ---------------------------------------------------------------- copying a frame's settings
+-- (user, 25 Oct 2026: "Player and Target bars for example you can easily copy ALL the settings")
+do
+  local UF = pfUI.ufOcto
+  if UF and UF.Copy then
+    ok(UF.PartOf("width") == "size" and UF.PartOf("txthpleft") == "text" and UF.PartOf("buffsize") == "auras"
+      and UF.PartOf("raidiconsize") == "icons" and UF.PartOf("o_skin") == "look" and UF.PartOf("manacolor") == "look"
+      and UF.PartOf("customfont_size") == "text" and UF.PartOf("debuff_indicator") == "auras",
+      "every setting goes to its part (size, text, buffs, icons, look)")
+    ok(UF.PartOf("visible") == nil and UF.PartOf("clickcast_shift") == nil and UF.PartOf("raidlayout") == nil,
+      "whether it shows, click casting and the raid grid are never copied")
+    local pl, tg = C.unitframes.player, C.unitframes.target
+    local keep = { pl.width, pl.txthpleft, pl.visible, tg.width, tg.txthpleft, tg.visible }
+    pl.width, pl.txthpleft, pl.visible = "222", "name", "1"
+    tg.width, tg.txthpleft, tg.visible = "150", "health", "0"
+    local n = UF.Copy("player", "target", "size")
+    ok(n > 0 and tg.width == "222" and tg.txthpleft == "health", "Copy size and bars: only that part (" .. n .. ")")
+    UF.Undo()
+    ok(tg.width == "150" and not UF.lastCopy, "Undo puts it back")
+    UF.Copy("player", "target", "all")
+    ok(tg.width == "222" and tg.txthpleft == "name" and tg.visible == "0", "Copy everything: all of it but whether it shows")
+    UF.Undo()
+    ok(tg.width == "150" and tg.txthpleft == "health", "and Undo puts all of it back")
+    -- the menu: frames to copy from, then what
+    UF.cur = "target"
+    local m = UF.CopyMenu(UF.copyButton or UIParent)
+    ok(m and m:IsShown(), "Copy from... opens a list of frames")
+    pl.width, pl.txthpleft, pl.visible, tg.width, tg.txthpleft, tg.visible = keep[1], keep[2], keep[3], keep[4], keep[5], keep[6]
+    UF.cur = "player"
+    UF.Apply("target")
+  else
+    ok(false, "pfUI.ufOcto.Copy")
+  end
+  local CB = pfUI.castbarOcto
+  if CB and CB.Copy then
+    local pc, tc = C.castbar.player, C.castbar.target
+    local keep = { pc.height, pc.hide_pfui, tc.height, tc.hide_pfui }
+    pc.height, pc.hide_pfui, tc.height, tc.hide_pfui = "24", "0", "12", "1"
+    CB.Copy("player", "target")
+    ok(tc.height == "24" and tc.hide_pfui == "1", "cast bars: copy another's settings, not whether it is on")
+    CB.Undo()
+    ok(tc.height == "12", "cast bars: undo")
+    pc.height, pc.hide_pfui, tc.height, tc.hide_pfui = keep[1], keep[2], keep[3], keep[4]
+  else
+    ok(false, "pfUI.castbarOcto.Copy")
+  end
+end
+
 -- ---------------------------------------------------------------- unit frames sections
 local UF = pfUI.ufOcto
 local O = pfUI.octoui and pfUI.octoui.Options

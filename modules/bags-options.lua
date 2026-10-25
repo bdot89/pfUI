@@ -51,7 +51,7 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
     W.Pin(p, "Preview", "Your bag window with these settings, drawn from the same measures as the real one (your own "
       .. "items when you carry some). Click a bag in its bag bar to show or hide that bag's slots. Click this bar to fold it "
       .. "away.", function(pp)
-      local box = W.Box(pp, 250)
+      local box = (W.ZoomBox or W.Box)(pp, 250)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       local win = CreateFrame("Frame", nil, holder)

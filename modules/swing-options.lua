@@ -56,7 +56,7 @@ pfUI:RegisterModule("swing-options", "vanilla", function ()
       .. "(main and off hand; every third swing a Heroic Strike waits on it), your target's swing, Auto Shot and an Aimed Shot cast. Click "
       .. "a bar for its settings, hold Shift and scroll the mouse wheel over it for a taller or shorter bar. Click "
       .. "this bar to fold it away.", function(pp)
-      local box = W.Box(pp, 170)
+      local box = (W.ZoomBox or W.Box)(pp, 170)
       local holder = CreateFrame("Frame", nil, box)
       holder:SetAllPoints(box)
       holder:SetFrameStrata("FULLSCREEN")
