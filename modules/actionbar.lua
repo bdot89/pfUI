@@ -755,6 +755,7 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
   end
 
   local self, button, unlock
+  local stale, staleAt = nil, 0
   local function BarsUpdate(self)
     self = self or this
 
@@ -769,11 +770,15 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
       end
     end
 
+    -- octo (idea from the ClassicAPI pfUI fork): the passes below only touch
+    -- buttons that can be seen; hidden ones (other pages, hidden bars) are
+    -- marked stale and get a full update as soon as they show (staleAt pass)
+
     -- run cached usable usable actions
     if eventcache["ACTIONBAR_UPDATE_USABLE"] then
       eventcache["ACTIONBAR_UPDATE_USABLE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonUsableUpdate(button)
+        if button:IsVisible() then ButtonUsableUpdate(button) else button.stale = true; stale = true end
       end
     end
 
@@ -781,7 +786,7 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
     if eventcache["ACTIONBAR_UPDATE_COOLDOWN"] then
       eventcache["ACTIONBAR_UPDATE_COOLDOWN"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonCooldownUpdate(button)
+        if button:IsVisible() then ButtonCooldownUpdate(button) else button.stale = true; stale = true end
       end
     end
 
@@ -789,7 +794,23 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
     if eventcache["ACTIONBAR_UPDATE_STATE"] then
       eventcache["ACTIONBAR_UPDATE_STATE"] = nil
       for id, button in pairs(buttoncache) do
-        ButtonIsActiveUpdate(button)
+        if button:IsVisible() then ButtonIsActiveUpdate(button) else button.stale = true; stale = true end
+      end
+    end
+
+    -- hidden buttons that missed an update catch up once they show
+    if stale and staleAt <= GetTime() then
+      staleAt = GetTime() + .05
+      stale = nil
+      for id, button in pairs(buttoncache) do
+        if button.stale then
+          if button:IsVisible() then
+            button.stale = nil
+            pfUI.bars.ButtonFullUpdate(button)
+          else
+            stale = true
+          end
+        end
       end
     end
 

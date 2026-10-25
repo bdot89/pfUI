@@ -6,21 +6,20 @@ pfUI:RegisterModule("cooldown", "vanilla:tbc", function ()
   local hourcolor   = {strsplit(",", C.appearance.cd.hourcolor)}
   local daycolor    = {strsplit(",", C.appearance.cd.daycolor)}
 
-  local parent, parent_name
+  local parent
   local function pfCooldownOnUpdate()
-    parent = this:GetParent()
-    if not parent then this:Hide() end
-    parent_name = parent:GetName()
-
-    -- avoid to set cooldowns on invalid frames
-    if parent_name and _G[parent_name .. "Cooldown"] then
-      if not _G[parent_name .. "Cooldown"]:IsShown() then
-        this:Hide()
-      end
-    end
-
-    -- only run every 0.1 seconds from here on
+    -- only run every 0.1 seconds (one of these runs per visible cooldown text:
+    -- the checks below used to run every frame, building a global name each time)
     if ( this.tick or .1) > GetTime() then return else this.tick = GetTime() + .1 end
+
+    parent = this:GetParent()
+    if not parent then this:Hide() return end
+
+    -- avoid to set cooldowns on invalid frames (the cooldown is kept at creation)
+    if this.cooldown and not this.cooldown:IsShown() then
+      this:Hide()
+      return
+    end
 
     -- fix own alpha value (should be inherited, but somehow isn't always)
     if this:GetAlpha() ~= parent:GetAlpha() then
@@ -57,6 +56,9 @@ pfUI:RegisterModule("cooldown", "vanilla:tbc", function ()
   local height, size
   local function pfCreateCoolDown(cooldown, start, duration)
     cooldown.pfCooldownText = CreateFrame("Frame", "pfCooldownFrame", cooldown:GetParent())
+    -- the frame its timer belongs to: _G[parent name .. "Cooldown"] as pfUI checked it
+    local pname = cooldown:GetParent() and cooldown:GetParent():GetName()
+    cooldown.pfCooldownText.cooldown = pname and _G[pname .. "Cooldown"]
     cooldown.pfCooldownText:SetAllPoints(cooldown)
     cooldown.pfCooldownText:SetFrameLevel(cooldown:GetParent():GetFrameLevel() + 2)
     cooldown.pfCooldownText.text = cooldown.pfCooldownText:CreateFontString("pfCooldownFrameText", "OVERLAY")

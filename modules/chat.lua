@@ -457,18 +457,25 @@ pfUI:RegisterModule("chat", "vanilla:tbc", function ()
   if C.chat.global.tabmouse == "1" then
     pfUI.chat.mouseovertab = CreateFrame("Frame")
     pfUI.chat.mouseovertab:SetScript("OnUpdate", function()
+      -- 20 times a second, and the tabs are laid out again only when they
+      -- appear (pfUI ran FCF_DockUpdate on every frame while hovering chat)
+      if ( this.tick or 0 ) > GetTime() then return else this.tick = GetTime() + .05 end
 
       if pfUI.chat.hideLock then return end
 
       if MouseIsOver(pfUI.chat.left, 10, -10, -10, 10) then
-        pfUI.chat.left.panelTop:Show()
-        FCF_DockUpdate()
+        if not pfUI.chat.left.panelTop:IsShown() then
+          pfUI.chat.left.panelTop:Show()
+          FCF_DockUpdate()
+        end
       elseif MouseIsOver(pfUI.chat.right, 10, -10, -10, 10) then
         -- disable while dock is active
         if pfUI.chat.right:GetAlpha() == 0 then return end
 
-        pfUI.chat.right.panelTop:Show()
-        FCF_DockUpdate()
+        if not pfUI.chat.right.panelTop:IsShown() then
+          pfUI.chat.right.panelTop:Show()
+          FCF_DockUpdate()
+        end
       else
         pfUI.chat.left.panelTop:Hide()
         pfUI.chat.right.panelTop:Hide()

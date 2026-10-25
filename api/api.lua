@@ -283,14 +283,24 @@ end
 -- Returns an itemLink for the given itemname
 -- 'name'       [string]         name of the item
 -- returns:     [string]         entire itemLink for the given item
+-- octo (from the ClassicAPI pfUI fork): found links are kept, and a name that
+-- is not found stops being looked for after two tries - each try walks every
+-- item id, a visible hitch on every tooltip / mail hover. Octo's custom items
+-- live past the 25818 vanilla ids, so it looks up to 61000 (the fork's limit).
+local itemlinks, itemmisses = {}, {}
 function pfUI.api.GetItemLinkByName(name)
-  for itemID = 1, 25818 do
+  if not name then return end
+  if itemlinks[name] then return itemlinks[name] end
+  if (itemmisses[name] or 0) >= 2 then return end
+  for itemID = 1, 61000 do
     local itemName, hyperLink, itemQuality = GetItemInfo(itemID)
     if (itemName and itemName == name) then
       local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
-      return hex.. "|H"..hyperLink.."|h["..itemName.."]|h|r"
+      itemlinks[name] = hex.. "|H"..hyperLink.."|h["..itemName.."]|h|r"
+      return itemlinks[name]
     end
   end
+  itemmisses[name] = (itemmisses[name] or 0) + 1
 end
 
 -- [ GetItemCount ]
@@ -661,7 +671,13 @@ function pfUI.api.LoadMovable(frame, init)
 
     for id, point in pairs(frame.posdata.pos) do
       local a, b, c, d, e = unpack(point)
-      if a and b then frame:SetPoint(a,b,c,d,e) end
+      -- a point saved against the frame itself errors in SetPoint (fork fix):
+      -- keep its offsets against the parent instead
+      if a and b and b ~= frame and b ~= frame:GetName() then
+        frame:SetPoint(a,b,c,d,e)
+      elseif a and b then
+        frame:SetPoint(a,d,e)
+      end
     end
   end
 end
@@ -1189,11 +1205,20 @@ function pfUI.api.EnableAutohide(frame, timeout, combat)
     -- octo: a frame may fade to fadeTo instead of 0, and come back to its
     -- own opacity (octoAlpha) instead of full (action bars, actionbar-octo.lua)
     local full, low = this.parent.octoAlpha or 1, this.parent.fadeTo or 0
+    local now = GetTime()
+    local alpha = this.parent:GetAlpha()
+    -- shown or faded out: the mouse is looked for 20 times a second (it was
+    -- every frame for every bar); only the fade itself runs on every frame
+    local fading = this.activeTo and this.activeTo < now and alpha > low
+    if not fading then
+      if (this.tick or 0) > now then return end
+      this.tick = now + .05
+    end
     if MouseIsOver(this, 10, -10, -10, 10) then
-      this.activeTo = GetTime() + timeout
-      this.parent:SetAlpha(full)
+      this.activeTo = now + timeout
+      if math.abs(alpha - full) > .005 then this.parent:SetAlpha(full) end
     elseif this.activeTo then
-      if this.activeTo < GetTime() and this.parent:GetAlpha() > low then
+      if fading then
         local fps = (60 / math.max(GetFramerate(), 1))
         this.parent:SetAlpha(math.max(low, this.parent:GetAlpha() - 0.05*fps))
       end
@@ -1290,6 +1315,8 @@ end
 -- return r,g,b and hexcolor
 local gradientcolors = {}
 function pfUI.api.GetColorGradient(perc)
+  -- 0 / 0 (a unit with no max health yet) is NaN, and NaN as a cache key errors
+  if not perc or perc ~= perc then perc = 0 end
   perc = perc > 1 and 1 or perc
   perc = perc < 0 and 0 or perc
   perc = floor(perc*100)/100

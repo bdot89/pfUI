@@ -134,6 +134,10 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
   local hover = CreateFrame("Frame", nil, map)
   hover.alpha = 0
   hover:SetScript("OnUpdate", function()
+    -- settled (not fading): the mouse is looked for 20 times a second
+    local now = GetTime()
+    if hover.alpha == hover.want and (hover.tick or 0) > now then return end
+    hover.tick = now + .05
     -- fade the "on mouse-over" elements in while the mouse is over the map or them
     local over = MouseIsOver(map)
     if not over then
@@ -143,6 +147,7 @@ pfUI:RegisterModule("minimap-style", "vanilla:tbc", function ()
       end
     end
     local want = over and 1 or 0
+    hover.want = want
     if hover.alpha ~= want then
       local step = arg1 * 5
       if want > hover.alpha then hover.alpha = math.min(1, hover.alpha + step) else hover.alpha = math.max(0, hover.alpha - step) end
