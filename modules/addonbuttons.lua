@@ -472,33 +472,32 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     self:ProcessButtons()
   end
 
-  -- the frame that carries the button: its holder, but never the panel itself
-  -- (25 Oct 2026: a button in an unnamed holder, back from the panel, climbed
-  -- to the panel - the whole panel went onto the map and the button stayed hidden)
-  local function Carrier(frame)
-    local f = frame
-    for _ = 1, 10 do
-      local p = f.GetParent and f:GetParent()
-      if not p or not p.GetParent or p == Minimap or p == MinimapBackdrop or p == UIParent or p == pfUI.addonbuttons then return f end
-      f = p
-    end
-    return f
-  end
-
   local function OnMap(frame, cx, cy, scale)
-    local top = Carrier(frame)
+    -- (the button itself goes on the map: carrying its holder failed when the
+    -- holder was hidden or was Blizzard's map cluster - user, 25 Oct 2026,
+    -- MinimapShopFrame "not showing")
     frame:SetFrameStrata("HIGH")
     frame:SetMovable(false)
     frame:SetScript("OnDragStart", nil)
     frame:SetScript("OnDragStop", nil)
     frame:SetScript("OnUpdate", nil)
     frame:ClearAllPoints()
-    top:SetScale(scale)
-    if top ~= frame then top:ClearAllPoints() end
-    top:SetParent(Minimap)
+    frame:SetParent(Minimap)
+    frame:SetScale(scale)
     frame:SetPoint("CENTER", Minimap, "TOPLEFT", cx / scale, cy / scale)
-    if top ~= frame then top:SetPoint("CENTER", Minimap, "TOPLEFT", cx / scale, cy / scale) end
     if frame.SetFrameLevel then frame:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 5) end
+    if not frame:IsShown() then frame:Show() end
+  end
+
+  -- why a button does not show: its parents, each shown or not (for chat)
+  function pfUI.addonbuttons:Chain(name)
+    local f, out = _G[name], {}
+    for _ = 1, 8 do
+      if not f or not f.GetParent then break end
+      table.insert(out, (f.GetName and f:GetName() or "?") .. (f:IsShown() and "" or " (hidden)") .. ((f.GetAlpha and f:GetAlpha() == 0) and " (alpha 0)" or ""))
+      f = f:GetParent()
+    end
+    return table.concat(out, " < ")
   end
 
   function pfUI.addonbuttons:PlaceOnMap()

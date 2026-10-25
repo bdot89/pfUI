@@ -677,7 +677,7 @@ pfUI:RegisterModule("minimap-options", "vanilla:tbc", function ()
           if name and pfUI.addonbuttons then
             pfUI.addonbuttons:SetPlace(name, this.place)
             local f = _G[name]
-            local seen = (this.place == "map" and f and f.IsVisible) and (f:IsVisible() and " (showing)" or " (|cffff5555not showing - tell Claude|r)") or ""
+            local seen = (this.place == "map" and f and f.IsVisible) and (f:IsVisible() and " (showing)" or (" (|cffff5555not showing|r: " .. (pfUI.addonbuttons.Chain and pfUI.addonbuttons:Chain(name) or "?") .. ")")) or ""
             DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r map: " .. name .. " - " .. ((this.place == "panel" and "in the panel") or (this.place == "map" and "on the map") or "hidden") .. seen .. ".")
           end
           if MO.PaintButtons then MO.PaintButtons() end

@@ -2311,8 +2311,8 @@ do
       inner:SetPoint("CENTER", holder, "CENTER", 0, 0)
       pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "panel")
       pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "map")
-      ok(pfUI.addonbuttons:GetParent() ~= Minimap and holder:GetParent() == Minimap,
-        "a held button comes back with its holder, the panel stays put")
+      ok(pfUI.addonbuttons:GetParent() ~= Minimap and inner:GetParent() == Minimap and inner:IsShown(),
+        "a held button goes on the map itself, the panel stays put")
       pfUI.addonbuttons:SetPlace("OctoTestHeldButton", "hide")
       pfUI.addonbuttons:Show()
       -- a size of their own (user, 25 Oct 2026: "the resizer hardly changes the buttons")
