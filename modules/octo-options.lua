@@ -428,6 +428,18 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     -- the list fills whatever height the panel has, laid out again when it changes
     nav:SetScript("OnSizeChanged", function() if O.groups then O:LayoutNav() end end)
     nav:SetScript("OnShow", function() if O.groups then O:LayoutNav() end end)
+    -- (1.12 sends no OnSizeChanged to a frame sized by its anchors: when the
+    -- window changes height - fitting the screen - the list kept its first,
+    -- smaller room and showed ten sections with empty space under them, user
+    -- 25 Oct 2026. A watcher lays it out again whenever the height moves.)
+    local watch = CreateFrame("Frame", nil, nav)
+    watch:SetScript("OnUpdate", function()
+      local h = nav:GetHeight() or 0
+      if h > 110 and math.abs(h - (nav.laidH or 0)) > 1 and O.groups then
+        nav.laidH = h
+        O:LayoutNav()
+      end
+    end)
     nav.up = W.Arrow(nav, 9, "up")
     nav.up:SetPoint("TOP", nav, "TOP", 0, -2)
     nav.down = W.Arrow(nav, 9, "down")
@@ -938,6 +950,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
       end
     end
     local room = (nav:GetHeight() or 0) - 10
+    if room >= 100 then nav.laidH = room + 10 end
     if room < 100 then
       -- the height is not known yet (the client reports it a frame late):
       -- a guess now, the real layout on the next frame. (A fixed 540 used to
