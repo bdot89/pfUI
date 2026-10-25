@@ -77,22 +77,100 @@ pfUI:RegisterModule("mapreveal", "vanilla:tbc", function ()
     WorldMapTooltip:AddLine(this.name, 1, 1, 1)
     WorldMapTooltip:Show()
 
-    if not explorecaches[this.name] then return end
+    -- (octo: the tiles are kept by the overlay's own name, this.area; pfUI
+    -- looked them up by the tooltip text, so hovering never lit them)
+    if not explorecaches[this.area] then return end
     if C.appearance.worldmap.mapreveal == "0" then return end
-    local r,g,b,a = GetStringColor(C.appearance.worldmap.mapreveal_color)
-    for texture in pairs(explorecaches[this.name]) do
+    for texture in pairs(explorecaches[this.area]) do
       texture:SetVertexColor(1,1,1,1)
     end
   end
 
   local exploreLeave = function()
     WorldMapTooltip:Hide()
-    if not explorecaches[this.name] then return end
+    if not explorecaches[this.area] then return end
     if C.appearance.worldmap.mapreveal == "0" then return end
     local r,g,b,a = GetStringColor(C.appearance.worldmap.mapreveal_color)
-    for texture in pairs(explorecaches[this.name]) do
+    for texture in pairs(explorecaches[this.area]) do
       texture:SetVertexColor(r,g,b,a)
     end
+  end
+
+  -- an exploration point (magnifying glass) in the middle of an overlay
+  local function Explore(i, mapFileName, name, textureWidth, textureHeight, offsetX, offsetY, unknown)
+    explores[i] = explores[i] or CreateFrame("Frame", nil, WorldMapDetailFrame)
+    local explore = explores[i]
+    explore:SetWidth(16)
+    explore:SetHeight(16)
+    explore:ClearAllPoints()
+    explore:SetPoint("TOPLEFT", "WorldMapDetailFrame", "TOPLEFT", offsetX+textureWidth/2, -offsetY-textureHeight/2)
+    explore:SetScript("OnEnter", exploreEnter)
+    explore:SetScript("OnLeave", exploreLeave)
+    explore:EnableMouse(true)
+    explore:SetFrameLevel(255)
+    explore.name = mapFileName .. " (" .. (name or "?") .. ")"
+    explore.area = name
+    explore.tex = explore.tex or explore:CreateTexture("", "OVERLAY")
+    explore.tex:SetBlendMode("ADD")
+    explore.tex:SetTexCoord(.08, .92, .08, .92)
+    explore.tex:SetAllPoints()
+
+    if C.appearance.worldmap.mapexploration == "1" and unknown then
+      explore.tex:SetTexture("Interface\\WorldMap\\WorldMap-MagnifyingGlass")
+      explore:Show()
+    else
+      explore:Hide()
+    end
+  end
+
+  -- the game's overlay texture n (more are made when a zone needs them)
+  local function Overlay(n)
+    if n > NUM_WORLDMAP_OVERLAYS then
+      for j = NUM_WORLDMAP_OVERLAYS + 1, n do
+        _G.WorldMapDetailFrame:CreateTexture(string.format("%s%s","WorldMapOverlay",j), "ARTWORK")
+      end
+      NUM_WORLDMAP_OVERLAYS = n
+    end
+    return _G[string.format("%s%s","WorldMapOverlay",n)]
+  end
+
+  -- octo (from the ClassicAPI pfUI fork): ClassicAPI reads every overlay of
+  -- the viewed zone from the client's own WorldMapOverlay.dbc, tiles worked
+  -- out - OctoWoW's own zones too, which pfUI's measured table does not have.
+  -- Returns true when it drew the map; the measured table is the fallback.
+  local function ClassicReveal(mapFileName, alreadyknown, r, g, b, a)
+    if not (C_UnitAuras and C_Map and C_Map.GetMapOverlays) then return end
+    local ok, list = pcall(C_Map.GetMapOverlays)
+    if not ok or type(list) ~= "table" or not list[1] then return end
+
+    local known = {}
+    for path in pairs(alreadyknown) do known[string.upper(path)] = true end
+
+    local textureCount = 0
+    for i, ov in ipairs(list) do
+      local name = ov.textureName
+      if name and name ~= "" then
+        local isknown = known[string.upper(ov.texturePath or "")]
+        Explore(i, mapFileName, name, ov.textureWidth or 0, ov.textureHeight or 0, ov.offsetX or 0, ov.offsetY or 0, not isknown)
+        if C.appearance.worldmap.mapreveal == "1" or isknown then
+          for _, tile in ipairs(ov.tiles or {}) do
+            textureCount = textureCount + 1
+            local texture = Overlay(textureCount)
+            texture:SetWidth(tile.width)
+            texture:SetHeight(tile.height)
+            texture:SetTexCoord(0, tile.texCoordX, 0, tile.texCoordY)
+            texture:ClearAllPoints()
+            texture:SetPoint("TOPLEFT", "WorldMapDetailFrame", "TOPLEFT", tile.offsetX, -tile.offsetY)
+            texture:SetTexture(tile.file)
+            explorecaches[name] = explorecaches[name] or {}
+            explorecaches[name][texture] = true
+            if isknown then texture:SetVertexColor(1,1,1,1) else texture:SetVertexColor(r,g,b,a) end
+            texture:Show()
+          end
+        end
+      end
+    end
+    return true
   end
 
   local function pfWorldMapFrame_Update()
@@ -122,6 +200,9 @@ pfUI:RegisterModule("mapreveal", "vanilla:tbc", function ()
     for k, frame in pairs(explores) do
       frame:Hide()
     end
+    for k in pairs(explorecaches) do explorecaches[k] = nil end
+
+    if ClassicReveal(mapFileName, alreadyknown, r, g, b, a) then return end
 
     local zoneData = this.overlayData[mapFileName]
     local textureCount = 0
@@ -129,27 +210,7 @@ pfUI:RegisterModule("mapreveal", "vanilla:tbc", function ()
     for i, hash in ipairs(zoneData) do
       local textureName, textureWidth, textureHeight, offsetX, offsetY, mapPointX, mapPointY, name = unpack_hash(prefix, hash)
 
-      explores[i] = explores[i] or CreateFrame("Frame", nil, WorldMapDetailFrame)
-      local explore = explores[i]
-      explore:SetWidth(16)
-      explore:SetHeight(16)
-      explore:SetPoint("TOPLEFT", "WorldMapDetailFrame", "TOPLEFT", offsetX+textureWidth/2, -offsetY-textureHeight/2)
-      explore:SetScript("OnEnter", exploreEnter)
-      explore:SetScript("OnLeave", exploreLeave)
-      explore:EnableMouse(true)
-      explore:SetFrameLevel(255)
-      explore.name = mapFileName .. " (" .. name .. ")"
-      explore.tex = explore.tex or explore:CreateTexture("", "OVERLAY")
-      explore.tex:SetBlendMode("ADD")
-      explore.tex:SetTexCoord(.08, .92, .08, .92)
-      explore.tex:SetAllPoints()
-
-      if C.appearance.worldmap.mapexploration == "1" and not alreadyknown[textureName] then
-        explore.tex:SetTexture("Interface\\WorldMap\\WorldMap-MagnifyingGlass")
-        explore:Show()
-      else
-        explore:Hide()
-      end
+      Explore(i, mapFileName, name, textureWidth, textureHeight, offsetX, offsetY, not alreadyknown[textureName])
 
       if C.appearance.worldmap.mapreveal == "1" or alreadyknown[textureName] then
         if errata[textureName] and errata[textureName].offsetX and errata[textureName].offsetX[1] == offsetX then

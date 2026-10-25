@@ -41,12 +41,29 @@ pfUI:RegisterModule("autovendor", "vanilla:tbc", function ()
   autovendor:SetScript("OnShow", function()
     processed = {}
     this.count = 0
+    this.engine = nil
     this.gold = GetMoney()
   end)
 
   autovendor:SetScript("OnUpdate", function()
     -- throttle to to one item per .1 second
     if ( this.tick or 1) > GetTime() then return else this.tick = GetTime() + .1 end
+
+    -- octo (from the ClassicAPI pfUI fork): ClassicAPI sells every grey item
+    -- in one call, one per frame inside the client (no lost sells); the loop
+    -- below is the plain way
+    if C_UnitAuras and C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
+      if not this.merchant then this:Hide() return end
+      if not this.engine then
+        if not HasGreyItems() then this:Hide() return end
+        this.engine = GetTime() + 5
+        this.count = 1
+        pcall(C_MerchantFrame.SellAllJunkItems)
+        return
+      end
+      if not HasGreyItems() or this.engine < GetTime() then this:Hide() end
+      return
+    end
 
     -- scan for the next grey item
     local bag, slot = GetNextGreyItem()
