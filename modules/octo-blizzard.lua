@@ -159,7 +159,9 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       f:SetAlpha(s.alpha or 1)
       if s.OnShow ~= nil then f:SetScript("OnShow", s.OnShow or nil) end
     end
-    if show == true or (show == nil and s and s.shown) then f:Show() end
+    -- (1.12: out of a hidden parent a frame stays unseen until hidden and
+    -- shown again - the switch "did nothing", user 25 Oct 2026)
+    if show == true or (show == nil and s and s.shown) then f:Hide() f:Show() end
   end
   BZ.Restore = Restore
 
@@ -182,8 +184,13 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
     if not f or not f.octoAway then return end
     f:SetParent(f.octoAway)
     f.octoAway = nil
+    -- (seen again only after a hide and show: see Restore)
+    if f:IsShown() then f:Hide() f:Show() end
   end
   BZ.Away, BZ.Back = Away, Back
+  -- (any frame moved out of a hidden parent: seen again)
+  local function Reshow(f) if f and f.IsShown and f:IsShown() then f:Hide() f:Show() end end
+  BZ.Reshow = Reshow
 
   local function Reg(f, events)
     if not f then return end
@@ -314,7 +321,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
           local anchor = _G[MICRO_BUTTONS[i - 1]] or mb
           if button then
             button:ClearAllPoints()
-            button:SetParent(mb)
+            button:SetParent(mb) Reshow(button)
             if i == 1 then button:SetPoint("LEFT", mb, "LEFT", 1, 10) else button:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 1, 0) end
             button:SetScale(.6)
             if button.frame then button.frame:Show() end
@@ -336,7 +343,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       Restore(Minimap, true)
       -- (never left inside pfUI's map, which is hidden next)
       if Minimap:GetParent() == m then
-        Minimap:SetParent(MinimapCluster or UIParent)
+        Minimap:SetParent(MinimapCluster or UIParent) Reshow(Minimap)
         if not (BZ.snap[Minimap] and BZ.snap[Minimap].points[1]) then
           Minimap:ClearAllPoints()
           Minimap:SetPoint("CENTER", MinimapCluster or UIParent, "TOP", 9, -92)
@@ -384,14 +391,14 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       end
       if MiniMapTrackingFrame then Kill(MiniMapTrackingFrame) end
       if MinimapBorder then MinimapBorder:SetTexture(nil) end
-      Minimap:SetParent(m)
+      Minimap:SetParent(m) Reshow(Minimap)
       Minimap:ClearAllPoints()
       Minimap:SetPoint("CENTER", m, "CENTER", .5, -.5)
       Minimap:SetFrameLevel(1)
       Minimap:EnableMouseWheel(true)
       Minimap:SetScript("OnMouseWheel", function() if arg1 > 0 then Minimap_ZoomIn() else Minimap_ZoomOut() end end)
       if MiniMapMailFrame then
-        MiniMapMailFrame:SetParent(MinimapBackdrop or Minimap)
+        MiniMapMailFrame:SetParent(MinimapBackdrop or Minimap) Reshow(MiniMapMailFrame)
         MiniMapMailFrame:ClearAllPoints()
         MiniMapMailFrame:SetPoint("TOPRIGHT", m, "TOPRIGHT", 0, 0)
         if MiniMapMailIcon then MiniMapMailIcon:SetTexture(pfUI.media["img:mail"]) end
@@ -590,8 +597,8 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
       -- went away: no chat and no way to type.
       for i = 1, (tonumber(NUM_CHAT_WINDOWS) or 7) do
         local frame, tab = _G["ChatFrame" .. i], _G["ChatFrame" .. i .. "Tab"]
-        if frame then frame:SetParent(UIParent) end
-        if tab then tab:SetParent(UIParent) end
+        if frame then frame:SetParent(UIParent) Reshow(frame) end
+        if tab then tab:SetParent(UIParent) Reshow(tab) end
       end
       if ChatFrame1 then
         local s = BZ.snap[ChatFrame1]
@@ -604,7 +611,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
         ChatFrame1:Show()
       end
       if ChatFrameEditBox and ChatFrame1 then
-        ChatFrameEditBox:SetParent(UIParent)
+        ChatFrameEditBox:SetParent(UIParent) Reshow(ChatFrameEditBox)
         ChatFrameEditBox:ClearAllPoints()
         ChatFrameEditBox:SetPoint("TOPLEFT", ChatFrame1, "BOTTOMLEFT", -5, -2)
         ChatFrameEditBox:SetPoint("TOPRIGHT", ChatFrame1, "BOTTOMRIGHT", 5, -2)
@@ -676,7 +683,7 @@ pfUI:RegisterModule("octo-blizzard", "vanilla", function ()
         for _, part in ipairs({ "UpButton", "DownButton", "BottomButton" }) do Kill(_G["ChatFrame" .. i .. part], true) end
       end
       if ChatFrameEditBox and pfUI.chat.editbox then
-        ChatFrameEditBox:SetParent(pfUI.chat.editbox)
+        ChatFrameEditBox:SetParent(pfUI.chat.editbox) Reshow(ChatFrameEditBox)
         ChatFrameEditBox:ClearAllPoints()
         ChatFrameEditBox:SetAllPoints(pfUI.chat.editbox)
         if ChatFrameEditBox.backdrop then ChatFrameEditBox.backdrop:Show() end

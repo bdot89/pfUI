@@ -4605,6 +4605,25 @@ do
   end
 end
 
+-- the set button: a trinket the queue swapped does not stop the set counting,
+-- and a set with a piece changed by hand still shows (user, 25 Oct 2026: "No set")
+do
+  local GR = pfUI.gear
+  if GR and GR.Match then
+    local sets, worn, tq = pfUI_config.gear.sets, GR.Worn, pfUI_config.gear.tqueue
+    local keep = sets.OctoTestSet
+    local wearing = { [1] = "10:0:0", [3] = "11:0:0", [5] = "12:0:0", [7] = "13:0:0", [13] = "99:0:0" }
+    GR.Worn = function(inv) local id = wearing[inv] return id, id and ("|Hitem:" .. id .. ":0|h[x]|h") end
+    sets.OctoTestSet = { slots = { s1 = { id = "10:0:0" }, s3 = { id = "11:0:0" }, s5 = { id = "12:0:0" }, s7 = { id = "13:0:0" }, s13 = { id = "50:0:0" } } }
+    pfUI_config.gear.tqueue = { ["13"] = { on = "1", order = { "stop" } } }
+    ok(GR.IsEquipped("OctoTestSet"), "a trinket swapped by its queue does not stop the set counting as worn")
+    pfUI_config.gear.tqueue = { ["13"] = { on = "0", order = { "stop" } } }
+    local name, partly = GR.Current()
+    ok(not GR.IsEquipped("OctoTestSet") and name == "OctoTestSet" and partly, "one piece changed: the set still shows, marked as part")
+    sets.OctoTestSet, GR.Worn, pfUI_config.gear.tqueue = keep, worn, tq
+  end
+end
+
 -- the preview help strips: keys and what they do, read from the old text
 do
   local W = pfUI.octoui.W

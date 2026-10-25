@@ -212,26 +212,46 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     return not GR.HasCopy(want.full)
   end
 
-  function GR.IsEquipped(name)
+  -- a trinket slot whose queue is on swaps by itself: a set does not count it
+  -- (user, 25 Oct 2026: the set button said "No set" while wearing one)
+  local function QueueSlot(inv)
+    if inv ~= 13 and inv ~= 14 then return false end
+    local q = C.gear.tqueue and C.gear.tqueue[tostring(inv)]
+    return type(q) == "table" and q.on == "1"
+  end
+  -- worn: true; how many of its slots are right and how many it has
+  function GR.Match(name)
     local set = C.gear.sets[name]
-    if not set then return false end
-    local any
+    if not set then return false, 0, 0 end
+    local right, total = 0, 0
     for key, want in pairs(set.slots or {}) do
       local inv = tonumber(string.sub(key, 2))
-      if inv then
-        any = true
-        if not Done(inv, want) then return false end
+      if inv and not QueueSlot(inv) then
+        total = total + 1
+        if Done(inv, want) then right = right + 1 end
       end
     end
-    return any and true or false
+    return total > 0 and right == total, right, total
   end
-
-  -- the set worn now: the last one put on if it still is, else any that is
+  function GR.IsEquipped(name)
+    local worn = GR.Match(name)
+    return worn and true or false
+  end
+  -- the set worn now: the last one put on if it still is, else any that is;
+  -- else the closest one (three in four of its slots or more) - second return
+  -- true then (a piece or two changed by hand)
   function GR.Current()
     if C.gear.current and GR.IsEquipped(C.gear.current) then return C.gear.current end
+    local best, bestShare
     for _, name in ipairs(GR.Sets()) do
-      if GR.IsEquipped(name) then return name end
+      local worn, right, total = GR.Match(name)
+      if worn then return name end
+      local share = total > 0 and right / total or 0
+      if share >= .75 and (not bestShare or share > bestShare or (share == bestShare and name == C.gear.current)) then
+        best, bestShare = name, share
+      end
     end
+    if best then return best, true end
   end
 
   function GR.Save(name, slots, icon)
@@ -921,12 +941,13 @@ pfUI:RegisterModule("gear", "vanilla", function ()
     local size = tonumber(C.gear.size) or 36
     btn:SetWidth(size)
     btn:SetHeight(size)
-    local cur = GR.Current()
+    local cur, partly = GR.Current()
     local set = cur and C.gear.sets[cur]
     btn.icon:SetTexture(set and set.icon or "Interface\\Icons\\INV_Chest_Plate06")
     btn.icon:SetDesaturated(set == nil)
-    btn.label:SetText(C.gear.showname ~= "0" and (cur or "No set") or "")
+    btn.label:SetText(C.gear.showname ~= "0" and (cur and (partly and (cur .. " |cffaaaaaa(part)|r") or cur) or "No set") or "")
     local ar, ag, ab = Accent()
+    if partly then ar, ag, ab = ar * .55, ag * .55, ab * .55 end
     if set then btn:SetBackdropBorderColor(ar, ag, ab, 1) else btn:SetBackdropBorderColor(K.line[1], K.line[2], K.line[3], 1) end
     if GR.queue and GR.queue.waiting then btn.wait:Show() else btn.wait:Hide() end
     if C.gear.button == "0" then btn:Hide() else btn:Show() end
