@@ -345,9 +345,14 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     local function MiniButton(r)
       local mb = CreateFrame("Frame", nil, r)
       mb:SetFrameLevel(r:GetFrameLevel() + 3)
-      mb.icon = mb:CreateTexture(nil, "BACKGROUND")
-      mb.icon:SetAllPoints(mb)
       CreateBackdrop(mb)
+      -- (the picture on its own layer, on top: under the copies' parts every
+      -- icon came out dark - user, 26 Oct 2026 "still dark")
+      mb.art = CreateFrame("Frame", nil, mb)
+      mb.art:SetAllPoints(mb)
+      mb.art:SetFrameLevel(mb:GetFrameLevel() + 6)
+      mb.icon = mb.art:CreateTexture(nil, "OVERLAY")
+      mb.icon:SetAllPoints(mb)
       return mb
     end
 

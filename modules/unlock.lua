@@ -1638,6 +1638,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     this:Hide()
   end)
 
+  -- a saved spot as one string, to see whether it changed
+  local function PosSig(p)
+    if type(p) ~= "table" then return "" end
+    return tostring(p.xpos) .. "|" .. tostring(p.ypos) .. "|" .. tostring(p.anchor) .. "|" .. tostring(p.scale) .. "|"
+      .. tostring(p.attach) .. "|" .. tostring(p.relpoint) .. "|" .. tostring(p.parent)
+  end
+
   pfUI.unlock:SetScript("OnShow", function()
     if this.skip then this.skip = nil return end
     if InCombatLockdown and InCombatLockdown() then
@@ -1649,6 +1656,11 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     this.grid = DrawGrid()
     this.bar:Update()
+    -- (where every frame is saved now: on leaving, only the ones moved here
+    -- are placed again - user, 26 Oct 2026: Escape after Move Frames moved
+    -- the meters "THEY SHOULD BE NEVER MOVED UNLESS I MOVE THEM")
+    this.before = {}
+    for name in pairs(pfUI.movables) do this.before[name] = PosSig(C.position[name]) end
 
     for name, frame in pairs(pfUI.movables) do
       local frame = frame or _G[name]
@@ -1687,7 +1699,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       frame:StopMovingOrSizing()
       frame:SetMovable(false)
       if frame.drag then frame.drag:Hide() end
-      UpdateMovable(frame)
+      if not this.before or this.before[name] ~= PosSig(C.position[name]) then UpdateMovable(frame) end
     end
 
     SetDockToFrame(nil)

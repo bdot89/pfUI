@@ -4703,6 +4703,27 @@ do
   end
 end
 
+-- leaving layout mode leaves every frame you did not move where it is (user,
+-- 26 Oct 2026: Escape after Move Frames moved the meters)
+do
+  if pfUI.unlock and pfUI.api.UpdateMovable then
+    local f = CreateFrame("Frame", "pfOctoTestStay", UIParent)
+    f:SetWidth(20) f:SetHeight(20)
+    f:SetPoint("CENTER", UIParent, "CENTER", 10, 10)
+    pfUI.api.UpdateMovable(f)
+    pfUI_config.position.pfOctoTestStay = { anchor = "CENTER", xpos = 500, ypos = 500 }
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", 10, 10)
+    pfUI.unlock:Show()
+    pfUI.unlock:Hide()
+    local p = { f:GetPoint() }
+    local x = type(p[2]) == "number" and p[2] or p[4]
+    ok(x == 10, "a frame not moved in layout mode stays where it was (" .. tostring(x) .. ")")
+    pfUI_config.position.pfOctoTestStay = nil
+    pfUI.movables.pfOctoTestStay = nil
+  end
+end
+
 -- the tooltip anchor's size in layout mode is the game tooltip's size
 do
   local a = pfUI.tooltip and pfUI.tooltip.anchorframe
