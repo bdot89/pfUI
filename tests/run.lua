@@ -3641,8 +3641,16 @@ do
         m.win1.width = was
       end
       local needs = L.ApplyCfg({ octotestpart = { a = "1" } })
-      ok(table.getn(needs) == 1 and needs[1] == "octotestpart", "a part that cannot change live asks for a reload")
+      ok(table.getn(needs) == 1 and needs[1] == "octotestpart", "a part that cannot change live is noted (no question asked)")
       pfUI_config.octotestpart = nil
+      local M = pfUI.meters
+      if M and M.windows and M.AddWindow then
+        local n = table.getn(M.windows)
+        L.ApplyCfg({ meters = { windows = tostring(n + 1) } })
+        ok(table.getn(M.windows) == n + 1, "a layout with one more meter window makes it at once")
+        L.ApplyCfg({ meters = { windows = tostring(n) } })
+        ok(table.getn(M.windows) == n, "and one fewer takes it away")
+      end
     end
     -- a meter window stays where it was put, in each layout (user, 25 Oct 2026)
     do

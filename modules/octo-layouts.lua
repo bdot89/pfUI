@@ -337,6 +337,14 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     -- (the arrow's window and Loot & Spam: put back after the frames are placed)
     chat = function() if pfUI.chat and pfUI.chat.RefreshChat then pfUI.chat.RefreshChat() end end,
     panel = function() end,
+    -- (the user wants no reload questions, 26 Oct 2026: parts read at login take
+    -- the new settings now and draw them fully at the next reload by themselves)
+    buffs = function() if pfUI.buff and pfUI.buff.UpdateConfig then pfUI.buff:UpdateConfig() end end,
+    buffbar = function() end, sct = function() end, global = function() end, tooltip = function() end,
+    appearance = function()
+      if pfUI.ufOcto and pfUI.ufOcto.ApplyAll then pcall(pfUI.ufOcto.ApplyAll) end
+      if pfUI.bars and pfUI.bars.UpdateConfig then pcall(pfUI.bars.UpdateConfig, pfUI.bars) end
+    end,
   }
   -- the saved settings in, each changed part shown; the parts that cannot
   -- change without a reload, by name
@@ -352,9 +360,6 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
         if not string.find(k, "^arrow") and not Same(pfUI_config.panel[k], v) then table.insert(needs, "bottom bars") break end
       end
     end
-    -- (more or fewer meter windows: made at login)
-    local wins = cfg.meters and cfg.meters.windows
-    if wins and C.meters and wins ~= C.meters.windows then table.insert(needs, "meter windows") end
     for k, v in pairs(cfg) do
       if not L.SHARED[k] and changed[k] then
         if type(v) == "table" then
@@ -364,6 +369,12 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
           pfUI_config[k] = v
         end
       end
+    end
+    -- more or fewer meter windows: made or taken away now
+    local M, want = pfUI.meters, cfg.meters and tonumber(cfg.meters.windows)
+    if M and M.windows and want then
+      for _ = 1, 6 do if table.getn(M.windows) < want and M.AddWindow then M.AddWindow() else break end end
+      for _ = 1, 6 do if table.getn(M.windows) > want and M.RemoveWindow then M.RemoveWindow(table.getn(M.windows)) else break end end
     end
     for k in pairs(changed) do
       local fn = L.LIVE[k]
@@ -452,14 +463,9 @@ pfUI:RegisterModule("octo-layouts", "vanilla", function ()
     if target.gear and target.gear ~= "" and pfUI.gear and C.gear.sets[target.gear] then pfUI.gear.Equip(target.gear) end
     L.Paint()
     Say(name .. (why and (" (" .. why .. ")") or "") .. ".")
-    -- (settings that show only after a reload: ask, never reload by itself)
-    if needs and table.getn(needs) > 0 then
-      L.needsReload = table.concat(needs, ", ")
-      local open = _G["pfQuestionDialog"]
-      if open and open:IsShown() then open:Hide() _G["pfQuestionDialog"] = nil end
-      CreateQuestionDialog("The " .. name .. " layout has settings that show after a reload ("
-        .. L.needsReload .. ").\n\nReload now?", function() ReloadUI() end)
-    end
+    -- (parts that only draw their new settings fully after a reload: noted,
+    -- never asked - the user wants no reload questions, 26 Oct 2026)
+    L.needsReload = (needs and table.getn(needs) > 0) and table.concat(needs, ", ") or nil
   end
 
   function L.Next()
