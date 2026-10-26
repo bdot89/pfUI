@@ -1763,146 +1763,171 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         end
       end
 
-      -- draw pfUI logo
-      local function draw(p, fx, fy, tx, ty, r, g, b, a)
-        local t = p:CreateTexture(nil, "OVERLAY")
-        t:SetTexture(r,g,b,a)
-        t:SetPoint("TOPLEFT", fx, fy)
-        t:SetPoint("BOTTOMRIGHT", p, "TOPLEFT", tx, ty)
+      -- octo (26 Oct 2026, user: "the main screen ... must say pfUI Octo in our
+      -- new artwork ... the author Bdot89"): the logo from tools\MakeOctoLogo.ps1,
+      -- who made it, two cards (this game / client mods) and the links.
+      -- Colours: W.C's flat palette, blue = open, green = found.
+      local page = this
+      local function Text(parent, size, r, g, b)
+        local t = parent:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+        t:SetFont(pfUI.font_default, size or C.global.font_size, "OUTLINE")
+        t:SetTextColor(r or 1, g or 1, b or 1)
+        return t
       end
 
-      local x, y, p = 250, 55, 10  -- startx, starty, pencilsize
-      draw(this, x,     -y-2*p, x+p,      -y-7*p, .2, 1, .8, 1)
-      draw(this, x+p,   -y-2*p, x+2*p,    -y-3*p, .2, 1, .8, 1)
-      draw(this, x+p,   -y-4*p, x+2*p,    -y-5*p, .2, 1, .8, 1)
-      draw(this, x+2*p, -y,     x+3*p,    -y-5*p, .2, 1, .8, 1)
-      draw(this, x+3*p, -y,     x+4*p,    -y-1*p, .2, 1, .8, 1)
-      draw(this, x+p,   -y-2*p, x+4*p,    -y-3*p, .2, 1, .8, 1)
-      draw(this, x+4*p, -y,     x+5*p,    -y-5*p, 1,  1, 1,  1)
-      draw(this, x+5*p, -y-4*p, x+5*p+p,  -y-5*p, 1,  1, 1,  1)
-      draw(this, x+6*p, -y,     x+7*p,    -y-p,   1,  1, 1,  1)
-      draw(this, x+6*p, -y-2*p, x+7*p,    -y-5*p, 1,  1, 1,  1)
+      local logo = page:CreateTexture(nil, "ARTWORK")
+      logo:SetTexture("Interface\\AddOns\\pfUI\\img\\octo\\logo")
+      logo:SetWidth(256)
+      logo:SetHeight(128)
+      logo:SetPoint("TOP", page, "TOP", 0, -6)
 
-      -- version
-      this.versionc = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.versionc:SetFont(pfUI.font_default, C.global.font_size)
-      this.versionc:SetPoint("TOPLEFT", 200, -170)
-      this.versionc:SetWidth(200)
-      this.versionc:SetJustifyH("LEFT")
-      this.versionc:SetText(T["Version"] .. ":")
+      local tag = Text(page, C.global.font_size + 1, .62, .68, .76)
+      tag:SetPoint("TOP", logo, "BOTTOM", 0, -2)
+      tag:SetText(T["your whole interface in one addon"])
 
-      this.version = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.version:SetFont(pfUI.font_default, C.global.font_size)
-      this.version:SetPoint("TOPRIGHT", 375, -170)
-      this.version:SetWidth(200)
-      this.version:SetJustifyH("RIGHT")
+      local by = Text(page, C.global.font_size + 5)
+      by:SetPoint("TOP", tag, "BOTTOM", 0, -8)
+      by:SetText(T["made by"] .. " |cff33b3ffBdot89|r  |cff666e7a-|r  " .. T["aka"] .. " |cff9a6bffUpsi|r")
 
-      this.update = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.update:SetFont(pfUI.font_default, C.global.font_size)
-      this.update:SetPoint("TOPLEFT", 200, -140)
-      this.update:SetPoint("TOPRIGHT", 375, -140)
-      this.update:SetJustifyH("CENTER")
-      this.update:SetTextColor(GetAccentColor())
+      -- a card: dark panel with a title bar
+      local function Card(title, x)
+        local card = CreateFrame("Frame", nil, page)
+        card:SetWidth(320)
+        card:SetHeight(160)
+        card:SetPoint("TOP", page, "TOP", x, -212)
+        card:SetBackdrop({ bgFile = "Interface\\BUTTONS\\WHITE8X8", edgeFile = "Interface\\BUTTONS\\WHITE8X8", edgeSize = 1 })
+        card:SetBackdropColor(.125, .13, .145, .95)
+        card:SetBackdropBorderColor(.23, .24, .27, 1)
+        local head = card:CreateTexture(nil, "ARTWORK")
+        head:SetTexture(.165, .17, .19, 1)
+        head:SetPoint("TOPLEFT", 1, -1)
+        head:SetPoint("TOPRIGHT", -1, -1)
+        head:SetHeight(22)
+        local accent = card:CreateTexture(nil, "OVERLAY")
+        accent:SetTexture(.2, .7, 1, 1)
+        accent:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 0, 0)
+        accent:SetPoint("TOPRIGHT", head, "BOTTOMRIGHT", 0, 0)
+        accent:SetHeight(1)
+        local t = Text(card, C.global.font_size + 1)
+        t:SetPoint("LEFT", head, "LEFT", 8, 0)
+        t:SetText(title)
+        card.rows = 0
+        -- a row: label left (dim), value right
+        function card:Row(label)
+          self.rows = self.rows + 1
+          local y = -30 - (self.rows - 1) * 21
+          local l = Text(self, C.global.font_size, .6, .61, .65)
+          l:SetPoint("TOPLEFT", 10, y)
+          l:SetText(label)
+          local v = Text(self, C.global.font_size)
+          v:SetPoint("TOPRIGHT", -10, y)
+          v:SetJustifyH("RIGHT")
+          return v
+        end
+        return card
+      end
 
-      this.screenc = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.screenc:SetFont(pfUI.font_default, C.global.font_size)
-      this.screenc:SetPoint("TOPLEFT", 200, -200)
-      this.screenc:SetWidth(200)
-      this.screenc:SetJustifyH("LEFT")
-      this.screenc:SetText(T["Resolution"] .. ":")
+      local game = Card(T["pfUI Octo and this game"], -165)
+      local version = game:Row(T["Version"])
+      local based = game:Row(T["Based on"])
+      local screen = game:Row(T["Resolution"])
+      local scale = game:Row(T["UI scale"])
+      local client = game:Row(T["Game client"])
+      local language = game:Row(T["Language"])
 
-      this.screen = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.screen:SetFont(pfUI.font_default, C.global.font_size)
-      this.screen:SetPoint("TOPRIGHT", 375, -200)
-      this.screen:SetWidth(200)
-      this.screen:SetJustifyH("RIGHT")
+      local mods = Card(T["Client mods it uses"], 165)
+      -- name, how to find it out (a version text, true, or nil), what it adds
+      local MODS = {
+        { "SuperWoW", function() return SUPERWOW_VERSION and tostring(SUPERWOW_VERSION) end, T["focus by GUID, mouseover casts, enemy casts"] },
+        { "ClassicAPI", function()
+            if not C_UnitAuras then return end
+            local v = tonumber(CLASSIC_API_VERSION)
+            if v then return string.format("%d.%d.%d", math.floor(v / 10000), math.floor(math.mod(v, 10000) / 100), math.mod(v, 100)) end
+            return T["found"]
+          end, T["instant gear and bags, combat log, focus"] },
+        { "nampower", function()
+            if not GetNampowerVersion then return end
+            local a, b, c = GetNampowerVersion()
+            return a and (a .. "." .. (b or 0) .. "." .. (c or 0)) or T["found"]
+          end, T["queued spell, spell casts"] },
+        { "UnitXP_SP3", function()
+            if not _G.UnitXP then return end
+            local ok = pcall(_G.UnitXP, "nop", "nop")
+            return ok and T["found"] or nil
+          end, T["exact range and line of sight"] },
+      }
+      local modrows = {}
+      for i, m in ipairs(MODS) do
+        local v = mods:Row(m[1])
+        v.what = m[3]
+        modrows[i] = v
+      end
+      local hint = Text(mods, C.global.font_size - 1, .6, .61, .65)
+      hint:SetPoint("BOTTOMLEFT", 10, 8)
+      hint:SetPoint("BOTTOMRIGHT", -10, 8)
+      hint:SetJustifyH("LEFT")
+      hint:SetText(T["Optional: everything works without them."])
 
-      this.scalec = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.scalec:SetFont(pfUI.font_default, C.global.font_size)
-      this.scalec:SetPoint("TOPLEFT", 200, -220)
-      this.scalec:SetWidth(200)
-      this.scalec:SetJustifyH("LEFT")
-      this.scalec:SetText(T["Scaling"] .. ":")
+      -- links: copied into a box to paste in your browser
+      local function Link(text, url, x, blue)
+        local b = CreateFrame("Button", nil, page)
+        b:SetWidth(150)
+        b:SetHeight(24)
+        b:SetPoint("TOP", page, "TOP", x, -388)
+        b:SetBackdrop({ bgFile = "Interface\\BUTTONS\\WHITE8X8", edgeFile = "Interface\\BUTTONS\\WHITE8X8", edgeSize = 1 })
+        local r, g, bl = .55, .58, .62
+        if blue then r, g, bl = .35, .7, 1 end
+        b:SetBackdropColor(r * .2, g * .2, bl * .2, 1)
+        b:SetBackdropBorderColor(r * .85, g * .85, bl * .85, 1)
+        local t = Text(b, C.global.font_size)
+        t:SetPoint("CENTER", 0, 0)
+        t:SetTextColor(r + (1 - r) * .4, g + (1 - g) * .4, bl + (1 - bl) * .4)
+        t:SetText(text)
+        b:SetScript("OnEnter", function()
+          this:SetBackdropColor(r * .4, g * .4, bl * .4, 1)
+          GameTooltip:SetOwner(this, "ANCHOR_TOP")
+          GameTooltip:SetText(text, 1, 1, 1)
+          GameTooltip:AddLine(url, r, g, bl)
+          GameTooltip:AddLine(T["Click: copy the link"], .6, .61, .65)
+          GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function()
+          this:SetBackdropColor(r * .2, g * .2, bl * .2, 1)
+          GameTooltip:Hide()
+        end)
+        b:SetScript("OnClick", function() pfUI.chat.urlcopy.CopyText(url) end)
+        return b
+      end
+      Link(T["Web page"], "https://bdot89.github.io/pfUI-Octo/", -160, true)
+      Link("GitHub", "https://github.com/bdot89/pfUI-Octo", 0, true)
+      Link(T["Original pfUI"], "https://github.com/shagu/pfUI", 160)
 
-      this.scale = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.scale:SetFont(pfUI.font_default, C.global.font_size)
-      this.scale:SetPoint("TOPRIGHT", 375, -220)
-      this.scale:SetWidth(200)
-      this.scale:SetJustifyH("RIGHT")
+      local thanks = Text(page, C.global.font_size - 1, .5, .52, .56)
+      thanks:SetPoint("TOP", page, "TOP", 0, -424)
+      thanks:SetText(T["Thanks to Shagu for pfUI, and to everyone on OctoWoW who tries it out."])
 
-      this.clientc = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.clientc:SetFont(pfUI.font_default, C.global.font_size)
-      this.clientc:SetPoint("TOPLEFT", 200, -250)
-      this.clientc:SetWidth(200)
-      this.clientc:SetJustifyH("LEFT")
-      this.clientc:SetText(T["Gameclient"] .. ":")
-
-      this.client = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.client:SetFont(pfUI.font_default, C.global.font_size)
-      this.client:SetPoint("TOPRIGHT", 375, -250)
-      this.client:SetWidth(200)
-      this.client:SetJustifyH("RIGHT")
-
-      this.langc = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.langc:SetFont(pfUI.font_default, C.global.font_size)
-      this.langc:SetPoint("TOPLEFT", 200, -270)
-      this.langc:SetWidth(200)
-      this.langc:SetJustifyH("LEFT")
-      this.langc:SetText(T["Language"] .. ":")
-      this.lang = this:CreateFontString("Status", "LOW", "GameFontWhite")
-      this.lang:SetFont(pfUI.font_default, C.global.font_size)
-      this.lang:SetPoint("TOPRIGHT", 375, -270)
-      this.lang:SetWidth(200)
-      this.lang:SetJustifyH("RIGHT")
-
-      -- info updater
-      local f = CreateFrame("Frame", nil, this)
+      -- the numbers that can change, once a second while the page shows
+      local f = CreateFrame("Frame", nil, page)
       f:SetScript("OnUpdate", function()
         if ( this.tick or 0) > GetTime() then return else this.tick = GetTime() + 1 end
-
-        local parent = this:GetParent()
         local localversion  = tonumber(pfUI.version.major*10000 + pfUI.version.minor*100 + pfUI.version.fix)
         local remoteversion = tonumber(pfUI_init.updateavailable) or 0
-        if localversion < remoteversion then
-          parent.update:SetText("|cffffffff[|r!|cffffffff] " .. T["A new version is available"])
+        version:SetText("|cff33b3ffv" .. pfUI.version.octo .. "|r")
+        based:SetText("pfUI " .. pfUI.version.string .. " " .. T["by"] .. " Shagu" ..
+          (localversion < remoteversion and (" |cffffc840(" .. T["newer pfUI out"] .. ")|r") or ""))
+        screen:SetText(GetCVar("gxResolution"))
+        scale:SetText(round(UIParent:GetEffectiveScale(), 2))
+        client:SetText(GetBuildInfo() .. " (" .. GetLocale() .. ")")
+        language:SetText(lang)
+        for i, m in ipairs(MODS) do
+          local ok, found = pcall(m[2])
+          if ok and found then
+            modrows[i]:SetText("|cff3fd977" .. found .. "|r")
+          else
+            modrows[i]:SetText("|cff666e7a" .. T["not found"] .. "|r")
+          end
         end
-
-        parent.version:SetText(pfUI.version.octo .. " (pfUI " .. pfUI.version.string .. ")")
-        parent.screen:SetText(GetCVar("gxResolution"))
-        parent.scale:SetText(round(UIParent:GetEffectiveScale(),2))
-        parent.client:SetText(GetBuildInfo() .. " (" .. GetLocale() .. ")")
-        parent.lang:SetText(lang)
       end)
-
-      local donate = CreateFrame("Button", nil, this)
-      donate:SetPoint("TOPLEFT", 130, -335)
-      donate:SetWidth(100)
-      donate:SetHeight(20)
-      donate:SetText(T["Donate"])
-      donate:SetScript("OnClick", function()
-        pfUI.chat.urlcopy.CopyText("https://ko-fi.com/shagu")
-      end)
-      SkinButton(donate)
-
-      local github = CreateFrame("Button", nil, this)
-      github:SetPoint("TOPLEFT", 240, -335)
-      github:SetWidth(100)
-      github:SetHeight(20)
-      github:SetText(T["GitHub"])
-      github:SetScript("OnClick", function()
-        pfUI.chat.urlcopy.CopyText("https://github.com/shagu/pfUI")
-      end)
-      SkinButton(github)
-
-      local website = CreateFrame("Button", nil, this)
-      website:SetPoint("TOPLEFT", 350, -335)
-      website:SetWidth(100)
-      website:SetHeight(20)
-      website:SetText(T["Website"])
-      website:SetScript("OnClick", function()
-        pfUI.chat.urlcopy.CopyText("https://shagu.org/pfUI")
-      end)
-      SkinButton(website)
     end)
 
     CreateGUIEntry(T["Settings"], T["General"], function()
