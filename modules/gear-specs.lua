@@ -635,8 +635,35 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
       local k = n[i] > 0 and 1 or .45
       table.insert(out, Hex(t[1] * k, t[2] * k, t[3] * k) .. n[i] .. "|r")
     end
-    return table.concat(out, "|cff6a6d76 / |r")
+    -- (the main tree by name, so a split can not be read the wrong way round:
+    -- user, 26 Oct 2026)
+    local big, bi = -1, 1
+    for i = 1, 3 do if n[i] > big then big, bi = n[i], i end end
+    local tname = GetTalentTabInfo and GetTalentTabInfo(bi)
+    local t = GS.TREE[bi]
+    return table.concat(out, "|cff6a6d76 / |r") .. (tname and ("   " .. Hex(t[1], t[2], t[3]) .. tname .. "|r") or "")
   end
+  -- your talents now and whether a slot holds them (user, 26 Oct 2026: both
+  -- slots held one spec and the one in use was in none - say so plainly)
+  function GS.NowText()
+    local a, b, c = GS.Split()
+    local where
+    if menu then
+      for slot in pairs(menu.activate) do
+        if GS.IsActive(slot) then where = slot end
+      end
+    end
+    local tail
+    if a + b + c == 0 then
+      tail = ""
+    elseif where then
+      tail = "   |cff55ff77in " .. GS.Name(where) .. "|r"
+    else
+      tail = "   |cffffd100in no slot - Save here keeps them|r"
+    end
+    return "Your talents now: " .. GS.SplitText(a, b, c) .. tail
+  end
+
   -- the tree a split puts most points in (1-3), or nil
   local function MainTree(a, b, c)
     if a + b + c == 0 then return nil end
@@ -797,7 +824,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
     local count
     if menu then
       count = menu.slots
-      f.sub:SetText("Goblin Brainwashing Device")
+      f.sub:SetText(GS.NowText())
       f.help:SetText("|cff55ff77Activate|r switches to a spec (the device gives a debuff).   |cffffd100Save here|r puts the "
         .. "talents you have now into that slot - what it held is lost.   |cffff5555Reset|r gives back every talent point"
         .. (menu.reset and menu.reset.price and (" for " .. menu.reset.price) or "") .. ".   Every choice asks first.")
