@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- Source of docs/banner.png (1280x640, GitHub's / Discord's link preview size), in the style of DMorph's banner.
+     Render (from this folder):
+       msedge --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1280,640 --allow-file-access-from-files --screenshot=..\banner.png banner.html
+     Pictures: the options window crops in docs\ (addon windows only: no chat, no names) and docs\logo.png
+     (tools\MakeOctoLogo.ps1). Colours: pfUI teal #33ffcc, the options window's blue #33b3ff, violet #9a6bff. -->
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Fira;src:url(../../fonts/FiraSansCondensed-Regular.ttf);font-weight:400}
+@font-face{font-family:Fira;src:url(../../fonts/FiraSansCondensed-SemiBold.ttf);font-weight:600}
+:root{--teal:#33ffcc;--teal2:#8affe3;--blue:#33b3ff;--blue2:#7ccdff;--vio:#9a6bff;--vio2:#c3a6ff}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1280px;height:640px;overflow:hidden}
+body{font-family:Fira,sans-serif;color:#eef3fa;position:relative;
+ background:
+  radial-gradient(ellipse 430px 330px at 70px 60px,rgba(51,255,204,.22),transparent 70%),
+  radial-gradient(ellipse 520px 420px at 250px 640px,rgba(154,107,255,.40),transparent 70%),
+  radial-gradient(ellipse 320px 260px at 420px 300px,rgba(51,179,255,.14),transparent 70%),
+  linear-gradient(170deg,#0a1714 0%,#0b0e14 42%,#130d24 100%)}
+/* the right side: the Key Map behind, two windows floating in front */
+.pic{position:absolute;left:360px;top:0;width:920px;height:640px;clip-path:polygon(120px 0,100% 0,100% 100%,0 100%);overflow:hidden;
+ background:#0b0e14}
+.pic .back{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:30% 0;filter:brightness(.55) saturate(1.2) blur(1px)}
+.pic:after{content:"";position:absolute;inset:0;background:
+  linear-gradient(90deg,rgba(11,14,20,.75),transparent 30%),
+  radial-gradient(ellipse 420px 320px at 35% 40%,rgba(51,179,255,.14),transparent 70%),
+  radial-gradient(ellipse 420px 320px at 75% 60%,rgba(154,107,255,.16),transparent 70%)}
+.win{position:absolute;border-radius:8px;padding:2px;z-index:2;
+ background:linear-gradient(135deg,var(--teal),var(--blue) 45%,var(--vio));
+ box-shadow:0 0 26px rgba(51,179,255,.55),0 18px 40px rgba(0,0,0,.75)}
+.win img{display:block;width:100%;height:auto;border-radius:6px}
+.w1{left:470px;top:66px;width:520px;transform:rotate(-2.5deg)}
+.w2{left:800px;top:84px;width:470px;transform:rotate(3deg)}
+.edge{position:absolute;left:360px;top:0;width:124px;height:640px;z-index:3;
+ background:linear-gradient(var(--teal2),var(--teal) 28%,var(--blue) 50%,var(--vio2) 70%,var(--vio));
+ clip-path:polygon(117px 0,124px 0,7px 100%,0 100%);filter:drop-shadow(0 0 12px rgba(154,107,255,.9)) drop-shadow(0 0 6px rgba(51,255,204,.6))}
+.left{position:absolute;left:38px;top:26px;width:440px;z-index:4}
+.kicker{font-size:15px;letter-spacing:4px;color:var(--teal);font-weight:600;text-shadow:0 0 10px rgba(51,255,204,.6)}
+.logo{display:block;width:372px;height:auto;margin:2px 0 0 -6px;filter:drop-shadow(0 0 14px rgba(51,179,255,.35))}
+.sub{font-size:25px;font-weight:600;color:#fff;line-height:1.15;margin-top:2px;text-shadow:0 0 12px rgba(51,179,255,.45)}
+ul{list-style:none;margin-top:13px;display:grid;gap:6px}
+li{font-size:20px;font-weight:600;white-space:nowrap}
+li span{color:#a9b6cf;font-weight:400}
+li b{color:var(--teal);text-shadow:0 0 10px rgba(51,255,204,.5)}
+.dll{margin-top:14px;padding:9px 13px;border-radius:7px;border:2px solid var(--blue);width:380px;
+ background:linear-gradient(135deg,rgba(51,179,255,.38),rgba(20,30,70,.7) 60%,rgba(154,107,255,.25));
+ box-shadow:0 0 22px rgba(51,179,255,.6),inset 0 0 22px rgba(0,0,0,.35)}
+.dll .h{font-size:13px;letter-spacing:2px;color:var(--blue2);font-weight:600}
+.dll .n{font-size:18px;font-weight:600;color:#eaf4ff;margin-top:2px;line-height:1.3}
+.dll .n b{color:var(--teal)}
+.url{position:absolute;left:40px;bottom:18px;font-size:16px;color:#8f9db6;z-index:4}
+.url b{color:var(--blue2)}
+/* the slogan plate along the bottom of the picture */
+.ground{position:absolute;left:360px;bottom:0;width:920px;height:170px;z-index:2;clip-path:polygon(34px 0,100% 0,100% 100%,0 100%);
+ background:linear-gradient(0deg,rgba(9,10,18,.95) 0%,rgba(9,10,18,.7) 50%,transparent 100%)}
+.slogan{position:absolute;left:520px;bottom:16px;width:620px;text-align:center;padding:4px 18px 8px;border-radius:12px;border:2px solid transparent;z-index:4;
+ background:linear-gradient(rgba(10,12,22,.86),rgba(10,12,22,.9)) padding-box,
+            linear-gradient(90deg,var(--teal),var(--blue) 45%,var(--vio2) 75%,var(--vio)) border-box;
+ box-shadow:-14px 0 26px -6px rgba(51,255,204,.5),14px 0 26px -6px rgba(154,107,255,.7),0 8px 24px rgba(0,0,0,.6)}
+.slogan .big{font-family:"Segoe UI Black","Segoe UI",sans-serif;font-weight:900;font-size:37px;line-height:1.1;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;
+ background-image:linear-gradient(90deg,var(--teal2) 0%,var(--teal) 18%,var(--blue) 50%,var(--vio2) 75%,var(--vio) 100%);
+ -webkit-background-clip:text;background-clip:text;color:transparent;
+ filter:drop-shadow(0 0 12px rgba(51,179,255,.45)) drop-shadow(0 0 18px rgba(154,107,255,.4))}
+.slogan .small{font-size:18px;font-weight:600;color:#e6eefa;letter-spacing:.3px;margin-top:1px}
+.slogan .small b{color:var(--teal);font-weight:600}
+.slogan .small i{font-style:normal;color:var(--vio2)}
+.badge{position:absolute;right:24px;top:18px;display:flex;align-items:center;gap:9px;padding:6px 16px 7px 12px;border-radius:10px;border:2px solid transparent;z-index:4;
+ background:linear-gradient(rgba(10,12,22,.86),rgba(10,12,22,.9)) padding-box,
+            linear-gradient(90deg,var(--teal),var(--blue) 45%,var(--vio2) 75%,var(--vio)) border-box;
+ box-shadow:-10px 0 20px -6px rgba(51,255,204,.55),10px 0 20px -6px rgba(154,107,255,.75),0 6px 18px rgba(0,0,0,.6)}
+.badge .ico{font-size:18px}
+.badge .txt{font-family:"Segoe UI Black","Segoe UI",sans-serif;font-weight:900;font-size:19px;letter-spacing:1px;text-transform:uppercase;line-height:1;
+ background-image:linear-gradient(90deg,var(--teal2) 0%,var(--teal) 20%,var(--blue) 50%,var(--vio2) 75%,var(--vio) 100%);
+ -webkit-background-clip:text;background-clip:text;color:transparent}
+</style></head><body>
+<div class="pic"><img class="back" src="../keymap.jpg"></div>
+<div class="win w2"><img src="../meters.jpg"></div>
+<div class="win w1"><img src="../gear.jpg"></div>
+<div class="ground"></div>
+<div class="edge"></div>
+<div class="slogan"><div class="big">Your whole UI, one addon!</div>
+  <div class="small">🔌 <b>DLL installer included</b> · made by <i>Bdot89</i></div></div>
+<div class="badge"><span class="ico">⬇️</span><span class="txt">Free on GitHub</span></div>
+<div class="left">
+  <div class="kicker">UI ADDON · WOW 1.12 · OCTOWOW</div>
+  <img class="logo" src="../logo.png">
+  <div class="sub">Frames, bars, plates, meters<br>and gear in one window</div>
+  <ul>
+    <li>🧩 Unit frames · <b>14</b> bar looks <span>· plates</span></li>
+    <li>📊 Meters, threat <span>&amp; combat text</span></li>
+    <li>🛡️ <b>Instant</b> gear swaps <span>· trinket queue</span></li>
+    <li>⌨️ Key Map <span>drag spells onto keys</span></li>
+    <li>🗺️ Layouts <span>Normal · Raid · PvP</span></li>
+    <li>🎒 <b>Instant</b> bag sorting <span>· loot history</span></li>
+  </ul>
+  <div class="dll"><div class="h">🔌 ONE-CLICK DLL INSTALLER</div>
+    <div class="n"><b>ClassicAPI</b> · <b>SuperWoW</b> · <b>nampower</b> · <b>UnitXP</b><br>newest versions, optional</div></div>
+</div>
+<div class="url"><b>github.com/bdot89/pfUI-Octo</b> · v1.0</div>
+</body></html>
