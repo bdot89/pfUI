@@ -115,6 +115,20 @@ Fire("BUFF_ADDED_SELF", ME, 4, 1243, 1, 60, 3, 0)
 ok(LiveText("[Spell1243]"), "buff gained")
 Fire("DEBUFF_ADDED_SELF", ME, 1, 12826, 1, 60, 32, 0)
 ok(LiveText("[Spell12826]"), "debuff on you")
+-- (user, 26 Oct 2026: "[Inner Fire (30)]" twice) the same aura news twice
+-- shows once; charges going down show nothing
+local function LiveCount(match)
+  local n = 0
+  for i = 1, CT.nlive do
+    if string.find(CT.live[i].fs.text or "", match, 1, true) then n = n + 1 end
+  end
+  return n
+end
+Fire("BUFF_ADDED_SELF", ME, 5, 588, 30, 60, 4, 2)
+Fire("BUFF_ADDED_SELF", ME, 5, 588, 30, 60, 4, 2)
+ok(LiveCount("[Spell588 (30)]") == 1, "the same stacks news twice: one text (" .. LiveCount("[Spell588 (30)]") .. ")")
+Fire("BUFF_ADDED_SELF", ME, 5, 588, 29, 60, 4, 2)
+ok(LiveCount("[Spell588 (29)]") == 0, "a charge used up: no text")
 -- low health, combo points, interrupt
 Mock.playerHp = 30
 Fire("UNIT_HEALTH", "player")

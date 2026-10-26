@@ -803,16 +803,29 @@ B:On("SPELL_DISPEL_BY_SELF", function(ev, caster, target, id)
 end)
 
 -- Auras on you: arg1 guid, arg2 slot (0 = hidden), arg3 spellId, arg4 stacks, arg7 state (0 added, 1 removed, 2 stacks).
+-- (26 Oct 2026, user: "[Inner Fire (30)]" shown twice, one over the other)
+-- nampower sends the same aura news more than once (a refresh, a slot move),
+-- so a stack change only shows when the stacks went up, and the same text
+-- never shows twice within 1.5 s. Charges going down (Inner Fire, Lightning
+-- Shield) are not news.
+local auraStacks, auraShown = {}, {}
 local function Aura(gain, debuff)
   return function(ev, guid, slot, id, stacks, level, raw, state)
     if guid ~= Me() or slot == 0 then return end
     local name, icon = EV.Spell(id)
     if not name or Listed(B.db.sct.hideAuras, name) then return end
+    local key = (debuff and "d" or "b") .. tostring(id)
+    local before = auraStacks[key]
+    if state == 1 or not gain then auraStacks[key] = nil else auraStacks[key] = stacks or 1 end
     local label = name
     if state == 2 then
-      if not gain then return end
+      if not gain or (before and (stacks or 1) <= before) then return end
       label = name .. " (" .. (stacks or 1) .. ")"
     end
+    local shown = (gain and "+" or "-") .. key .. label
+    local now = GetTime()
+    if (auraShown[shown] or 0) > now then return end
+    auraShown[shown] = now + 1.5
     if gain and not debuff and Listed(B.db.sct.procs, name) then
       EV:Fire("proc", { spell = label, icon = icon })
     elseif debuff then
