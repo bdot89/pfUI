@@ -557,6 +557,7 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
         sl.frame:SetPoint("TOPLEFT", f, "TOPLEFT", m.pad + e.col * step, -(m.gridY + e.row * step))
         sl.frame:SetWidth(m.size)
         sl.frame:SetHeight(m.size)
+        BO.Mark(e.bag, e.slot)
       end
     end
 
@@ -584,21 +585,284 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
     if O and O.Open then O:Open("bagsocto") end
   end
 
+  -- ---------------------------------------------------------------- item marks
+
+  -- (25 Oct 2026, user: "the item glow next: quest / junk / unusable marks and
+  -- a new-item glow with ClassicAPI C_NewItems")
+  --   new      a pulsing glow on items you got since login (ClassicAPI's flag,
+  --            else BO.new: an item id you owned none of a moment ago);
+  --            mouse over it, or close the bags, and it stops
+  --   junk     a coin on grey items
+  --   quest    a ? on quest items, a ! on items that start a quest
+  --   unusable red tint (pfUI's unusable.lua scans the tooltip; ClassicAPI's
+  --            C_PlayerInfo.CanUseItem answers first when the client has it)
+  BO.ICON = {
+    junk = "Interface\\Buttons\\UI-GroupLoot-Coin-Up",
+    quest = "Interface\\GossipFrame\\ActiveQuestIcon",
+    start = "Interface\\GossipFrame\\AvailableQuestIcon",
+    glow = "Interface\\Buttons\\UI-ActionButton-Border",
+  }
+  BO.new = {}        -- [item id] = true (without ClassicAPI)
+  BO.glowing = {}    -- [slot frame] = true while it glows
+  local scanner = libtipscan and libtipscan:GetScanner("bagsocto")
+  local starts = {}  -- [item string] = true / false (tooltip says it starts a quest)
+
+  local function NI() return _G.C_UnitAuras and _G.C_NewItems end
+
+  function BO.ItemId(link)
+    local _, _, id = string.find(link or "", "item:(%d+)")
+    return tonumber(id)
+  end
+
+  -- every item id you have now, with counts: bags 0-4, worn, and the bank as
+  -- last seen open (moving between them is not "new")
+  BO.bankCount = {}
+  function BO.Owned()
+    local t = {}
+    local function Add(link, n)
+      local id = BO.ItemId(link)
+      if id then t[id] = (t[id] or 0) + (n or 1) end
+    end
+    for bag = 0, 4 do
+      for slot = 1, (GetContainerNumSlots(bag) or 0) do
+        local link = GetContainerItemLink(bag, slot)
+        if link then
+          local _, n = GetContainerItemInfo(bag, slot)
+          Add(link, n)
+        end
+      end
+    end
+    for inv = 1, 19 do Add(GetInventoryItemLink("player", inv), 1) end
+    if BankFrame and BankFrame:IsVisible() then
+      local b = {}
+      for _, bag in ipairs(BO.ORDER.bank) do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+          local id = BO.ItemId(GetContainerItemLink(bag, slot))
+          if id then
+            local _, n = GetContainerItemInfo(bag, slot)
+            b[id] = (b[id] or 0) + (n or 1)
+          end
+        end
+      end
+      BO.bankCount = b
+    end
+    for id, n in pairs(BO.bankCount) do t[id] = (t[id] or 0) + n end
+    return t
+  end
+
+  -- the plain-API new items: ids owned now that were not owned at the last
+  -- look (a few seconds after login everything counts as already yours)
+  BO.readyAt = GetTime() + 4
+  function BO.ScanNew()
+    if NI() and NI().IsNewItem then return end
+    local now = BO.Owned()
+    if BO.seen and GetTime() >= BO.readyAt then
+      for id in pairs(now) do
+        if not BO.seen[id] then BO.new[id] = true end
+      end
+    end
+    for id in pairs(BO.new) do if not now[id] then BO.new[id] = nil end end
+    BO.seen = now
+  end
+
+  function BO.IsNew(bag, slot)
+    if S().glownew ~= "1" or bag < 0 or bag > 4 then return false end
+    local ni = NI()
+    if ni and ni.IsNewItem then
+      local ok, v = pcall(ni.IsNewItem, bag, slot)
+      if ok then return v and true or false end
+    end
+    local id = BO.ItemId(GetContainerItemLink(bag, slot))
+    return id and BO.new[id] and true or false
+  end
+
+  -- seen: mouse over a glowing item
+  function BO.Seen(bag, slot)
+    local ni = NI()
+    if ni and ni.RemoveNewItem and bag >= 0 and bag <= 4 then pcall(ni.RemoveNewItem, bag, slot) end
+    local id = BO.ItemId(GetContainerItemLink(bag, slot))
+    if id then BO.new[id] = nil end
+    BO.Mark(bag, slot)
+  end
+
+  function BO.ClearNew()
+    local ni = NI()
+    if ni and ni.ClearAll then pcall(ni.ClearAll) end
+    BO.new = {}
+    BO.MarkAll()
+  end
+
+  function BO.StartsQuest(bag, slot, link)
+    local key = string.gsub(link or "", "^.-(item:[%d:]+).*$", "%1")
+    if starts[key] == nil then
+      local found = false
+      if scanner and ITEM_STARTS_QUEST then
+        local ok, hit = pcall(function()
+          if bag == -1 then scanner:SetInventoryItem("player", 39 + slot) else scanner:SetBagItem(bag, slot) end
+          return scanner:Find(ITEM_STARTS_QUEST, true)
+        end)
+        found = ok and hit and true or false
+      end
+      starts[key] = found
+    end
+    return starts[key]
+  end
+
+  -- what one item shows: { new, junk, quest = "quest" | "start", bad }
+  function BO.Marks(bag, slot)
+    local s = S()
+    local link = GetContainerItemLink(bag, slot)
+    if not link then return {} end
+    local m = {}
+    local _, _, quality, _, class = _G.GetItemInfo((string.gsub(link, "^.-(item:[%d:]+).*$", "%1")))
+    if quality == nil then
+      local _, _, _, q = GetContainerItemInfo(bag, slot)
+      quality = q
+    end
+    m.new = BO.IsNew(bag, slot)
+    m.junk = s.junk == "1" and quality == 0
+    if s.quest == "1" then
+      if BO.StartsQuest(bag, slot, link) then m.quest = "start"
+      elseif class == "Quest" then m.quest = "quest" end
+    end
+    if C.appearance.bags.unusable == "1" then
+      local PI = _G.C_UnitAuras and _G.C_PlayerInfo
+      if PI and PI.CanUseItem then
+        local ok, can = pcall(PI.CanUseItem, BO.ItemId(link))
+        if ok and can == false then m.bad = true end
+      end
+    end
+    return m
+  end
+
+  local function Corner(f, layer)
+    local t = f:CreateTexture(nil, layer or "OVERLAY")
+    t:SetWidth(13)
+    t:SetHeight(13)
+    return t
+  end
+
+  -- the marks' textures on one of pfUI's slot buttons (made once)
+  function BO.MarkParts(f)
+    if f.octoMarks then return f.octoMarks end
+    local p = {}
+    f.octoMarks = p
+    local top = CreateFrame("Frame", nil, f)
+    top:SetAllPoints(f)
+    top:SetFrameLevel(f:GetFrameLevel() + 3)
+    p.top = top
+    p.glow = top:CreateTexture(nil, "OVERLAY")
+    p.glow:SetTexture(BO.ICON.glow)
+    p.glow:SetBlendMode("ADD")
+    p.glow:SetPoint("CENTER", f, "CENTER", 0, 0)
+    p.junk = Corner(top)
+    p.junk:SetTexture(BO.ICON.junk)
+    p.junk:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+    p.quest = Corner(top)
+    p.quest:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
+    -- mouse over = seen (the template's own OnEnter still runs first)
+    local enter = f:GetScript("OnEnter")
+    f:SetScript("OnEnter", function()
+      if enter then enter() end
+      local parent = this:GetParent()
+      if this.octoGlows and parent and parent.GetID then BO.Seen(parent:GetID(), this:GetID()) end
+    end)
+    return p
+  end
+
+  function BO.Mark(bag, slot)
+    local holder = pfUI.bags[bag]
+    local sl = holder and holder.slots and holder.slots[slot]
+    local f = sl and sl.frame
+    if not f then return end
+    local p = BO.MarkParts(f)
+    local m = BO.On() and BO.Marks(bag, slot) or {}
+    local size = f:GetWidth() or 32
+    p.glow:SetWidth(size * 1.75)
+    p.glow:SetHeight(size * 1.75)
+    if m.new then
+      local r, g, b = GetStringColor(S().newcolor)
+      p.glow:SetVertexColor(tonumber(r) or 1, tonumber(g) or .85, tonumber(b) or .3, 1)
+      p.glow:Show()
+      f.octoGlows = true
+      BO.glowing[f] = true
+    else
+      p.glow:Hide()
+      f.octoGlows = nil
+      BO.glowing[f] = nil
+    end
+    if m.junk then p.junk:Show() else p.junk:Hide() end
+    if m.quest then
+      p.quest:SetTexture(BO.ICON[m.quest])
+      p.quest:Show()
+      if f.qtext then f.qtext:SetText("") end
+    else
+      p.quest:Hide()
+    end
+    if m.bad then
+      local r, g, b, a = GetStringColor(C.appearance.bags.unusable_color)
+      _G.SetItemButtonTextureVertexColor(f, tonumber(r) or .9, tonumber(g) or .2, tonumber(b) or .2, tonumber(a) or 1)
+    end
+  end
+
+  function BO.MarkAll()
+    for _, which in ipairs({ "bags", "bank" }) do
+      for _, bag in ipairs(BO.ORDER[which]) do
+        local holder = pfUI.bags[bag]
+        if holder and holder.slots then
+          for slot, sl in pairs(holder.slots) do
+            if sl.frame and sl.frame:IsShown() then BO.Mark(bag, slot) end
+          end
+        end
+      end
+    end
+  end
+
+  -- the glow breathes (one clock for every glowing slot)
+  function BO.Pulse(t)
+    local a = .55 + .45 * math.sin((t or GetTime()) * 4)
+    for f in pairs(BO.glowing) do
+      if f.octoMarks and f:IsVisible() then f.octoMarks.glow:SetAlpha(a) end
+    end
+  end
+
   -- ---------------------------------------------------------------- hooks
 
   local rawCreate = PB.CreateBags
   function PB:CreateBags(object)
     rawCreate(self, object)
-    if BO.On() then BO.Layout(object == "bank" and "bank" or "bags") end
+    if not BO.On() then return end
+    local which = object == "bank" and "bank" or "bags"
+    BO.Layout(which)
+    -- closing the bag window = the new items were seen (pfUI sets OnHide again each time)
+    local f = which == "bank" and PB.left or PB.right
+    local hide = f and f:GetScript("OnHide")
+    if f and which == "bags" then
+      f:SetScript("OnHide", function()
+        if hide then hide() end
+        if S().newclear == "1" then BO.ClearNew() end
+      end)
+    end
   end
 
   local rawSlot = PB.UpdateSlot
   function PB:UpdateSlot(bag, slot)
     rawSlot(self, bag, slot)
-    if BO.On() and BO.Hidden(bag) then
+    if not BO.On() then return end
+    if BO.Hidden(bag) then
       local holder = pfUI.bags[bag]
       local sl = holder and holder.slots and holder.slots[slot]
       if sl and sl.frame then sl.frame:Hide() end
+    else
+      BO.Mark(bag, slot)
+    end
+  end
+
+  if PB.UpdateItemLock then
+    local rawLock = PB.UpdateItemLock
+    function PB:UpdateItemLock()
+      rawLock(self)
+      if BO.On() then BO.MarkAll() end
     end
   end
 
@@ -628,10 +892,23 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
   watch:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
   watch:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
   watch:RegisterEvent("UNIT_INVENTORY_CHANGED")
+  watch:RegisterEvent("PLAYER_ENTERING_WORLD")
+  -- ClassicAPI: an item got or lost its new flag
+  if delayed then watch:RegisterEvent("BAG_NEW_ITEMS_UPDATED") end
   watch:SetScript("OnEvent", function()
-    if event == "BAG_UPDATE_DELAYED" then BO.UpdateShown() else this.dirty = true end
+    if event == "PLAYER_ENTERING_WORLD" then
+      BO.readyAt = GetTime() + 4
+      this.dirty = true
+    elseif event == "BAG_UPDATE_DELAYED" then
+      BO.UpdateShown()
+    elseif event == "BAG_NEW_ITEMS_UPDATED" then
+      if BO.On() then BO.MarkAll() end
+    else
+      this.dirty = true
+    end
   end)
   watch:SetScript("OnUpdate", function()
+    if next(BO.glowing) then BO.Pulse(GetTime()) end
     if not this.dirty or (this.tick or 0) > GetTime() then return end
     this.tick, this.dirty = GetTime() + .1, nil
     BO.UpdateShown()
@@ -639,6 +916,8 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
 
   function BO.UpdateShown()
     if not BO.On() then return end
+    BO.ScanNew()
+    BO.MarkAll()
     if PB.right and PB.right:IsShown() then BO.Footer(PB.right) end
     if PB.left and PB.left:IsShown() then BO.Footer(PB.left) end
   end

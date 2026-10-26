@@ -31,11 +31,22 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
   -- ---------------------------------------------------------------- preview
 
   -- items for an empty preview (pictures from the 1.12 icon set, qualities)
+  -- (the third field: the mark it shows - new, junk, quest, start, bad)
   BP.SAMPLE = {
-    { "INV_Misc_Rune_01", 1 }, { "INV_Potion_51", 1 }, { "INV_Sword_04", 3 }, { "INV_Misc_Food_15", 1 },
-    { "INV_Chest_Chain_05", 2 }, { "INV_Misc_Gem_Ruby_02", 4 }, { "INV_Misc_Herb_07", 1 }, { "INV_Scroll_03", 1 },
-    { "INV_Misc_Bag_08", 2 }, { "INV_Fabric_Silk_02", 1 }, { "INV_Misc_Key_03", 1 }, { "INV_Jewelry_Ring_15", 3 },
+    { "INV_Misc_Rune_01", 1 }, { "INV_Potion_51", 1, "new" }, { "INV_Sword_04", 3, "bad" }, { "INV_Misc_Food_15", 1 },
+    { "INV_Chest_Chain_05", 2 }, { "INV_Misc_Gem_Ruby_02", 4, "new" }, { "INV_Misc_Herb_07", 1 }, { "INV_Scroll_03", 1, "quest" },
+    { "INV_Misc_Bag_08", 2 }, { "INV_Misc_Bone_HumanSkull_01", 0, "junk" }, { "INV_Misc_Note_01", 1, "start" }, { "INV_Jewelry_Ring_15", 3 },
   }
+  -- the sample's marks as the settings show them
+  function BP.SampleMarks(flag)
+    local s = G()
+    local m = {}
+    if flag == "new" then m.new = s.glownew == "1" end
+    if flag == "junk" then m.junk = s.junk == "1" end
+    if (flag == "quest" or flag == "start") and s.quest == "1" then m.quest = flag end
+    if flag == "bad" then m.bad = C.appearance.bags.unusable == "1" end
+    return m
+  end
   BP.SAMPLESIZES = { [0] = 16, [1] = 14, [2] = 14, [3] = 12, [4] = 10, [-2] = 0 }
 
   -- the bag sizes the preview draws: yours, or a made-up set of bags
@@ -135,8 +146,40 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
         f.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
         f.icon:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
         f.icon:SetTexCoord(.08, .92, .08, .92)
+        f.glow = f:CreateTexture(nil, "OVERLAY")
+        f.glow:SetTexture(BO.ICON.glow)
+        f.glow:SetBlendMode("ADD")
+        f.glow:SetPoint("CENTER", f, "CENTER", 0, 0)
+        f.junk = f:CreateTexture(nil, "OVERLAY")
+        f.junk:SetTexture(BO.ICON.junk)
+        f.junk:SetWidth(13) f.junk:SetHeight(13)
+        f.junk:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+        f.quest = f:CreateTexture(nil, "OVERLAY")
+        f.quest:SetWidth(13) f.quest:SetHeight(13)
+        f.quest:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
         slots[i] = f
         return f
+      end
+
+      -- one preview slot's marks, painted like the real ones
+      local function PaintMarks(f, m)
+        f.glow:SetWidth(m.size * 1.75)
+        f.glow:SetHeight(m.size * 1.75)
+        if m.new then
+          local r, g, b = GetStringColor(G().newcolor)
+          f.glow:SetVertexColor(tonumber(r) or 1, tonumber(g) or .85, tonumber(b) or .3, 1)
+          f.glow:Show()
+        else
+          f.glow:Hide()
+        end
+        if m.junk then f.junk:Show() else f.junk:Hide() end
+        if m.quest then f.quest:SetTexture(BO.ICON[m.quest]) f.quest:Show() else f.quest:Hide() end
+        if m.bad then
+          local r, g, b = GetStringColor(C.appearance.bags.unusable_color)
+          f.icon:SetVertexColor(tonumber(r) or .9, tonumber(g) or .2, tonumber(b) or .2)
+        else
+          f.icon:SetVertexColor(1, 1, 1)
+        end
       end
 
       local function Draw()
@@ -191,13 +234,18 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
           f:SetWidth(m.size)
           f:SetHeight(m.size)
           local tex, q
+          local marks = {}
           if real then
             local t, _, _, quality = GetContainerItemInfo(e.bag, e.slot)
             tex, q = t, quality
+            if t then marks = BO.Marks(e.bag, e.slot) end
           elseif math.mod(i * 7, 5) ~= 0 then
             local smp = BP.SAMPLE[math.mod(i - 1, n) + 1]
             tex, q = "Interface\\Icons\\" .. smp[1], smp[2]
+            marks = BP.SampleMarks(smp[3])
           end
+          marks.size = m.size
+          PaintMarks(f, marks)
           if tex then
             f.icon:SetTexture(tex)
             f.icon:Show()
@@ -227,6 +275,11 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
       end
       BP.Draw = Draw
       holder:SetScript("OnShow", Draw)
+      -- the new-item glow breathes as on the real slots
+      holder:SetScript("OnUpdate", function()
+        local a = .55 + .45 * math.sin(GetTime() * 4)
+        for _, f in pairs(slots) do if f.glow:IsShown() then f.glow:SetAlpha(a) end end
+      end)
       Draw()
 
       local ar, ag, ab = .2, .55, .9
@@ -282,6 +335,23 @@ pfUI:RegisterModule("bags-options", "vanilla:tbc", function ()
     Chk(p, "Free slots", "Free / all slots at the bottom (red when full, gold when nearly).", "free")
     Chk(p, "Money", "Your gold at the bottom of the bag window.", "money")
     Chk(p, "Sort button", "Sorts the window's items: instantly with ClassicAPI, else one item at a time.", "sortbtn")
+
+    W.Card(p, "Item marks", { icon = "Interface\\Icons\\INV_Misc_Gem_Ruby_02", tip = "Small marks on items so you can see at a glance what is new, junk, for a quest or no use to you." })
+    Chk(p, "New item glow", "A breathing glow on items you got since you logged in (looted, bought, made, from mail or "
+      .. "a trade). Mouse over an item and its glow stops. With ClassicAPI the client marks them itself; without it, an "
+      .. "item counts as new when you had none of it a moment before.", "glownew")
+    Color(p, "Glow colour", nil, "newcolor")
+    Chk(p, "Clear when the bags close", "Closing your bag window stops every glow. Off: they glow until you mouse over them.", "newclear")
+    Chk(p, "Junk coin", "A coin on grey (poor) items: the ones a vendor buys for scrap.", "junk")
+    Chk(p, "Quest marks", "A ? on quest items, a yellow ! on items that start a quest.", "quest")
+    W.Check(p, "Red tint on items you can't use", "Gear you can't wear and items you can't use show red (pfUI's tooltip check; "
+      .. "ClassicAPI answers first when you have it). Switching it on without ClassicAPI takes a reload.",
+      function() return C.appearance.bags.unusable == "1" end, function(v)
+        C.appearance.bags.unusable = v and "1" or "0"
+        pfUI.gui.settingChanged = true
+        Up()
+      end)
+    W.Buttons(p, { { "Clear new items", function() BO.ClearNew() Up() end, nil, "Stops every new-item glow now." } })
 
     W.Card(p, "Slot order", { icon = "Interface\\Icons\\INV_Misc_Note_01", tip = "How the slots fill the grid." })
     Chk(p, "Each bag on a new row", "Every bag starts its own row, so you can tell them apart.", "bagbreak")

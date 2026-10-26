@@ -137,6 +137,83 @@ do
     BO.SetHidden(1, false)
     PB:UpdateSlot(1, 1)
     ok(sl and sl.frame:IsShown(), "shown again with its bag")
+
+    -- item marks: bag 0 holds a grey bone (1), a quest letter (2), a plate helm (3)
+    local items = { [1] = { 1001, 0, "Junk" }, [2] = { 1002, 1, "Quest" }, [3] = { 1003, 4, "Armor" } }
+    local keep = {}
+    for _, k in ipairs({ "GetContainerItemLink", "GetItemInfo", "C_PlayerInfo", "C_NewItems", "GetInventoryItemLink" }) do keep[k] = rawget(_G, k) end
+    _G.GetContainerItemLink = function(bag, slot)
+      local it = bag == 0 and items[slot]
+      return it and ("|cff9d9d9d|Hitem:" .. it[1] .. ":0:0:0|h[x]|h|r")
+    end
+    _G.GetContainerItemInfo = function(bag, slot) if bag == 0 and items[slot] then return "Interface\\Icons\\INV_Misc_Rune_01", 1 end end
+    _G.GetItemInfo = function(s)
+      local _, _, id = string.find(s, "item:(%d+)")
+      for _, it in pairs(items) do if it[1] == tonumber(id) then return "x", s, it[2], 1, it[3] end end
+    end
+    _G.GetInventoryItemLink = function() end
+    local m = BO.Marks(0, 1)
+    ok(m.junk and not m.quest and not m.new, "grey item: junk coin")
+    ok(BO.Marks(0, 2).quest == "quest", "quest item: ? mark")
+    S.junk, S.quest = "0", "0"
+    m = BO.Marks(0, 1)
+    ok(not m.junk and not BO.Marks(0, 2).quest, "junk / quest marks off")
+    S.junk, S.quest = "1", "1"
+    local appb = pfUI_config.appearance.bags
+    local savedUnusable = appb.unusable
+    appb.unusable = "1"
+    _G.C_UnitAuras = {}
+    _G.C_PlayerInfo = { CanUseItem = function(id) return id ~= 1003 end }
+    ok(BO.Marks(0, 3).bad and not BO.Marks(0, 1).bad, "ClassicAPI CanUseItem: the plate helm is red")
+    _G.C_PlayerInfo = nil
+    ok(not BO.Marks(0, 3).bad, "no ClassicAPI: left to pfUI's tooltip check")
+
+    -- new items with ClassicAPI's flag
+    local flagged = { [3] = true }
+    _G.C_NewItems = {
+      IsNewItem = function(bag, slot) return bag == 0 and flagged[slot] or false end,
+      RemoveNewItem = function(bag, slot) flagged[slot] = nil end,
+      ClearAll = function() flagged = {} end,
+    }
+    ok(BO.IsNew(0, 3) and not BO.IsNew(0, 1) and not BO.IsNew(-1, 3), "ClassicAPI C_NewItems.IsNewItem (bags 0-4 only)")
+    BO.Mark(0, 3)
+    local f3 = pfUI.bags[0].slots[3].frame
+    ok(f3.octoMarks and f3.octoMarks.glow:IsShown() and BO.glowing[f3], "a new item glows")
+    BO.Pulse(1)
+    BO.Seen(0, 3)
+    ok(not flagged[3] and not f3.octoMarks.glow:IsShown() and not BO.glowing[f3], "mouse over: RemoveNewItem, glow off")
+    flagged[1] = true
+    BO.ClearNew()
+    ok(not flagged[1], "close the bags: C_NewItems.ClearAll")
+    S.glownew = "0"
+    flagged[1] = true
+    ok(not BO.IsNew(0, 1), "glow off: nothing new")
+    S.glownew = "1"
+
+    -- new items without ClassicAPI: an id you had none of a moment ago
+    _G.C_UnitAuras, _G.C_NewItems = nil, nil
+    BO.seen, BO.new, BO.bankCount = nil, {}, {}
+    BO.readyAt = 0
+    BO.ScanNew()
+    ok(not next(BO.new), "first look: everything you carry is already yours")
+    items[4] = { 1004, 2, "Armor" }
+    BO.ScanNew()
+    ok(BO.new[1004] and BO.IsNew(0, 4) and not BO.IsNew(0, 1), "looted item: new")
+    items[5], items[1] = items[1], nil
+    BO.ScanNew()
+    ok(not BO.new[1001] and BO.new[1004], "an item moved to another slot: not new")
+    BO.Seen(0, 4)
+    ok(not BO.new[1004], "mouse over: seen")
+    items[4] = nil
+    BO.seen, BO.readyAt = nil, GetTime() + 60
+    BO.ScanNew()
+    items[6] = { 1006, 1, "Armor" }
+    BO.ScanNew()
+    ok(not BO.new[1006], "right after login nothing counts as new")
+
+    for k, v in pairs(keep) do rawset(_G, k, v) end
+    appb.unusable = savedUnusable
+    BO.new, BO.seen = {}, nil
   end
   appbags.icon_size = savedIcon
   for _, n in ipairs(made) do rawset(_G, n, nil) end

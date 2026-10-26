@@ -913,6 +913,15 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    modules/bags-options.lua: page "Bags" (bagsocto, section "Bags" first under "Bags & Loot"): switch, pinned
    preview (your items, or samples; click its bags), Open / Sort / Reset positions, cards Window, What it shows,
    Slot order, Which bags, Title bar colour. Tests: tests\bags.lua. New files: needs a full client restart.
+   Item marks (26 Oct 2026, NOT seen in game; user: "quest / junk / unusable marks and a new-item glow with ClassicAPI
+   C_NewItems"): BO.Marks(bag, slot) -> BO.Mark paints parts made once per slot (BO.MarkParts: top frame, ADD glow
+   UI-ActionButton-Border pulsing via BO.Pulse on the watch frame, coin top-left for grey, quest ? / starts-quest !
+   top-right (pfUI's own "?" text cleared), red tint from ClassicAPI C_PlayerInfo.CanUseItem when present - pfUI's
+   unusable.lua tooltip scan stays the fallback, its switch C.appearance.bags.unusable). New: C_NewItems.IsNewItem /
+   RemoveNewItem (mouse over, wrapped slot OnEnter) / ClearAll (bag window closes, C.bagsocto.newclear),
+   BAG_NEW_ITEMS_UPDATED; without ClassicAPI BO.ScanNew: an item id owned now (bags 0-4 + worn + bank as last seen
+   open) that was not owned at the last look, ignored for 4 s after login. Starts-quest = libtipscan Find
+   ITEM_STARTS_QUEST, cached per item string. Card "Item marks"; the preview's samples show each mark.
 21. UI layouts keep EVERY setting (25 Oct 2026, NOT seen in game; user: "every setting you have chosen should be saved
    inside that UI layout ... ANY MENU SELECTION ANYTHING", after meters did not follow a layout). octo-layouts.lua:
    saved[name].cfg = L.CfgCopy() (pfUI_config minus L.SHARED: layouts, position (kept as .pos), gear, version);
