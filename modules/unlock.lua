@@ -385,14 +385,42 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return best, bestline
   end
 
+  -- [ mirror lines ]
+  -- octo (user, 26 Oct 2026: "our own lines ... mirrored on both X and Y ...
+  -- if you move one the other moves in line with the opposite bar ... make
+  -- these lines snappable"). Two orange pairs: a vertical pair the same way
+  -- either side of the screen's middle, a horizontal pair the same way above
+  -- and below it. Frames snap to them; drag a tab at a line's end to move the
+  -- pair (it snaps to box edges too), right-click a tab to put it back.
+  -- C.unlock.mirror on / off, mirrorx / mirrory = distance from the middle.
+  local function MirrorOn() return C.unlock.mirror == "1" end
+  local function MirrorDist(axis)
+    local v = tonumber(axis == "x" and C.unlock.mirrorx or C.unlock.mirrory)
+    if v then return v end
+    return (axis == "x" and GetScreenWidth() or GetScreenHeight()) / 4
+  end
+  -- the four lines: { left x, right x }, { bottom y, top y } (UIParent units)
+  local function MirrorLines()
+    local w, h = GetScreenWidth(), GetScreenHeight()
+    local dx, dy = MirrorDist("x"), MirrorDist("y")
+    return { w/2 - dx, w/2 + dx }, { h/2 - dy, h/2 + dy }
+  end
+
   -- snap for a box with these outer edges: dx, dy (UIParent units) and the
-  -- guide lines, or nil when snapping is off
-  local function SnapBox(frame, l, r, b, t)
+  -- guide lines, or nil when snapping is off. keepx / keepy = the lines it
+  -- snapped to last: kept while still in reach, so the guide does not jump
+  -- between lines a pixel apart while dragging
+  local function SnapBox(frame, l, r, b, t, keepx, keepy)
     if C.unlock.snap ~= "1" or IsAltKeyDown() then return end
     local cx, cy = (l+r)/2, (b+t)/2
 
     local width, height = GetScreenWidth(), GetScreenHeight()
     local xs, ys = { 0, width, width/2 }, { 0, height, height/2 }
+    if MirrorOn() then
+      local mx, my = MirrorLines()
+      table.insert(xs, mx[1]) table.insert(xs, mx[2])
+      table.insert(ys, my[1]) table.insert(ys, my[2])
+    end
     for name, other in pairs(pfUI.movables) do
       other = other or _G[name]
       -- (frames that move with the selection are no lines to snap to)
@@ -413,6 +441,16 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local dy, yline = Nearest({ b, t, cy }, ys, gridy, SNAP + 1)
     if abs(dx) > SNAP then dx, xline = 0, nil end
     if abs(dy) > SNAP then dy, yline = 0, nil end
+    -- stay on the last line while it is in reach (a few pixels more than the
+    -- snap), unless another line is right on an edge
+    if keepx and keepx ~= xline and abs(dx) > 1 then
+      local kd = Nearest({ l, r, cx }, { keepx }, nil, SNAP + 5)
+      if abs(kd) <= SNAP + 4 then dx, xline = kd, keepx end
+    end
+    if keepy and keepy ~= yline and abs(dy) > 1 then
+      local kd = Nearest({ b, t, cy }, { keepy }, nil, SNAP + 5)
+      if abs(kd) <= SNAP + 4 then dy, yline = kd, keepy end
+    end
     return dx, dy, xline, yline
   end
 
@@ -476,8 +514,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local cx, cy = Cursor()
     local dx, dy = cx - drag.cx, cy - drag.cy
     local lead = drag.boxes[1]
-    local sx, sy, xline, yline = SnapBox(lead.frame, lead.l + dx, lead.r + dx, lead.b + dy, lead.t + dy)
+    local sx, sy, xline, yline = SnapBox(lead.frame, lead.l + dx, lead.r + dx, lead.b + dy, lead.t + dy, drag.xline, drag.yline)
     if sx then dx, dy = dx + sx, dy + sy end
+    drag.xline, drag.yline = xline, yline
     ShowGuides(xline, yline)
     if dx == drag.dx and dy == drag.dy then return end
     drag.dx, drag.dy = dx, dy
@@ -980,6 +1019,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     -- remember every selected box where it is now (dragged frame first)
     drag.boxes = {}
+    drag.xline, drag.yline = nil, nil
     local function Add(f)
       local l, r, _, b, t = Edges(f)
       if not l then return end
@@ -1244,6 +1284,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   menu:SetFrameStrata("FULLSCREEN_DIALOG")
   menu:SetFrameLevel(20)
   menu:SetWidth(220)
+  menu:SetClampedToScreen(true)
   menu:EnableMouse(true)
   menu:Hide()
   CreateBackdrop(menu, nil, nil, .95)
@@ -1294,23 +1335,53 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     return b
   end
 
-  -- the boxes d can take the size of: { label, frame }, same kind first
+  -- the words of a box's name ("Combat Text: Incoming" -> combat, text, incoming)
+  local function Words(label)
+    local out = {}
+    for w in string.gfind(string.lower(label or ""), "%a+") do
+      if string.len(w) > 2 then out[w] = true end
+    end
+    return out
+  end
+
+  -- how alike two boxes are, for the Match list (user, 26 Oct 2026: "the
+  -- closest match to what you would match the size to ... combat text incoming
+  -- with combat text outgoing"): words they share in their names (Combat
+  -- Text, Castbar, Target...), the same kind, then a like shape and size
+  local function Likeness(a, b)
+    local score = 0
+    local wa, wb = Words(a.drag and a.drag.label), Words(b.drag and b.drag.label)
+    for w in pairs(wa) do if wb[w] then score = score + 3 end end
+    local ka = KindOf(a)
+    if ka ~= "other" and ka == KindOf(b) then score = score + 4 end
+    local aw, ah = ScreenSize(a)
+    local bw, bh = ScreenSize(b)
+    if aw > 0 and ah > 0 and bw > 0 and bh > 0 then
+      local ra, rb = aw / ah, bw / bh
+      score = score + 2 * math.min(ra, rb) / math.max(ra, rb)
+      score = score + math.min(aw * ah, bw * bh) / math.max(aw * ah, bw * bh)
+    end
+    return score
+  end
+
+  -- the boxes d can take the size of: { label, frame }, the closest first
+  -- (bars only match bars)
   local function MatchChoices(d)
     local kind = KindOf(d.frame)
-    local same, other = {}, {}
+    local out = {}
     for name, f in pairs(pfUI.movables) do
       f = f or _G[name]
-      if f and f ~= d.frame and f.drag and f:IsShown() and (f:GetWidth() or 0) > 0 then
-        local e = { NiceLabel(f.drag.label), f }
-        if KindOf(f) == kind then table.insert(same, e) else table.insert(other, e) end
+      if f and f ~= d.frame and f.drag and f:IsShown() and (f:GetWidth() or 0) > 0
+        and (kind ~= "bar" or KindOf(f) == "bar") then
+        local label = NiceLabel(f.drag.label)
+        table.insert(out, { label, f, Likeness(d.frame, f) })
       end
     end
-    local function ByName(a, b) return a[1] < b[1] end
-    table.sort(same, ByName)
-    table.sort(other, ByName)
-    -- bars only match bars; a box with no kind of its own is offered them all
-    if kind == "bar" or table.getn(same) > 0 then return same end
-    return other
+    table.sort(out, function(a, b)
+      if a[3] ~= b[3] then return a[3] > b[3] end
+      return a[1] < b[1]
+    end)
+    return out
   end
 
   -- [ locking ] (see "locks" above)
@@ -1382,11 +1453,17 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     end
     local function Go(to) return function() OpenMatchMenu(d, anchor, to) end end
     local name = NiceLabel(d.label)
-    if page == "match" then
+    if page == "match" or page == "matchall" then
       menu.title:SetText(T["Give"] .. " " .. name .. " " .. T["the size of"] .. ":")
-      for _, e in ipairs(MatchChoices(d)) do
+      -- the closest ones (a list that fits the screen), the rest one click away
+      local choices = MatchChoices(d)
+      local most = page == "match" and 10 or table.getn(choices)
+      for i, e in ipairs(choices) do
         local src = e[2]
-        Add(e[1], "pick", function() MatchSize(src, f) end)
+        if i <= most then Add(e[1], "pick", function() MatchSize(src, f) end) end
+      end
+      if table.getn(choices) > most then
+        Add(T["All boxes"] .. " (" .. table.getn(choices) .. ")  >", "open", Go("matchall"), true)
       end
     elseif page == "lockto" or page == "lockhere" then
       menu.title:SetText(page == "lockto" and (T["Lock"] .. " " .. name .. " " .. T["to (moves with it)"] .. ":")
@@ -1701,6 +1778,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       .. L(T["[Shift]"], T["select all frames of the same kind"])
       .. L(T["[Ctrl]"], T["select all frames of the same group"])
       .. L(T["[Alt] while dragging"], T["no snapping"])
+      .. L(T["[Orange tabs]"], T["drag the mirror lines: a pair moves the same way either side of the middle, frames snap to them"])
       .. L(T["[Shift] on the arrows"], T["move 10 pixels"])
       .. "\n"
       .. L(T["[Esc]"], T["or a click on an empty spot: done"])
@@ -1726,10 +1804,157 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   end)
   bar.reset:SetPoint("RIGHT", bar.done, "LEFT", -6, 0)
 
+  -- [ mirror lines: drawing and dragging ] (see "mirror lines" above)
+  local MCOL = { 1, .5, .1 }
+  local mirror = CreateFrame("Frame", "pfUnlockMirror", pfUI.unlock)
+  mirror:SetAllPoints(pfUI.unlock)
+  mirror:SetFrameStrata("FULLSCREEN")
+  mirror:EnableMouse(false)
+  mirror.lines, mirror.tabs = {}, {}
+  pfUI.unlock.mirror = mirror
+
+  -- every box edge's distance from the middle on that axis: a dragged
+  -- line snaps onto one, so a pair can be set to a frame's edge
+  local function MirrorSnap(axis, d)
+    if C.unlock.snap ~= "1" or IsAltKeyDown() then return d end
+    local mid = axis == "x" and GetScreenWidth() / 2 or GetScreenHeight() / 2
+    local best, bestd = SNAP + 1, d
+    for name, f in pairs(pfUI.movables) do
+      f = f or _G[name]
+      if f and f:IsShown() then
+        local l, r, cx, b, t, cy = Edges(f)
+        if l then
+          local list = axis == "x" and { l, r, cx } or { b, t, cy }
+          for _, e in ipairs(list) do
+            local ed = abs(e - mid)
+            if abs(ed - d) < best then best, bestd = abs(ed - d), ed end
+          end
+        end
+      end
+    end
+    return bestd
+  end
+
+  function mirror:Place()
+    local on = MirrorOn()
+    for _, l in pairs(self.lines) do if on then l:Show() else l:Hide() end end
+    for _, t in pairs(self.tabs) do if on then t:Show() else t:Hide() end end
+    if not on then return end
+    local mx, my = MirrorLines()
+    local w, h = GetScreenWidth(), GetScreenHeight()
+    for i = 1, 2 do
+      local v, hz = self.lines["x" .. i], self.lines["y" .. i]
+      v:ClearAllPoints()
+      v:SetPoint("TOPLEFT", self, "TOPLEFT", mx[i] - 1, 0)
+      v:SetPoint("BOTTOMRIGHT", self, "BOTTOMLEFT", mx[i] + 1, 0)
+      hz:ClearAllPoints()
+      hz:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, my[i] + 1)
+      hz:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, my[i] - 1)
+      -- tabs: at the bottom of the vertical lines, the left end of the
+      -- horizontal ones (clear of the top bar and the nudge box)
+      local tv, th = self.tabs["x" .. i], self.tabs["y" .. i]
+      tv:ClearAllPoints()
+      tv:SetPoint("BOTTOM", self, "BOTTOMLEFT", mx[i], 40)
+      th:ClearAllPoints()
+      th:SetPoint("LEFT", self, "BOTTOMLEFT", 40, my[i])
+    end
+    self.readx:SetText(floor(MirrorDist("x") + .5) .. " px")
+    self.ready:SetText(floor(MirrorDist("y") + .5) .. " px")
+  end
+
+  local function MirrorTab(key, axis)
+    local t = CreateFrame("Button", nil, mirror)
+    t:SetFrameStrata("FULLSCREEN")
+    t:SetFrameLevel(mirror:GetFrameLevel() + 5)
+    if axis == "x" then t:SetWidth(14) t:SetHeight(26) else t:SetWidth(26) t:SetHeight(14) end
+    t:EnableMouse(true)
+    t:RegisterForClicks("RightButtonUp")
+    t.bg = t:CreateTexture(nil, "ARTWORK")
+    t.bg:SetAllPoints()
+    t.bg:SetTexture(MCOL[1], MCOL[2], MCOL[3], .85)
+    t.grip = t:CreateTexture(nil, "OVERLAY")
+    t.grip:SetTexture(0, 0, 0, .6)
+    if axis == "x" then
+      t.grip:SetWidth(2) t.grip:SetHeight(14)
+    else
+      t.grip:SetWidth(14) t.grip:SetHeight(2)
+    end
+    t.grip:SetPoint("CENTER", 0, 0)
+    t:SetScript("OnMouseDown", function()
+      if arg1 == "LeftButton" then this.dragging = true end
+    end)
+    t:SetScript("OnMouseUp", function() this.dragging = nil end)
+    t:SetScript("OnClick", function()
+      -- right-click: back to a quarter of the screen
+      if axis == "x" then C.unlock.mirrorx = nil else C.unlock.mirrory = nil end
+      mirror:Place()
+    end)
+    t:SetScript("OnUpdate", function()
+      if not this.dragging then return end
+      local x, y = Cursor()
+      local mid = axis == "x" and GetScreenWidth() / 2 or GetScreenHeight() / 2
+      local d = MirrorSnap(axis, abs((axis == "x" and x or y) - mid))
+      d = floor(d * 10 + .5) / 10
+      if axis == "x" then C.unlock.mirrorx = tostring(d) else C.unlock.mirrory = tostring(d) end
+      mirror:Place()
+    end)
+    t:SetScript("OnEnter", function()
+      this.bg:SetTexture(1, .75, .35, 1)
+      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+      GameTooltip:SetText(T["Mirror lines"], MCOL[1], MCOL[2], MCOL[3])
+      GameTooltip:AddLine(T["Drag: both lines move, the same way either side of the middle (they snap to box edges)."], 1, 1, 1, 1)
+      GameTooltip:AddLine(T["Frames snap to them. Right-click: back to a quarter of the screen."], .8, .8, .8, 1)
+      GameTooltip:Show()
+    end)
+    t:SetScript("OnLeave", function()
+      this.bg:SetTexture(MCOL[1], MCOL[2], MCOL[3], .85)
+      GameTooltip:Hide()
+    end)
+    mirror.tabs[key] = t
+  end
+
+  for i = 1, 2 do
+    for _, axis in ipairs({ "x", "y" }) do
+      local l = mirror:CreateTexture(nil, "OVERLAY")
+      l:SetTexture(MCOL[1], MCOL[2], MCOL[3], .75)
+      mirror.lines[axis .. i] = l
+      MirrorTab(axis .. i, axis)
+    end
+  end
+  -- the distance, by the right-hand vertical tab and the top horizontal one
+  mirror.readx = mirror:CreateFontString(nil, "OVERLAY")
+  mirror.readx:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  mirror.readx:SetTextColor(MCOL[1], MCOL[2], MCOL[3])
+  mirror.readx:SetPoint("LEFT", mirror.tabs.x2, "RIGHT", 4, 0)
+  mirror.ready = mirror:CreateFontString(nil, "OVERLAY")
+  mirror.ready:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  mirror.ready:SetTextColor(MCOL[1], MCOL[2], MCOL[3])
+  mirror.ready:SetPoint("BOTTOM", mirror.tabs.y2, "TOP", 0, 4)
+  pfUI.unlock.MirrorLines = MirrorLines
+
+  -- the bar's switch for them
+  bar.mirror = CreateFrame("CheckButton", "pfUnlockBarMirror", bar, "UICheckButtonTemplate")
+  bar.mirror:SetWidth(14)
+  bar.mirror:SetHeight(14)
+  bar.mirror:SetPoint("LEFT", bar.help, "RIGHT", 14, 0)
+  SkinCheckbox(bar.mirror, 14)
+  bar.mirror:SetScript("OnClick", function()
+    C.unlock.mirror = this:GetChecked() and "1" or "0"
+    mirror:Place()
+  end)
+  bar.mirrortext = bar:CreateFontString(nil, "OVERLAY")
+  bar.mirrortext:SetFont(pfUI.font_default, C.global.font_size, "OUTLINE")
+  bar.mirrortext:SetPoint("LEFT", bar.mirror, "RIGHT", 4, 0)
+  bar.mirrortext:SetText(T["Mirror lines"])
+  bar.mirrortext:SetTextColor(MCOL[1], MCOL[2], MCOL[3])
+  bar:SetWidth(620)
+
   function bar:Update()
     local ar, ag, ab = GetAccentColor()
     bar.title:SetTextColor(ar, ag, ab, 1)
     bar.snap:SetChecked(C.unlock.snap == "1")
+    bar.mirror:SetChecked(C.unlock.mirror == "1")
+    mirror:Place()
     bar.gridtext:SetText(T["Grid"] .. " " .. (C.unlock.gridsize or "128"))
   end
 
@@ -1741,6 +1966,7 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   pfUI.unlock.KeepPlaces = KeepPlaces
   pfUI.unlock.Resize = Resize
   pfUI.unlock.MatchChoices = MatchChoices
+  pfUI.unlock.Likeness = Likeness
   pfUI.unlock.OpenMatchMenu = OpenMatchMenu
   pfUI.unlock.LockTo, pfUI.unlock.Unlock, pfUI.unlock.LockBack = LockTo, Unlock, LockBack
   pfUI.unlock.LockChoices, pfUI.unlock.Holder = LockChoices, Holder

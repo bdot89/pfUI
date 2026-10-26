@@ -291,6 +291,29 @@ if UH and UH.Apply then
   pfUI.movables["pfTestHideMe"] = nil
 end
 
+-- ---------------------------------------------------------------- layout mode: mirror lines, Match order
+local U = pfUI.unlock
+if U and U.MirrorLines and U.Likeness then
+  local savedx = pfUI_config.unlock.mirrorx
+  pfUI_config.unlock.mirrorx = "300"
+  local mx = U.MirrorLines()
+  local w = GetScreenWidth()
+  ok(math.abs(mx[1] - (w / 2 - 300)) < .01 and math.abs(mx[2] - (w / 2 + 300)) < .01, "mirror lines: the pair sits the same way either side of the middle")
+  pfUI_config.unlock.mirrorx = savedx
+
+  local function Box(name, label, bw, bh)
+    local f = CreateFrame("Frame", name, UIParent)
+    f:SetWidth(bw) f:SetHeight(bh)
+    f.drag = { label = label }
+    return f
+  end
+  local inc = Box("pfTestCTIn", "CombatTextIncoming", 200, 300)
+  local out = Box("pfTestCTOut", "CombatTextOutgoing", 200, 300)
+  local pet = Box("pfTestPartyPet", "PartyPet1", 80, 20)
+  local s1, s2 = U.Likeness(inc, out), U.Likeness(inc, pet)
+  ok(s1 > s2, "Match: Combat Text: Outgoing comes before Party Pet for Combat Text: Incoming (" .. s1 .. " / " .. s2 .. ")")
+end
+
 -- ---------------------------------------------------------------- bag sorting
 local BS = pfUI.api.libbagsort
 ok(BS and BS.Sort and BS.Step, "bag sort lib loaded")

@@ -427,6 +427,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("unlock",     nil,           "gridsize",         "128")
   pfUI:UpdateConfig("unlock",     nil,           "helpseen",         "0")
   pfUI:UpdateConfig("unlock",     "hidden",      nil,                nil) -- octo: frames hidden from layout mode
+  pfUI:UpdateConfig("unlock",     nil,           "mirror",           "1") -- octo: mirrored guide lines
   pfUI:UpdateConfig("appearance", "accent",      "mode",             "class")
   pfUI:UpdateConfig("appearance", "accent",      "color",            "0.09,0.52,0.82,1")
   pfUI:UpdateConfig("appearance", "cd",          "lowcolor",         "1,.2,.2,1")
