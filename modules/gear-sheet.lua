@@ -613,7 +613,10 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
     end
     bar:SetWidth(vertical and size or size * 2 + 3)
     bar:SetHeight(vertical and size * 2 + 3 or size)
-    bar:SetScale(1)
+    -- the size you gave it in layout mode stays (this ran on every swap and
+    -- put it back to 1 - user, 26 Oct 2026: "nothing should ever reset")
+    local pos = C.position and C.position[bar:GetName()]
+    bar:SetScale(tonumber(pos and pos.scale) or bar:GetScale())
     bar:Show()
   end
   GR.listeners.trinkets = GR.UpdateTrinkets
