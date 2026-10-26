@@ -604,9 +604,13 @@ pfUI:RegisterModule("bags-octo", "vanilla:tbc", function ()
 
   if PB.ReanchorAdditions then
     local rawAnchor = PB.ReanchorAdditions
+    -- (pfUI lines the small title buttons up again when your spells change;
+    -- with this window's title bar that made a loop - Show hung on
+    -- Disenchant, Disenchant on Show: error in bags.lua, user 26 Oct 2026.
+    -- While this window is on, only its own title bar lines them up.)
     function PB:ReanchorAdditions()
+      if BO.On() and PB.right and PB.right.octo then BO.Header(PB.right) return end
       rawAnchor(self)
-      if BO.On() then BO.Header(PB.right) end
     end
   end
 
