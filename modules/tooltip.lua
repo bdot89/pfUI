@@ -26,6 +26,17 @@ pfUI:RegisterModule("tooltip", "vanilla:tbc", function ()
   end
   UpdateMovable(pfUI.tooltip.anchorframe)
   TipScale(pfUI.tooltip.anchorframe:GetScale())
+  -- octo (26 Oct 2026): the anchor box is always in layout mode; moving it
+  -- means "show tooltips here", so the place becomes Custom (it used to do
+  -- nothing unless Custom had been picked on the Tooltip page first)
+  pfUI.tooltip.anchorframe.OnMove = function()
+    -- (only a move by hand in layout mode: not a reset, not a UI layout switch)
+    if not (pfUI.unlock and pfUI.unlock:IsShown() and C.position["pfTooltipAnchor"]) then return end
+    if C.tooltip.position ~= "free" then
+      C.tooltip.position = "free"
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. T["tooltips now show at the Tooltip Anchor (Tooltip page: Tooltip Anchor)."])
+    end
+  end
 
   function pfUI.tooltip:GetAnchorPoint()
     local prefix = "TOP"

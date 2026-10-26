@@ -274,6 +274,31 @@ if LH and LH.Refresh then
   C_UnitAuras, _G.C_LootHistory = savedAuras, savedLH
 end
 
+-- ---------------------------------------------------------------- the tooltip anchor
+-- (user, 26 Oct 2026: a friend couldn't find it) "anchor" finds it in the
+-- options' search, and moving its box in layout mode makes tooltips use it
+do
+  local found
+  for _, e in pairs(pfUI.gui and pfUI.gui.searchDB or {}) do
+    if e[0] and string.find(string.lower(e[0]), "anchor", 1, true) and string.find(string.lower(e[0]), "tooltip", 1, true) then found = true end
+  end
+  ok(found, "the search finds the tooltip anchor")
+  local a = pfUI.tooltip and pfUI.tooltip.anchorframe
+  if a and a.OnMove and pfUI.unlock then
+    local savedPos, savedWhere = pfUI_config.position["pfTooltipAnchor"], pfUI_config.tooltip.position
+    pfUI_config.tooltip.position = "bottom"
+    pfUI_config.position["pfTooltipAnchor"] = { anchor = "CENTER", xpos = 0, ypos = 0 }
+    pfUI.unlock:Show()
+    a:OnMove()
+    ok(pfUI_config.tooltip.position == "free", "moving the anchor box: tooltips show there")
+    pfUI.unlock:Hide()
+    pfUI_config.tooltip.position = "bottom"
+    a:OnMove()
+    ok(pfUI_config.tooltip.position == "bottom", "outside layout mode nothing changes")
+    pfUI_config.position["pfTooltipAnchor"], pfUI_config.tooltip.position = savedPos, savedWhere
+  end
+end
+
 -- ---------------------------------------------------------------- layout mode: Hide a frame
 local UH = pfUI.unlockHidden
 ok(UH and UH.Apply, "layout mode can hide frames")

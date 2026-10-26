@@ -2726,7 +2726,19 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
     end)
 
     CreateGUIEntry(T["Tooltip"], nil, function()
-      CreateConfig(nil, T["Tooltip Position"], C.tooltip, "position", "dropdown", pfUI.gui.dropdowns.tooltip_position)
+      -- octo (26 Oct 2026, user: a friend "can't find his tooltip anchor - it should be
+      -- there always and easily found in the search"): its own group first, the word
+      -- "anchor" in the name, and a button straight into layout mode at the anchor
+      CreateConfig(nil, T["Tooltip Anchor"], nil, nil, "header")
+      CreateConfig(nil, T["Tooltip Anchor (Where Tooltips Show)"], C.tooltip, "position", "dropdown", pfUI.gui.dropdowns.tooltip_position)
+      CreateConfig(nil, T["Move Anchor"], C.tooltip, "position", "button", function()
+        -- moving the anchor box only counts while the place is "Custom"
+        C.tooltip.position = "free"
+        if pfUI.gui then pfUI.gui:Hide() end
+        if pfUI.unlock then pfUI.unlock:Show() end
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r: " .. T["drag the |cff33ccffTooltip Anchor|r box to where tooltips should show, then click Done."])
+      end)
+      CreateConfig(nil, T["Text And Details"], nil, nil, "header")
       CreateConfig(nil, T["Tooltip Text Font"], C.tooltip, "font_tooltip", "dropdown", pfUI.gui.dropdowns.fonts)
       CreateConfig(nil, T["Tooltip Text Font Size"], C.tooltip, "font_tooltip_size")
       CreateConfig(nil, T["Cursor Tooltip Align"], C.tooltip, "cursoralign", "dropdown", pfUI.gui.dropdowns.tooltip_align)
