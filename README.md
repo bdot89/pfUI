@@ -18,6 +18,7 @@
 
 1. **Close the game.** Addons and DLLs are only read when the game starts.
 2. **Unzip into AddOns.** [Download pfUI.zip](https://github.com/bdot89/pfUI-Octo/releases/latest/download/pfUI.zip), right-click it, **Extract All**, and put the **pfUI** folder in `OctoWoW\Interface\AddOns`. Replace an old pfUI folder: your settings stay.
+   > ⚠️ The folder must be called exactly **pfUI**. Used GitHub's green **Code → Download ZIP** instead? That folder is called **pfUI-Octo-octo**: rename it to **pfUI** (else OctoLauncher says "Missing .toc file" and the game won't load it).
 3. **Run the DLL installer** *(optional)*. In that pfUI folder, double-click **Install pfUI Octo DLLs.bat**. "Windows protected your PC": **More info**, then **Run anyway**.
 4. **Play!** 🎮 Start the game from **OctoLauncher**. A short setup wizard picks your look and layout. `/pfui` opens the options, `/moveui` moves frames.
 
