@@ -1335,12 +1335,15 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
           this.caption:SetText(word)
         end
       end
-      plate:SetAlpha((pv.target or not pv.anyTarget) and 1 or (tonumber(C.nameplates.notargalpha) or 1))
+      -- (the preview keeps every sample easy to see: the fade for plates you
+      -- have not targeted shows, but never darker than 3 in 4 - user, 26 Oct
+      -- 2026: "nameplates DARK TOO")
+      plate:SetAlpha((pv.target or not pv.anyTarget) and 1 or math.max(.75, tonumber(C.nameplates.notargalpha) or 1))
       P.Show(plate, pv)
       P.Tick(plate)
       -- range fade: the thug walks out of range every other few seconds
       if pv.data.far and S.range == "1" and math.mod(math.floor(GetTime() / 3), 2) == 1 then
-        plate:SetAlpha(plate:GetAlpha() * (tonumber(S.rangealpha) or .4))
+        plate:SetAlpha(math.max(.6, plate:GetAlpha() * (tonumber(S.rangealpha) or .4)))
         pv.away = true
       else
         pv.away = nil
@@ -1424,9 +1427,12 @@ pfUI:RegisterModule("plates", "vanilla:tbc", function ()
     local watch = CreateFrame("Frame", nil, box)
     watch:SetScript("OnUpdate", function()
       if not W or not W.Visible then return end
-      local l, r, t, b = W.Visible(box)
-      local k = (box:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
-      local whole = l and box:GetTop() and math.abs(t - box:GetTop() * k) < 4 and math.abs(b - box:GetBottom() * k) < 4
+      -- (a zoomed preview: its stage grows past the box, the box is what is seen -
+      -- the samples hid as soon as you zoomed, user 26 Oct 2026)
+      local vb = box.outer or box
+      local l, r, t, b = W.Visible(vb)
+      local k = (vb:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+      local whole = l and vb:GetTop() and math.abs(t - vb:GetTop() * k) < 4 and math.abs(b - vb:GetBottom() * k) < 4
       -- (while the window is resized positions come a frame late: only hide
       -- once the box has been out of view for a moment)
       if whole then this.outSince = nil elseif not this.outSince then this.outSince = GetTime() end

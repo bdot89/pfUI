@@ -1445,6 +1445,8 @@ end
 -- left, right, top, bottom, or nil when none of it shows.
 function W.Visible(region, pad)
   pad = pad or 0
+  -- (a zoomed preview's stage grows past its box: the box is what is seen)
+  region = region.outer or region
   local l, r, t, b = region:GetLeft(), region:GetRight(), region:GetTop(), region:GetBottom()
   if not (l and r and t and b) then return end
   local k = (region:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
