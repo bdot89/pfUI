@@ -654,7 +654,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
   local function SizeOnUpdate()
     local sb = this.sizebox
     -- (kept while the mouse is on it or a number is being typed)
-    if sb and (sb.editing or MouseIsOver(sb)) then this.sizeUntil = GetTime() + .4 return end
+    -- (the gap between the box and its editor counts as the editor: user, 26 Oct
+    -- 2026, "it disappears when i leave the frame" on the way to the editor)
+    if sb and sb:IsShown() and (sb.editing or MouseIsOver(sb, 10, -10, -4, 4)) then this.sizeUntil = GetTime() + .4 return end
     if this.sizeUntil and GetTime() < this.sizeUntil then return end
     if this.hover then return end
     this.sizeUntil = nil
@@ -1500,6 +1502,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       Paint(this, "normal")
     end
     this.hover = nil
+    -- (a moment to reach the size editor under the box)
+    if this.sizebox and this.sizebox:IsShown() then this.sizeUntil = math.max(this.sizeUntil or 0, GetTime() + .5) end
   end
 
   local function CreateDragger(f)
