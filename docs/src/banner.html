@@ -6,7 +6,8 @@
      (tools\MakeOctoLogo.ps1). Front cards are zoomed parts of gear.jpg, meters.jpg and keymap.jpg (.crop: a box with
      the picture moved and scaled inside it); behind them a mosaic of six more windows.
      Colours: pfUI teal #33ffcc, the options window's blue #33b3ff, violet #9a6bff.
-     Keep the left column inside 400 px: the slanted edge starts at x 470 at the bottom. -->
+     Keep the left column inside 400 px and every card right of the slanted edge (x 580 at the top, 470 at the bottom):
+     check a zoomed render of x 440-700 before using it. -->
 <html><head><meta charset="utf-8">
 <style>
 @font-face{font-family:Fira;src:url(../../fonts/FiraSansCondensed-Regular.ttf);font-weight:400}
@@ -36,9 +37,9 @@ body{font-family:Fira,sans-serif;color:#eef3fa;position:relative;
 .crop img{position:absolute;display:block}
 .label{position:absolute;left:10px;bottom:8px;font-size:15px;font-weight:600;color:#fff;padding:2px 9px;border-radius:999px;
  background:rgba(10,12,22,.85);border:1px solid rgba(124,205,255,.6);text-shadow:0 0 6px rgba(51,179,255,.6)}
-.gear{left:520px;top:62px;transform:rotate(-3deg)}
-.meters{left:935px;top:92px;transform:rotate(3.5deg)}
-.keys{left:585px;top:300px;transform:rotate(-1.5deg)}
+.gear{left:604px;top:66px;transform:rotate(-3deg)}
+.meters{left:962px;top:96px;transform:rotate(3.5deg)}
+.keys{left:632px;top:300px;transform:rotate(-1.5deg)}
 .edge{position:absolute;left:463px;top:0;width:124px;height:640px;z-index:3;
  background:linear-gradient(var(--teal2),var(--teal) 28%,var(--blue) 50%,var(--vio2) 70%,var(--vio));
  clip-path:polygon(117px 0,124px 0,7px 100%,0 100%);filter:drop-shadow(0 0 12px rgba(154,107,255,.9)) drop-shadow(0 0 6px rgba(51,255,204,.6))}
@@ -88,12 +89,12 @@ li b{color:var(--teal);text-shadow:0 0 10px rgba(51,255,204,.5)}
     <img src="../trinkets.jpg"><img src="../chat.jpg"><img src="../bags.jpg">
   </div>
 </div>
-<!-- gear.jpg x 300-1330, y 175-645 at .4272 -->
-<div class="card gear"><div class="crop" style="width:440px;height:201px"><img src="../gear.jpg" style="width:601.5px;left:-128.2px;top:-74.8px"><span class="label">🛡️ Gear sets</span></div></div>
-<!-- meters.jpg x 570-1040, y 350-640 at .702 -->
-<div class="card meters"><div class="crop" style="width:330px;height:204px"><img src="../meters.jpg" style="width:988.4px;left:-400.1px;top:-245.7px"><span class="label">📊 Meters</span></div></div>
-<!-- keymap.jpg x 0-1225, y 180-470 at .4408 -->
-<div class="card keys"><div class="crop" style="width:540px;height:128px"><img src="../keymap.jpg" style="width:770.5px;left:0;top:-79.3px"><span class="label">⌨️ Key Map</span></div></div>
+<!-- gear.jpg x 300-1330, y 175-645 at .3689 -->
+<div class="card gear"><div class="crop" style="width:380px;height:173px"><img src="../gear.jpg" style="width:519.5px;left:-110.7px;top:-64.6px"><span class="label">🛡️ Gear sets</span></div></div>
+<!-- meters.jpg x 570-1040, y 350-640 at .6383 -->
+<div class="card meters"><div class="crop" style="width:300px;height:185px"><img src="../meters.jpg" style="width:898.7px;left:-363.8px;top:-223.4px"><span class="label">📊 Meters</span></div></div>
+<!-- keymap.jpg x 0-1225, y 180-470 at .4245 -->
+<div class="card keys"><div class="crop" style="width:520px;height:123px"><img src="../keymap.jpg" style="width:742px;left:0;top:-76.4px"><span class="label">⌨️ Key Map</span></div></div>
 <div class="ground"></div>
 <div class="edge"></div>
 <div class="slogan"><div class="big">Your UI, levelled up!</div>
