@@ -135,6 +135,42 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
     return GS.PlainOptions()
   end
 
+  -- The device lists the points per tree in its own order, which need not be
+  -- the game's (user, 26 Oct 2026: a Shadow priest's "33/18/0" read as 33
+  -- Discipline, and no slot showed ACTIVE). Learnt by comparing a slot's split
+  -- with the talents you have now: the one way round that makes them equal
+  -- (C.gear.specorder, e.g. "3,2,1"); kept for later, also away from the device.
+  GS.PERMS = { { 1, 2, 3 }, { 3, 2, 1 }, { 1, 3, 2 }, { 2, 1, 3 }, { 2, 3, 1 }, { 3, 1, 2 } }
+  function GS.TreeOrder(m)
+    local c = { GS.Split() }
+    if m and c[1] + c[2] + c[3] > 0 then
+      local found, count = nil, 0
+      for _, perm in ipairs(GS.PERMS) do
+        local fits
+        for _, d in pairs(m.split) do
+          if d[1] == c[perm[1]] and d[2] == c[perm[2]] and d[3] == c[perm[3]] then fits = true end
+        end
+        if fits then count = count + 1 found = found or perm end
+      end
+      -- (only one way round fits: learnt; more than one = these numbers cannot tell)
+      if count == 1 then C.gear.specorder = table.concat(found, ",") end
+    end
+    local out = {}
+    for n in string.gfind(C.gear.specorder or "", "%d") do table.insert(out, tonumber(n)) end
+    if table.getn(out) == 3 then return out end
+    return { 1, 2, 3 }
+  end
+  -- the device's splits in the game's tree order
+  function GS.Normalize(m)
+    local perm = GS.TreeOrder(m)
+    for slot, d in pairs(m.split) do
+      local t = {}
+      for i = 1, 3 do t[perm[i]] = d[i] end
+      m.split[slot] = t
+    end
+    return m
+  end
+
   -- the menu as slots; nil for any other NPC
   function GS.Read(options)
     local m = { save = {}, activate = {}, split = {}, buy = {}, slots = 0 }
@@ -170,7 +206,7 @@ pfUI:RegisterModule("gear-specs", "vanilla", function ()
         m.reset = { option = o, price = price }
       end
     end
-    return device and m or nil
+    return device and GS.Normalize(m) or nil
   end
 
   -- the game's SelectGossipOption as it was before ours (below) wrapped it

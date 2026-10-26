@@ -4675,6 +4675,26 @@ do
   end
 end
 
+-- the device lists the trees in its own order (user, 26 Oct 2026: a Shadow
+-- priest's "33/18/0" was read as 33 Discipline and no slot showed ACTIVE)
+do
+  local GS = pfUI.gear and pfUI.gear.specs
+  if GS and GS.Read then
+    local wasOrder, wasTab = pfUI_config.gear.specorder, _G.GetTalentTabInfo
+    pfUI_config.gear.specorder = nil
+    local split = { 0, 18, 33 }
+    _G.GetTalentTabInfo = function(i) return "Tree" .. i, "tex", split[i] end
+    local m = GS.Read({ { text = "Activate 1st Specialization  (33/18/0)", index = 1 },
+                        { text = "Save 1st Specialization.", index = 2 } })
+    ok(m and m.split[1][1] == 0 and m.split[1][2] == 18 and m.split[1][3] == 33, "the device's tree order is learnt from your talents")
+    ok(pfUI_config.gear.specorder == "3,2,1", "and kept (" .. tostring(pfUI_config.gear.specorder) .. ")")
+    split = { 0, 0, 0 }
+    m = GS.Read({ { text = "Activate 1st Specialization  (40/11/0)", index = 1 } })
+    ok(m and m.split[1][3] == 40, "a kept order is used when your talents cannot tell")
+    pfUI_config.gear.specorder, _G.GetTalentTabInfo = wasOrder, wasTab
+  end
+end
+
 -- the tooltip anchor's size in layout mode is the game tooltip's size
 do
   local a = pfUI.tooltip and pfUI.tooltip.anchorframe
