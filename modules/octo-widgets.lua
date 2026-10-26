@@ -794,6 +794,17 @@ function W.Card(p, title, o)
   icon:SetPoint("LEFT", head, "LEFT", 8, 0)
   local t = W.Font(head:CreateFontString(nil, "OVERLAY"), 12, C.text[1], C.text[2], C.text[3])
   t:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+  -- (25 Oct 2026) o.icon: a picture before the title, a game icon path
+  if o.icon then
+    local pic = head:CreateTexture(nil, "ARTWORK")
+    pic:SetTexture(o.icon)
+    pic:SetTexCoord(.08, .92, .08, .92)
+    pic:SetWidth(16)
+    pic:SetHeight(16)
+    pic:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+    t:ClearAllPoints()
+    t:SetPoint("LEFT", pic, "RIGHT", 6, 0)
+  end
   t:SetText(title)
   local inside = CreateFrame("Frame", nil, card)
   inside:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -CARD_TOP)
@@ -1522,15 +1533,43 @@ function W.Flash(region)
   f:Show()
 end
 
--- Index entries whose label, help, card or page title hold text.
+-- How well a setting matches the search (user, 26 Oct 2026: "BANG ON POINT
+-- it takes you to the exact thing"): every word typed must be somewhere in
+-- it; the setting's own name counts most (exact > starts with > holds the
+-- whole text > holds the words), then its card / page, then its help.
+-- nil = no match.
+function W.Score(text, label, where, desc)
+  label, where, desc = string.lower(label or ""), string.lower(where or ""), string.lower(desc or "")
+  local all = label .. " " .. where .. " " .. desc
+  local score = 0
+  for word in string.gfind(text, "%S+") do
+    if not string.find(all, word, 1, true) then return nil end
+    if string.find(" " .. label, "[^%w]" .. string.gsub(word, "(%W)", "%%%1")) then score = score + 120
+    elseif string.find(label, word, 1, true) then score = score + 80
+    elseif string.find(where, word, 1, true) then score = score + 30
+    else score = score + 5 end
+  end
+  local clean = string.gsub(label, "|c%x%x%x%x%x%x%x%x", "")
+  if clean == text then score = score + 1000
+  elseif string.sub(clean, 1, string.len(text)) == text then score = score + 600
+  elseif string.find(clean, text, 1, true) then score = score + 400
+  elseif string.find(where, text, 1, true) then score = score + 60 end
+  -- shorter names first among equals ("Buffs" before "Buff timer colour")
+  return score - string.len(clean) / 100
+end
+
+-- Index entries matching text, best first (e.score set).
 function W.Find(text)
   local out = {}
   text = string.lower(text or "")
   if string.len(text) < 2 then return out end
   for i = 1, table.getn(W.index) do
     local e = W.index[i]
-    local hay = string.lower(e.label .. " " .. (e.desc or "") .. " " .. (e.card and e.card.title or "") .. " " .. (e.page.title or ""))
-    if string.find(hay, text, 1, true) then table.insert(out, e) end
+    local s = W.Score(text, e.label, (e.card and e.card.title or "") .. " " .. (e.page.title or ""), e.desc)
+    if s then
+      e.score = s
+      table.insert(out, e)
+    end
   end
   return out
 end

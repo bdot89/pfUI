@@ -109,7 +109,7 @@ table.setn(ITEM_QUALITY_COLORS, 7)
 FONT_COLOR_CODE_CLOSE = "|r"
 
 -- modules that must start cleanly (the octo ones, as they are added)
-local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
+local MUST_LOAD = { "unlock", "gui", "firstrun", "share", "meters", "meters-clog", "meters-threat", "meters-window", "sct", "octo-options", "sct-options", "keymap", "keybinds",
   "nameplates", "plates", "plates-options", "sct-preview", "actionbar", "actionbar-octo", "actionbar-options",
   "unitframes-options", "unitframes-octo", "castbar-options", "meters-options", "meters-breakdown", "meters-test", "plates-fx", "chat-options", "chat-plus", "chat-whispers", "swing", "swing-options",
   "minimap", "minimap-style", "minimap-options", "buffs-options", "gear", "gear-sheet", "gear-slots", "gear-options", "gear-events", "gear-queue", "gear-specs", "octo-context", "octo-layouts", "bags-octo", "bags-options" }
@@ -741,6 +741,10 @@ if ME then
     -- phase 3: the player breakdown
     local BD = ME.breakdown
     ok(pfMeterBreakdown and pfMeterBreakdown:IsShown() and BD.actor and BD.actor.name == "Tester", "click opens the player breakdown")
+    -- 25 Oct 2026: the rail has a picture and a tooltip for every view, the figures show for a player
+    local rail = pfMeterBreakdown.tabs
+    ok(rail[1]:IsShown() and rail[1].tip and string.find(rail[1].tip, "Summary") and rail[2].ico.texture, "the rail's views have a picture and a tooltip")
+    ok(pfMeterBreakdown.tiles[1]:IsShown() and pfMeterBreakdown.tiles[1].label.text == "DAMAGE" and pfMeterBreakdown.tiles[1].go, "the figures over the list open their view")
     local found
     for _, e in ipairs(BD.listShown or {}) do if e.name == "Fireball" then found = e end end
     ok(found, "Spells lists Fireball")
@@ -1079,6 +1083,54 @@ if ME then
     ok(not TH.ImportOctoBG(), "only once")
     OctoBGDB, mc.timported = oldDB, oldImp
     mc.tlook, mc.twhere, mc.threatwarn, mc.threatref, mc.threatpopup = "words", "above", "90", "pull", "THREAT - back off!"
+  end
+
+  -- ClassicAPI's combat log (25 Oct 2026): the same fight told by COMBAT_LOG_EVENT_UNFILTERED subevents
+  do
+    ME.Reset()
+    ME.who = {}
+    fighting = true
+    hp.player = 2800
+    local GRP, HOST = 0x511, 0x548   -- mine / friendly player; hostile npc
+    local g = ME.ClogHandle
+    ok(g and ME.ClogGroup(GRP) and ME.ClogGroup(0x1000) and not ME.ClogGroup(HOST), "clog: group and pet flags are told from a hostile npc's")
+    ok(not ME.clog, "the text lines are read until the first event")
+    g(1, "SPELL_DAMAGE", false, "0xA", "Tester", GRP, 0, "0xB", "Hogger", HOST, 0, 133, "Fireball", 4, 300, 0, 4, nil, nil, nil, 1, nil, nil, nil)
+    ok(ME.clog, "the first event switches the text lines off")
+    g(2, "SWING_DAMAGE", false, "0xA", "Tester", GRP, 0, "0xB", "Hogger", HOST, 0, 120, 0, 1, nil, nil, nil, nil, 1)
+    g(3, "SPELL_INTERRUPT", false, "0xA", "Tester", GRP, 0, "0xB", "Kobold Geomancer", HOST, 0, 2139, "Counterspell", 64, 133, "Fireball", 4)
+    g(4, "SPELL_HEAL", false, "0xC", "Healbot", GRP, 0, "0xA", "Tester", GRP, 0, 2061, "Flash Heal", 2, 500, 0, 0, 1)
+    g(5, "SPELL_MISSED", false, "0xB", "Hogger", HOST, 0, "0xA", "Tester", GRP, 0, 0, "Smash", 1, "DODGE")
+    g(6, "SPELL_CAST_SUCCESS", false, "0xC", "Healbot", GRP, 0, "0xA", "Tester", GRP, 0, 527, "Dispel Magic", 2)
+    g(7, "SPELL_DISPEL", false, "0xC", "Healbot", GRP, 0, "0xA", "Tester", GRP, 0, 0, nil, 0, 589, "Shadow Word: Pain", 32, "DEBUFF")
+    g(8, "SPELL_AURA_APPLIED", false, "0xA", "Tester", GRP, 0, "0xB", "Hogger", HOST, 0, 589, "Shadow Word: Pain", 32, "DEBUFF")
+    g(9, "SPELL_ENERGIZE", false, "0xC", "Healbot", GRP, 0, "0xA", "Tester", GRP, 0, 1, "Innervate", 8, 200, 0)
+    g(10, "PARTY_KILL", false, "0xA", "Tester", GRP, 0, "0xB", "Hogger", HOST, 0)
+    g(11, "UNIT_DIED", true, nil, nil, 0x80000000, 0, "0xB", "Hogger", HOST, 0)
+    -- no interest in two strangers
+    g(12, "SPELL_DAMAGE", false, "0xD", "Rando", HOST, 0, "0xE", "Boar", HOST, 0, 133, "Fireball", 4, 999, 0, 4)
+    local cs = ME.current
+    local ca = cs and cs.actors.Tester
+    local ch = cs and cs.actors.Healbot
+    ok(ca and ca.damage == 420 and not ca.targets.Boar, "clog: damage counted, strangers ignored (" .. tostring(ca and ca.damage) .. ")")
+    local cf = ca and ca.spells["Fireball"]
+    ok(cf and cf.hits == 1 and cf.crits == 1 and cf.max == 300, "clog: the critical flag")
+    local cm = ca and ca.spells[pfUI.env.T["Melee"]]
+    ok(cm and cm.how.glancing == 1, "clog: the glancing flag")
+    ok(ca and ca.ncasts == 0, "clog: a hit does not count a cast of its own")
+    ok(ca and ca.interrupts == 1 and ca.ilist[1].spell == "Fireball" and ca.ilist[1].with == "Counterspell", "clog: interrupted spell and the interrupting one")
+    ok(ch and ch.heal == 200 and ch.overheal == 300, "clog: heal split into effective and over")
+    ok(ca and ca.avoid.dodge == 1, "clog: dodge")
+    ok(ch and ch.dispels == 1 and ch.dlist[1].aura == "Shadow Word: Pain" and ch.dlist[1].target == "Tester", "clog: dispel names the dispeller and the aura")
+    ok(ch and ch.casts["Dispel Magic"] == 1, "clog: a cast")
+    ok(ca and ca.power[MANA or "Mana"] == 200, "clog: resource gained (credited to who gets it)")
+    ok(ca and ca.frags == 1, "clog: the kill goes to who PARTY_KILL names")
+    -- the text lines are off now: the same hit in chat adds nothing
+    local before = ca and ca.damage
+    Mock.Fire("CHAT_MSG_COMBAT_SELF_HITS", "You hit Hogger for 120.")
+    ok(ca and ca.damage == before, "clog: the text lines step aside")
+    ok(string.find(ME.ClogStatus(), "In use") ~= nil or not ME.ClogAvailable(), "clog: a status line")
+    ME.clog = nil
   end
 
   UnitName = realUnitName
@@ -1796,11 +1848,25 @@ do
     -- the right text in each order
     local row = { text = "48.2k", extra = "472", pct = 22 }
     local s = { showps = "1", showpct = "1", brackets = "1", order = "tps" }
-    ok(string.find(ME.RightText(s, row), "^48.2k |cffaaaaaa%(472, 22%%%)"), "total (per second, percent)")
+    ok(string.find(ME.RightText(s, row), "^48.2k |cffababab%(472, 22%%%)"), "total (per second, percent)")
     s.order = "t"
     ok(ME.RightText(s, row) == "48.2k", "total only")
     s.order = "p"
     ok(ME.RightText(s, row) == "22%", "percent only")
+    -- 25 Oct 2026: text colours, icon side and size, bar border all reach the bars
+    local s2 = ME.S(w)
+    local keep = {}
+    for _, k in ipairs({ "iconside", "iconsize", "barborder", "valuecolor", "valuecustom", "subcolor", "selfmark" }) do keep[k] = s2[k] end
+    s2.iconside, s2.iconsize, s2.barborder, s2.subcolor = "right", "20", "1", "0,1,0,1"
+    s2.valuecolor, s2.valuecustom, s2.selfmark = "custom", "1,0,0,1", "border"
+    ME.TestBars(30)
+    w.Refresh(w)
+    local b1 = w.bars[1]
+    ok(b1 and b1.rim:IsShown() and b1.icon:GetWidth() == 20, "bar border and icon size reach the bar: " .. tostring(b1 and b1:IsShown()) .. " rim " .. tostring(b1 and b1.rim:IsShown()) .. " iconw " .. tostring(b1 and b1.icon:GetWidth()) .. " shown " .. tostring(w:IsShown()) .. " row " .. tostring(b1 and b1.row and b1.row.class))
+    ok(string.find(ME.RightText(s2, row), "|cff00ff00%("), "the small numbers' colour is a setting")
+    for k, v in pairs(keep) do s2[k] = v end
+    ME.testUntil = nil
+    w.Refresh(w)
     -- looks: applied and known
     ME.ApplyLook(w, "classic")
     ok(ME.CurrentLook(w) == "classic" and ME.S(w).border == "gold", "a look applies and is lit")
@@ -5066,5 +5132,17 @@ if os and os.getenv and os.getenv("PFUI_TEST_VERBOSE") then
   for m, e in pairs(failedModules) do print("  module " .. m .. ": " .. tostring(e)) end
 end
 print(string.format("modules started in the mock: %d, need more of the client: %d", started, broken))
+
+-- Find a setting: the setting's own name beats help text and card names
+do
+  local W = pfUI.octoui and pfUI.octoui.W
+  if W and W.Score then
+    local exact = W.Score("enemy buffs", "Show enemy buffs", "Unit frames > All frames: basics", "Shows enemies' buffs")
+    local card = W.Score("enemy buffs", "Size", "Unit frames > Buffs", "How big enemy buffs are")
+    ok(exact and card and exact > card, "search: a setting named for the words comes first")
+    ok(W.Score("enemy buffs", "Size", "Unit frames > Debuffs", "") == nil, "search: every word must match")
+    ok(W.Score("buffs", "Buffs", "x") > W.Score("buffs", "Buff and dispel markers buffs", "x"), "search: exact name first")
+  end
+end
 print(string.format("%d checks, %d failed", checks, fails))
 if fails > 0 then os.exit(1) end

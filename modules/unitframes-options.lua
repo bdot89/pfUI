@@ -173,6 +173,11 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   function UF.Filter(p)
     p = p or O.pages.ufframes
     if not p or not p.cards or not p.ufFirst then return end
+    -- Find a setting: its card's section tab first
+    p.onReveal = p.onReveal or function(e)
+      local s = e.card and UF.SECTION_OF[e.card.title]
+      if s and s ~= UF.sec then UF.SetSection(s, true) end
+    end
     local prev, gap = p.ufFirst, 13
     for _, c in ipairs(p.cards) do
       if UF.SECTION_OF[c.title] == UF.sec then
@@ -1192,7 +1197,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Druid mana bar", "Your mana while in a form (SuperWoW).", G, "druidmanabar", Reload)
     Sld(p, "Druid mana bar height", nil, 1, 10, 1, G, "druidmanaheight", Px, Reload)
     Chk(p, "Druid mana text", nil, G, "druidmanatext", Reload)
-    Chk(p, "Read enemy buffs", "Shows enemies' buffs on their frames.", G, "buffdetect", Reload)
+    Chk(p, "Show enemy buffs", "Shows enemies' buffs on their frames (pfUI's Detect Enemy Buffs).", G, "buffdetect", Reload)
     Card(p, "All frames: party and raid")
     Chk(p, "Range check", "Fades members more than 40 yards away.", G, "rangecheck", Reload)
     Drop(p, "Range check every", nil, DD("uf_rangecheckinterval"), G, "rangechecki", Reload)

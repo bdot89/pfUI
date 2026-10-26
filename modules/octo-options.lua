@@ -1481,7 +1481,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
 
   -- ---------------------------------------------------------------- find a setting
 
-  local RESULT_ROWS = 22
+  local RESULT_ROWS = 60
 
   -- Every page built once (hidden), so the search knows every setting.
   function O:BuildAll()
@@ -1542,15 +1542,16 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     if not db then return end
     for _, obj in pairs(db) do
       local cap = obj[0]
-      if cap and string.find(string.lower(cap), text, 1, true) then
-        local n = table.getn(obj)
-        local cat, page = obj[n], (n > 1) and obj[1] or nil
-        local cname = cat and cat.text and cat.text:GetText()
-        local pname = page and page.text and page.text:GetText()
-        if cname and not O.replaced[cname] then
-          local key = "l:" .. cname .. (pname and ("/" .. pname) or "")
-          table.insert(out, { legacy = true, label = cap, where = cname .. (pname and (" > " .. pname) or ""),
-                              key = key, region = obj[-1] })
+      local n = table.getn(obj)
+      local cat, page = obj[n], (n > 1) and obj[1] or nil
+      local cname = cap and cat and cat.text and cat.text:GetText()
+      local pname = page and page.text and page.text:GetText()
+      if cname and not O.replaced[cname] then
+        local where = cname .. (pname and (" > " .. pname) or "")
+        local s = W.Score(text, cap, where)
+        if s then
+          table.insert(out, { legacy = true, label = cap, where = where, score = s,
+                              key = "l:" .. cname .. (pname and ("/" .. pname) or ""), region = obj[-1] })
         end
       end
     end
@@ -1570,14 +1571,20 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     self:BuildAll()
     local res = W.Find(text)
     FindLegacy(string.lower(text), res)
+    -- best match first; equal ones keep the window's order
+    for i, e in ipairs(res) do e.order = i end
+    table.sort(res, function(a, b)
+      if a.score ~= b.score then return a.score > b.score end
+      return a.order < b.order
+    end)
     self.results = res
     local p = self:SearchPage()
     local n = table.getn(res)
     if n == 0 then
       O.searchText = "Nothing matches \"" .. text .. "\"."
     else
-      O.searchText = n .. " setting" .. ((n == 1) and "" or "s") .. " mention \"" .. text .. "\" - click one to go to it."
-        .. ((n > RESULT_ROWS) and ("  |cff999999(first " .. RESULT_ROWS .. " shown - type more)|r") or "")
+      O.searchText = n .. " match" .. ((n == 1) and "" or "es") .. " for \"" .. text .. "\", best first - click one to go straight to it."
+        .. ((n > RESULT_ROWS) and ("  |cff999999(best " .. RESULT_ROWS .. " shown)|r") or "")
     end
     for i = 1, RESULT_ROWS do
       local row, e = p.rows[i], res[i]
@@ -1618,6 +1625,8 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     end
     local p = e.page
     self:Select("o:" .. p.key)
+    -- pages that show some cards at a time (section tabs) show this one's
+    if p.onReveal then p.onReveal(e) end
     if e.card and not W.IsOpen(e.card) then W.SetOpen(e.card, true) end
     p.after = function()
       local top, at = p.body:GetTop(), e.region:GetTop()
