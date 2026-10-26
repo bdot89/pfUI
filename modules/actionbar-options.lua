@@ -389,6 +389,12 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
                 AB.Zoom(mb)
                 AB.Draw(mb, C.bars.skin)
                 AB.Slot(mb)
+                -- (no inner shade or frame overlay on these tiny copies: they covered
+                -- most of each icon - user, 26 Oct 2026 "so dark i cant see the
+                -- bars"; the sample button on the right shows the whole look)
+                for _, kk in ipairs({ "octoShade", "octoFrame" }) do
+                  if mb[kk] then mb[kk].want = nil mb[kk]:Hide() end
+                end
               end
               mb:Show()
             elseif mb then
