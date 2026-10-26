@@ -4,6 +4,12 @@
 
 **Your whole interface. One addon.** ✨
 
+> [!CAUTION]
+> ## 📁 THE FOLDER MUST BE CALLED `pfUI` - NOTHING ELSE!
+> If your folder is called **`pfUI-Octo`**, **`pfUI-octo`**, **`pfUI-Octo-octo`** or **`pfUI-master`**, **DELETE the `-Octo` / `-octo` / `-master` part on the end** so it reads exactly **`pfUI`**.
+> ✅ `Interface\AddOns\pfUI` &nbsp;&nbsp; ❌ `Interface\AddOns\pfUI-Octo-octo`
+> With the wrong name the game won't load it (OctoLauncher says "Missing .toc file").
+
 > ## 🔌 One-click DLL installer: always the newest versions!
 > **It's in the ZIP.** After unzipping, double-click **`Install pfUI Octo DLLs.bat`** in the pfUI folder (game closed). Every time you run it, it fetches the **latest releases** of **ClassicAPI, SuperWoW, nampower and UnitXP_SP3** straight from their authors' GitHub, installs what's missing and updates what's out of date. 🚀
 > Run it again any time to stay current. It backs up the old DLLs, adds them to `dlls.txt` for you, and never swaps a newer build you already have for an older one.
