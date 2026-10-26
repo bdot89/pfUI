@@ -5066,6 +5066,18 @@ if os and os.getenv and os.getenv("PFUI_TEST_VERBOSE") then
   for m, e in pairs(failedModules) do print("  module " .. m .. ": " .. tostring(e)) end
 end
 print(string.format("modules started in the mock: %d, need more of the client: %d", started, broken))
+-- settings from another pfUI with a string where a table goes are replaced
+do
+  local saved = pfUI_config
+  _G.pfUI_config = { octotest = "1", octotest2 = { sub = "x" } }
+  pfUI:UpdateConfig("octotest", "sub", "k", "v")
+  pfUI:UpdateConfig("octotest2", "sub", "k", "v")
+  pfUI:UpdateConfig("octotest2", nil, "list", { 1 })
+  ok(type(pfUI_config.octotest) == "table" and pfUI_config.octotest.sub.k == "v", "config: a string group becomes a table")
+  ok(type(pfUI_config.octotest2.sub) == "table" and type(pfUI_config.octotest2.list) == "table", "config: wrong-typed entries replaced")
+  _G.pfUI_config = saved
+end
+
 -- Find a setting: the setting's own name beats help text and card names
 do
   local W = pfUI.octoui and pfUI.octoui.W

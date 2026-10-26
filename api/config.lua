@@ -7,23 +7,28 @@ function pfUI:UpdateConfig(group, subgroup, entry, value)
     _G.pfUI_config = {}
   end
 
-  -- check for missing config groups
-  if not pfUI_config[group] then
+  -- check for missing config groups (Octo: and ones of the wrong type - a
+  -- settings file from another pfUI can hold a string where a table goes,
+  -- and every module indexing it then errors each frame: user's friend,
+  -- 26 Oct 2026, "infinite scrolling of errors ... then it crashes")
+  if type(pfUI_config[group]) ~= "table" then
     pfUI_config[group] = {}
   end
 
   -- update config
-  if not subgroup and entry and value and not pfUI_config[group][entry] then
+  if not subgroup and entry and value and (not pfUI_config[group][entry]
+      or (type(value) == "table") ~= (type(pfUI_config[group][entry]) == "table")) then
     pfUI_config[group][entry] = value
   end
 
   -- check for missing config subgroups
-  if subgroup and not pfUI_config[group][subgroup] then
+  if subgroup and type(pfUI_config[group][subgroup]) ~= "table" then
     pfUI_config[group][subgroup] = {}
   end
 
   -- update config in subgroup
-  if subgroup and entry and value and not pfUI_config[group][subgroup][entry] then
+  if subgroup and entry and value and (not pfUI_config[group][subgroup][entry]
+      or (type(value) == "table") ~= (type(pfUI_config[group][subgroup][entry]) == "table")) then
     pfUI_config[group][subgroup][entry] = value
   end
 end
