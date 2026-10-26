@@ -90,11 +90,22 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   KM.rankMenus = {}
   function KM.PickRank(slot, anchor, after)
     local name, cur = KM.ActionSpell(slot)
-    local ranks = KM.SpellRanks(name)
-    if table.getn(ranks) < 2 then
+    if table.getn(KM.SpellRanks(name)) < 2 then
       if after then after() end
       return false
     end
+    return KM.RankMenu(name, cur, anchor, function(index)
+      PickupSpell(index, BOOKTYPE_SPELL or "spell")
+      PlaceAction(slot)
+      ClearCursor()
+      if after then after() end
+      KM:Refresh()
+    end)
+  end
+
+  -- the rank menu itself: onPick(spellbook index); cur = the rank in use now
+  function KM.RankMenu(name, cur, anchor, onPick)
+    local ranks = KM.SpellRanks(name)
     local opts = { { label = name .. " - which rank?", group = true } }
     local n = table.getn(ranks)
     for i = n, 1, -1 do
@@ -105,13 +116,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       table.insert(opts, { key = r[1], label = label })
     end
     if KM.rankMenu then KM.rankMenu:Hide() end
-    local menu = W.Menu(anchor, opts, 220, function(index)
-      PickupSpell(index, BOOKTYPE_SPELL or "spell")
-      PlaceAction(slot)
-      ClearCursor()
-      if after then after() end
-      KM:Refresh()
-    end)
+    local menu = W.Menu(anchor, opts, 220, onPick)
     menu:SetFrameStrata("TOOLTIP")
     menu:ClearAllPoints()
     menu:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -4, 0)
@@ -229,7 +234,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   -- ---------------------------------------------------------------- the window
 
   local UNIT, GAP, PAD = 50, 4, 14
-  local PANEL_W = 270
+  local PANEL_W = 330
 
   local function Full(key)
     if not key then return nil end
@@ -345,6 +350,11 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       KM.Drop(b.key)
       return
     end
+    if KM.spell then
+      -- a spell (and rank) picked in the spell book: onto this key
+      KM.GiveSpell(b.key, KM.spell)
+      return
+    end
     if KM.command then
       -- a command picked in All bindings: this key works it
       SetBinding(key, KM.command)
@@ -414,7 +424,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     f:SetScript("OnMouseUp", function() this:StopMovingOrSizing() end)
     f:SetScript("OnShow", function() KM:Refresh() end)
     f:SetScript("OnHide", function()
-      KM.picked, KM.ability, KM.command = nil, nil, nil
+      KM.picked, KM.ability, KM.command, KM.spell = nil, nil, nil, nil
       W.CloseMenus()
     end)
     -- holding a modifier shows its layer (when no layer is clicked on)
@@ -488,8 +498,9 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     self.panel = panel
     self.abilities = {}
     self.tabs = {}
-    local tw = (PANEL_W - 22) / 2
-    for i, t in ipairs({ { "unbound", "Unbound", "INV_Misc_Key_01" }, { "all", "All bindings", "INV_Misc_Book_09" } }) do
+    local tw = (PANEL_W - 28) / 3
+    for i, t in ipairs({ { "unbound", "Unbound", "INV_Misc_Key_01" }, { "spells", "Spell book", "INV_Misc_Book_11" },
+        { "all", "All bindings", "INV_Misc_Book_09" } }) do
       local b = W.Button(panel, "", tw, 28)
       b:SetPoint("TOPLEFT", panel, "TOPLEFT", 8 + (i - 1) * (tw + 6), -8)
       local ic = b:CreateTexture(nil, "ARTWORK")
@@ -504,7 +515,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
       b.tab = t[1]
       b:SetScript("OnClick", function()
         KM.Store().tab = this.tab
-        KM.ability, KM.command = nil, nil
+        KM.ability, KM.command, KM.spell = nil, nil, nil
         KM:Refresh()
       end)
       self.tabs[i] = b
@@ -525,6 +536,17 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     sf:SetScrollChild(content)
     self.listScroll, self.list = sf, content
     self.listRows, self.listHeads = {}, {}
+    -- the whole spell book: a picture grid per spell book tab
+    local ss = CreateFrame("ScrollFrame", "pfKeyMapSpells", panel, "UIPanelScrollFrameTemplate")
+    ss:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, -72)
+    ss:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -18, 6)
+    W.FlatScroll(ss)
+    local sc = CreateFrame("Frame", nil, ss)
+    sc:SetWidth(PANEL_W - 26)
+    sc:SetHeight(10)
+    ss:SetScrollChild(sc)
+    self.spellScroll, self.spellList = ss, sc
+    self.spellIcons, self.spellHeads = {}, {}
 
     local help = W.Font(f:CreateFontString(nil, "OVERLAY"), 10, K.dim[1], K.dim[2], K.dim[3])
     help:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 10)
@@ -700,7 +722,19 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     KM.dragging = nil
     this.justDragged = true
     if KM.ghost then KM.ghost:Hide() end
-    if p then KM.Give(KM.KeyUnderMouse(), p) end
+    if p and p.spell then KM.GiveSpell(KM.KeyUnderMouse(), p.spell)
+    elseif p then KM.Give(KM.KeyUnderMouse(), p) end
+  end
+
+  -- a spell book spell (index = that rank) onto a key: as if dragged from
+  -- the spell book (an action key's button takes it, else the key binds it)
+  function KM.GiveSpell(key, index)
+    KM.spell = nil
+    if not key or not index then KM:Refresh() return end
+    PickupSpell(index, BOOKTYPE_SPELL or "spell")
+    KM.Drop(key)
+    ClearCursor()
+    KM:Refresh()
   end
 
   local function Draggable(b)
@@ -716,6 +750,7 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
   local HINT = {
     unbound = "Action bar buttons with no key. Click one to choose its |cffffffffrank|r, then click a key - or |cffffffffdrag it onto a key|r.",
     all = "Every command, in categories. Open one, then |cffffffffdrag a command onto a key|r - or click it, then a key.",
+    spells = "Every spell you know. Click one to choose its |cffffffffrank|r, then click a key - or |cffffffffdrag it onto a key|r (highest rank).",
   }
 
   function KM:RefreshPanel()
@@ -723,14 +758,136 @@ pfUI:RegisterModule("keymap", "vanilla", function ()
     local tab = KM.Store().tab or "unbound"
     for _, b in ipairs(self.tabs) do W.Pick(b, b.tab == tab) end
     self.hint:SetText(HINT[tab])
+    if tab ~= "unbound" then for _, a in ipairs(self.abilities) do a:Hide() end end
+    if tab == "all" then self.listScroll:Show() else self.listScroll:Hide() end
+    if tab == "spells" then self.spellScroll:Show() else self.spellScroll:Hide() end
     if tab == "all" then
-      for _, a in ipairs(self.abilities) do a:Hide() end
-      self.listScroll:Show()
       self:RefreshList()
+    elseif tab == "spells" then
+      self:RefreshSpells()
     else
-      self.listScroll:Hide()
       self:RefreshAbilities()
     end
+  end
+
+  -- every spell in the spell book, once per name (its highest rank),
+  -- passives left out: { { tab name, tab icon, { { index, name, tex }, ... } }, ... }
+  function KM.SpellBook()
+    local out = {}
+    if not GetNumSpellTabs or not GetSpellTabInfo then return out end
+    local book = BOOKTYPE_SPELL or "spell"
+    for t = 1, GetNumSpellTabs() do
+      local tname, ttex, offset, num = GetSpellTabInfo(t)
+      local list, at = {}, {}
+      for i = offset + 1, offset + num do
+        local n = GetSpellName(i, book)
+        if n and not (IsPassiveSpell and IsPassiveSpell(i, book)) then
+          if at[n] then list[at[n]][1] = i
+          else
+            table.insert(list, { i, n, GetSpellTexture(i, book) })
+            at[n] = table.getn(list)
+          end
+        end
+      end
+      if table.getn(list) > 0 then table.insert(out, { tname, ttex, list }) end
+    end
+    return out
+  end
+
+  local function SpellIcon(parent)
+    local a = CreateFrame("Button", nil, parent)
+    a:SetWidth(36)
+    a:SetHeight(36)
+    W.Flat(a, K.field, 1, K.line)
+    a.icon = a:CreateTexture(nil, "ARTWORK")
+    a.icon:SetTexCoord(.08, .92, .08, .92)
+    a.icon:SetPoint("TOPLEFT", a, "TOPLEFT", 2, -2)
+    a.icon:SetPoint("BOTTOMRIGHT", a, "BOTTOMRIGHT", -2, 2)
+    W.Hover(a, .15)
+    Draggable(a)
+    a:SetScript("OnClick", function()
+      if this.justDragged then this.justDragged = nil return end
+      KM.ability, KM.command = nil, nil
+      if KM.spell and KM.SpellRanksHas(this.name, KM.spell) then
+        KM.spell = nil
+        KM:Refresh()
+        return
+      end
+      local top = this.index
+      if table.getn(KM.SpellRanks(this.name)) < 2 then
+        KM.spell = top
+        KM:Refresh()
+        return
+      end
+      KM.RankMenu(this.name, nil, this, function(index)
+        KM.spell = index
+        KM:Refresh()
+      end)
+    end)
+    a:SetScript("OnEnter", function()
+      GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+      GameTooltip:SetSpell(this.index, BOOKTYPE_SPELL or "spell")
+      local ranks = table.getn(KM.SpellRanks(this.name))
+      GameTooltip:AddLine((ranks > 1 and "Click to choose the rank, then click a key" or "Click, then click a key")
+        .. " - or drag it onto a key.", K.accent[1], K.accent[2], K.accent[3])
+      GameTooltip:Show()
+    end)
+    a:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return a
+  end
+
+  -- is index one of name's ranks (the picked spell's picture stays lit)
+  function KM.SpellRanksHas(name, index)
+    for _, r in ipairs(KM.SpellRanks(name)) do if r[1] == index then return true end end
+    return false
+  end
+
+  function KM:RefreshSpells()
+    for _, a in ipairs(self.spellIcons) do a:Hide() end
+    for _, h in ipairs(self.spellHeads) do h:Hide() end
+    local size = 36
+    local per = math.floor((PANEL_W - 26) / (size + 6))
+    local y, n = 0, 0
+    for t, tab in ipairs(KM.SpellBook()) do
+      local h = self.spellHeads[t]
+      if not h then
+        h = CreateFrame("Frame", nil, self.spellList)
+        h:SetHeight(20)
+        h:SetWidth(PANEL_W - 26)
+        h.icon = h:CreateTexture(nil, "ARTWORK")
+        h.icon:SetTexCoord(.08, .92, .08, .92)
+        h.icon:SetWidth(16)
+        h.icon:SetHeight(16)
+        h.icon:SetPoint("LEFT", h, "LEFT", 2, 0)
+        h.text = W.Font(h:CreateFontString(nil, "OVERLAY"), 11, K.accent[1], K.accent[2], K.accent[3])
+        h.text:SetPoint("LEFT", h.icon, "RIGHT", 6, 0)
+        self.spellHeads[t] = h
+      end
+      h.icon:SetTexture(tab[2])
+      h.text:SetText(tab[1])
+      h:ClearAllPoints()
+      h:SetPoint("TOPLEFT", self.spellList, "TOPLEFT", 0, -y)
+      h:Show()
+      y = y + 22
+      local count = table.getn(tab[3])
+      for i, s in ipairs(tab[3]) do
+        n = n + 1
+        local a = self.spellIcons[n] or SpellIcon(self.spellList)
+        self.spellIcons[n] = a
+        a.index, a.name, a.tex = s[1], s[2], s[3]
+        a.payload = { spell = s[1] }
+        a.icon:SetTexture(s[3])
+        local row, col = math.floor((i - 1) / per), math.mod(i - 1, per)
+        a:ClearAllPoints()
+        a:SetPoint("TOPLEFT", self.spellList, "TOPLEFT", 2 + col * (size + 6), -y - row * (size + 6))
+        local l = (KM.spell and KM.SpellRanksHas(s[2], KM.spell)) and K.accent or K.line
+        a:SetBackdropBorderColor(l[1], l[2], l[3], 1)
+        a:Show()
+      end
+      y = y + math.ceil(count / per) * (size + 6) + 6
+    end
+    self.spellList:SetHeight(math.max(10, y))
+    self.spellScroll:UpdateScrollChildRect()
   end
 
   function KM:RefreshAbilities()
