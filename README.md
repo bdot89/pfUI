@@ -4,9 +4,11 @@
 
 **Your whole interface. One addon.** ✨
 
-**pfUI Octo** is a free all-in-one interface for WoW 1.12 (OctoWoW), **version 1.0.0**, made by **Bdot89**: unit frames, action bars, nameplates, meters, threat, combat text, a swing timer, gear sets, a key map and whole UI layouts, all set up from **one options window** with a live preview on every page. 🎛️
+> ## 🔌 One-click DLL installer: always the newest versions!
+> **It's in the ZIP.** After unzipping, double-click **`Install pfUI Octo DLLs.bat`** in the pfUI folder (game closed). Every time you run it, it fetches the **latest releases** of **ClassicAPI, SuperWoW, nampower and UnitXP_SP3** straight from their authors' GitHub, installs what's missing and updates what's out of date. 🚀
+> Run it again any time to stay current. It backs up the old DLLs, adds them to `dlls.txt` for you, and never swaps a newer build you already have for an older one.
 
-> 🔌 **DLL installer included:** double-click **Install pfUI Octo DLLs.bat** in the pfUI folder and it gets the newest **ClassicAPI, SuperWoW, nampower and UnitXP_SP3** for you. Optional, but they make pfUI Octo faster and smarter.
+**pfUI Octo** is a free all-in-one interface for WoW 1.12 (OctoWoW), **version 1.0.0**, made by **Bdot89**: unit frames, action bars, nameplates, meters, threat, combat text, a swing timer, gear sets, a key map and whole UI layouts, all set up from **one options window** with a live preview on every page. 🎛️
 
 > 🧩 **Built on [pfUI](https://github.com/shagu/pfUI) by Shagu:** pfQuest, Clickcast, your profiles and your settings all keep working.
 
