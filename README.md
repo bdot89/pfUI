@@ -1,121 +1,80 @@
-# pfUI
+<p align="center"><img src="docs/banner.png" alt="pfUI Octo by Bdot89" width="100%"></p>
 
-An AddOn for World of Warcraft: Vanilla (1.12.1) and The Burning Crusade (2.4.3), which aims to be a full replacement for the original interface. The design is inspired by several screenshots I've seen from TukUI, ElvUI and others. This addon delivers modern features and a minimalistic style that's easy to use right from the start. It is entirely written from scratch without any inclusion of third-party addons or libraries.
+# 🐙 pfUI Octo for OctoWoW
 
-This is **not** an addon-pack like [ShaguUI](http://shagu.org/ShaguUI/), however, there is support for external addons like MobHealth3, DPSMate and others, but they will never be shipped within the package.
+**Your whole interface. One addon.** ✨
 
-**Please do not re-upload or distribute outdated versions of this project. However, you are more than welcome to fork or link to the official github page.**
+**pfUI Octo** is a free all-in-one interface for WoW 1.12 (OctoWoW), **version 1.0.0**, made by **Bdot89**: unit frames, action bars, nameplates, meters, threat, combat text, a swing timer, gear sets, a key map and whole UI layouts, all set up from **one options window** with a live preview on every page. 🎛️
 
-## Screenshots
+> 🔌 **DLL installer included:** double-click **Install pfUI Octo DLLs.bat** in the pfUI folder and it gets the newest **ClassicAPI, SuperWoW, nampower and UnitXP_SP3** for you. Optional, but they make pfUI Octo faster and smarter.
 
-<img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/config.jpg" align="right" width="48.5%">
-<img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/unlock.jpg" width="48.5%">
-<img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/contrib.jpg" align="right" width="48.5%">
-<img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/maraudon.jpg" width="48.5%">
+> 🧩 **Built on [pfUI](https://github.com/shagu/pfUI) by Shagu:** pfQuest, Clickcast, your profiles and your settings all keep working.
 
-## Installation (Vanilla)
-1. Download **[Latest Version](https://github.com/shagu/pfUI/archive/master.zip)**
-2. Unpack the Zip file
-3. Rename the folder "pfUI-master" to "pfUI"
-4. Copy "pfUI" into Wow-Directory\Interface\AddOns
-5. Restart Wow
+**[⬇️ Download pfUI Octo (ZIP)](https://github.com/bdot89/pfUI-Octo/releases/latest/download/pfUI.zip)** · **[🌐 Web page with screenshots](https://bdot89.github.io/pfUI-Octo/)** · **[📜 What's new](https://github.com/bdot89/pfUI-Octo/releases)** · 💬 Discord: **benito9295**
 
-## Installation (The Burning Crusade)
-1. Download **[Latest Version](https://github.com/shagu/pfUI/archive/master.zip)**
-2. Unpack the Zip file
-3. Rename the folder "pfUI-master" to "pfUI-tbc"
-4. Copy "pfUI-tbc" into Wow-Directory\Interface\AddOns
-5. Restart Wow
+## 🛠️ Install in 4 steps
 
-## Commands
+1. **Close the game.** Addons and DLLs are only read when the game starts.
+2. **Unzip into AddOns.** [Download pfUI.zip](https://github.com/bdot89/pfUI-Octo/releases/latest/download/pfUI.zip), right-click it, **Extract All**, and put the **pfUI** folder in `OctoWoW\Interface\AddOns`. Replace an old pfUI folder: your settings stay.
+3. **Run the DLL installer** *(optional)*. In that pfUI folder, double-click **Install pfUI Octo DLLs.bat**. "Windows protected your PC": **More info**, then **Run anyway**.
+4. **Play!** 🎮 Start the game from **OctoLauncher**. A short setup wizard picks your look and layout. `/pfui` opens the options, `/moveui` moves frames.
 
-    /pfui         Open the configuration GUI
-    /share        Open the configuration import/export dialog
-    /gm           Open the ticket Dialog
-    /rl           Reload the whole UI
-    /farm         Toggles the Farm-Mode
-    /pfcast       Same as /cast but for mouseover units
-    /focus        Creates a Focus-Frame for the current target
-    /castfocus    Same as /cast but for focus frame
-    /clearfocus   Clears the Focus-Frame
-    /swapfocus    Toggle Focus and Target-Frame
-    /pftest       Toggle pfUI Unitframe Test Mode
-    /abp          Addon Button Panel
+## 🌟 What you get
 
-## Languages
-pfUI supports and contains language specific code for the following gameclients.
-* English (enUS)
-* Korean (koKR)
-* French (frFR)
-* German (deDE)
-* Chinese (zhCN)
-* Spanish (esES)
-* Russian (ruRU)
+| | |
+|---|---|
+| 🗺️ **UI layouts** | Normal, Raid, PvP or your own, each with its own frames, meters, gear and spells; switches by itself by zone |
+| 🧍 **Unit frames** | Player to raid, with fading health, combat flash, class icons, elite marks, dispel colours, buff timers |
+| ⚔️ **Action bars** | 14 button looks, proc glows, cooldown swipes, hover and press effects, fading, end-cap art |
+| 🎯 **Nameplates** | Plater-style: 8 looks, auras, cast bars, threat colours, quest marks, range fading, your own rules |
+| 📊 **Meters & threat** | Up to 6 windows, full breakdowns of every spell, target and death; a pull warning on your target |
+| 💥 **Combat text** | Five areas you place yourself, with looks, crits, sounds and alerts |
+| ⏱️ **Swing timer** | Main hand, off hand and ranged, parry haste, queued attacks, Slam and Seal-twist marks |
+| 🛡️ **Gear** | Instant set swaps, a trinket queue, slot buttons, automatic swaps, talent specs at the Brainwashing Device |
+| ⌨️ **Key Map** | Your keyboard on screen: drag any spell, item or macro onto a key, pick the rank, see every layer |
+| 🎒 **Bags, chat, minimap** | Instant sorting, new-item glows, chat with class colours, a SexyMap-style minimap, loot roll history |
+| 🧭 **Layout mode** | Drag and snap frames, mirrored guide lines, match sizes, lock frames together, hide what you don't need |
+| 🔁 **Octo or Blizzard** | A switch on every page: back to Blizzard's frames for that part at once, no reload |
 
-## Recommended Addons
-* [pfQuest](https://shagu.org/pfQuest) A simple database and quest helper
-* [WIM](http://addons.us.to/addon/wim), [WIM (continued)](https://github.com/shirsig/WIM) Give whispers an instant messenger feel
+## 📸 Screenshots
 
-## Plugins
-* [pfUI-eliteoverlay](https://shagu.org/pfUI-eliteoverlay) Add elite dragons to unitframes
-* [pfUI-fonts](https://shagu.org/pfUI-fonts) Additional fonts for pfUI
-* [pfUI-CustomMedia](https://github.com/mrrosh/pfUI-CustomMedia) Additional textures for pfUI
-* [pfUI-Gryphons](https://github.com/mrrosh/pfUI-Gryphons) Add back the gryphons to your actionbars
+<img src="docs/keymap.jpg" alt="Key Map" width="100%">
 
-## FAQ
-**What does "pfUI" stand for?**  
-The term "*pfui!*" is german and simply stands for "*pooh!*", because I'm not a
-big fan of creating configuration UI's, especially not via the Wow-API
-(you might have noticed that in ShaguUI).
+**⌨️ Key Map:** your whole keyboard on screen with the mouse buttons and wheel. **Spell book** lists every spell you know (click one, pick its rank, click a key, or drag it onto a key), **Unbound** the spells on your bars with no key, **All bindings** the game's whole list. Shift / Ctrl / Alt show each layer.
 
-**How can I donate?**  
-You can donate via [GitHub](https://github.com/sponsors/shagu) or [Ko-fi](https://ko-fi.com/shagu)
+| | | |
+|---|---|---|
+| <img src="docs/layouts.jpg" alt="UI layouts"><br>🗺️ **UI layouts**: one click to switch | <img src="docs/unitframes.jpg" alt="Unit frames"><br>🧍 **Unit frames**: click any part to change it | <img src="docs/actionbars.jpg" alt="Action bars"><br>⚔️ **Action bars**: 14 looks, every effect |
+| <img src="docs/nameplates.jpg" alt="Nameplates"><br>🎯 **Nameplates**: four live sample plates | <img src="docs/meters.jpg" alt="Meters"><br>📊 **Meters**: a test fight to style them | <img src="docs/combattext.jpg" alt="Combat text"><br>💥 **Combat text**: drag the areas |
+| <img src="docs/gear.jpg" alt="Gear sets"><br>🛡️ **Gear sets**: like the character window | <img src="docs/trinkets.jpg" alt="Trinket queue"><br>💍 **Trinket queue**: the next ready one goes on | <img src="docs/specs.jpg" alt="Talent specs"><br>🧠 **Talent specs**: gear, layout and spells per spec |
+| <img src="docs/autoswap.jpg" alt="Automatic swaps"><br>🔄 **Automatic swaps**: mount, swim, battleground... | <img src="docs/swing.jpg" alt="Swing timer"><br>⏱️ **Swing timer**: with Slam and twist marks | <img src="docs/slots.jpg" alt="Slot buttons"><br>🎚️ **Slot buttons**: use or swap any slot |
+| <img src="docs/chat.jpg" alt="Chat"><br>💬 **Chat**: timestamps and class colours | <img src="docs/minimap.jpg" alt="Minimap"><br>🧭 **Minimap**: shapes, art, a clock | <img src="docs/bags.jpg" alt="Bags"><br>🎒 **Bags**: one window, one-click sorting |
 
-**How do I report a Bug?**  
-Please provide as much information as possible in the [Bugtracker](https://github.com/shagu/pfUI/issues).
-If there is an error message, provide the full content of it. Just telling that "there is an error" won't help any of us.
-Please consider adding additional information such as: since when did you got the error,
-does it still happen using a clean configuration, what other addons are loaded and which version you're running.
-When playing with a non-english client, the language might be relevant too. If possible, explain how people can reproduce the issue.
+## ⚡ The DLLs: what they add
 
-**How can I contribute?**
-Report errors and issues in the [Bugtracker](https://github.com/shagu/pfUI/issues).
-Please make sure to have the latest version installed and check for conflicting addons beforehand.
+All optional: pfUI Octo works without them, and nobody loses a feature. The installer gets all four, or tick **nampower** and **unitXp** in OctoLauncher's mod list.
 
-**I have bad performance, what can I do?**  
-There's only one known performance issue: that is while using "Frame Shadows". Make sure to disable those
-in the pfUI settings (Settings -> Appearance -> Enable Frame Shadows). If you still have a low performance,
-it's most likely a combination with another addon. Disable all AddOns but pfUI and then enable one-by-one,
-till the performance problem occurs again. Make sure to report the identified AddOn and what you did to reproduce
-via the [Bugtracker](https://github.com/shagu/pfUI/issues).
+| DLL | What it adds |
+|---|---|
+| 🧬 **ClassicAPI** | Instant gear swaps and bag sorting, a real focus, "can't interrupt" cast bars, the combat log for meters, map reveal for OctoWoW's zones, item counts, loot history |
+| 🦸 **SuperWoW** | Focus by GUID, `/pfcast` mouseover casting, enemy cast bars, real casts for the swing timer and meters |
+| 🚀 **nampower** | Your queued spell on the cast bar, spell casts for combat text and meters |
+| 📏 **UnitXP_SP3** | Exact distances and line of sight for range fading on plates and frames |
 
-**Where is the happiness indicator for pets?**  
-The pet happiness is shown as the color of your pet's frame. Depending on your skin, this can either be the text or the background color of your pet's healthbar:
+## ⌨️ Commands
 
-- Green = Happy
-- Yellow = Content
-- Red = Unhappy
+| | |
+|---|---|
+| `/pfui` | the options window |
+| `/moveui` | layout mode: move, size, snap, hide |
+| `/layout [name]` | next UI layout, or the one you name |
+| `/gear` | gear sets (`naked`, `queue`, `specs`) |
+| `/keymap` | the Key Map |
+| `/sct` | combat text pages |
+| `/loothistory` | who rolled what (ClassicAPI) |
+| `/export`, `/import` | share your whole setup |
 
-Since version 4.0.7 there is also an additional icon that can be enabled from the pet unit frame options.
+---
 
-**Can I use Clique with pfUI?**  
-This addon already includes support for clickcasting. If you still want to make use of clique, all pfUI's unitframes are already compatible to Clique-TBC. For Vanilla, a pfUI compatible version can be found [Here](https://github.com/shagu/Clique/archive/master.zip). If you want to keep your current version of Clique, you'll have to apply this [Patch](https://github.com/shagu/Clique/commit/a5ee56c3f803afbdda07bae9cd330e0d4a75d75a).
-
-**Where is the Experience Bar?**  
-The experience bar shows up on mouseover and whenever you gain experience, next to left chatframe by default. There's also an option to make it stay visible all the time.
-
-**How do I show the Damage- and Threatmeter Dock?**  
-If you enabled the "dock"-feature for your external (third-party) meters such as DPSMate or KTM, then you'll be able to toggle between them and the Right Chat by clicking on the ">" symbol on the bottom-right panel.
-
-**Why is my chat always resetting to only 3 lines of text?**  
-This happens if "Simple Chat" is enabled in blizzards interface settings (Advanced Options).
-Paste the following command into your chat to disable that option: `/run SIMPLE_CHAT="0"; pfUI.chat.SetupPositions(); ReloadUI()`
-
-**How can I enable mouseover cast?**  
-On Vanilla, create a macro with "/pfcast SPELLNAME". If you also want to see the cooldown, You might want to add "/run if nil then CastSpellByName("SPELLNAME") end" on top of the macro. For The Burning Crusade, just use the regular mouseover macros.
-
-**Will there be pfUI for Activision's "Classic" remakes?**  
-No, it would require an entire rewrite of the AddOn since the game is now a different one. The AddOn-API has evolved during the last 15 years and the new "Classic" versions are based on a current retail gameclient. I don't plan to play any of those new versions, so I won't be porting any of my addons to it.
-
-**Everything from scratch?! Are you insane?**  
-Most probably, yes.
+Made with 💙 for the OctoWoW community by **Bdot89** · Discord: **benito9295**
+Based on [pfUI](https://github.com/shagu/pfUI) by Shagu (MIT licence). Made for the OctoWoW 1.12.1 client. Not affiliated with Blizzard Entertainment.
