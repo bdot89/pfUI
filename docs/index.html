@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pfUI Octo for OctoWoW</title>
+<meta name="description" content="Free all-in-one interface addon for WoW 1.12 (OctoWoW): unit frames, action bars, nameplates, meters, combat text, gear sets and layouts in one window.">
+<!-- What Discord (and other sites) show when the link is posted. Change ?v= on the
+     image after a new banner, so Discord fetches it again. Made with
+     tools\MakeOctoLogo.ps1 -Shots docs (logo + banner); the screenshots are crops
+     of the options window only. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Free addon for WoW 1.12 · OctoWoW">
+<meta property="og:title" content="🐙 pfUI Octo: your whole interface in one addon ✨">
+<meta property="og:description" content="🧩 Unit frames, action bars &amp; nameplates&#10;📊 Meters, threat &amp; combat text built in&#10;🛡️ Gear sets, trinket queue &amp; talent specs&#10;🗺️ Layouts for Normal, Raid &amp; PvP&#10;🎛️ One clean options window with live previews&#10;⚡ Faster with SuperWoW, ClassicAPI, nampower &amp; UnitXP">
+<meta property="og:url" content="https://bdot89.github.io/pfUI-Octo/">
+<meta property="og:image" content="https://bdot89.github.io/pfUI-Octo/banner.png?v=100">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="pfUI Octo by Bdot89: the logo and three pages of the options window">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bdot89.github.io/pfUI-Octo/banner.png?v=100">
+<meta name="theme-color" content="#33b3ff">
+<style>
+:root{--bg:#0d0f13;--panel:#151920;--panel2:#1b2029;--line:#262c37;--text:#eef3fa;--dim:#a6b3c4;
+ --blue:#33b3ff;--blue2:#6cc8ff;--teal:#33ffcc;--vio:#9a6bff;--vio2:#b896ff;--green:#3fd977;--red:#ff5a5a;--gold:#ffc840}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:
+  radial-gradient(ellipse 900px 520px at 85% 0%,rgba(51,179,255,.20),transparent 70%),
+  radial-gradient(ellipse 700px 500px at 0% 0%,rgba(51,255,204,.10),transparent 70%),
+  radial-gradient(ellipse 900px 600px at 50% 100%,rgba(154,107,255,.10),transparent 70%),var(--bg);
+ color:var(--text);font:17px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:1060px;margin:0 auto;padding:28px 16px 48px}
+a{color:var(--blue2)}
+.banner{display:block;width:100%;height:auto;border-radius:10px;border:2px solid transparent;
+ background:linear-gradient(var(--bg),var(--bg)) padding-box,linear-gradient(90deg,var(--teal),var(--blue),var(--vio)) border-box;
+ box-shadow:-12px 0 30px -10px rgba(51,255,204,.4),12px 0 30px -10px rgba(154,107,255,.55),0 18px 40px rgba(0,0,0,.6)}
+.logo{display:block;height:96px;width:auto;margin:26px 0 4px}
+h1{font:900 34px/1.15 "Segoe UI Black","Segoe UI",sans-serif;margin:0 0 2px;letter-spacing:-.3px}
+.pf{color:var(--teal);text-shadow:0 0 16px rgba(51,255,204,.5)}.o{color:var(--blue2);text-shadow:0 0 18px rgba(51,179,255,.6)}
+.slogan{font-size:22px;font-weight:700;color:#fff}
+.lead{margin-top:8px;color:#dfe7f2}
+.safe{margin-top:12px;padding:10px 14px;border-left:3px solid var(--teal);background:rgba(51,255,204,.06);border-radius:0 6px 6px 0;color:#dffaf3}
+.buttons{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;font-weight:700;text-decoration:none;color:#fff;border:2px solid transparent;
+ background:linear-gradient(var(--panel2),var(--panel2)) padding-box,linear-gradient(90deg,var(--teal),var(--blue),var(--vio)) border-box}
+.btn.main{background:linear-gradient(90deg,#1f9f86,#1f7fc4 50%,#6a46d6) padding-box,linear-gradient(90deg,var(--teal),var(--blue),var(--vio)) border-box;
+ box-shadow:-8px 0 20px -6px rgba(51,255,204,.5),8px 0 20px -6px rgba(154,107,255,.6)}
+.btn.discord{background:linear-gradient(#5865f2,#4752c4) padding-box,linear-gradient(90deg,#8ea1ff,#5865f2) border-box}
+.under{font-size:15px;color:var(--dim)}
+h2{font:800 26px/1.2 "Segoe UI",sans-serif;margin:38px 0 14px;color:#fff}
+h2 .hl{background:linear-gradient(90deg,var(--teal),var(--blue2),var(--vio2));-webkit-background-clip:text;background-clip:text;color:transparent}
+h3{font-size:19px;margin:0 0 6px;color:#fff}
+.features{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 18px}
+.features li{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px}
+.features li>b{display:block;color:#fff;font-size:17px}
+.features li span{color:var(--dim);font-size:15.5px}
+.intro{color:#dfe7f2;margin-bottom:16px}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(470px,1fr));gap:18px}
+.tab{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tab img{display:block;width:100%;height:auto;border-bottom:1px solid var(--line)}
+.tab div{padding:12px 15px 14px}
+.tab p{color:var(--dim);font-size:15.5px}
+.dlls{display:grid;grid-template-columns:repeat(auto-fit,minmax(470px,1fr));gap:16px}
+.dll{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;position:relative}
+.dll h3{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tag{font-size:12.5px;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.2px}
+.tag.easy{color:#0d0f13;background:var(--green)}.tag.manual{color:#0d0f13;background:var(--gold)}
+.dll ul{margin:6px 0 8px 18px;color:#dbe4ef;font-size:15.5px}
+.dll .how{font-size:15px;color:var(--dim);border-top:1px solid var(--line);padding-top:8px}
+.steps{counter-reset:s;list-style:none;display:grid;gap:12px}
+.steps>li{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 14px 62px;position:relative}
+.steps>li:before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:13px;width:32px;height:32px;border-radius:8px;
+ font:900 18px/32px "Segoe UI Black","Segoe UI",sans-serif;text-align:center;color:#0d0f13;background:linear-gradient(135deg,var(--teal),var(--blue) 55%,var(--vio2))}
+.steps p,.steps ul{color:#dbe4ef;font-size:16px}
+.steps ul{margin:6px 0 0 18px}
+.warn{margin-top:8px;padding:8px 12px;border-left:3px solid var(--gold);background:rgba(255,200,64,.07);border-radius:0 6px 6px 0;color:#ffe9a8;font-size:15.5px}
+.colours{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:6px;font-size:15.5px;color:var(--dim)}
+.colours span b{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+code{background:#1f2633;padding:1px 6px;border-radius:4px;font-size:15px;color:#fff}
+.note{margin-top:12px;color:var(--dim);font-size:15.5px}
+table.cmd{border-collapse:collapse;width:100%;font-size:15.5px}
+table.cmd td{padding:6px 10px;border-bottom:1px solid var(--line);color:var(--dim)}
+table.cmd td:first-child{white-space:nowrap;width:1%}
+footer{margin-top:40px;color:var(--dim);font-size:14px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<main>
+<img class="banner" src="banner.png?v=100" alt="pfUI Octo by Bdot89: the logo and three pages of the options window">
+
+<h1 style="margin-top:26px"><span class="pf">pfUI</span> <span class="o">Octo</span> for OctoWoW</h1>
+<p class="slogan">Your whole interface. One addon. ✨</p>
+<p class="lead"><b>pfUI Octo</b> is a free all-in-one interface for WoW 1.12 (OctoWoW), <b>version 1.0.0</b>, made by <b>Bdot89</b>. Unit frames, action bars, nameplates, damage and healing meters, threat, combat text, a swing timer, gear sets and whole UI layouts, all set up from <b>one clean options window</b> with a live preview on every page. 🎛️</p>
+<p class="safe">🧩 <b>Built on pfUI by Shagu</b>, so everything that works with pfUI keeps working: pfQuest, Clickcast, your profiles and your settings. It just does a lot more, and looks better doing it.</p>
+<div class="buttons">
+  <a class="btn main" href="https://github.com/bdot89/pfUI-Octo/releases/latest/download/pfUI.zip">⬇️ Download pfUI Octo (ZIP)</a>
+  <a class="btn discord" href="https://discord.com/users/637439763040960564">💬 DM benito9295 on Discord</a>
+  <a class="btn" href="https://github.com/bdot89/pfUI-Octo">📖 GitHub</a>
+  <a class="btn" href="https://github.com/bdot89/pfUI-Octo/releases">📜 What's new</a>
+</div>
+<p class="under">Unzip, put the <b>pfUI</b> folder in your AddOns, done. Full steps below 👇</p>
+
+<h2>🌟 <span class="hl">What you get</span></h2>
+<ul class="features">
+  <li><b>🗺️ UI layouts</b><span>Normal, Raid, PvP or your own: each keeps its own frame positions, meters, gear set and even action bar spells. Switch with one click, or let it switch by itself in raids, dungeons, battlegrounds and arenas</span></li>
+  <li><b>🧍 Unit frames</b><span>Player, target, focus, party and raid, with borders, fading health, combat flash, class icons, elite and rare marks, dispel colours and buff timers. Click any part of the preview to change it</span></li>
+  <li><b>⚔️ Action bars</b><span>Bartender-style bars with 14 button looks, proc glows, cooldown swipes, hover and press effects, fade in and out of combat, and end-cap art</span></li>
+  <li><b>🎯 Nameplates</b><span>Plater-style plates: 8 ready looks, auras with timers, cast bars, threat colours, quest marks, class icons, range fading and your own "when this, do that" rules</span></li>
+  <li><b>📊 Meters &amp; threat</b><span>Damage, healing, interrupts, dispels, deaths and more in up to 6 windows, with a full breakdown of every spell, target and death. Threat with a pull warning on the target's plate</span></li>
+  <li><b>💥 Combat text</b><span>Scrolling combat text in five areas you place yourself, with looks, crits, sounds and alerts</span></li>
+  <li><b>⏱️ Swing timer</b><span>Main hand, off hand and ranged swings, parry haste, queued attacks, Aimed Shot and Multi-Shot clipping, Slam and Seal-twist marks</span></li>
+  <li><b>🛡️ Gear sets</b><span>Item Rack-style sets that swap at once, a trinket queue, slot buttons, automatic swaps when you mount, swim, stealth or enter a battleground, and talent specs at the Goblin Brainwashing Device</span></li>
+  <li><b>🎒 Bags, chat, minimap</b><span>Bags with instant sorting, chat with timestamps and class colours, a SexyMap-style minimap with shapes, art and a clock, loot roll history</span></li>
+  <li><b>🧭 Layout mode</b><span><code>/moveui</code>: drag frames, snap them to each other, to the grid or to mirrored guide lines, match sizes, lock frames together and hide what you don't need</span></li>
+  <li><b>🔁 pfUI Octo or Blizzard</b><span>Every section has a switch at the top of its page: go back to Blizzard's frames for that part at once, no reload</span></li>
+  <li><b>⚡ Faster, smoother</b><span>Calmer nameplates in big pulls, unit frames that only listen to their own unit, and much more, so your frame rate stays up</span></li>
+</ul>
+<p class="note">Your settings are saved per character and stay through /reload and logging in. Share a whole setup as one text with <code>/export</code> and <code>/import</code>. 💾</p>
+
+<h2>📸 <span class="hl">Screenshots</span></h2>
+<p class="intro">One window with a topic list on the left and a page on the right. Every page opens with a live preview: click a part of it to jump to its settings, drag it to move it, and turn the mouse wheel to zoom. 👀</p>
+<p class="colours"><span><b style="background:var(--green)"></b>green = on</span><span><b style="background:var(--red)"></b>red = off</span><span><b style="background:var(--vio)"></b>purple = pick one</span><span><b style="background:var(--gold)"></b>gold = save / copy</span><span><b style="background:var(--blue)"></b>blue = opens more</span></p>
+<div class="tabs" style="margin-top:14px">
+  <div class="tab"><img src="layouts.jpg" alt="UI layouts page" loading="lazy"><div><h3>🗺️ UI layouts</h3><p>Your layouts as coloured tiles: click one to switch, right-click to rename it or give it a picture and colour. Each remembers where every frame sits, which meters show, a gear set and your own spells on the bars. Below: which layout to use in the open world, dungeons, raids, battlegrounds and arenas.</p></div></div>
+  <div class="tab"><img src="unitframes.jpg" alt="Unit frames page" loading="lazy"><div><h3>🧍 Unit frames</h3><p>Pick a frame from the tabs (player, target, focus, party, raid...) and the preview shows your real frame. Every part is clickable: the health bar, the texts, the portrait, the buffs. Drag the texts to move them, Shift + wheel to resize.</p></div></div>
+  <div class="tab"><img src="actionbars.jpg" alt="Action bars page" loading="lazy"><div><h3>⚔️ Action bars</h3><p>Your real bars on a mini screen and a sample button that plays every effect: proc glow, cooldown, hover and press. Click a bar for its settings, Shift + wheel for its button size, and pick a look from 14 picture tiles.</p></div></div>
+  <div class="tab"><img src="nameplates.jpg" alt="Nameplates page" loading="lazy"><div><h3>🎯 Nameplates</h3><p>Four sample plates: your target, one casting, a quest mob and a friendly player. Change anything and the preview follows. "Test on real nameplates" shows threat colours and casts on the plates around you.</p></div></div>
+  <div class="tab"><img src="meters.jpg" alt="Meters page" loading="lazy"><div><h3>📊 Meters</h3><p>Up to six windows, each with its own look. "Test fight" fills them with a made-up Onyxia fight so you can style them without fighting, and "Open breakdown" shows the full Details!-style report.</p></div></div>
+  <div class="tab"><img src="combattext.jpg" alt="Combat text page" loading="lazy"><div><h3>💥 Combat text</h3><p>A small copy of your screen with each text area where it really is. Drag an area to move it, click it for its settings, and watch sample hits, heals and crits float by.</p></div></div>
+  <div class="tab"><img src="swing.jpg" alt="Swing timer page" loading="lazy"><div><h3>⏱️ Swing timer</h3><p>Main hand, off hand, ranged and cast bars in the bar and border style you pick, with the warrior's Slam window and the paladin's Seal-twist marks shown right on the preview.</p></div></div>
+  <div class="tab"><img src="gear.jpg" alt="Gear sets page" loading="lazy"><div><h3>🛡️ Gear sets</h3><p>Your character between the slot columns, like the character window. Click a slot to pick an item from your bags, untick slots to leave them out, then Save. Wear a set with a click, a key, the minimap button or the set button.</p></div></div>
+  <div class="tab"><img src="trinkets.jpg" alt="Trinket queue page" loading="lazy"><div><h3>💍 Trinket queue</h3><p>List your trinkets in order for each slot: when the one you wear is on cooldown, the next ready one goes on by itself. Priority, pause and delay per trinket.</p></div></div>
+  <div class="tab"><img src="specs.jpg" alt="Talent specs page" loading="lazy"><div><h3>🧠 Talent specs</h3><p>Give each talent spec at the Goblin Brainwashing Device a gear set, a UI layout and its own spells on your bars. Switch spec and everything follows.</p></div></div>
+  <div class="tab"><img src="autoswap.jpg" alt="Automatic swaps page" loading="lazy"><div><h3>🔄 Automatic swaps</h3><p>Put on a set when you mount, take a flight path, swim, stealth, enter a battleground, raid or dungeon, rest or start a fight, and put your gear back after.</p></div></div>
+  <div class="tab"><img src="slots.jpg" alt="Slot buttons page" loading="lazy"><div><h3>🎚️ Slot buttons</h3><p>A bar with buttons for any equipment slot: click to use the item, hover to swap it for another from your bags. Bind them to keys in the Key Map.</p></div></div>
+  <div class="tab"><img src="chat.jpg" alt="Chat page" loading="lazy"><div><h3>💬 Chat</h3><p>A preview of your chat with timestamps, class colours and short channel names, plus a separate Whispers tab and the Loot &amp; Spam window.</p></div></div>
+  <div class="tab"><img src="minimap.jpg" alt="Minimap page" loading="lazy"><div><h3>🧭 Minimap</h3><p>SexyMap-style shapes, borders and spinning art, a clock, and every addon button: put it on the panel, on the map, or hide it.</p></div></div>
+  <div class="tab"><img src="bags.jpg" alt="Bags page" loading="lazy"><div><h3>🎒 Bags</h3><p>One bag window with your columns, slot size and spacing, and one-click sorting (instant with ClassicAPI).</p></div></div>
+</div>
+
+<h2 id="dlls">⚡ <span class="hl">Runs even better with</span></h2>
+<p class="intro">pfUI Octo works on a plain client. These optional client mods give it better data, and it uses each one it finds. Nobody without them loses a feature. 🧠</p>
+<div class="dlls">
+  <div class="dll"><h3>🚀 nampower <span class="tag easy">OctoLauncher mod</span></h3>
+    <ul><li>Your queued spell shows at the end of your cast bar</li><li>Spell casts and GUIDs for combat text and meters</li></ul>
+    <p class="how"><b>How to get it:</b> open OctoLauncher, go to its list of mods and tick <b>nampower</b>.</p></div>
+  <div class="dll"><h3>📏 UnitXP_SP3 <span class="tag easy">OctoLauncher mod</span></h3>
+    <ul><li>Exact distances for range fading on nameplates and unit frames</li><li>Line of sight: a unit behind a wall counts as out of range</li></ul>
+    <p class="how"><b>How to get it:</b> in OctoLauncher's list of mods, tick <b>unitXp</b>.</p></div>
+  <div class="dll"><h3>🦸 SuperWoW <span class="tag manual">by hand</span></h3>
+    <ul><li>Focus frame by GUID and <code>/pfcast</code> mouseover casting without switching target</li><li>Enemy cast bars on nameplates and target frames</li><li>Swing timer and meters read real casts, druid mana bar in forms</li></ul>
+    <p class="how"><b>How to get it:</b> download it from <a href="https://github.com/balakethelock/SuperWoW/releases">SuperWoW's releases</a>, put the DLL next to <b>WoW.exe</b> and add its file name on its own line in <code>dlls.txt</code> in the same folder.</p></div>
+  <div class="dll"><h3>🧬 ClassicAPI <span class="tag manual">by hand</span></h3>
+    <ul><li><b>Instant gear swaps</b> and <b>instant bag sorting</b></li><li>A real focus unit, cast bars that know "can't be interrupted"</li><li>The combat log for meters: exact crits, who interrupted what, dispels, kills</li><li>Map reveal for OctoWoW's own zones, item counts in tooltips, loot roll history, faster unit frames</li></ul>
+    <p class="how"><b>How to get it:</b> download it from <a href="https://github.com/brues-code/ClassicAPI/releases">ClassicAPI's releases</a>, put <b>ClassicAPI.dll</b> next to <b>WoW.exe</b> and add <code>ClassicAPI.dll</code> on its own line in <code>dlls.txt</code>.</p></div>
+</div>
+<p class="note">Start the game from <b>OctoLauncher</b> afterwards. OctoLauncher keeps the lines you add to <code>dlls.txt</code>. Close the game before you add a DLL.</p>
+
+<h2>🛠️ <span class="hl">How to install</span></h2>
+<p class="intro">It takes about two minutes. ⏱️</p>
+<ol class="steps">
+  <li><h3>Close the game 🚪</h3><p>Addons are only read when the game starts.</p></li>
+  <li><h3>Put pfUI Octo in your AddOns folder 📁</h3><p><a href="https://github.com/bdot89/pfUI-Octo/releases/latest/download/pfUI.zip"><b>Download pfUI.zip</b></a>, right-click it and choose <b>Extract All</b>, then <b>Extract</b>. Move the <b>pfUI</b> folder inside it into your game's AddOns folder, so it ends up like this: <code>OctoWoW\Interface\AddOns\pfUI\pfUI.toc</code></p>
+    <p class="warn">Already have pfUI? Replace the old <b>pfUI</b> folder: your settings are kept. The folder must be called <b>pfUI</b> (other addons look for that name).</p></li>
+  <li><h3>Play! 🎮</h3><p>Start the game from <b>OctoLauncher</b>. The first time, a short setup wizard helps you pick a look and a layout. After that:</p>
+    <ul><li><code>/pfui</code> opens the options window</li><li><code>/moveui</code> opens layout mode to move and size frames</li><li>Optional: add the client mods above for even more</li></ul></li>
+</ol>
+
+<h2>⌨️ <span class="hl">Commands</span></h2>
+<table class="cmd">
+  <tr><td><code>/pfui</code></td><td>Open the options window</td></tr>
+  <tr><td><code>/moveui</code></td><td>Layout mode: move, size, snap and hide frames</td></tr>
+  <tr><td><code>/layout [name]</code></td><td>Switch to your next UI layout, or to the one you name</td></tr>
+  <tr><td><code>/gear</code></td><td>Gear sets: <code>/gear naked</code>, <code>/gear queue</code>, <code>/gear specs</code></td></tr>
+  <tr><td><code>/keymap</code></td><td>Key Map: a keyboard picture to drag your spells onto keys</td></tr>
+  <tr><td><code>/sct</code></td><td>Combat text pages</td></tr>
+  <tr><td><code>/loothistory</code></td><td>Who rolled what on group loot (ClassicAPI)</td></tr>
+  <tr><td><code>/export</code>, <code>/import</code></td><td>Share your whole setup as one text</td></tr>
+  <tr><td><code>/pfui install</code></td><td>Run the setup wizard again</td></tr>
+</table>
+
+<footer>Made with 💙 for the OctoWoW community by <b>Bdot89</b> · <a href="https://github.com/bdot89/pfUI-Octo">GitHub</a> · Discord: <a href="https://discord.com/users/637439763040960564">benito9295</a><br>Based on <a href="https://github.com/shagu/pfUI">pfUI</a> by Shagu (MIT licence). Made for the OctoWoW 1.12.1 client. Not affiliated with Blizzard Entertainment.</footer>
+</main>
+</body>
+</html>
