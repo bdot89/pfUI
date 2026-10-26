@@ -414,3 +414,26 @@ if UF and O and UF.SECTIONS then
 else
   ok(false, "unit frames sections (pfUI.ufOcto.SECTIONS)")
 end
+
+-- ---------------------------------------------------------------- bar shape follows its buttons
+-- (user, 26 Oct 2026: "when i choose 9 buttons the right option should change to 1x9")
+do
+  local N = pfUI.api.BarLayoutNearest
+  ok(N, "action bar shape helper (pfUI.api.BarLayoutNearest)")
+  if N then
+    ok(N(9, "1 x 12") == "1 x 9", "1 x 12 with 9 buttons becomes 1 x 9")
+    ok(N(9, "12 x 1") == "9 x 1", "12 x 1 with 9 buttons becomes 9 x 1")
+    ok(N(9, "6 x 2") == "3 x 3", "6 x 2 with 9 buttons becomes 3 x 3")
+    ok(N(8, "6 x 2") == "4 x 2", "6 x 2 with 8 buttons becomes 4 x 2")
+    ok(N(12, "1 x 9") == "1 x 12", "and back to 1 x 12")
+    -- a bar saved as 9 buttons in "1 x 12" is drawn as one column of 9, not one row
+    local bar = C.bars.bar3
+    local ob, of = bar.buttons, bar.formfactor
+    bar.buttons, bar.formfactor = "9", "1 x 12"
+    pfUI.bars:UpdateConfig()
+    local f = pfUI.bars[3]
+    ok(f and f._size and f._size[2] > f._size[1], "9 buttons saved as 1 x 12 draw as a column (" .. tostring(f and f._size and f._size[1]) .. " x " .. tostring(f and f._size and f._size[2]) .. ")")
+    bar.buttons, bar.formfactor = ob, of
+    pfUI.bars:UpdateConfig()
+  end
+end

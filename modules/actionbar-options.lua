@@ -937,17 +937,48 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
     end })
     W.Card(p, "Layout", { on = { function() return BAR().enable == "1" end, function(v) BAR().enable = v and "1" or "0"; U() end,
       "This bar on or off." } })
-    W.Dropdown(p, "Buttons", nil, (function()
+    -- (user, 26 Oct 2026: "when i choose 9 buttons the right option should change to 1x9") the shapes
+    -- listed are the ones for this bar's button count, and a new count keeps the shape nearest the old
+    -- one (1 x 12 -> 1 x 9, 6 x 2 -> 3 x 3); a shape that does not fit the count made pfUI fall back to one row.
+    local function Count()
+      if TAB.cur == 11 then return math.max(1, GetNumShapeshiftForms and GetNumShapeshiftForms() or 10) end
+      if TAB.cur == 12 then return NUM_PET_ACTION_SLOTS or 10 end
+      return math.min(12, math.max(1, tonumber(BAR().buttons) or 12))
+    end
+    local function Shapes(n) return pfGridmath and pfGridmath[n] or {} end
+    local function ShapeOf(ff)
+      local c, r = string.gfind(tostring(ff or ""), "(%d+) x (%d+)")()
+      return tonumber(c), tonumber(r)
+    end
+    local function Fits(n, ff)
+      local c, r = ShapeOf(ff)
+      return c and r and c * r == n
+    end
+    -- the shape for n buttons nearest the bar's current one (api.lua BarLayoutNearest; the bars use it too)
+    local Nearest = BarLayoutNearest
+    W.Dropdown(p, "Buttons", "How many buttons this bar has. Rows and columns changes to fit.", (function()
       local o = {}
       for n = 1, 12 do table.insert(o, { key = tostring(n), label = tostring(n) }) end
       return o
-    end)(), function() return BAR().buttons end, function(v) BAR().buttons = v; U() end)
-    W.Dropdown(p, "Rows and columns", "How the buttons are laid out.", (function()
+    end)(), function() return BAR().buttons end, function(v)
+      BAR().buttons = v
+      local n = math.min(12, math.max(1, tonumber(v) or 12))
+      if not Fits(n, BAR().formfactor) then BAR().formfactor = Nearest(n, BAR().formfactor) end
+      U()
+    end)
+    W.Dropdown(p, "Rows and columns", "How the buttons are laid out: columns x rows. Only the shapes that fit this bar's number of buttons are listed.", function()
       local o = {}
-      local opts = BarLayoutOptions and BarLayoutOptions(12) or {}
-      for _, f in ipairs(opts) do table.insert(o, { key = f, label = f }) end
+      for _, s in ipairs(Shapes(Count())) do
+        local f = string.format("%d x %d", s[1], s[2])
+        local tip = (s[2] == 1) and "One row." or (s[1] == 1) and "One column." or (s[2] .. " rows of " .. s[1] .. ".")
+        table.insert(o, { key = f, label = f, tip = tip })
+      end
       return o
-    end)(), function() return BAR().formfactor end, function(v) BAR().formfactor = v; U() end)
+    end, function()
+      local n, ff = Count(), BAR().formfactor
+      if Fits(n, ff) then return ff end
+      return Nearest(n, ff)
+    end, function(v) BAR().formfactor = v; U() end)
     Sld(p, "Button size", nil, 10, 64, 1, BAR, "icon_size", Px)
     Sld(p, "Spacing", "Space between the buttons.", 0, 20, 1, BAR, "spacing", Px)
     Sld(p, "Scale", "The whole bar bigger or smaller.", .5, 2, .05, BAR, "scale", Pct)

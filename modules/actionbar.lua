@@ -1264,8 +1264,11 @@ pfUI:RegisterModule("actionbar", "vanilla:tbc", function ()
     end
 
     -- the stored layout is invalid, temporary fallback
-    if not pfGridmath[buttons][BarLayoutFormfactor(formfactor)] then
-      formfactor = BarLayoutOptions(buttons)[1]
+    -- (pfUI Octo) the nearest shape for this many buttons, not always one row
+    local ffi = BarLayoutFormfactor(formfactor)
+    local shape = ffi and pfGridmath[buttons][ffi]
+    if not shape or shape[1] * shape[2] ~= buttons then
+      formfactor = BarLayoutNearest and BarLayoutNearest(buttons, formfactor) or BarLayoutOptions(buttons)[1]
     end
 
     local font = pfUI.font_unit

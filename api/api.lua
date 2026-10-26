@@ -1140,6 +1140,24 @@ function pfUI.api.BarLayoutOptions(barsize)
   return options
 end
 
+-- [ Bar Layout Nearest ] --
+-- (pfUI Octo, 26 Oct 2026) the layout for 'barsize' buttons nearest 'option' (a layout of another size):
+-- one row stays a row, one column a column, a grid a grid, then the nearest width / height ratio.
+-- "1 x 12" with 9 buttons -> "1 x 9", "6 x 2" -> "3 x 3"; pfUI fell back to one row.
+function pfUI.api.BarLayoutNearest(barsize, option)
+  local c, r = string.gfind(tostring(option or ""), "(%d+) x (%d+)")()
+  c, r = tonumber(c), tonumber(r)
+  local function Kind(x, y) return (y == 1 and "row") or (x == 1 and "col") or "grid" end
+  local want = (c and r and c > 0 and r > 0) and math.log(c / r) or math.log(12)
+  local kind = (c and r) and Kind(c, r) or "row"
+  local best, bestd
+  for _, s in ipairs(pfGridmath[barsize] or {}) do
+    local d = math.abs(math.log(s[1] / s[2]) - want) + ((Kind(s[1], s[2]) == kind) and 0 or 100)
+    if not bestd or d < bestd then best, bestd = s, d end
+  end
+  return best and string.format("%d x %d", best[1], best[2]) or option
+end
+
 -- [ Bar Layout Formfactor ] --
 -- 'option'  string option as used in pfUI_config.bars[bar].option
 -- returns:  integer formfactor
