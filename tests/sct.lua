@@ -191,6 +191,37 @@ for i = 1, table.getn(CT.CRITS) do
   CT:Show("c" .. i, 1, 0, 0, "extra", { crit = true })
   CT:Show("pc" .. i, 1, 0, 0, "plate", { crit = true, guid = FOE, target = false, kind = "crit" })
 end
+-- (user, 26 Oct 2026: "give crits options for movement same as hits") a crit's
+-- entrance and movement are two settings; old settings keep their look
+do
+  local X = B.db.sct.areas.extra
+  CT:Clear()
+  X.anim, X.crit, X.critPath, X.critOwn = "vertical", "pow", nil, nil
+  CT:Show("old", 1, 0, 0, "extra", { crit = true })
+  ok(LiveText("old") and LiveText("old").move == "pin", "an old Pow crit still stays in place")
+  X.critPath = "fountain"
+  CT:Show("own", 1, 0, 0, "extra", { crit = true })
+  local o = LiveText("own")
+  ok(o and o.move == "fountain" and o.critStyle == "pow", "a Pow crit can move: slams in, then flies like a fountain")
+  X.critPath = "same"
+  CT:Show("same", 1, 0, 0, "extra", { crit = true })
+  ok(LiveText("same") and LiveText("same").move == "vertical", "crits can move the same as the hits")
+  X.critOwn, X.critTime, X.critHeight = true, 5, 333
+  CT:Show("long", 1, 0, 0, "extra", { crit = true })
+  o = LiveText("long")
+  ok(o and o.H == 333 and o.dur > X.time, "crits have their own time and travel")
+  X.critOwn, X.critPath = nil, nil
+  local P = B.db.sct.plates
+  local savedMove, savedCrit = P.critMove, P.crit
+  P.crit, P.critMove, P.critPath = "flash", "rainfall", nil
+  CT:Show("pold", 1, 0, 0, "plate", { crit = true, guid = FOE, target = true, kind = "crit" })
+  ok(LiveText("pold") and LiveText("pold").move == "rainfall", "an old nameplate crit movement still applies")
+  P.critPath = "still"
+  CT:Show("pstill", 1, 0, 0, "plate", { crit = true, guid = FOE, target = true, kind = "crit" })
+  ok(LiveText("pstill") and LiveText("pstill").move == "pin", "nameplate crits can stay in place with any entrance")
+  P.critPath, P.critMove, P.crit = nil, savedMove, savedCrit
+  CT:Clear()
+end
 for _, d in ipairs({ "down", "up" }) do
   B.db.sct.areas.extra.dir = d
   for _, s in ipairs({ "alt", "dmgLeft", "dmgRight", "left", "right" }) do

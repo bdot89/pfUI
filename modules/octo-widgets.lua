@@ -1130,6 +1130,18 @@ function W.Menu(anchor, options, width, onPick)
         onPick(this.key)
       end)
     end
+    -- (octo, 26 Oct 2026) an entry with a tip explains itself on hover
+    if o.tip then
+      e.tipTitle, e.tipText = o.label, o.tip
+      e:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(menu, "ANCHOR_NONE")
+        GameTooltip:SetPoint("TOPLEFT", menu, "TOPRIGHT", 4, 0)
+        GameTooltip:SetText(this.tipTitle, 1, .82, 0)
+        GameTooltip:AddLine(this.tipText, 1, 1, 1, 1)
+        GameTooltip:Show()
+      end)
+      e:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
   end
   menu:SetHeight(rows * 17 + 8)
   return menu

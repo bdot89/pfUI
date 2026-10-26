@@ -193,22 +193,54 @@ MOVE.comet = function(o, t)
 end
 
 CT.MOVES = {
-  { key = "vertical", label = "Vertical (SCT)" }, { key = "rainbow", label = "Rainbow arc (SCT)" },
-  { key = "horizontal", label = "Horizontal (SCT)" }, { key = "angledDown", label = "Angled down (SCT)" },
-  { key = "angledUp", label = "Angled up (SCT)" }, { key = "sprinkler", label = "Sprinkler (SCT)" },
-  { key = "hudCurved", label = "HUD curved (SCT)" }, { key = "hudAngled", label = "HUD angled (SCT)" },
-  { key = "parabola", label = "Parabola (MSBT)" }, { key = "static", label = "Static (MSBT / messages)" },
-  { key = "fountain", label = "Fountain (NameplateSCT)" }, { key = "rainfall", label = "Rainfall (NameplateSCT)" },
-  { key = "fireworks", label = "Fireworks (NameplateSCT)" }, { key = "sway", label = "Sway" }, { key = "wave", label = "Wave" },
-  { key = "zigzag", label = "Zigzag" }, { key = "spiral", label = "Spiral" }, { key = "bounce", label = "Bounce" },
-  { key = "shockwave", label = "Shockwave" }, { key = "comet", label = "Comet" }, { key = "random", label = "Random mix" },
+  { key = "vertical", label = "Vertical (SCT)", tip = "Straight up (or down) the area, one line after another." },
+  { key = "rainbow", label = "Rainbow arc (SCT)", tip = "Arcs out to the side and drops, like a rainbow." },
+  { key = "horizontal", label = "Horizontal (SCT)", tip = "Slides out sideways at a random height." },
+  { key = "angledDown", label = "Angled down (SCT)", tip = "Shoots out and down, shakes, holds, then drifts away." },
+  { key = "angledUp", label = "Angled up (SCT)", tip = "Shoots out and up, shakes, holds, then drifts up." },
+  { key = "sprinkler", label = "Sprinkler (SCT)", tip = "Each new text leaves at the next angle of a fan." },
+  { key = "hudCurved", label = "HUD curved (SCT)", tip = "Runs up the side of a circle round the middle of the screen." },
+  { key = "hudAngled", label = "HUD angled (SCT)", tip = "Runs up a slanted line beside the middle of the screen." },
+  { key = "parabola", label = "Parabola (MSBT)", tip = "Rises and bulges out half way up, MSBT style." },
+  { key = "static", label = "Static (MSBT / messages)", tip = "Stays put; new lines push the older ones along. Good for messages." },
+  { key = "fountain", label = "Fountain (NameplateSCT)", tip = "Flies up out to the side and falls, like a fountain." },
+  { key = "rainfall", label = "Rainfall (NameplateSCT)", tip = "Falls down from a random spot." },
+  { key = "fireworks", label = "Fireworks (NameplateSCT)", tip = "Bursts out in a random direction." },
+  { key = "sway", label = "Sway", tip = "Rises with a slow sway from side to side." },
+  { key = "wave", label = "Wave", tip = "Rises in a quicker wave." },
+  { key = "zigzag", label = "Zigzag", tip = "Rises zigzagging left and right." },
+  { key = "spiral", label = "Spiral", tip = "Rises turning in a spiral." },
+  { key = "bounce", label = "Bounce", tip = "Bounces up and out to the side." },
+  { key = "shockwave", label = "Shockwave", tip = "Blasts out to the side fast, then slows." },
+  { key = "comet", label = "Comet", tip = "Streaks out to the side in a curve." },
+  { key = "random", label = "Random mix", tip = "A different movement each time, picked at random." },
 }
 local RANDOM_POOL = { "vertical", "rainbow", "horizontal", "sprinkler", "parabola", "fountain", "rainfall", "sway",
                       "wave", "zigzag", "spiral", "bounce", "comet" }
-CT.CRITS = { { key = "sticky", label = "Sticky (SCT)" }, { key = "pow", label = "Pow (MSBT)" },
-             { key = "shake", label = "Pow and shake" }, { key = "flash", label = "Flash (SCT)" },
-             { key = "blizzard", label = "Blizzard pop (moves on)" }, { key = "zoom", label = "Zoom in (moves on)" },
-             { key = "normal", label = "Normal, just bigger" } }
+-- (pfUI Octo, 26 Oct 2026, user: "give crits options for movement same as hits ... it's hard to understand what
+-- does what"): a crit's entrance (crit) and how it moves (critPath) are now two settings. Each entry has a tip
+-- shown when the mouse is over it in the menu.
+CT.CRITS = { { key = "sticky", label = "Pop (SCT Sticky)", tip = "Pops a little bigger for a moment as it appears." },
+             { key = "pow", label = "Slam in (MSBT Pow)", tip = "Starts twice as big and slams down to size." },
+             { key = "shake", label = "Slam and shake", tip = "Slams in like Pow, then shakes for half a second." },
+             { key = "flash", label = "Shrink in from big (SCT Flash)", tip = "Starts twice as big and shrinks to size over a third of a second." },
+             { key = "blizzard", label = "Swell and settle (Blizzard)", tip = "The game's own crit: swells fast, then settles a little bigger than a hit." },
+             { key = "zoom", label = "Grow from small (Zoom)", tip = "Starts small and grows to size, with a little overshoot." },
+             { key = "normal", label = "None, just bigger", tip = "No entrance: the crit is simply bigger than a hit." } }
+-- How a crit moves: as the hits of that place, stays put, or any movement.
+CT.CRIT_PATHS = { { key = "same", label = "Same as the hits here", tip = "Crits take the hits' movement of this area or nameplate." },
+                  { key = "still", label = "Stay in place (SCT Sticky)", tip = "Crits stay where they appear, stacked above and below the middle, then fade." } }
+for _, m in ipairs(CT.MOVES) do table.insert(CT.CRIT_PATHS, m) end
+-- Settings from before 26 Oct 2026 keep their look: Sticky, Pow and Shake
+-- crits stayed in place; a nameplate's crits moved by plates.critMove.
+local PINNED = { sticky = true, pow = true, shake = true }
+function CT.CritPath(t, plate)
+  if not t then return "same" end
+  if t.critPath then return t.critPath end
+  if PINNED[t.crit] then return "still" end
+  if plate then return t.critMove or "same" end
+  return "same"
+end
 CT.MARKS = { { key = "none", label = "No mark" }, { key = "bang", label = "2468!" }, { key = "word", label = "CRIT! 2468" },
              { key = "stars", label = "*2468*" }, { key = "arrows", label = ">> 2468 <<" } }
 CT.STYLES = { { key = "octo", label = "pfUI Octo (as set up on these pages)" },
@@ -309,13 +341,16 @@ end
 
 -- Where texts start inside an area: the bottom for upward movement, the top
 -- for downward, else the middle.
-local function Origin(a)
-  if a.anim == "vertical" or a.anim == "parabola" or a.anim == "sway" or a.anim == "wave"
-     or a.anim == "zigzag" or a.anim == "spiral" then
-    return (a.dir == "down") and "TOP" or "BOTTOM"
+-- (anim / dir: the text's own, a crit's can differ from its area's)
+local function Origin(a, anim, dir)
+  anim, dir = anim or a.anim, dir or a.dir
+  if anim == "vertical" or anim == "parabola" or anim == "sway" or anim == "wave"
+     or anim == "zigzag" or anim == "spiral" then
+    return (dir == "down") and "TOP" or "BOTTOM"
   end
   return "CENTER"
 end
+CT.Origin = Origin
 
 -- ---------------------------------------------------------------- nameplates
 
@@ -512,7 +547,7 @@ function CT:Show(text, r, g, b, where, opts)
     o.areaKey = "plate"
   elseif plate then
     local kind = opts.kind or (crit and "crit" or "hit")
-    if kind == "crit" then move = P.critMove or P.hit else move = P[kind] or P.hit end
+    if kind == "crit" then move = P.hit else move = P[kind] or P.hit end
     critStyle = crit and P.crit or nil
     size = P.size * (crit and P.critScale or 1)
     alpha = 1
@@ -532,6 +567,17 @@ function CT:Show(text, r, g, b, where, opts)
     o.H, o.W = a.height, a.width
     o.areaKey = areaKey
   end
+  -- (26 Oct 2026) a crit moves its own way: same as the hits, stays put, or
+  -- any movement; with critOwn its own time, travel and direction
+  local critT = crit and not team and (plate and P or a) or nil
+  if critT then
+    local path = CT.CritPath(critT, plate and true)
+    if path == "still" then move = "pin" elseif path ~= "same" then move = path end
+    if critT.critOwn then
+      dur = critT.critTime or dur
+      o.H, o.W = critT.critHeight or o.H, critT.critWidth or o.W
+    end
+  end
   if opts.small then size = size * db.smallScale end
   size = size * (db.scale or 1)
   -- Blizzard numbers: straight up from the plate, crits pop and move on
@@ -545,12 +591,13 @@ function CT:Show(text, r, g, b, where, opts)
   if critLook then dur = dur * (L.hold or 1) end
   if opts.big then size = size * (db.bigScale or 1.4) end
   if move == "random" then move = RANDOM_POOL[random(1, table.getn(RANDOM_POOL))] end
-  if critStyle == "sticky" or critStyle == "pow" or critStyle == "shake" then move = "pin" end
   o.move, o.crit, o.critStyle = move, crit, critStyle
   o.size, o.alpha = math.max(6, floor(size + 0.5)), alpha
   o.dur = dur / math.max(0.25, db.speed or 1)
-  o.d = (a and a.dir == "down") and -1 or 1
-  o.side = Side(a and a.side or "alt", opts.heal)
+  local dir, side = a and a.dir, a and a.side
+  if critT and critT.critOwn then dir, side = critT.critDir or dir, critT.critSide or side end
+  o.d = (dir == "down") and -1 or 1
+  o.side = Side(side or "alt", opts.heal)
   o.s = o.side
   o.r1, o.r2, o.r3 = random(), random(), random()
   o.spr = self.spr
@@ -567,7 +614,7 @@ function CT:Show(text, r, g, b, where, opts)
   o.px = team and db.team.x or 0
   -- the anchor point inside the area / above the plate
   o.anchor = plate or self.panels[areaKey]
-  o.point = plate and "TOP" or Origin(a)
+  o.point = plate and "TOP" or Origin(a, move, dir)
   o.py = plate and P.yOffset or 0
   local fs = o.fs
   local font = (a and a.font ~= "" and a.font) or db.font

@@ -275,18 +275,29 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
         o.d = (a.dir == "down") and -1 or 1
         o.origin = Origin(a)
       else
-        move = crit and (P.critMove or P.hit) or P.hit
+        move = P.hit
         cs, size, dur, alpha = crit and P.crit or nil, P.size * (crit and P.critScale or 1), P.time, 1
         o.H, o.W = P.height * k, P.width * k
         o.d = 1
         o.origin = "TOP"
+      end
+      -- a crit's own movement (as the engine's Show)
+      local critT = crit and (a or P) or nil
+      if critT then
+        local path = CT.CritPath and CT.CritPath(critT, not a) or "same"
+        if path == "still" then move = "pin" elseif path ~= "same" then move = path end
+        if critT.critOwn then
+          dur = critT.critTime or dur
+          o.H, o.W = (critT.critHeight or o.H / k) * k, (critT.critWidth or o.W / k) * k
+          if critT.critDir then o.d = (critT.critDir == "down") and -1 or 1 end
+        end
+        if a then o.origin = Origin({ anim = move, dir = o.d < 0 and "down" or "up" }) end
       end
       if db.style == "blizzard" and not a then
         move = "vertical"
         if crit then cs = "blizzard" end
       end
       if move == "random" then move = POOL[random(1, table.getn(POOL))] end
-      if cs == "sticky" or cs == "pow" or cs == "shake" then move = "pin" end
       o.move, o.cs = move, cs
       o.size = math.max(6, size * (db.scale or 1) * tk)
       o.dur = dur * ((crit and db.critLook and db.critLook.hold) or 1) / math.max(.25, db.speed or 1)
