@@ -136,6 +136,97 @@ local function Preview(p)
   end)
 end
 
+-- every movement and crit entrance with what it does, in one folded card
+-- (user, 26 Oct 2026: "hard to understand what does what"); and every way they can turn
+local function StyleGuide(p, entrances)
+  local function Lines(list)
+    local s = ""
+    for _, e in ipairs(list) do
+      if e.tip then s = s .. "|cffffd100" .. e.label .. "|r  " .. e.tip .. "\n" end
+    end
+    return s
+  end
+  W.Card(p, "Every movement explained", { folded = true, text = "What each movement in the lists does (the same for hits, crits, areas and nameplates)." })
+  W.Note(p, Lines(CT.MOVES), 0, true)
+  W.Card(p, "Every way to turn them", { folded = true, text = "The choices under a movement: which of them show depends on the movement picked." })
+  W.Note(p, "|cff73bfffDirection|r\n" .. Lines(CT.DIRS) .. "\n|cff73bfffSide|r\n" .. Lines(CT.SIDES)
+    .. "\n|cff73bfffStraight or diagonal|r (movements that rise or fall)\n" .. Lines(CT.LEANS)
+    .. "\n|cff73bfffHeight as it goes|r (movements that go sideways)\n" .. Lines(CT.DRIFTS)
+    .. "\n|cff73bfffAngle|r  How steep a diagonal is: 15, 30, 45 or 60 degrees.", 0, true)
+  if entrances then
+    W.Card(p, "Every crit entrance explained", { folded = true, text = "How each crit entrance looks." })
+    W.Note(p, Lines(CT.CRITS), 0, true)
+  end
+end
+
+-- The ways the picked movement can turn, as up to four small lists in one row
+-- that change with the movement (user, 26 Oct 2026: "horizontal choice should
+-- show left and right options after you select it vertical should show up and
+-- down"): direction, straight / diagonal (or height for sideways ones), side,
+-- angle - only the ones that movement uses (CT.AimControls).
+-- T() = the settings table, Move() = the movement, crit = the crit keys, after = run on a pick.
+local function MoveName(m)
+  for _, e in ipairs(CT.CRIT_PATHS) do if e.key == m then return e.label end end
+  return tostring(m)
+end
+local function AimRow(p, T, Move, crit, after, sameText)
+  W.Live(p, function()
+    local m = Move()
+    local list = CT.AimControls(m, T(), crit)
+    if table.getn(list) == 0 then
+      if m == "same" then return "|cff999999" .. (sameText or "Crits go the same way as the hits here.") .. "|r" end
+      if m == "still" then return "|cff999999Crits stay where they appear: no way to turn them.|r" end
+      if m == "fireworks" then return "|cff999999Fireworks burst out every way: no way to turn them.|r" end
+      return "|cff999999" .. MoveName(m) .. " has no way to turn it.|r"
+    end
+    local words = {}
+    for _, c in ipairs(list) do table.insert(words, string.lower(c.label)) end
+    return "Which way |cffffd100" .. MoveName(m) .. "|r goes - " .. table.concat(words, ", ") .. ":"
+  end)
+  local row = W.Row(p, 42, 0, 2)
+  local slots = {}
+  for i = 1, 4 do
+    local s = CreateFrame("Frame", nil, row)
+    s:SetWidth(184)
+    s:SetHeight(42)
+    s:SetPoint("TOPLEFT", row, "TOPLEFT", (i - 1) * 192, 0)
+    s.label = W.Font(s:CreateFontString(nil, "OVERLAY"), 12)
+    s.label:SetPoint("TOPLEFT", s, "TOPLEFT", 2, -1)
+    local box, Refresh, hit = W.MiniDrop(s, 180, function() return s.ctl and s.ctl.options or {} end,
+      function() return s.ctl and s.ctl.value end, function(v)
+        if not s.ctl then return end
+        T()[s.ctl.key] = v
+        if after then after() end
+      end, 200)
+    box:SetPoint("TOPLEFT", s, "TOPLEFT", 2, -18)
+    W.Tip(hit, " ", " ")
+    s.Refresh, s.hit = Refresh, hit
+    slots[i] = s
+  end
+  table.insert(p.items, { Refresh = function()
+    local list = CT.AimControls(Move(), T(), crit)
+    for i, s in ipairs(slots) do
+      s.ctl = list[i]
+      if s.ctl then
+        s.label:SetText(s.ctl.label)
+        s.hit.tipTitle, s.hit.tipText = s.ctl.label, s.ctl.tip .. " Point at a choice in the list to see what it does."
+        s.Refresh()
+        s:Show()
+      else
+        s:Hide()
+      end
+    end
+  end })
+  for _, w in ipairs({ { "Direction", "Up, down, or up and down taking turns - for movements that rise or fall." },
+                       { "Side", "Left, right, alternate, random, or damage one way and heals the other." },
+                       { "Straight or diagonal", "Movements that rise or fall can slant left, right or to the side." },
+                       { "Height as it goes", "Sideways movements can go level, at random heights, rising or falling." },
+                       { "Angle", "How steep a diagonal is: 15 to 60 degrees." } }) do
+    if p.key then table.insert(W.index, { page = p, card = p.cur, label = w[1], desc = w[2], region = row }) end
+  end
+  return row
+end
+
 -- One-click looks for all combat text: { key, label, top keys, every area's keys, plate keys, area keys by area }
 local LOOKS = {
   { "octo", "pfUI Octo", { style = "octo", font = "Fonts\\FRIZQT__.TTF", outline = "OUTLINE", speed = 1, icons = true },
@@ -318,9 +409,9 @@ BUILD.ctareas = function(p)
   Preview(p)
   W.Card(p, "Movement", { text = "How text moves in this area. The switch turns the area on or off.", on = { function() return A().enabled end, function(v) A().enabled = v end,
     "Use this area. Off: messages sent here are not shown." } })
-  Drop(p, "Movement", "The way the text travels: straight up, in an arc, sideways, bouncing... Point at a name in the list to see what it does.", CT.MOVES, A, "anim", Place)
-  Drop(p, "Direction", "Vertical, sprinkler, HUD and similar movements.", CT.DIRS, A, "dir", Place)
-  Drop(p, "Side", "Movements that go sideways.", CT.SIDES, A, "side")
+  Drop(p, "Movement", "The way the text travels: straight up, in an arc, sideways, bouncing... Point at a name in the list to see what it does. "
+    .. "The choices under it change to the ways that movement can go.", CT.MOVES, A, "anim", Place)
+  AimRow(p, A, function() return A().anim end, false, Place)
   Sld(p, "Time on screen", "How long each text stays.", 0.5, 8, 0.1, A, "time", nil, Sec1)
   Sld(p, "Travel height", "How far up (or down) the text travels.", 40, 600, 10, A, "height", Place, Px)
   Sld(p, "Travel width", "How far sideways the text can travel.", 20, 600, 10, A, "width", Place, Px)
@@ -371,9 +462,10 @@ BUILD.ctplates = function(p)
   Chk(p, "Show plates when I log in", "Switches the enemy plates on (V) - turn them off yourself (SCT - Damage did the same).", PL, "autoShow")
   Drop(p, "No plate showing", "Where nameplate messages go when the unit has no plate.", Wheres(false, true), PL, "fallback")
   W.Card(p, "Movement", { text = "How the text moves away from the nameplate." })
-  Drop(p, "Hits", "How your hits move.", CT.MOVES, PL, "hit")
+  Drop(p, "Hits", "How your hits move. The choices under the lists change to the ways it can go.", CT.MOVES, PL, "hit")
   Drop(p, "Misses", "How Dodge, Parry, Resist and the like move.", CT.MOVES, PL, "miss")
   Drop(p, "Heals", "How heals move.", CT.MOVES, PL, "heal")
+  AimRow(p, PL, function() return PL().hit end, false)
   W.Buttons(p, { { "Nameplate crits: how they appear and move  >", function() O:Open("ctcrits", "plate") end, 300,
     "Crits have their own page: how they appear, how they move, their size, time and travel.", role = "open" } })
   Sld(p, "Time on screen", "How long each text stays.", 0.5, 5, 0.1, PL, "time", nil, Sec1)
@@ -413,6 +505,7 @@ BUILD.ctplates = function(p)
   Sld(p, "Size", "Of your own nameplate text size.", 0.4, 1.2, 0.05, TM, "scale", nil, Pct)
   Sld(p, "Opacity", "How solid your team's numbers are.", 0.2, 1, 0.05, TM, "alpha", nil, Pct)
   Sld(p, "Beside yours by", "How far right of the middle of the plate their column is (negative: left).", -120, 120, 2, TM, "x", nil, Px)
+  StyleGuide(p)
 end
 
 -- ---------------------------------------------------------------- crits and sounds
@@ -420,24 +513,6 @@ end
 local function CL() return B.db.sct.critLook end
 local CRIT_OUTLINES = { { key = "same", label = "Same as the text" }, { key = "", label = "None" },
                         { key = "OUTLINE", label = "Outline" }, { key = "THICKOUTLINE", label = "Thick outline" } }
-
--- every movement and crit entrance with what it does, in one folded card
--- (user, 26 Oct 2026: "hard to understand what does what")
-local function StyleGuide(p, entrances)
-  local function Lines(list)
-    local s = ""
-    for _, e in ipairs(list) do
-      if e.tip then s = s .. "|cffffd100" .. e.label .. "|r  " .. e.tip .. "\n" end
-    end
-    return s
-  end
-  W.Card(p, "Every movement explained", { folded = true, text = "What each movement in the lists does (the same for hits, crits, areas and nameplates)." })
-  W.Note(p, Lines(CT.MOVES), 0, true)
-  if entrances then
-    W.Card(p, "Every crit entrance explained", { folded = true, text = "How each crit entrance looks." })
-    W.Note(p, Lines(CT.CRITS), 0, true)
-  end
-end
 
 -- the place whose crits the Crits page sets: "plate" or an area key
 local CRIT = { cur = "plate" }
@@ -538,6 +613,8 @@ BUILD.ctcrits = function(p)
       CP().critPath = v
       SampleCrit()
     end)
+  AimRow(p, CP, function() return CT.CritPath(CP(), CRIT.cur == "plate") end, true, SampleCrit,
+    "Crits go the same way as the hits here (set on Scroll areas or Nameplates). Pick a movement above to turn crits their own way.")
   W.Card(p, "Their own time and travel", { folded = true,
     text = "Off: crits stay as long and travel as far as the hits here. On: the settings below are just for crits.",
     on = { function() return CP().critOwn end, function(v)
@@ -548,20 +625,14 @@ BUILD.ctcrits = function(p)
         t.critTime = t.critTime or t.time
         t.critHeight = t.critHeight or t.height
         t.critWidth = t.critWidth or t.width
-        t.critDir = t.critDir or t.dir or "up"
-        t.critSide = t.critSide or t.side or "alt"
       end
-    end, "Crits get their own time on screen, travel and direction here." } })
+    end, "Crits get their own time on screen and travel here." } })
   W.Slider(p, "Time on screen", "How long a crit stays here (Crit look's 'stay longer' still adds to it).", 0.5, 8, 0.1,
     function() return CP().critTime or CP().time end, function(v) CP().critTime = v end, Sec1)
   W.Slider(p, "Travel height", "How far up (or down) crits travel.", 20, 600, 5,
     function() return CP().critHeight or CP().height end, function(v) CP().critHeight = v end, Px)
   W.Slider(p, "Travel width", "How far sideways crits can travel.", 20, 600, 5,
     function() return CP().critWidth or CP().width end, function(v) CP().critWidth = v end, Px)
-  W.Dropdown(p, "Direction", "Up or down, for the movements that go one way.", CT.DIRS,
-    function() return CP().critDir or CP().dir or "up" end, function(v) CP().critDir = v end)
-  W.Dropdown(p, "Side", "Which side crits go to, for movements that go sideways.", CT.SIDES,
-    function() return CP().critSide or CP().side or "alt" end, function(v) CP().critSide = v end)
 
   W.Card(p, "Crit look", { text = "For every crit, everywhere: their own letters, colour, a flash and a mark." })
   local fonts = { { key = "", label = "Same as the text" } }

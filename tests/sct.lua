@@ -222,6 +222,53 @@ do
   P.critPath, P.critMove, P.crit = nil, savedMove, savedCrit
   CT:Clear()
 end
+-- (user, 26 Oct 2026: "horizontal choice should show left and right ... vertical up and down ... diagonal")
+do
+  local X = B.db.sct.areas.extra
+  local function Keys(move, t, crit)
+    local s = {}
+    for _, c in ipairs(CT.AimControls(move, t, crit)) do table.insert(s, c.key) end
+    return table.concat(s, ",")
+  end
+  ok(Keys("horizontal", {}) == "lean,side", "horizontal offers its height and side (" .. Keys("horizontal", {}) .. ")")
+  ok(Keys("vertical", {}) == "dir,lean", "vertical offers up / down and straight / diagonal")
+  ok(Keys("vertical", { lean = "side" }) == "dir,lean,side,leanAmt", "a diagonal to the side adds Side and Angle")
+  ok(Keys("vertical", { lean = "left" }) == "dir,lean,leanAmt", "a diagonal left adds Angle only")
+  ok(Keys("fireworks", {}) == "", "fireworks have nothing to turn")
+  ok(Keys("horizontal", { lean = "rise" }, true) == "critLean,critSide,critLeanAmt", "crit choices use the crit keys")
+  CT:Clear()
+  X.anim, X.dir, X.lean, X.leanAmt, X.side = "vertical", "up", "right", 1, "alt"
+  CT:Show("lean", 1, 1, 1, "extra", {})
+  local o = LiveText("lean")
+  Tick(0.5)
+  local x, y = CT.Bend(o, CT.MOVE.vertical(o, 0.5))
+  ok(o.lean == 1 and x > 0 and math.abs(x - y) < 0.01, "vertical leans right at 45 degrees")
+  X.anim, X.lean, X.side = "horizontal", "level", "left"
+  CT:Show("lvl", 1, 1, 1, "extra", {})
+  o = LiveText("lvl")
+  x, y = CT.Bend(o, CT.MOVE.horizontal(o, 0.5))
+  ok(o.flat and y == 0 and x < 0, "horizontal can go level, always left")
+  X.lean = "fall"
+  CT:Show("fall", 1, 1, 1, "extra", {})
+  o = LiveText("fall")
+  x, y = CT.Bend(o, CT.MOVE.horizontal(o, 0.5))
+  ok(y < 0, "horizontal can fall diagonally")
+  X.dir, X.anim = "alt", "vertical"
+  CT:Show("a1", 1, 1, 1, "extra", {})
+  CT:Show("a2", 1, 1, 1, "extra", {})
+  ok(LiveText("a1").d == -LiveText("a2").d, "up and down taking turns")
+  X.side = "random"
+  CT:Show("r", 1, 1, 1, "extra", {})
+  ok(LiveText("r").s == 1 or LiveText("r").s == -1, "random side")
+  -- a crit with its own movement turns its own way; the hits keep theirs
+  X.anim, X.dir, X.lean, X.side, X.leanAmt = "vertical", "up", nil, "alt", nil
+  X.critPath, X.critDir = "vertical", "down"
+  CT:Show("cdown", 1, 0, 0, "extra", { crit = true })
+  CT:Show("hup", 1, 1, 1, "extra", {})
+  ok(LiveText("cdown").d == -1 and LiveText("hup").d == 1, "crits can go down while hits go up")
+  X.critPath, X.critDir = nil, nil
+  CT:Clear()
+end
 for _, d in ipairs({ "down", "up" }) do
   B.db.sct.areas.extra.dir = d
   for _, s in ipairs({ "alt", "dmgLeft", "dmgRight", "left", "right" }) do

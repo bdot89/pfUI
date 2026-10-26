@@ -30,7 +30,8 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
   local function DB() return B.db.sct end
 
   -- where texts start in an area (as the engine's Origin)
-  local function Origin(a)
+  local function Origin(a, anim, dir)
+    if CT.Origin then return CT.Origin(a, anim, dir) end
     if STRAIGHT_ORIGIN[a.anim] then return (a.dir == "down") and "TOP" or "BOTTOM" end
     return "CENTER"
   end
@@ -289,9 +290,7 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
         if critT.critOwn then
           dur = critT.critTime or dur
           o.H, o.W = (critT.critHeight or o.H / k) * k, (critT.critWidth or o.W / k) * k
-          if critT.critDir then o.d = (critT.critDir == "down") and -1 or 1 end
         end
-        if a then o.origin = Origin({ anim = move, dir = o.d < 0 and "down" or "up" }) end
       end
       if db.style == "blizzard" and not a then
         move = "vertical"
@@ -302,7 +301,14 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
       o.size = math.max(6, size * (db.scale or 1) * tk)
       o.dur = dur * ((crit and db.critLook and db.critLook.hold) or 1) / math.max(.25, db.speed or 1)
       o.alpha = alpha or 1
-      o.s = (random() < .5) and -1 or 1
+      -- which way, as the engine turns it (direction, side, diagonal)
+      if CT.Aim then
+        local critAim = critT and (critT.critOwn or (CT.CritPath and CT.CritPath(critT, not a) ~= "same"))
+        local dir = CT.Aim(o, a or P, critAim, move, key == "heal")
+        if a then o.origin = Origin(a, move, dir) end
+      else
+        o.s = (random() < .5) and -1 or 1
+      end
       o.r1, o.r2, o.r3 = random(), random(), random()
       o.spr = (random() - .5) * 36
       o.slot = 0
@@ -336,6 +342,7 @@ pfUI:RegisterModule("sct-preview", "vanilla", function ()
       if o.move ~= "pin" then
         local f = MOVE[o.move] or MOVE.vertical
         x, y = f(o, t)
+        if CT.Bend then x, y = CT.Bend(o, x, y) end
       elseif o.cs == "shake" and e < .5 then
         x = math.sin(e * 60) * 3 * (1 - e / .5)
       end

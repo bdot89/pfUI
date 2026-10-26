@@ -112,7 +112,7 @@ MOVE.static = function(o, t) return 0, o.d * (o.slot or 0) * (o.size + 4) end
 MOVE.rainbow = function(o, t)
   return o.s * (20 + t * o.W * 0.6), o.d * (sin(PI * t) * o.H * (0.35 + 0.25 * o.r1) - t * o.H * 0.25)
 end
-MOVE.horizontal = function(o, t) return o.s * (30 + t * o.W), (o.r1 - 0.5) * o.H * 0.6 end
+MOVE.horizontal = function(o, t) return o.s * (30 + t * o.W), o.flat and 0 or (o.r1 - 0.5) * o.H * 0.6 end
 -- SCT's angled types: out fast, shake, hold, drift away
 local function Angled(o, t, up)
   local ax, ay = o.s * o.W * (0.35 + 0.15 * o.r1), (up and 1 or -1) * o.H * (0.25 + 0.1 * o.r2)
@@ -157,7 +157,7 @@ end
 -- NameplateSCT's fountain: an arc out to the side, up then down
 MOVE.fountain = function(o, t)
   local peak, low = o.H * (0.2 + 0.5 * o.r2), -o.H * (0.15 + 0.4 * o.r3)
-  return o.s * o.W * (0.35 + 0.65 * o.r1) * t, 4 * peak * t * (1 - t) + low * t * t
+  return o.s * o.W * (0.35 + 0.65 * o.r1) * t, o.d * (4 * peak * t * (1 - t) + low * t * t)
 end
 MOVE.rainfall = function(o, t)
   return (o.r1 - 0.5) * o.W, -o.H * (0.05 + 0.1 * o.r2) - t * t * o.H * (0.5 + 0.5 * o.r3)
@@ -183,7 +183,7 @@ MOVE.bounce = function(o, t)
   return o.s * t * o.W * 0.25, o.d * (t * o.H * 0.6 + abs(sin(t * 3 * PI)) * o.H * 0.25 * (1 - t))
 end
 MOVE.shockwave = function(o, t)
-  local a = (o.s > 0 and 0 or PI) + (o.r1 - 0.5) * PI / 1.5
+  local a = (o.s > 0 and 0 or PI) + (o.flat and 0 or (o.r1 - 0.5) * PI / 1.5)
   local dist = o.W * 0.6 * (1 - (1 - t) * (1 - t) * (1 - t))
   return cos(a) * dist, sin(a) * dist * 0.6
 end
@@ -257,13 +257,81 @@ function CT.Mark(mark, text)
   if mark == "arrows" then return ">> " .. text .. " <<" end
   return text
 end
-CT.SIDES = { { key = "alt", label = "Alternate" }, { key = "dmgLeft", label = "Damage left, heals right" },
-             { key = "dmgRight", label = "Damage right, heals left" }, { key = "right", label = "Always right" },
-             { key = "left", label = "Always left" } }
+CT.SIDES = { { key = "alt", label = "Alternate left and right", tip = "Each new text goes to the other side." },
+             { key = "left", label = "Left", tip = "Every text goes left." },
+             { key = "right", label = "Right", tip = "Every text goes right." },
+             { key = "random", label = "Random side", tip = "Left or right, picked at random each time." },
+             { key = "dmgLeft", label = "Damage left, heals right", tip = "Damage goes left, heals go right." },
+             { key = "dmgRight", label = "Damage right, heals left", tip = "Damage goes right, heals go left." } }
 CT.ALIGNS = { { key = "LEFT", label = "Left" }, { key = "CENTER", label = "Centre" }, { key = "RIGHT", label = "Right" } }
 CT.ICONS = { { key = "LEFT", label = "Left of the text" }, { key = "RIGHT", label = "Right of the text" },
              { key = "NONE", label = "No icon here" } }
-CT.DIRS = { { key = "up", label = "Up" }, { key = "down", label = "Down" } }
+CT.DIRS = { { key = "up", label = "Up", tip = "Texts travel upwards." }, { key = "down", label = "Down", tip = "Texts travel downwards." },
+            { key = "alt", label = "Up and down, taking turns", tip = "Each new text goes the other way, starting from the middle." } }
+
+-- (26 Oct 2026, user: "horizontal should show left and right ... vertical up and down ... diagonal etc")
+-- Which ways each movement can be turned. dir = up / down matters, side = left / right matters (true always,
+-- "lean" only when it leans to the side set), flow = "lean" for movements that rise or fall (they can go
+-- diagonally) or "drift" for movements that go sideways (they can rise or fall as they go).
+CT.AIM = {
+  vertical = { dir = true, flow = "lean", side = "lean" }, rainbow = { dir = true, side = true },
+  horizontal = { side = true, flow = "drift" }, angledDown = { side = true }, angledUp = { side = true },
+  sprinkler = { dir = true }, hudCurved = { dir = true, side = true }, hudAngled = { dir = true, side = true },
+  parabola = { dir = true, side = true }, static = { dir = true },
+  fountain = { dir = true, side = true }, rainfall = { flow = "lean", side = "lean" }, fireworks = {},
+  sway = { dir = true, flow = "lean", side = "lean" }, wave = { dir = true, flow = "lean", side = "lean" },
+  zigzag = { dir = true, flow = "lean", side = "lean" }, spiral = { dir = true, flow = "lean", side = "lean" },
+  bounce = { dir = true, side = true }, shockwave = { side = true, flow = "drift" }, comet = { dir = true, side = true },
+  random = { dir = true, side = true }, still = {}, same = {},
+}
+CT.LEANS = { { key = "none", label = "Straight", tip = "Straight up or down." },
+             { key = "left", label = "Diagonal left", tip = "Slants to the left as it travels." },
+             { key = "right", label = "Diagonal right", tip = "Slants to the right as it travels." },
+             { key = "side", label = "Diagonal to the side", tip = "Slants to the side picked under Side (alternate, random, damage left...)." } }
+CT.DRIFTS = { { key = "random", label = "At a random height", tip = "Each text starts a little higher or lower at random." },
+              { key = "level", label = "Level", tip = "Straight across, all at the same height." },
+              { key = "rise", label = "Rising (diagonal up)", tip = "Climbs as it goes sideways." },
+              { key = "fall", label = "Falling (diagonal down)", tip = "Drops as it goes sideways." } }
+CT.ANGLES = { { key = 0.27, label = "Slight (15 degrees)" }, { key = 0.58, label = "Medium (30 degrees)" },
+              { key = 1, label = "Steep (45 degrees)" }, { key = 1.73, label = "Very steep (60 degrees)" } }
+local function InList(list, k)
+  for _, e in ipairs(list) do if e.key == k then return true end end
+  return false
+end
+
+-- The choices a movement offers, in order: { key = setting, label, options, value, tip }.
+-- t = the settings table, crit = read / write its crit keys (critDir...).
+function CT.AimControls(move, t, crit)
+  local aim = CT.AIM[move] or {}
+  local pre = crit and "crit" or ""
+  local function K(k) return crit and (pre .. string.upper(string.sub(k, 1, 1)) .. string.sub(k, 2)) or k end
+  local function V(k) return crit and (t[K(k)] or t[k]) or t[k] end
+  local out = {}
+  if aim.dir then
+    table.insert(out, { key = K("dir"), label = "Direction", options = CT.DIRS, value = V("dir") or "up",
+      tip = "Up, down, or taking turns." })
+  end
+  local lean = V("lean")
+  if aim.flow == "lean" then
+    if not InList(CT.LEANS, lean) then lean = "none" end
+    table.insert(out, { key = K("lean"), label = "Straight or diagonal", options = CT.LEANS, value = lean,
+      tip = "Straight, or slanting left / right as it travels." })
+  elseif aim.flow == "drift" then
+    if not InList(CT.DRIFTS, lean) then lean = "random" end
+    table.insert(out, { key = K("lean"), label = "Height as it goes", options = CT.DRIFTS, value = lean,
+      tip = "A random height, level, or rising / falling diagonally." })
+  end
+  if aim.side == true or (aim.side == "lean" and lean == "side") then
+    table.insert(out, { key = K("side"), label = "Side", options = CT.SIDES, value = V("side") or "alt",
+      tip = "Left, right, alternate, random, or by damage and heals." })
+  end
+  if (aim.flow == "lean" and lean ~= "none") or (aim.flow == "drift" and (lean == "rise" or lean == "fall")) then
+    local amt = V("leanAmt") or 0.58
+    table.insert(out, { key = K("leanAmt"), label = "Angle", options = CT.ANGLES, value = amt,
+      tip = "How steep the diagonal is." })
+  end
+  return out
+end
 CT.OUTLINES = { { key = "", label = "None" }, { key = "OUTLINE", label = "Outline" }, { key = "THICKOUTLINE", label = "Thick outline" } }
 
 -- ---------------------------------------------------------------- area panels
@@ -346,6 +414,7 @@ local function Origin(a, anim, dir)
   anim, dir = anim or a.anim, dir or a.dir
   if anim == "vertical" or anim == "parabola" or anim == "sway" or anim == "wave"
      or anim == "zigzag" or anim == "spiral" then
+    if dir == "alt" then return "CENTER" end
     return (dir == "down") and "TOP" or "BOTTOM"
   end
   return "CENTER"
@@ -437,8 +506,44 @@ local function Side(sideType, isHeal)
   if sideType == "right" then return 1 end
   if sideType == "dmgLeft" then return isHeal and 1 or -1 end
   if sideType == "dmgRight" then return isHeal and -1 or 1 end
+  if sideType == "random" then return (random() < 0.5) and -1 or 1 end
   CT.alt = -CT.alt
   return CT.alt
+end
+
+-- Turns a text the way its settings say (t: area or plate settings, crit: read
+-- its own crit keys first): o.d up / down, o.s side, o.lean / o.tilt / o.flat
+-- for diagonals. Returns the direction for Origin.
+function CT.Aim(o, t, crit, move, isHeal)
+  t = t or {}
+  local function V(k, ck) return crit and t[ck] or t[k] end
+  local dir, side = V("dir", "critDir") or t.dir, V("side", "critSide") or t.side
+  local lean, amt = V("lean", "critLean") or t.lean, V("leanAmt", "critLeanAmt") or t.leanAmt or 0.58
+  if dir == "alt" then
+    CT.altD = -(CT.altD or -1)
+    o.d = CT.altD
+  else
+    o.d = (dir == "down") and -1 or 1
+  end
+  o.side = Side(side or "alt", isHeal)
+  o.s = o.side
+  o.lean, o.tilt, o.flat = nil, nil, nil
+  local aim = CT.AIM[move]
+  if aim and aim.flow == "lean" then
+    local L = (lean == "left" and -1) or (lean == "right" and 1) or (lean == "side" and o.s) or nil
+    if L then o.lean = L * amt end
+  elseif aim and aim.flow == "drift" and (lean == "level" or lean == "rise" or lean == "fall") then
+    o.flat = true
+    if lean == "rise" then o.tilt = amt elseif lean == "fall" then o.tilt = -amt end
+  end
+  return dir
+end
+
+-- A diagonal on top of a movement's path.
+function CT.Bend(o, x, y)
+  if o.lean then x = x + o.lean * abs(y) end
+  if o.tilt then y = y + o.tilt * abs(x) end
+  return x, y
 end
 
 -- Older messages of a static area move one line along; more than six: the oldest goes.
@@ -570,8 +675,10 @@ function CT:Show(text, r, g, b, where, opts)
   -- (26 Oct 2026) a crit moves its own way: same as the hits, stays put, or
   -- any movement; with critOwn its own time, travel and direction
   local critT = crit and not team and (plate and P or a) or nil
+  local critAim   -- crits with a movement of their own turn their own way
   if critT then
     local path = CT.CritPath(critT, plate and true)
+    critAim = critT.critOwn or path ~= "same"
     if path == "still" then move = "pin" elseif path ~= "same" then move = path end
     if critT.critOwn then
       dur = critT.critTime or dur
@@ -594,11 +701,8 @@ function CT:Show(text, r, g, b, where, opts)
   o.move, o.crit, o.critStyle = move, crit, critStyle
   o.size, o.alpha = math.max(6, floor(size + 0.5)), alpha
   o.dur = dur / math.max(0.25, db.speed or 1)
-  local dir, side = a and a.dir, a and a.side
-  if critT and critT.critOwn then dir, side = critT.critDir or dir, critT.critSide or side end
-  o.d = (dir == "down") and -1 or 1
-  o.side = Side(side or "alt", opts.heal)
-  o.s = o.side
+  -- which way: the area's (or plate's) direction, side and diagonal; a crit with its own travel uses its own
+  local dir = CT.Aim(o, (not team) and (plate and P or a) or nil, critAim, move, opts.heal)
   o.r1, o.r2, o.r3 = random(), random(), random()
   o.spr = self.spr
   if move == "sprinkler" then
@@ -698,7 +802,7 @@ function CT:Step(o, now)
     if cs == "shake" and e < 0.5 then x = sin(e * 60) * 6 * (1 - e / 0.5) end
   else
     local f = MOVE[o.move] or MOVE.vertical
-    x, y = f(o, t)
+    x, y = CT.Bend(o, f(o, t))
   end
   -- size: pow / shake slam in from double size, flash shrinks from double, sticky pops a little
   local scale = 1
