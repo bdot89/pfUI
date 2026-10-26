@@ -69,18 +69,19 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     ["PanelMicroButton"] = { T["Panel"], T["General"] },
 
     -- actionbar
-    ["ActionBarMain"]        = { T["Actionbar"], T["Main Actionbar"]},
-    ["ActionBarPaging"]      = { T["Actionbar"], T["Paging Actionbar"]},
-    ["ActionBarRight"]       = { T["Actionbar"], T["Right Actionbar"]},
-    ["ActionBarVertical"]    = { T["Actionbar"], T["Vertical Actionbar"]},
-    ["ActionBarLeft"]        = { T["Actionbar"], T["Left Actionbar"]},
-    ["ActionBarTop"]         = { T["Actionbar"], T["Top Actionbar"]},
-    ["ActionBarStanceBar1"]  = { T["Actionbar"], T["Stance Bar 1"]},
-    ["ActionBarStanceBar2"]  = { T["Actionbar"], T["Stance Bar 2"]},
-    ["ActionBarStanceBar3"]  = { T["Actionbar"], T["Stance Bar 3"]},
-    ["ActionBarStanceBar4"]  = { T["Actionbar"], T["Stance Bar 4"]},
-    ["ActionBarStances"]     = { T["Actionbar"], T["Stance/Shapeshift Actionbar"]},
-    ["ActionBarPet"]         = { T["Actionbar"], T["Pet Actionbar"]},
+    -- (octo, 26 Oct 2026: right-click opens the Bars page on that bar's own tab; C.bars.barN)
+    ["ActionBarMain"]        = { "abbars", 1 },
+    ["ActionBarPaging"]      = { "abbars", 2 },
+    ["ActionBarRight"]       = { "abbars", 3 },
+    ["ActionBarVertical"]    = { "abbars", 4 },
+    ["ActionBarLeft"]        = { "abbars", 5 },
+    ["ActionBarTop"]         = { "abbars", 6 },
+    ["ActionBarStanceBar1"]  = { "abbars", 7 },
+    ["ActionBarStanceBar2"]  = { "abbars", 8 },
+    ["ActionBarStanceBar3"]  = { "abbars", 9 },
+    ["ActionBarStanceBar4"]  = { "abbars", 10 },
+    ["ActionBarStances"]     = { "abbars", 11 },
+    ["ActionBarPet"]         = { "abbars", 12 },
 
     -- castbar
     ["TargetCastbar"]  = { "ufcastbar", "target" },

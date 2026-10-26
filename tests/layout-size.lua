@@ -436,4 +436,12 @@ do
     bar.buttons, bar.formfactor = ob, of
     pfUI.bars:UpdateConfig()
   end
+  -- (user, 26 Oct 2026) right-click a bar in layout mode: the Bars page on that bar's tab
+  local O = pfUI.octoui and pfUI.octoui.Options
+  local AB = pfUI.barsOcto
+  if O and AB and AB.TAB then
+    O:Open("abbars", 6)
+    ok(AB.TAB.cur == 6 and O.current == "o:abbars", "the Top bar's box opens the Bars page on Top bar")
+    O:Open("abbars", 1)
+  end
 end

@@ -1290,4 +1290,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
   O:AddPage("Action Bars", "abpaging", "Paging", BUILD.abpaging)
   O:AddPage("Action Bars", "abgryphons", "Gryphons", BUILD.abgryphons)
   AB.TAB = TAB
+  -- O:Open("abbars", n) opens the Bars page on bar n's tab (layout mode's right-click on a bar)
+  O.tabs = O.tabs or {}
+  O.tabs.abbars = function(i) if tonumber(i) and C.bars["bar" .. tonumber(i)] then TAB.cur = tonumber(i) end end
 end)
