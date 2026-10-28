@@ -867,12 +867,15 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
       local each = full / math.max(1, table.getn(wins))
       for i, win in ipairs(wins) do
         local last = i == table.getn(wins)
+        -- (offsets count in the window's own scale, the split in the chat's: seen in game 28 Oct,
+        -- the first two came out narrower and the last took the rest)
+        local k = (chat:GetEffectiveScale() or 1) / math.max(.01, win:GetEffectiveScale() or 1)
         win:ClearAllPoints()
-        win:SetPoint("TOPLEFT", chat, "TOPLEFT", x, 0)
+        win:SetPoint("TOPLEFT", chat, "TOPLEFT", x * k, 0)
         if last then
-          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMRIGHT", 0, bottom)
+          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMRIGHT", 0, bottom * k)
         else
-          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", x + each, bottom)
+          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", (x + each) * k, bottom * k)
         end
         x = x + each
         win:SetFrameStrata(chat:GetFrameStrata())
@@ -959,6 +962,8 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     C.panel.arrowwins = table.concat(out, ",")
     if on and not open then C.panel.arrowopen = "1" open = true end
     if open then pfUI.panel.ArrowSet(true) end
+    -- (the ones left in the panel split it again at once)
+    if C.panel.arrowmode == "meters" and C.panel.arrowopen == "1" then MetersIn(true) end
     -- (a window set floating shows at once, at its spot)
     if not on and win and C.meters.hidden ~= "1" then win:Show() end
     return true
