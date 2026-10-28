@@ -82,11 +82,11 @@ pfUI:RegisterModule("map", "vanilla:tbc", function ()
       end)
 
       HookScript(WorldMapFrame, "OnDragStart", function()
-        WorldMapFrame:StartMoving()
+        pfUI.api.DragStart(WorldMapFrame)
       end)
 
       HookScript(WorldMapFrame, "OnDragStop",function()
-        WorldMapFrame:StopMovingOrSizing()
+        pfUI.api.DragStop(WorldMapFrame)
         SaveMovable(this, true)
       end)
     end

@@ -561,8 +561,8 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
   details:SetMovable(true)
   details:EnableMouse(true)
   details:RegisterForDrag("LeftButton")
-  details:SetScript("OnDragStart", function() this:StartMoving() end)
-  details:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+  details:SetScript("OnDragStart", function() pfUI.api.DragStart(this) end)
+  details:SetScript("OnDragStop", function() pfUI.api.DragStop(this) end)
   details:Hide()
   CreateBackdrop(details, nil, true, .92)
   CreateBackdropShadow(details)
@@ -1602,13 +1602,13 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       if win.free and S(win).lock ~= "1" then
         -- (closing layout mode sets every mover frame unmovable)
         win:SetMovable(true)
-        win:StartMoving()
+        pfUI.api.DragStart(win)
         win.moving = true
       end
     end
     local function DragStop()
       if win.moving then
-        win:StopMovingOrSizing()
+        pfUI.api.DragStop(win)
         win.moving = nil
         if C.meters.snap ~= "0" and M.Snap then M.Snap(win) end
         SaveMovable(win)
@@ -1997,9 +1997,9 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     M.ToggleAll()
   end)
   -- Shift + drag moves it (layout mode moves it too)
-  tb:SetScript("OnDragStart", function() if IsShiftKeyDown() then this:StartMoving() this.moving = true end end)
+  tb:SetScript("OnDragStart", function() if IsShiftKeyDown() then pfUI.api.DragStart(this) this.moving = true end end)
   tb:SetScript("OnDragStop", function()
-    if this.moving then this:StopMovingOrSizing() this.moving = nil SaveMovable(this) end
+    if this.moving then pfUI.api.DragStop(this) this.moving = nil SaveMovable(this) end
   end)
   tb:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_TOP")

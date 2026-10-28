@@ -712,6 +712,43 @@ end
 -- [ Save Movable ]
 -- Save the positions of a Frame.
 -- 'frame'      [frame]        the frame that should be saved.
+-- [ Hand Drag ]
+-- octo (28 Oct 2026): moves a frame with the mouse without the client's mover.
+-- StartMoving on the meter windows and the world map crashed the client (#132,
+-- in its frame placement code, also without ClassicAPI), while layout mode -
+-- which moves frames by hand like this - never did.
+-- 'frame'      [frame]        the frame to move; pfUI.api.DragStop(frame) ends it.
+do
+  local moving = {}
+  local driver = CreateFrame("Frame")
+  driver:Hide()
+  driver:SetScript("OnUpdate", function()
+    local any
+    local cx, cy = GetCursorPosition()
+    for frame, d in pairs(moving) do
+      any = true
+      local x = d.l + (cx - d.cx) / d.s
+      local y = d.b + (cy - d.cy) / d.s
+      if x ~= d.x or y ~= d.y then
+        d.x, d.y = x, y
+        frame:ClearAllPoints()
+        frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x, y)
+      end
+    end
+    if not any then this:Hide() end
+  end)
+  function pfUI.api.DragStart(frame)
+    if not frame or not frame:GetLeft() then return end
+    local cx, cy = GetCursorPosition()
+    moving[frame] = { cx = cx, cy = cy, l = frame:GetLeft(), b = frame:GetBottom(), s = frame:GetEffectiveScale() }
+    driver:Show()
+  end
+  function pfUI.api.DragStop(frame)
+    moving[frame] = nil
+  end
+  function pfUI.api.IsDragging(frame) return moving[frame] ~= nil end
+end
+
 function pfUI.api.SaveMovable(frame, scale)
   local anchor, rel, relpoint, xpos, ypos = frame:GetPoint()
   C.position[frame:GetName()] = C.position[frame:GetName()] or {}
