@@ -966,3 +966,18 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    mapstyle ApplyStyle, bagsocto Refresh, abuttons, blizz BZ.Set per C.blizz); a changed part with no live apply (or
    a different meter window count) -> "Reload now?" question, never an automatic reload. A layout saved before this
    has no cfg and takes the settings on now. L.FIXED buttons (gear set, meters, layout) keep one place in all layouts.
+23. brues-code's pfUI fork, second look (28 Oct 2026; user's "pfUI-master (3).zip" vs the (2) copy of roadmap 21;
+   the fork keeps Shagu's MIT licence). Taken: nine CreateTexture(layer) calls fixed, api/unitframes.lua AuraClock
+   (talent-lengthened auras: time left > duration put the start in the future -> 2^32 text), cooldown sweeps on
+   player buffs (buff.lua: buff.cd + buff.overlay for the texts; length = time left when first seen or renewed,
+   C.buffs.cooldown_anim), sweep direction per kind (cd.pfCooldownReverse; cooldown.lua calls SetReverse only when
+   the frame has it = ClassicAPI's cooldown frames; C.buffs / bars / totems / appearance.bags .cooldown_reverse,
+   C.unitframes[unit].cooldown_reverse, C.nameplates.debreverse), cooldown numbers resize when their button's
+   height changes (pfCooldownFont). Stable skin left alone (its `button` is a fresh local per loop pass).
+   Heal prediction (user: "MUST SHOW ALL HEALS IN ALL FRAMES"): libpredict read ClassicAPI's UNIT_SPELLCAST_SENT
+   arg4 (spell id) as the target's name on 1.12 - own heals went to a "player" called 10917; now arg2 (unit token).
+   New block at the end of libs\libpredict.lua: other players' heal casts from ClassicAPI (UNIT_SPELLCAST_* of every
+   unit, deduped by cast GUID, UnitSpellTargetName, C_Spell.UnitCastingInfo) or SuperWoW UNIT_CASTEVENT; sizes from
+   that healer's last heal (combat log SPELL_HEAL / chat HEALED*OTHER* lines, crits / 1.5), anyone's, else the
+   spell's "for X to Y" text (C_Spell.GetSpellDescription or the own spell book's tooltip, libpredict:Guess, also
+   for the first own cast). Incoming bar sized from hp.bar's real width. Not seen in game.

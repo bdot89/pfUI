@@ -268,6 +268,7 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     end
 
     plate.debuffs[index].cd.pfCooldownStyleAnimation = 0
+    plate.debuffs[index].cd.pfCooldownReverse = tonumber(C.nameplates.debreverse) or 0
     plate.debuffs[index].cd.pfCooldownType = "ALL"
   end
 

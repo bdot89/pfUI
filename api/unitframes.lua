@@ -764,6 +764,7 @@ function pfUI.uf:UpdateConfig()
       f.buffs[i].cd.pfCooldownType = "ALL"
       f.buffs[i].cd.pfCooldownStyleText = cooldown_text
       f.buffs[i].cd.pfCooldownStyleAnimation = cooldown_anim
+      f.buffs[i].cd.pfCooldownReverse = tonumber(f.config.cooldown_reverse) or 0
       f.buffs[i].id = i
       f.buffs[i]:Hide()
 
@@ -847,6 +848,7 @@ function pfUI.uf:UpdateConfig()
       f.debuffs[i].cd.pfCooldownType = "ALL"
       f.debuffs[i].cd.pfCooldownStyleText = cooldown_text
       f.debuffs[i].cd.pfCooldownStyleAnimation = cooldown_anim
+      f.debuffs[i].cd.pfCooldownReverse = tonumber(f.config.cooldown_reverse) or 0
       f.debuffs[i].id = i
       f.debuffs[i]:Hide()
 

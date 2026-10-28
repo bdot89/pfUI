@@ -393,6 +393,7 @@ pfUI:RegisterModule("bags", "vanilla:tbc", function ()
         bankslot.cd = CreateFrame(COOLDOWN_FRAME_TYPE, name, bankslot, "CooldownFrameTemplate")
         bankslot.cd:SetAllPoints(bankslot)
         bankslot.cd.pfCooldownStyleAnimation = 1
+        bankslot.cd.pfCooldownReverse = tonumber(C.appearance.bags.cooldown_reverse) or 0
         bankslot.cd.pfCooldownType = "ALL"
       else
         local bagslot = pfUI.bags[bag].slots[slot].frame

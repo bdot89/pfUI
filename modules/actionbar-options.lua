@@ -1078,6 +1078,7 @@ pfUI:RegisterModule("actionbar-options", "vanilla:tbc", function ()
 
     W.Card(p, "Cooldown", { icon = ICON .. "INV_Misc_PocketWatch_02", tip = "The swipe over a button cooling down, and the number counting." })
     Drop(p, "Swipe", nil, List(AB.CDSTYLES), G, "cd_style")
+    Chk(p, "Swipe the other way", "The dark part grows as the cooldown runs out (with ClassicAPI).", G, "cooldown_reverse")
     -- cooldown number colours are pfUI's shared ones (every cooldown uses them)
     local function CD() return C.appearance.cd end
     local function Re() if pfUI.api.ResetTimeColors then pfUI.api.ResetTimeColors() end end

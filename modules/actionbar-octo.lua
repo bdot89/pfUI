@@ -875,6 +875,8 @@ pfUI:RegisterModule("actionbar-octo", "vanilla:tbc", function ()
           local f = bar[j]
           if f then
             Skin(f)
+            -- (the swipe's direction can change without a reload)
+            if f.cd then f.cd.pfCooldownReverse = tonumber(C.bars.cooldown_reverse) or 0 end
             Zoom(f)
             AB.Effects(f)
           end

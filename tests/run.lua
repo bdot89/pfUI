@@ -5110,6 +5110,48 @@ do
   end
 end
 
+-- cooldown sweeps (brues-code's fork): your buffs get one, the direction is set where ClassicAPI can
+do
+  local b = pfUI.buff and pfUI.buff.buffs and pfUI.buff.buffs.buttons[1]
+  ok(b and b.cd and b.overlay and b.timer:GetParent() == b.overlay, "player buffs have a sweep, their texts above it")
+  if b then
+    local gl, gt, gb = GetPlayerBuffTimeLeft, GetPlayerBuffTexture, GetPlayerBuffApplications
+    local left = 100
+    _G.GetPlayerBuffTimeLeft = function() return left end
+    _G.GetPlayerBuffTexture = function() return "Interface\\Icons\\Spell_Holy_WordFortitude" end
+    _G.GetPlayerBuffApplications = function() return 0 end
+    local set
+    local st = CooldownFrame_SetTimer
+    _G.CooldownFrame_SetTimer = function(cd, s, d, e) if cd == b.cd then set = { s, d, e } end return st(cd, s, d, e) end
+    b.mode, b.next = b.btype, 0
+    _G.this = b
+    b:GetScript("OnUpdate")()
+    ok(set and set[2] == 100 and set[3] == 1, "the sweep runs over the time left when first seen")
+    left, b.next, set = 60, 0, nil
+    Mock.now = Mock.now + 40
+    b:GetScript("OnUpdate")()
+    ok(not set and b.cdLen == 100, "it keeps its length while the buff runs down")
+    left, b.next = 120, 0
+    b:GetScript("OnUpdate")()
+    ok(set and set[2] == 120, "a renewed buff starts a new sweep")
+    pfUI_config.buffs.cooldown_anim, b.next, set = "0", 0, nil
+    b:GetScript("OnUpdate")()
+    ok(set and set[2] == 0, "switched off: no sweep")
+    pfUI_config.buffs.cooldown_anim = "1"
+    _G.CooldownFrame_SetTimer = st
+    _G.GetPlayerBuffTimeLeft, _G.GetPlayerBuffTexture, _G.GetPlayerBuffApplications = gl, gt, gb
+  end
+  -- the direction: ClassicAPI's SetReverse when the frame has it
+  local cdf = CreateFrame("Frame", "OctoRevTestCooldown", UIParent)
+  local parent = CreateFrame("Frame", "OctoRevTest", UIParent)
+  cdf:SetParent(parent)
+  local reversed
+  cdf.SetReverse = function(_, r) reversed = r end
+  cdf.pfCooldownType, cdf.pfCooldownReverse = "ALL", 1
+  CooldownFrame_SetTimer(cdf, GetTime(), 30, 1)
+  ok(reversed == true, "a sweep set to the other way turns the other way (ClassicAPI's SetReverse)")
+end
+
 -- heal prediction from everyone (libpredict; user, 28 Oct 2026: "MUST SHOW ALL HEALS IN ALL FRAMES")
 do
   local LP = pfUI.api.libpredict

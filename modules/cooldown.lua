@@ -73,15 +73,23 @@ pfUI:RegisterModule("cooldown", "vanilla:tbc", function ()
       size = tonumber(C.appearance.cd.font_size)
     end
 
-    -- enforce dynamic font size
-    if C.appearance.cd.dynamicsize == "1" and cooldown.GetParent then
-      height = cooldown:GetParent() and cooldown:GetParent():GetHeight() or cooldown:GetHeight() or 0
-      size = math.max((height > 0 and height * .64 or 16), size)
-    end
-
-    cooldown.pfCooldownText.text:SetFont(pfUI.media[C.appearance.cd.font], size, "OUTLINE")
+    cooldown.pfCooldownText.size = size
     cooldown.pfCooldownText.text:SetPoint("CENTER", cooldown.pfCooldownText, "CENTER", 0, 0)
     cooldown.pfCooldownText:SetScript("OnUpdate", pfCooldownOnUpdate)
+  end
+
+  -- the numbers' size: as set, or (dynamic) following the button's height - again
+  -- whenever that height changes (octo: the button resized in layout mode or the
+  -- options; idea from brues-code's pfUI fork)
+  local function pfCooldownFont(cooldown)
+    local size = cooldown.pfCooldownText.size or 12
+    local h
+    if C.appearance.cd.dynamicsize == "1" and cooldown.GetParent then
+      h = cooldown:GetParent() and cooldown:GetParent():GetHeight() or cooldown:GetHeight() or 0
+      size = math.max((h > 0 and h * .64 or 16), size)
+    end
+    cooldown.pfCooldownText.height = h
+    cooldown.pfCooldownText.text:SetFont(pfUI.media[C.appearance.cd.font], size, "OUTLINE")
   end
 
   -- hook
@@ -114,6 +122,14 @@ pfUI:RegisterModule("cooldown", "vanilla:tbc", function ()
       start, duration = 0, 0
     end
 
+    -- the sweep's direction (octo, 28 Oct 2026; brues-code's fork): ClassicAPI's
+    -- cooldown frames have SetReverse - the stock 1.12 swipe has not, so nothing happens there
+    local rev = this.pfCooldownReverse or 0
+    if this.SetReverse and this.octoReverse ~= rev then
+      this:SetReverse(rev == 1)
+      this.octoReverse = rev
+    end
+
     -- hide animation
     if this.pfCooldownStyleAnimation == 0 then
       this:SetAlpha(0)
@@ -126,6 +142,11 @@ pfUI:RegisterModule("cooldown", "vanilla:tbc", function ()
     and start > 0 and duration > 0 and (not enable or enable > 0) then
       if( not this.pfCooldownText ) then
         pfCreateCoolDown(this, start, duration)
+        pfCooldownFont(this)
+      elseif C.appearance.cd.dynamicsize == "1" then
+        local p = this:GetParent()
+        local h = p and p:GetHeight() or this:GetHeight() or 0
+        if h ~= this.pfCooldownText.height then pfCooldownFont(this) end
       end
 
       this.pfCooldownText.start = start

@@ -348,6 +348,8 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
     Sld(p, "Buffs per row", nil, 1, 32, 1, B, "buffrowsize", UB)
     Sld(p, "Debuffs per row", nil, 1, 16, 1, B, "debuffrowsize", UB)
     Chk(p, "Time inside the icon", "Off: under it.", B, "textinside", UB)
+    Chk(p, "Time left as a sweep", "A clock wipe over each buff as it runs out.", B, "cooldown_anim", UB)
+    Chk(p, "Sweep the other way", "The dark part grows as the time runs out (with ClassicAPI).", B, "cooldown_reverse", UB)
     Sld(p, "Text size", "-1 = pfUI's own text size.", -1, 24, 1, B, "fontsize", UB,
       function(v) return v == -1 and "Default" or (v .. " px") end)
 
@@ -392,6 +394,7 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
     Sld(p, "Icon size", nil, 12, 64, 1, TT, "iconsize", UT, Px)
     Drop(p, "Spacing", nil, DD("spacing"), TT, "spacing", UT)
     Chk(p, "Background", nil, TT, "showbg", UT)
+    Chk(p, "Sweep the other way", "With ClassicAPI.", TT, "cooldown_reverse", UT)
   end
 
   -- layout mode's right-click on a buff bar: the page on that bar's tab

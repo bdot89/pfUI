@@ -102,12 +102,23 @@ pfUI:RegisterModule("buff", "vanilla:tbc", function ()
     buff.texture:SetTexCoord(.07,.93,.07,.93)
     buff.texture:SetAllPoints(buff)
 
-    buff.timer = buff:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    -- octo (28 Oct 2026; brues-code's fork): a cooldown sweep over the icon as the
+    -- buff runs out. The texts sit on a frame above it (a child frame draws over
+    -- every region of its parent, so they would dim under the dark wedge)
+    buff.cd = CreateFrame(COOLDOWN_FRAME_TYPE or "Model", buttonName .. "Cooldown", buff, "CooldownFrameTemplate")
+    buff.cd:SetFrameLevel(buff:GetFrameLevel() + 1)
+    buff.cd.pfCooldownType = "ALL"
+    buff.cd.pfCooldownStyleText = 0
+    buff.overlay = CreateFrame("Frame", nil, buff)
+    buff.overlay:SetAllPoints(buff)
+    buff.overlay:SetFrameLevel(buff:GetFrameLevel() + 2)
+
+    buff.timer = buff.overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     buff.timer:SetTextColor(1,1,1,1)
     buff.timer:SetJustifyH("CENTER")
     buff.timer:SetJustifyV("CENTER")
 
-    buff.stacks = buff:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    buff.stacks = buff.overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     buff.stacks:SetTextColor(1,1,1,1)
     buff.stacks:SetJustifyH("RIGHT")
     buff.stacks:SetJustifyV("BOTTOM")
@@ -142,6 +153,26 @@ pfUI:RegisterModule("buff", "vanilla:tbc", function ()
 
       this.timer:SetText(timeleft > 0 and GetColoredTimeString(timeleft) or "")
       this.stacks:SetText(stacks > 1 and stacks or "")
+
+      -- the sweep: 1.12 gives a buff's time left but not its full length, so the
+      -- length is the time left when it was first seen (or renewed: more time left
+      -- than a moment ago). A buff that was on at login starts part way.
+      if C.buffs.cooldown_anim == "1" and timeleft > 0 then
+        local id = this.mode .. ":" .. tostring(this.mode == this.btype and GetPlayerBuffTexture(this.bid) or "")
+        if this.cdId ~= id or not this.cdLen or timeleft > (this.cdLeft or 0) + .5 then
+          this.cdId, this.cdLen = id, timeleft
+        end
+        this.cdLeft = timeleft
+        local start = GetTime() + timeleft - this.cdLen
+        if not this.cdStart or math.abs(start - this.cdStart) > .3 then
+          this.cd.pfCooldownReverse = tonumber(C.buffs.cooldown_reverse) or 0
+          CooldownFrame_SetTimer(this.cd, start, this.cdLen, 1)
+          this.cdStart = start
+        end
+      elseif this.cdStart then
+        CooldownFrame_SetTimer(this.cd, 0, 0, 0)
+        this.cdStart, this.cdId = nil, nil
+      end
     end)
 
     buff:SetScript("OnEnter", function()
