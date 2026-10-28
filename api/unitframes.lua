@@ -1131,14 +1131,18 @@ function pfUI.uf.OnUpdate()
           local healthWidth = width * (health / maxHealth)
           local fillW = width * fill / maxHealth
           local overW = math.min(width, width * over / maxHealth)
+          -- (pinned to the bar's top AND bottom edge: a set height came out a few pixels short of the
+          -- bar - user, 28 Oct 2026, "should fill the bottom of the bar")
+          local hx = invert and 0 or healthWidth
           this.incHeal:ClearAllPoints()
-          this.incHeal:SetHeight(height)
-          this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", invert and 0 or healthWidth, 0)
+          this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", hx, 0)
+          this.incHeal:SetPoint("BOTTOMLEFT", this.hp.bar, "BOTTOMLEFT", hx, 0)
           this.incHeal:SetWidth(math.max(1, fillW))
           if ov then
+            local s = invert and "LEFT" or "RIGHT"
             ov:ClearAllPoints()
-            ov:SetHeight(height)
-            ov:SetPoint(invert and "TOPLEFT" or "TOPRIGHT", this.hp.bar, invert and "TOPLEFT" or "TOPRIGHT", 0, 0)
+            ov:SetPoint("TOP" .. s, this.hp.bar, "TOP" .. s, 0, 0)
+            ov:SetPoint("BOTTOM" .. s, this.hp.bar, "BOTTOM" .. s, 0, 0)
             ov:SetWidth(math.max(1, overW))
           end
           if fillW >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
@@ -1147,14 +1151,17 @@ function pfUI.uf.OnUpdate()
           local healthHeight = height * (health / maxHealth)
           local fillH = height * fill / maxHealth
           local overH = math.min(height, height * over / maxHealth)
+          -- (pinned to the bar's left AND right edge, as above)
+          local hy = invert and 0 or healthHeight
           this.incHeal:ClearAllPoints()
-          this.incHeal:SetWidth(width)
-          this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, invert and 0 or healthHeight)
+          this.incHeal:SetPoint("BOTTOMLEFT", this.hp.bar, "BOTTOMLEFT", 0, hy)
+          this.incHeal:SetPoint("BOTTOMRIGHT", this.hp.bar, "BOTTOMRIGHT", 0, hy)
           this.incHeal:SetHeight(math.max(1, fillH))
           if ov then
+            local s = invert and "BOTTOM" or "TOP"
             ov:ClearAllPoints()
-            ov:SetWidth(width)
-            ov:SetPoint(invert and "BOTTOM" or "TOP", this.hp.bar, invert and "BOTTOM" or "TOP", 0, 0)
+            ov:SetPoint(s .. "LEFT", this.hp.bar, s .. "LEFT", 0, 0)
+            ov:SetPoint(s .. "RIGHT", this.hp.bar, s .. "RIGHT", 0, 0)
             ov:SetHeight(math.max(1, overH))
           end
           if fillH >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
