@@ -50,10 +50,22 @@ local function BuffOnUpdate()
   CooldownFrame_SetTimer(this.cd, start, maxdurations[texture], timeleft > 0 and 1 or 0)
 end
 
+-- an aura's clock from its duration and time left. A talent that makes an
+-- aura last longer than its base duration gives more time left than duration:
+-- the start would lie in the future and pfUI's cooldown text falls into its
+-- 2^32 wrap-round (a huge number). Then the time left is the whole length.
+-- (brues-code's pfUI fork fixed the same, 2026)
+local function AuraClock(cd, duration, timeleft)
+  if not timeleft or timeleft <= 0 then CooldownFrame_SetTimer(cd, 0, 0, 0) return end
+  if not duration or duration <= 0 or timeleft > duration then duration = timeleft end
+  CooldownFrame_SetTimer(cd, GetTime() + timeleft - duration, duration, 1)
+end
+pfUI.api.AuraClock = AuraClock
+
 local function TargetBuffOnUpdate()
   local name, rank, icon, count, duration, timeleft = _G.UnitBuff("target", this.id)
   if duration and timeleft then
-    CooldownFrame_SetTimer(this.cd, GetTime() + timeleft - duration, duration, 1)
+    AuraClock(this.cd, duration, timeleft)
   else
     CooldownFrame_SetTimer(this.cd, 0, 0, 0)
   end
@@ -1089,8 +1101,9 @@ function pfUI.uf.OnUpdate()
       this.predictstate = heal - health - maxHealth
 
       if heal > 0 and (health < maxHealth or overhealperc > 0 ) then
-        local width = this.config.width
-        local height = this.config.height
+        -- (the health bar as drawn: the width / height settings miss its border and pixel scale)
+        local width = (this.hp and this.hp.bar and this.hp.bar:GetWidth() or 0) > 0 and this.hp.bar:GetWidth() or tonumber(this.config.width) or 100
+        local height = (this.hp and this.hp.bar and this.hp.bar:GetHeight() or 0) > 0 and this.hp.bar:GetHeight() or tonumber(this.config.height) or 20
 
         if this.config.verticalbar == "0" then
           local healthWidth = width * (health / maxHealth)
@@ -1687,12 +1700,12 @@ function pfUI.uf:RefreshUnit(unit, component)
         elseif libdebuff and selfdebuff == "1" then
           local name, rank, texture, stacks, dtype, duration, timeleft, caster = libdebuff:UnitOwnDebuff(unitstr, i)
           if duration and timeleft then
-            CooldownFrame_SetTimer(unit.debuffs[i].cd, GetTime() + timeleft - duration, duration, 1)
+            AuraClock(unit.debuffs[i].cd, duration, timeleft)
           end
         elseif libdebuff then
           local name, rank, texture, stacks, dtype, duration, timeleft, caster = libdebuff:UnitDebuff(unitstr, i)
           if duration and timeleft then
-            CooldownFrame_SetTimer(unit.debuffs[i].cd, GetTime() + timeleft - duration, duration, 1)
+            AuraClock(unit.debuffs[i].cd, duration, timeleft)
           end
         end
 

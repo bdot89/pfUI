@@ -510,8 +510,15 @@ libpredict.sender:SetScript("OnEvent", function()
     elseif spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal) end
     end
-  elseif event == "UNIT_SPELLCAST_SENT" and arg4 then -- fix tbc mouseover macros
-      senttarget = arg4
+  elseif event == "UNIT_SPELLCAST_SENT" then
+    if pfUI.client >= 20000 then
+      if arg4 then senttarget = arg4 end -- fix tbc mouseover macros (arg4 = the target's name)
+    elseif arg1 == "player" then
+      -- octo (28 Oct 2026): ClassicAPI sends this on 1.12 as unit, target unit token, cast GUID, spell
+      -- id. Its arg4 (a number) was taken as the target's name, so every own heal went to a "player"
+      -- called 10917 and no frame showed it. Its arg2 names the unit the cast went at (none for self).
+      senttarget = type(arg2) == "string" and arg2 ~= "" and UnitName(arg2) or nil
+    end
   elseif strfind(event, "SPELLCAST_START", 1) then
     local spell, time = arg1, arg2
 
@@ -524,10 +531,12 @@ libpredict.sender:SetScript("OnEvent", function()
       spell, time = spellname, endtime - starttime
     end
 
-    if spell_queue[1] == spell and cache[spell_queue[2]] then
+    -- (octo: the first cast of a spell has no healed amount yet - its own text gives one)
+    local known = cache[spell_queue[2]] and cache[spell_queue[2]][1] or libpredict:Guess(spell, spell_queue[2])
+    if spell_queue[1] == spell and known then
       local sender = player
       local target = senttarget or spell_queue[3]
-      local amount = cache[spell_queue[2]][1]
+      local amount = known
       local casttime = time
 
       if spell == REGROWTH then
@@ -626,6 +635,208 @@ function libpredict:GetHotDuration(unit, spell)
   end
 
   return start, duration, timeleft
+end
+
+-- ---------------------------------------------------------------- everyone's heals
+-- pfUI Octo (28 Oct 2026; user: "HEAL PREDICTION IS HUGE ... MUST SHOW ALL HEALS IN ALL
+-- FRAMES"). HealComm messages only come from healers who run a HealComm addon. With
+-- ClassicAPI (UNIT_SPELLCAST_* for every unit, UnitSpellTargetName, its combat log) or
+-- SuperWoW (UNIT_CASTEVENT: caster and target GUIDs) every heal cast in sight is seen,
+-- from anyone. Its size: what that healer's spell (and rank) healed last time (combat
+-- log, or the heal lines in chat), else the same spell from anyone, else the spell's own
+-- "for X to Y" text. A HealComm message from the same healer simply replaces it (same
+-- sender). ClassicAPI calls as in brues-code's pfUI fork (MIT, like pfUI).
+do
+  local HEALS = {
+    ["Healing Wave"] = true, ["Lesser Healing Wave"] = true, ["Chain Heal"] = true,
+    ["Flash Heal"] = true, ["Greater Heal"] = true, ["Heal"] = true, ["Lesser Heal"] = true,
+    ["Holy Light"] = true, ["Flash of Light"] = true, ["Healing Touch"] = true,
+  }
+  HEALS[PRAYER_OF_HEALING] = true
+  HEALS[REGROWTH] = true
+  libpredict.HEALS = HEALS
+
+  -- learned[caster][key] = amount; anyone[key] = amount (key = name or "name rank")
+  local learned, anyone, guessed = {}, {}, {}
+  local function Learn(caster, name, rank, amount, crit)
+    amount = tonumber(amount)
+    if not caster or not name or not amount or amount <= 0 then return end
+    -- (a critical heal is 1.5 times a normal one)
+    if crit then amount = math.floor(amount / 1.5) end
+    learned[caster] = learned[caster] or {}
+    learned[caster][name] = amount
+    anyone[name] = amount
+    if rank and rank ~= "" then
+      learned[caster][name .. rank] = amount
+      anyone[name .. rank] = amount
+    end
+  end
+  libpredict.Learn = Learn
+
+  -- a spell's own text: "Heals a friendly target for 307 to 353" -> 330
+  local scan = CreateFrame("GameTooltip", "pfPredictScan", UIParent, "GameTooltipTemplate")
+  local function FromText(text)
+    if not text then return end
+    local _, _, lo, hi = string.find(text, "(%d+) to (%d+)")
+    if lo then return (tonumber(lo) + tonumber(hi)) / 2 end
+  end
+  local function FromBook(name, rank)
+    local best
+    local i = 1
+    while true do
+      local n, r = GetSpellName(i, BOOKTYPE_SPELL)
+      if not n then break end
+      if n == name and (not rank or rank == "" or r == rank) then
+        scan:SetOwner(UIParent, "ANCHOR_NONE")
+        scan:ClearLines()
+        scan:SetSpell(i, BOOKTYPE_SPELL)
+        for l = 1, (scan:NumLines() or 0) do
+          local fs = _G["pfPredictScanTextLeft" .. l]
+          local v = fs and FromText(fs:GetText())
+          if v then best = v end
+        end
+      end
+      i = i + 1
+    end
+    return best
+  end
+
+  -- a heal's size before it lands; key = name .. rank as the own cast queue keeps it
+  function libpredict:Guess(name, key, spellId, caster)
+    if not name or not HEALS[name] then return nil end
+    key = key or name
+    local c = caster and learned[caster]
+    if c and (c[key] or c[name]) then return c[key] or c[name] end
+    if anyone[key] or anyone[name] then return anyone[key] or anyone[name] end
+    if guessed[key] == nil then
+      local v
+      if spellId and C_Spell and C_Spell.GetSpellDescription then
+        local ok, d = pcall(C_Spell.GetSpellDescription, spellId)
+        if ok then v = FromText(d) end
+      end
+      if not v then v = FromBook(name, string.sub(key, string.len(name) + 1)) end
+      guessed[key] = v or false
+    end
+    return guessed[key] or nil
+  end
+
+  -- Prayer of Healing: everyone in the caster's group (party, or the raid subgroup)
+  local function GroupOf(caster)
+    local out = {}
+    if GetNumRaidMembers and GetNumRaidMembers() > 0 then
+      local group
+      for i = 1, GetNumRaidMembers() do
+        local n, _, sub = GetRaidRosterInfo(i)
+        if n == caster then group = sub end
+      end
+      for i = 1, GetNumRaidMembers() do
+        local n, _, sub = GetRaidRosterInfo(i)
+        if group and sub == group then table.insert(out, n) end
+      end
+    else
+      table.insert(out, caster)
+      if UnitName("player") ~= caster then table.insert(out, UnitName("player")) end
+      for i = 1, 4 do
+        local n = UnitName("party" .. i)
+        if n and n ~= caster then table.insert(out, n) end
+      end
+    end
+    return out
+  end
+
+  -- a heal being cast by someone else: on its target(s) until it lands or stops
+  local casting = {}   -- key (cast GUID / caster GUID) -> { caster, targets, amount }
+  local function Start(key, caster, target, name, rank, spellId, ms)
+    if not caster or caster == player or not HEALS[name] or not ms or ms <= 0 then return end
+    local amount = libpredict:Guess(name, name .. (rank or ""), spellId, caster)
+    if not amount then return end
+    local targets = (name == PRAYER_OF_HEALING) and GroupOf(caster) or { target or caster }
+    for _, t in ipairs(targets) do libpredict:Heal(caster, t, amount, ms) end
+    casting[key] = { caster = caster, targets = targets }
+  end
+  local function Stop(key)
+    local c = key and casting[key]
+    if not c then return end
+    casting[key] = nil
+    libpredict:HealStop(c.caster)
+  end
+  local function Delay(key, endsAt)
+    local c = key and casting[key]
+    if not c or not endsAt then return end
+    for _, t in ipairs(c.targets) do
+      local h = heals[t] and heals[t][c.caster]
+      if h then h[2] = endsAt libpredict:AddEvent(endsAt, t) end
+    end
+  end
+  libpredict.OtherStart, libpredict.OtherStop = Start, Stop
+
+  local capi = pfUI.client < 20000 and type(_G.UnitSpellTargetName) == "function"
+    and C_Spell and C_Spell.GetSpellName and C_Spell.UnitCastingInfo
+  local others = CreateFrame("Frame", "pfPredictionOthers", UIParent)
+  libpredict.others = others
+  if capi then
+    for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
+                         "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED", "COMBAT_LOG_EVENT_UNFILTERED" }) do
+      others:RegisterEvent(e)
+    end
+  elseif pfUI.client < 20000 then
+    -- SuperWoW without ClassicAPI; plain 1.12: only HealComm and the chat lines
+    others:RegisterEvent("UNIT_CASTEVENT")
+  end
+  -- other players' heals in chat teach the sizes when the combat log is not there
+  for _, e in ipairs({ "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF", "CHAT_MSG_SPELL_PARTY_BUFF", "CHAT_MSG_SPELL_HOSTILEPLAYER_BUFF" }) do
+    others:RegisterEvent(e)
+  end
+  local cmatch = pfUI.api.cmatch
+  others:SetScript("OnEvent", function()
+    if event == "UNIT_SPELLCAST_START" then
+      -- (every unit token a caster has fires its own copy: the cast GUID says it is one cast)
+      local unit, guid, id = arg1, arg2, arg3
+      if not unit or not guid or casting[guid] or UnitIsUnit(unit, "player") then return end
+      local name = C_Spell.GetSpellName(id)
+      if not name or not HEALS[name] then return end
+      local ok, target = pcall(_G.UnitSpellTargetName, unit)
+      local _, _, _, s, e = C_Spell.UnitCastingInfo(unit)
+      local rank = C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id) or ""
+      Start(guid, UnitName(unit), ok and target or nil, name, rank, id, (s and e) and (e - s) or nil)
+    elseif event == "UNIT_SPELLCAST_DELAYED" then
+      local _, _, _, _, e = C_Spell.UnitCastingInfo(arg1)
+      if e then Delay(arg2, e / 1000) end
+    elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_FAILED"
+        or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_SUCCEEDED" then
+      Stop(arg2)
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+      local info = _G.CombatLogGetCurrentEventInfo
+      if type(info) ~= "function" then return end
+      local _, sub, _, _, src, _, _, _, _, _, _, id, name, _, amount, _, _, crit = info()
+      if sub == "SPELL_HEAL" and src and src ~= player then
+        local rank = id and C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id) or ""
+        Learn(src, name, rank, amount, crit)
+      end
+    elseif event == "UNIT_CASTEVENT" then
+      -- SuperWoW: arg1 caster GUID, arg2 target GUID, arg3 START / CAST / FAIL..., arg4 spell id, arg5 ms
+      if arg3 == "START" then
+        local name, rank = SpellInfo and SpellInfo(arg4)
+        if not name or not HEALS[name] then return end
+        local caster = UnitName(arg1)
+        local target = arg2 and arg2 ~= "" and arg2 ~= "0x0000000000000000" and UnitName(arg2) or nil
+        Start(arg1, caster, target, name, rank, arg4, arg5)
+      elseif arg3 == "CAST" or arg3 == "FAIL" then
+        Stop(arg1)
+      end
+    elseif cmatch and arg1 then
+      -- the critical lines first: "X's Y critically heals Z" also fits "X's Y heals Z"
+      -- (with "Y critically" as the spell)
+      local LINES = { { HEALEDCRITOTHEROTHER, true, true }, { HEALEDCRITOTHERSELF, true }, { HEALEDOTHEROTHER, false, true }, { HEALEDOTHERSELF, false } }
+      for _, l in ipairs(LINES) do
+        if l[1] then
+          local who, spell, a3, a4 = cmatch(arg1, l[1])
+          local amt = l[3] and a4 or a3
+          if who and amt then Learn(who, spell, nil, amt, l[2]) return end
+        end
+      end
+    end
+  end)
 end
 
 pfUI.api.libpredict = libpredict

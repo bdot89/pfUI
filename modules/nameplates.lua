@@ -439,7 +439,7 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
         combopoints[i] = CreateFrame("Frame", nil, nameplate)
         combopoints[i]:Hide()
         combopoints[i]:SetFrameLevel(8)
-        combopoints[i].tex = combopoints[i]:CreateTexture("OVERLAY")
+        combopoints[i].tex = combopoints[i]:CreateTexture(nil, "OVERLAY")
         combopoints[i].tex:SetAllPoints()
 
         if i < 3 then

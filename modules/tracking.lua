@@ -58,7 +58,7 @@ pfUI:RegisterModule("tracking", "vanilla", function ()
   pfUI.tracking:SetWidth(size)
   pfUI.tracking:SetHeight(size)
 
-  pfUI.tracking.icon = pfUI.tracking:CreateTexture("BACKGROUND")
+  pfUI.tracking.icon = pfUI.tracking:CreateTexture(nil, "BACKGROUND")
   pfUI.tracking.icon:SetTexCoord(.08, .92, .08, .92)
   pfUI.tracking.icon:SetAllPoints(pfUI.tracking)
 

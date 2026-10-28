@@ -384,7 +384,7 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
         frame.color:SetHeight(12)
         CreateBackdrop(frame.color)
         frame.color:SetPoint("RIGHT" , -5, 1)
-        frame.color.prev = frame.color.backdrop:CreateTexture("OVERLAY")
+        frame.color.prev = frame.color.backdrop:CreateTexture(nil, "OVERLAY")
         frame.color.prev:SetAllPoints(frame.color)
 
         local cr, cg, cb, ca = strsplit(",", category[config])

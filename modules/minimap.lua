@@ -105,7 +105,7 @@ pfUI:RegisterModule("minimap", "vanilla:tbc", function ()
       this.highlight:SetAllPoints(this)
       this.highlight:SetFrameLevel(this:GetFrameLevel() + 1)
 
-      this.highlight.tex = this.highlight:CreateTexture("OVERLAY")
+      this.highlight.tex = this.highlight:CreateTexture(nil, "OVERLAY")
       this.highlight.tex:SetTexture(pfUI.media["img:mail"])
       this.highlight.tex:SetPoint("TOPLEFT", MiniMapMailIcon, "TOPLEFT", -2, 2)
       this.highlight.tex:SetPoint("BOTTOMRIGHT", MiniMapMailIcon, "BOTTOMRIGHT", 2, -2)

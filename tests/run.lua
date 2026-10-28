@@ -5110,6 +5110,54 @@ do
   end
 end
 
+-- heal prediction from everyone (libpredict; user, 28 Oct 2026: "MUST SHOW ALL HEALS IN ALL FRAMES")
+do
+  local LP = pfUI.api.libpredict
+  ok(LP and LP.others and LP.Learn and LP.Guess, "heal prediction listens for other players' heals")
+  if LP and LP.others then
+    local me = UnitName("player")
+    local run = LP.others:GetScript("OnEvent")
+    local function Fire(e, a1, a2, a3, a4, a5)
+      _G.event, _G.arg1, _G.arg2, _G.arg3, _G.arg4, _G.arg5 = e, a1, a2, a3, a4, a5
+      run()
+    end
+    -- sizes learned from the heal lines in chat (no combat log)
+    Fire("CHAT_MSG_SPELL_PARTY_BUFF", "Anna's Flash Heal heals Bob for 900.")
+    ok(LP:Guess("Flash Heal", "Flash Heal", nil, "Anna") == 900, "a healer's heal size learned from chat")
+    Fire("CHAT_MSG_SPELL_PARTY_BUFF", "Anna's Greater Heal critically heals you for 3000.")
+    ok(LP:Guess("Greater Heal", "Greater Heal", nil, "Anna") == 2000, "a critical heal counts as its normal size")
+    ok(LP:Guess("Flash Heal", "Flash Heal", nil, "Carl") == 900, "another healer's same spell is used until theirs is known")
+    ok(LP:Guess("Fireball", "Fireball", nil, "Anna") == nil, "only heals are predicted")
+    -- SuperWoW: Anna starts a Flash Heal on you
+    local si, un = SpellInfo, UnitName
+    _G.SpellInfo = function(id) if id == 10917 then return "Flash Heal", "Rank 7" end end
+    _G.UnitName = function(u) if u == "0xANNA" then return "Anna" elseif u == "0xME" then return me end return un(u) end
+    Fire("UNIT_CASTEVENT", "0xANNA", "0xME", "START", 10917, 1500)
+    ok(LP:UnitGetIncomingHeals("player") == 900, "SuperWoW: a heal being cast on you shows on your frame (" .. LP:UnitGetIncomingHeals("player") .. ")")
+    Fire("UNIT_CASTEVENT", "0xANNA", "0xME", "CAST", 10917, 0)
+    ok(LP:UnitGetIncomingHeals("player") == 0, "and goes when it lands")
+    -- ClassicAPI: the cast events of every unit, the target by name, sizes from the combat log
+    local cs, ust, uiu, clog = C_Spell, UnitSpellTargetName, UnitIsUnit, CombatLogGetCurrentEventInfo
+    _G.C_Spell = { GetSpellName = function(id) return id == 25314 and "Greater Heal" or nil end,
+                   GetSpellSubtext = function() return "Rank 5" end,
+                   UnitCastingInfo = function() return "Greater Heal", nil, nil, 1000, 3500 end }
+    _G.UnitSpellTargetName = function() return me end
+    _G.UnitIsUnit = function(a, b) return a == b end
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 0, "SPELL_HEAL", false, "0xB", "Bert", 0, 0, "0xME", me, 0, 0, 25314, "Greater Heal", 2, 2100, 0, 0, nil
+    end
+    Fire("COMBAT_LOG_EVENT_UNFILTERED")
+    Fire("UNIT_SPELLCAST_START", "party1", "cast-1", 25314)
+    Fire("UNIT_SPELLCAST_START", "raid3", "cast-1", 25314)
+    ok(LP:UnitGetIncomingHeals("player") == 2100, "ClassicAPI: Bert's Greater Heal on you, learned from the combat log, counted once ("
+      .. LP:UnitGetIncomingHeals("player") .. ")")
+    Fire("UNIT_SPELLCAST_INTERRUPTED", "party1", "cast-1", 25314)
+    ok(LP:UnitGetIncomingHeals("player") == 0, "an interrupted heal goes")
+    _G.C_Spell, _G.UnitSpellTargetName, _G.UnitIsUnit, _G.CombatLogGetCurrentEventInfo = cs, ust, uiu, clog
+    _G.SpellInfo, _G.UnitName = si, un
+  end
+end
+
 -- SuperWoW / ClassicAPI use across the modules (libs\libclient.lua)
 octo_ok, octo_dir = ok, DIR
 dofile(DIR .. "/tests/clientapi.lua")
