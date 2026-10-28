@@ -683,8 +683,30 @@ do
   -- /pfheal: each of your predictions and what the heal really did, in chat (user, 28 Oct 2026:
   -- "STILL NOT WORKING" - one cast with this on shows where it goes wrong)
   local function Say(msg) DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI heal|r " .. msg) end
+  -- (and a moment later, what every pfUI frame of that player does with it)
+  local frameCheck = CreateFrame("Frame")
+  frameCheck:Hide()
+  frameCheck:SetScript("OnUpdate", function()
+    if GetTime() < (this.at or 0) then return end
+    this:Hide()
+    local name, found = this.name, 0
+    for _, f in pairs(pfUI.uf and pfUI.uf.frames or {}) do
+      local unit = f.label and (f.label .. (f.id or ""))
+      if unit and unit ~= "" and UnitName(unit) == name and f:IsVisible() and not f.octoPreview then
+        found = found + 1
+        local inc = f.incHeal
+        Say(string.format("  frame |cffffffff%s|r (%s): incoming %d, health %d / %d, green %s%s",
+          tostring(f:GetName() or "?"), unit, libpredict:UnitGetIncomingHeals(unit), UnitHealth(unit) or 0, UnitHealthMax(unit) or 0,
+          inc and inc:IsShown() and string.format("|cff55ff55shown|r %dx%d px", inc:GetWidth() or 0, inc:GetHeight() or 0) or "|cffff5555hidden|r",
+          inc and inc.texture and string.format(" alpha %.2f", (inc.GetEffectiveAlpha and inc:GetEffectiveAlpha() or inc:GetAlpha() or 1)) or ""))
+      end
+    end
+    if found == 0 then Say("  |cffff5555no pfUI frame shows " .. tostring(name) .. "|r") end
+  end)
   function libpredict.Note(source, spell, target, amount, ms)
     if not libpredict.debug then return end
+    frameCheck.name, frameCheck.at = target, GetTime() + .3
+    frameCheck:Show()
     Say(string.format("%s on |cffffffff%s|r: |cff55ff55%d|r in %.1f s  |cff999999(from the %s%s, healing power %d)|r",
       tostring(spell), tostring(target), tonumber(amount) or 0, (tonumber(ms) or 0) / 1000,
       source == "cast" and "cast event" or "button click", source == "cast" and "" or "",
