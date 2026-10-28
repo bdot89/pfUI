@@ -5241,6 +5241,28 @@ do
     LP.BaseHeal, _G.GetSpellBonusHealing = bh, gsbh
     -- /pfheal readout
     ok(SlashCmdList.PFHEAL ~= nil, "/pfheal readout is there")
+    -- the green on the frame: over the health bar, from where the health ends, as wide as the heal
+    -- (user, 28 Oct 2026: "still no green glow on the frames" - it was drawn behind the bar's empty part)
+    local pf = pfUI.uf and pfUI.uf.player
+    if pf and pf.incHeal and pf.hp and pf.hp.bar and pf:GetScript("OnUpdate") then
+      local uh, uhm, uig = UnitHealth, UnitHealthMax, LP.UnitGetIncomingHeals
+      _G.UnitHealth = function() return 500 end
+      _G.UnitHealthMax = function() return 1000 end
+      LP.UnitGetIncomingHeals = function() return 250 end
+      pf.label, pf.id, pf.predictAt, pf.predictstate = "player", "", nil, nil
+      local w = pf.hp.bar:GetWidth()
+      if not w or w <= 0 then w = tonumber(pf.config.width) or 100 end
+      _G.this = pf
+      local good, err = pcall(pf:GetScript("OnUpdate"))
+      local _, _, _, x = pf.incHeal:GetPoint(1)
+      ok(good and pf.incHeal:IsShown(), "a heal on you shows the green bar: " .. tostring(err))
+      -- (the frame reads health through pfUI's health library: the start is checked to be inside the bar)
+      ok(x and x > 0 and x < w and math.abs(pf.incHeal:GetWidth() - w / 4) < .5,
+        "it starts where your health ends and is as wide as the heal (" .. tostring(x) .. ", " .. tostring(pf.incHeal:GetWidth()) .. " of " .. w .. ")")
+      ok(pf.incHeal:GetFrameLevel() > pf.hp.bar:GetFrameLevel(), "and sits over the health bar, not behind it")
+      _G.UnitHealth, _G.UnitHealthMax, LP.UnitGetIncomingHeals = uh, uhm, uig
+      pf.predictAt, pf.predictstate = nil, nil
+    end
     LP.ownByCast = own
     -- your own heal lines: the critical ones read right (they used to read the name as the amount)
     local sender = LP.sender:GetScript("OnEvent")

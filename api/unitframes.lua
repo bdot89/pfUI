@@ -1114,11 +1114,18 @@ function pfUI.uf.OnUpdate()
             incWidth = width * (1+overhealperc/100) - healthWidth
           end
 
+          -- octo (28 Oct 2026; user: "still no green glow on the frames"): the green is drawn OVER the
+          -- health bar, from where the health ends and only as wide as the heal. pfUI drew it behind,
+          -- as wide as health + heal, showing through the bar's empty part - which pfUI Octo fills
+          -- (empty part colour, shade, fading bar), so the green was never seen.
+          this.incHeal:ClearAllPoints()
+          this.incHeal:SetHeight(height)
           if this.config.invert_healthbar == "1" then
-            this.incHeal:SetWidth(incWidth)
+            this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", 0, 0)
           else
-            this.incHeal:SetWidth(incWidth + healthWidth)
+            this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", healthWidth, 0)
           end
+          this.incHeal:SetWidth(math.max(1, incWidth))
         else
           local healthHeight = height * (health / maxHealth)
           local incHeight = height * heal / maxHealth
@@ -1126,12 +1133,17 @@ function pfUI.uf.OnUpdate()
             incHeight = height * (1+overhealperc/100) - healthHeight
           end
 
+          this.incHeal:ClearAllPoints()
+          this.incHeal:SetWidth(width)
           if this.config.invert_healthbar == "1" then
-            this.incHeal:SetHeight(incHeight)
+            this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, 0)
           else
-            this.incHeal:SetHeight(incHeight + healthHeight)
+            this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, healthHeight)
           end
+          this.incHeal:SetHeight(math.max(1, incHeight))
         end
+        -- (over the bar's fill and its background art, under the texts at level 16)
+        if this.hp.bar.GetFrameLevel then this.incHeal:SetFrameLevel(math.min(15, this.hp.bar:GetFrameLevel() + 2)) end
 
         this.incHeal:Show()
       else
@@ -1370,7 +1382,7 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
   f.powerCenterText = f.texts:CreateFontString("Status", "OVERLAY", "GameFontNormalSmall")
 
   f.incHeal = CreateFrame("Frame", nil, f.hp)
-  f.incHeal.texture = f.incHeal:CreateTexture(nil, "BACKGROUND")
+  f.incHeal.texture = f.incHeal:CreateTexture(nil, "ARTWORK")
   f.incHeal.texture:SetAllPoints()
 
   f.ressIcon = CreateFrame("Frame", nil, f.hp.bar)
