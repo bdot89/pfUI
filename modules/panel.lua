@@ -851,13 +851,23 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     local wins = pfUI.panel.ArrowMeters()
     if on then
       chat:Show()
-      local n = table.getn(wins)
-      local w = (chat:GetWidth() or 400) / math.max(1, n)
-      local bottom = pfUI.panel.right:GetHeight() or 0
+      -- (26 Oct 2026, user: "making a frame wider ... nothing happens") each window's share of the
+      -- panel follows its own width setting: a wider window takes more of it, the others less
+      local ws, total = {}, 0
       for i, win in ipairs(wins) do
+        local s = M.S and M.S(win)
+        ws[i] = math.max(40, tonumber(s and s.width) or 260)
+        total = total + ws[i]
+      end
+      local full = chat:GetWidth() or 400
+      local bottom = pfUI.panel.right:GetHeight() or 0
+      local x = 0
+      for i, win in ipairs(wins) do
+        local w = full * ws[i] / math.max(1, total)
         win:ClearAllPoints()
-        win:SetPoint("TOPLEFT", chat, "TOPLEFT", (i - 1) * w, 0)
-        win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", i * w, bottom)
+        win:SetPoint("TOPLEFT", chat, "TOPLEFT", x, 0)
+        win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", x + w, bottom)
+        x = x + w
         win:SetFrameStrata(chat:GetFrameStrata())
         win:SetFrameLevel(chat:GetFrameLevel() + 5)
         if win.grip then win.grip:Hide() end
@@ -893,6 +903,24 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     end
   end
   function pfUI.panel.ArrowToggle() pfUI.panel.ArrowSet(not pfUI.panel.ArrowIsOpen()) end
+  -- meter window n docked in the arrow's window or not (Meters > Windows, "Docked in the panel")
+  function pfUI.panel.ArrowDocks(n)
+    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k == "m" .. n then return true end end
+    return false
+  end
+  function pfUI.panel.ArrowDock(n, on)
+    local open = C.panel.arrowmode == "meters" and pfUI.panel.ArrowIsOpen()
+    if open then pfUI.panel.ArrowSet(false) end
+    local out = {}
+    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k ~= "m" .. n then table.insert(out, k) end end
+    if on then table.insert(out, "m" .. n) end
+    C.panel.arrowwins = table.concat(out, ",")
+    if open then pfUI.panel.ArrowSet(true) end
+  end
+  -- docked meter windows placed again (a width changed on the Meters page or in Move frames)
+  function pfUI.panel.ArrowLayout()
+    if C.panel.arrowmode == "meters" and C.panel.arrowopen == "1" then MetersIn(true) end
+  end
   -- the mode changed on the options page: shut the one before, open the new one
   function pfUI.panel.ArrowMode(mode)
     local was = pfUI.panel.ArrowIsOpen()

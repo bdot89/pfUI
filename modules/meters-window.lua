@@ -500,22 +500,40 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
 
   -- ---------------------------------------------------------------- report
 
-  local function Report(win, channel, whisper)
+  -- the report as lines of text: a title, then one per bar
+  local function ReportLines(win)
     local rows = M.Rows(win.mode, win.segment)
     if table.getn(rows) == 0 then return end
     local mode = MODE[win.mode] or MODE.damage
     local title = "pfUI Octo - " .. mode.name
     if win.mode ~= "threat" then title = title .. " - " .. gsub(SegmentName(win.segment), "|c%x%x%x%x%x%x%x%x", "") end
     title = gsub(gsub(title, "|r", ""), "%*", "")
-    SendChatMessage(title, channel, nil, whisper)
+    local out = { title }
     for i = 1, min(table.getn(rows), tonumber(C.meters.reportlines) or 10) do
       local r = rows[i]
       local line = i .. ". " .. r.name .. "  " .. r.text
       if r.extra then line = line .. " (" .. r.extra .. ")" end
       if r.pct then line = line .. "  " .. string.format("%.1f%%", r.pct) end
-      SendChatMessage(line, channel, nil, whisper)
+      table.insert(out, line)
     end
+    return out
   end
+  M.ReportLines = ReportLines
+
+  local function Report(win, channel, whisper)
+    local lines = ReportLines(win)
+    if not lines then return end
+    -- (ClassicAPI: the clipboard, as plain text, to paste anywhere - Discord, a forum)
+    if channel == "CLIPBOARD" then
+      local lc = pfUI.api and pfUI.api.libclient
+      if lc and lc.Copy and lc.Copy(table.concat(lines, "\n"), true) then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: the report is on your clipboard - paste it with Ctrl+V.")
+      end
+      return
+    end
+    for _, line in ipairs(lines) do SendChatMessage(line, channel, nil, whisper) end
+  end
+  M.CanCopy = function() return _G.CopyToClipboard and true or false end
 
   local function ReportMenu(win, anchor)
     local items = {
@@ -525,6 +543,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       { T["Guild"], function() Report(win, "GUILD") end },
       { T["Officer"], function() Report(win, "OFFICER") end },
     }
+    if M.CanCopy() then table.insert(items, { "Copy to the clipboard", function() Report(win, "CLIPBOARD") end }) end
     if UnitIsPlayer("target") and UnitIsFriend("player", "target") then
       local name = UnitName("target")
       table.insert(items, { T["Whisper"] .. " " .. name, function() Report(win, "WHISPER", name) end })
@@ -783,6 +802,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     GameTooltip:AddLine(row.name, 1, 1, 1)
     local a = row.actor
     local mode = MODE[bar.win.mode] or MODE.damage
+    GameTooltip:AddDoubleLine(mode.name, row.text or "", .6, .6, .6, 1, 1, 1)
     -- the top entries: spells (with totals), or plain name -> amount lists
     local sorted, total = {}, 0
     if a and mode.list then
@@ -828,6 +848,16 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     -- the class icon at the left of the bar
     b.icon = b.bar:CreateTexture(nil, "OVERLAY")
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    -- the hover colour, a thin border round the bar, and your own bar's mark (25 Oct 2026)
+    b.hov = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hov:SetAllPoints(b)
+    b.hov:SetTexture("Interface\\Buttons\\WHITE8X8")
+    b.hov:SetVertexColor(1, 1, 1, .12)
+    b.rim = CreateFrame("Frame", nil, b)
+    b.rim:SetAllPoints(b)
+    b.rim:SetFrameLevel(b:GetFrameLevel() + 3)
+    b.rim:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    b.rim:Hide()
     b.left = b.bar:CreateFontString(nil, "OVERLAY", "GameFontWhite")
     b.left:SetFont(pfUI.font_unit, C.global.font_unit_size, "OUTLINE")
     b.left:SetPoint("LEFT", 4, 0)
@@ -861,12 +891,19 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     { "tps", "Total (per second, percent)" }, { "tsp", "Total (percent, per second)" },
     { "pts", "Percent  total (per second)" }, { "t", "Total only" }, { "p", "Percent only" },
   }
+  -- a colour setting as a |cffrrggbb code (the grey of the small numbers is a setting too)
+  local function Hex(str, fallback)
+    local r, g, b = Col(str, fallback)
+    return string.format("|cff%02x%02x%02x", floor(r * 255 + .5), floor(g * 255 + .5), floor(b * 255 + .5))
+  end
+  M.Hex = Hex
   local function RightText(s, row)
     local total = row.text or ""
     local ps = (s.showps ~= "0" and row.extra) or nil
     local pct = (s.showpct ~= "0" and row.pct) and string.format("%.0f%%", row.pct) or nil
-    local open, close = " |cffaaaaaa(", ")|r"
-    if s.brackets == "0" then open, close = "  |cffaaaaaa", "|r" end
+    local grey = Hex(s.subcolor, "0.67,0.67,0.67,1")
+    local open, close = " " .. grey .. "(", ")|r"
+    if s.brackets == "0" then open, close = "  " .. grey, "|r" end
     local order = s.order or "tps"
     if order == "t" then return total end
     if order == "p" then return pct or total end
@@ -879,7 +916,7 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
       if ps then table.insert(list, ps) end
     elseif order == "pts" then
       if ps then table.insert(list, ps) end
-      local head = pct and ("|cffaaaaaa" .. pct .. "|r  " .. total) or total
+      local head = pct and (grey .. pct .. "|r  " .. total) or total
       if table.getn(list) > 0 then return head .. open .. table.concat(list, ", ") .. close end
       return head
     end
@@ -917,8 +954,9 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
     win.head:SetHeight(th)
     win.head:SetTexture(Col(s.titlebg, "0,0,0,0.45"))
     local tsize = tonumber(s.titlesize) or C.global.font_size
-    win.title:SetFont(pfUI.font_default, tsize, "OUTLINE")
-    win.seg:SetFont(pfUI.font_default, max(6, tsize - 1), "OUTLINE")
+    local tfont = (s.titlefont and s.titlefont ~= "") and s.titlefont or pfUI.font_default
+    win.title:SetFont(tfont, tsize, "OUTLINE")
+    win.seg:SetFont(tfont, max(6, tsize - 1), "OUTLINE")
     if s.titleaccent == "1" then
       local ar, ag, ab = GetAccentColor()
       win.title:SetTextColor(ar, ag, ab, 1)
@@ -1123,29 +1161,60 @@ pfUI:RegisterModule("meters-window", "vanilla", function ()
           if row.tank then r, g, bb = .6, .15, .15
           elseif share then r, g, bb = min(1, share * 2), min(1, 2 - share * 2), .1 end
         end
+        -- your own bar: a border or a brighter bar (25 Oct 2026)
+        local mine = row.name == me and (s.selfmark == "border" or s.selfmark == "tint")
+        if mine and s.selfmark == "tint" then
+          local sr, sg, sb = Col(s.selfcolor, "1,0.82,0.2,1")
+          r, g, bb = sr, sg, sb
+        end
         b.bar:SetStatusBarColor(r, g, bb, balpha)
-        -- class icon
+        b.hov:SetVertexColor(Col(s.hovercolor, "1,1,1,0.12"))
+        if mine and s.selfmark == "border" then
+          b.rim:SetBackdropBorderColor(Col(s.selfcolor, "1,0.82,0.2,1"))
+          b.rim:Show()
+        elseif s.barborder == "1" then
+          b.rim:SetBackdropBorderColor(Col(s.barbordercolor, "0,0,0,1"))
+          b.rim:Show()
+        else
+          b.rim:Hide()
+        end
+        -- class icon: its size (0 = the bar's height) and side are settings
         local coords = row.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[row.class]
         local iconw = 0
+        local isize = tonumber(s.iconsize) or 0
+        if isize <= 0 then isize = height end
+        local iconright = s.iconside == "right"
         if s.icons == "class" and coords then
           b.icon:SetTexture(pfUI.media["img:classicons"])
           b.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-          b.icon:SetWidth(height)
-          b.icon:SetHeight(height)
+          b.icon:SetWidth(isize)
+          b.icon:SetHeight(isize)
+          b.icon:ClearAllPoints()
+          b.icon:SetPoint(iconright and "RIGHT" or "LEFT", b, iconright and "RIGHT" or "LEFT", 0, 0)
           b.icon:Show()
-          iconw = height
+          iconw = isize
         else
           b.icon:Hide()
         end
+        local vsize = tonumber(s.valuesize) or 0
+        if vsize <= 0 then vsize = fsize end
+        b.left:SetFont(font, fsize, outline)
+        b.right:SetFont(font, vsize, outline)
         for _, fs in ipairs({ b.left, b.right }) do
-          fs:SetFont(font, fsize, outline)
           if s.shadow == "1" then fs:SetShadowOffset(1, -1) fs:SetShadowColor(0, 0, 0, 1) else fs:SetShadowOffset(0, 0) end
         end
+        b.right:ClearAllPoints()
+        b.right:SetPoint("RIGHT", b, "RIGHT", -4 - (iconright and iconw or 0), 0)
         b.left:ClearAllPoints()
-        b.left:SetPoint("LEFT", b, "LEFT", 4 + iconw, 0)
+        b.left:SetPoint("LEFT", b, "LEFT", 4 + (iconright and 0 or iconw), 0)
         b.left:SetPoint("RIGHT", b.right, "LEFT", -6, 0)
-        if s.namecolor == "class" and color then b.left:SetTextColor(color.r, color.g, color.b) else b.left:SetTextColor(1, 1, 1) end
-        b.left:SetText((s.rank ~= "0" and ((i + win.offset) .. ". ") or "") .. row.name)
+        if s.namecolor == "class" and color then b.left:SetTextColor(color.r, color.g, color.b)
+        elseif s.namecolor == "custom" then b.left:SetTextColor(Col(s.namecustom, "1,1,1,1"))
+        else b.left:SetTextColor(1, 1, 1) end
+        if s.valuecolor == "class" and color then b.right:SetTextColor(color.r, color.g, color.b)
+        elseif s.valuecolor == "custom" then b.right:SetTextColor(Col(s.valuecustom, "1,1,1,1"))
+        else b.right:SetTextColor(1, 1, 1) end
+        b.left:SetText((s.rank ~= "0" and (Hex(s.rankcolor, "0.67,0.67,0.67,1") .. (i + win.offset) .. ".|r ") or "") .. row.name)
         b.right:SetText(RightText(s, row))
         b:Show()
       else

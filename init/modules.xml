@@ -48,6 +48,7 @@
   <Include file="..\modules\questitem.lua"/>
   <Include file="..\modules\thirdparty.lua"/>
   <Include file="..\modules\meters.lua"/>
+  <Include file="..\modules\meters-clog.lua"/>
   <Include file="..\modules\meters-threat.lua"/>
   <Include file="..\modules\meters-window.lua"/>
   <Include file="..\modules\meters-options.lua"/>

@@ -595,6 +595,41 @@ C_LossOfControl / school lockout on action buttons; C_NewItems glow in bags.
    on it, It hit, Its spells) and spell view (B.bspell) for enemy / spell rows; every name is a link
    (B.Link -> B.Open, Back stack), Summary lines jump to their tab, header name = menu of everyone,
    Enemies = menu of every enemy. Windows page: "Test mode" card (switch, status, Open a breakdown).
+   25 Oct 2026 (NOT seen in game; user: breakdown "looks bad ... a lot more professional and easier to select what
+   category", icons, linked bars, hover descriptions; the Windows page "a mess ... more custom stuff ... font colour
+   changes icons"): meters-breakdown.lua chrome rebuilt, data functions untouched (BD.TABS / KINDS / GROUPS /
+   listShown / linesShown keep their shape). 940 x 560: header (picture, name menu, Back / Enemies / < > / Report / X
+   with tooltips), a rail on the left (VIEW: the tabs, each with a game icon and a sentence, B.TABINFO; SHOWING:
+   the five display groups, B.GROUPINFO, lit one shows the display's name), five figure tiles over the list for a
+   player (Damage, Healing, Taken, Active, Deaths: click = that view), the Damage / Healing / Friendly fire strip,
+   rows with a picture (class for players, skull for enemies, spell icon via B.SpellIcon = the player's spell book
+   by name + a few fixed ones, question mark when unknown), left accent mark on the selected row, row tooltips
+   (name, figures, "Click: ..."), panel lines with zebra, accent rules under headings, ">" on links, tooltips
+   (`tip` on a line) - Summary lines now explain themselves. LayoutBody(tiles, kinds) sets where the list starts
+   and B.maxrows / maxlines / chartW / chartH. Meter windows: new per-window settings (api/config.lua) namecustom,
+   valuecolor / valuecustom, subcolor (the grey of the small numbers), rankcolor, valuesize, iconside, iconsize,
+   barborder / barbordercolor, selfmark (0 | border | tint) / selfcolor, hovercolor, titlefont (Bar() has hov / rim,
+   Refresh applies them; M.Hex). Bar tooltip starts with the display and value. Options > Meters > Windows
+   re-ordered into cards with game icons (W.Card o.icon): Start with a look, What it shows, The window, Title bar,
+   Bars, Pictures, Words, Colours of the words, Status bar, Share this look, Where they are, Try it without a fight,
+   Remove; every setting has a description; MO.GO renamed (Words, The window, What it shows); preview box 250 high.
+   25 Oct 2026, test row on the preview (Test fight, Open breakdown, Tour the views, Threat label, Status bar; the
+   breakdown is FULLSCREEN_DIALOG so it sits over the options window; its Tour button steps through every view).
+   25 Oct 2026, ClassicAPI's combat log (NOT seen in game; user: use the updated ClassicAPI wherever it helps):
+   modules/meters-clog.lua listens to COMBAT_LOG_EVENT_UNFILTERED, reads CombatLogGetCurrentEventInfo() (1.12
+   handlers only get arg1-arg9) and feeds M.Record the same records the text parser makes (M.ClogHandle, tested
+   with synthetic events in tests\run.lua). The first event sets M.clog and the CHAT_MSG parsing and SuperWoW
+   UNIT_CASTEVENT casts stop (meters.lua OnEvent); C.meters.clog = "0" or no ClassicAPI = the text lines as before.
+   Filter: affiliation bits (mine / party / raid) or pet / guardian type on either side, else only "everyone nearby"
+   (trackall); an enemy's UNIT_DIED only if the group hit it. Gains over the text lines: exact crit / glancing /
+   crushing flags, interrupted spell AND the interrupting spell (r.with), SPELL_DISPEL names the dispeller and the
+   aura, SPELL_AURA_APPLIED names who cast a debuff (M.AuraUp by) so debuff uptime is real, PARTY_KILL names the
+   killer (frags), casts from SPELL_CAST_START / SUCCESS (hits carry r.nocast so they do not count a cast again),
+   spell ids (M.spellIds: name -> id) so the breakdown's rows show C.Spell.GetSpellTexture pictures for any spell.
+   Not in the events: overheal (always 0 - effective healing still from UnitHealth), SPELL_RESURRECT target.
+   Report > Copy to the clipboard (window + breakdown) and Copy this look use libclient.Copy. Data page: card
+   "Combat log source" (switch + status line). Unverified: that the events fire for party / raid members and
+   their pets, that pets carry the pet / group flags, PARTY_KILL arriving before UNIT_DIED.
 13. pfUI Octo or Blizzard, per section, live (23 Oct 2026, NOT seen in game; user: "EVERY PAGE / ADDON
    Should be easily toggled on or off at the top ... turning off will put it back to your blizzard
    setup ... no reloads"). modules/octo-blizzard.lua (`pfUI.blizz`) is FIRST in init\modules.xml: it

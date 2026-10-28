@@ -747,15 +747,6 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
   -- the arrow on the bottom-right bar (25 Oct 2026: off for the user, wanted
   -- by a friend for the Loot & Spam window): on / off and what it shows and
   -- hides. Move frames: right-click that bar opens this page.
-  local function Has(key)
-    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k == key then return true end end
-  end
-  local function SetHas(key, on)
-    local out = {}
-    for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k ~= key then table.insert(out, k) end end
-    if on then table.insert(out, key) end
-    C.panel.arrowwins = table.concat(out, ",")
-  end
   local function BuildArrow(p)
     W.Heading(p, "Panel arrow", {
       on = { function() return C.panel.arrow == "1" end, function(v)
@@ -771,19 +762,12 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
       { { key = "chat", label = "Loot & Spam (as before)" }, { key = "meters", label = "Meter windows, docked" } },
       function() return C.panel.arrowmode or "chat" end,
       function(v) if pfUI.panel and pfUI.panel.ArrowMode then pfUI.panel.ArrowMode(v) else C.panel.arrowmode = v end end)
-    local M = pfUI.meters
-    for i = 1, (M and M.windows and table.getn(M.windows) or 0) do
-      local n = i
-      W.Check(p, "Dock meter window " .. n, "Used when the window holds meter windows.",
-        function() return Has("m" .. n) end, function(v)
-          local open = pfUI.panel and pfUI.panel.ArrowIsOpen and C.panel.arrowmode == "meters" and pfUI.panel.ArrowIsOpen()
-          if open then pfUI.panel.ArrowSet(false) end
-          SetHas("m" .. n, v)
-          if open then pfUI.panel.ArrowSet(true) end
-        end)
-    end
+    -- (26 Oct 2026: which meter windows dock moved to Meters > Windows, "Docked in the panel")
     W.Buttons(p, { { "Open / shut it now", function() if pfUI.panel and pfUI.panel.ArrowToggle then pfUI.panel.ArrowToggle() end end,
-      150, "What a click on the arrow does.", role = "go" } })
+      150, "What a click on the arrow does.", role = "go" },
+      { "Which meter windows dock  >", function()
+        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtwindows", "Docked in the panel") else O:Open("mtwindows") end
+      end, 200, "Meters > Windows: tick the meter windows that sit in the panel's window.", role = "open" } })
   end
 
   -- (replaced first: AddPage rebuilds the topic list)

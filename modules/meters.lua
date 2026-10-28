@@ -631,7 +631,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     local label = r.spl or MELEE
     if srcpet then label = label .. " (" .. srcpet .. ")" end
     -- what each unit last used (an interrupt names the spell it stopped, not the kick)
-    local with = r.kind == "interrupt" and r.src and lastSpell[r.src] and now - lastSpell[r.src].t < 1.5 and lastSpell[r.src].spell
+    local with = r.with or (r.kind == "interrupt" and r.src and lastSpell[r.src] and now - lastSpell[r.src].t < 1.5 and lastSpell[r.src].spell)
     if r.src and r.spl and r.kind ~= "interrupt" and r.kind ~= "start" then lastSpell[r.src] = { spell = r.spl, t = now } end
 
     if r.kind == "dmg" then
@@ -724,7 +724,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
         -- a direct hit of a spell that began casting counts as its cast
         if not r.dot and r.spl and r.spl ~= MELEE then
           local key = r.src .. "\031" .. r.spl
-          if pendingStart[key] then pendingStart[key] = nil else M.Cast(srcname, r.spl, r.tgt, true) end
+          if pendingStart[key] then pendingStart[key] = nil elseif not r.nocast then M.Cast(srcname, r.spl, r.tgt, true) end
         end
       end
       if tgtname then
@@ -780,7 +780,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
         if r.spl then lastCaster[r.spl] = { name = srcname, t = now } end
         if not r.dot and r.spl then
           local key = r.src .. "\031" .. r.spl
-          if pendingStart[key] then pendingStart[key] = nil else M.Cast(srcname, r.spl, r.tgt, true) end
+          if pendingStart[key] then pendingStart[key] = nil elseif not r.nocast then M.Cast(srcname, r.spl, r.tgt, true) end
         end
       end
       if tgtname then
@@ -839,6 +839,8 @@ pfUI:RegisterModule("meters", "vanilla", function ()
 
     elseif r.kind == "dispel" then
       local p = r.tgt and pendingDispel[r.tgt]
+      -- (ClassicAPI's combat log names the dispeller itself)
+      if r.src and srcname then p = { src = srcname, t = now } end
       if p and p.src and now - p.t < 2 then
         Each(function(seg)
           local a = Actor(seg, p.src, Who(p.src))
@@ -893,7 +895,7 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     elseif r.kind == "aura" then
       if not r.tgt or not r.aura then return end
       if r.up then
-        M.AuraUp(r.tgt, r.aura, r.harm, now)
+        M.AuraUp(r.tgt, r.aura, r.harm, now, r.src)
         -- a cooldown seen as its buff (cast by the one who has it)
         if not r.harm and tgtname and COOLDOWNS[r.aura] then M.Cooldown(tgtname, r.aura, r.tgt, now) end
       else
@@ -928,13 +930,14 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     if onlyseg then Add(onlyseg) else Each(Add) end
   end
 
-  function M.AuraUp(unit, aura, harm, now)
+  function M.AuraUp(unit, aura, harm, now, by)
     local friend = Owner(unit)
     local caster
     if harm then
       if friend then return end   -- debuffs on your group are not uptime
       local lc = lastCaster[aura]
-      caster = lc and now - lc.t < 30 and lc.name
+      -- (ClassicAPI says who cast it; the text lines never do)
+      caster = (by and Owner(by)) or (lc and now - lc.t < 30 and lc.name)
       if not caster then return end
     else
       if not friend then return end
@@ -1093,9 +1096,12 @@ pfUI:RegisterModule("meters", "vanilla", function ()
       return
     end
     if event == "UNIT_CASTEVENT" then
+      if M.clog then return end   -- ClassicAPI's combat log has every cast
       M.CastEvent(arg1, arg2, arg3, arg4)
       return
     end
+    -- (ClassicAPI's combat log events carry all of this, exactly: the text lines step aside)
+    if M.clog then return end
     M.Record(M.Read(event, arg1))
   end)
 

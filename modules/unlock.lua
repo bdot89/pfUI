@@ -1257,8 +1257,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       local mc = C.meters["win" .. meter] or C.meters
       if w then mc.width = tostring(floor(w / s + .5)) f:SetWidth(tonumber(mc.width)) end
       if h then mc.height = tostring(floor(h / s + .5)) f:SetHeight(tonumber(mc.height)) end
-      SavePosition(f)
-      if f.OnMove then f:OnMove() end
+      if f.arrowDocked and pfUI.panel and pfUI.panel.ArrowLayout then
+        -- (docked in the panel arrow's window: its width is its share of it; never save the docked place)
+        pfUI.panel.ArrowLayout()
+      else
+        SavePosition(f)
+        if f.OnMove then f:OnMove() end
+      end
     else
       local k = w and (w / cw) or h and (h / ch) or 1
       local ns = math.max(SZ.MIN, math.min(SZ.MAX, f:GetScale() * k))

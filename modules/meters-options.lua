@@ -30,8 +30,11 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
 
   function MO.Apply()
     M.RestyleAll()
+    -- (docked windows: a new width is a new share of the panel)
+    if pfUI.panel and pfUI.panel.ArrowLayout then pfUI.panel.ArrowLayout() end
     if MO.preview then MO.Sync() end
   end
+  local function Docked() local w = M.windows and M.windows[MO.cur] return w and w.arrowDocked end
   local Up = function() MO.Apply() end
 
   local function Chk(p, label, desc, group, key, after) return PfChk(p, label, desc, group, key, after or Up) end
@@ -66,8 +69,8 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     end
     return out
   end
-  local function Fonts()
-    local out = { { key = "", label = "Unit frame font" } }
+  local function Fonts(first)
+    local out = { { key = "", label = first or "Unit frame font" } }
     for _, f in ipairs(W.Fonts and W.Fonts() or {}) do table.insert(out, { key = f.key, label = f.label, font = f.key }) end
     return out
   end
@@ -80,10 +83,10 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   -- ---------------------------------------------------------------- preview
 
   -- what a click on each part opens
-  MO.GO = { title = "Title bar", buttons = "Title bar", bars = "Bars", name = "Texts", value = "Texts",
-    window = "Window", shows = "Shows", status = "Status bar" }
+  MO.GO = { title = "Title bar", buttons = "Title bar", bars = "Bars", name = "Words", value = "Words",
+    window = "The window", shows = "What it shows", status = "Status bar" }
   function MO.Open(part)
-    local title = MO.GO[part] or "Window"
+    local title = MO.GO[part] or "The window"
     if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtwindows", title) else O:Open("mtwindows") end
   end
   M.PreviewClick = function(win, part) MO.Open(part) end
@@ -105,7 +108,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     end
     -- fits the box (the window keeps its own size; the view scales)
     local box = MO.box
-    local k = math.min(1.6, ((box:GetWidth() or 600) - 20) / w, ((box:GetHeight() or 200) - 30) / h)
+    local k = math.min(2.2, ((box:GetWidth() or 600) - 20) / w, ((box:GetHeight() or 200) - 30) / h)
     pw:SetScale(math.max(.4, k))
     pw:ClearAllPoints()
     pw:SetPoint("CENTER", box, "CENTER", 0, -6 / math.max(.4, k))
@@ -218,7 +221,45 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       W.Tip(match, "Match all windows to this one", "Every other meter window takes this window's size and look - bars, "
         .. "fonts, colours, title bar, buttons. What each one shows (damage, threat...) stays its own.")
       MO.matchBtn = match
-      local box = W.Box(p, 210)
+      -- (25 Oct 2026, user: "i want this button to open the preview box up the top ... a test mode for everything
+      -- added ... it should be clear") the tests sit up here, always in view: a made-up fight for every window,
+      -- the breakdown on top of everything, a tour of its views, the threat label and the status bar
+      local row3 = W.Row(p, 24, 0, 4)
+      local function TestFight() if M.TestMode and not M.testOn then M.TestMode(true) end end
+      local function OpenBreakdown(tour)
+        TestFight()
+        local w = M.windows and M.windows[MO.cur] or M.windows and M.windows[1]
+        local win = w or { mode = S().mode or "damage", segment = "current", cfg = MO.cur, id = MO.cur }
+        local rows = M.Rows(win.mode, win.segment)
+        if rows[1] then
+          M.ShowDetails(win, rows[1])
+          if pfMeterBreakdown and pfMeterBreakdown.Raise then pfMeterBreakdown:Raise() end
+          if M.breakdown and M.breakdown.Tour then M.breakdown.Tour(tour and true or false) end
+        end
+      end
+      local tests = {
+        { "Test fight", function() M.TestMode() end, 100,
+          "A made-up Onyxia fight in every meter window, with everything a real one has. Click again to switch it off." },
+        { "Open breakdown", function() OpenBreakdown(false) end, 120,
+          "Opens the breakdown of the top bar of this window on the made-up fight, on top of everything." },
+        { "Tour the views", function() OpenBreakdown(true) end, 110,
+          "Opens the breakdown and steps through all its views, one every two seconds. Its Tour button stops it." },
+        { "Threat label", function() if M.threat and M.threat.Sample then M.threat.Sample(8) end end, 100,
+          "Shows a made-up threat reading on your target's nameplate for 8 seconds." },
+        { "Status bar", function() local s = S() s.status = s.status == "1" and "0" or "1" MO.Apply() O:Refresh() end, 90,
+          "Turns this window's status bar on or off so you can see it in the preview." },
+      }
+      local ROLES = { "go", "open", "open", "go", "pick" }
+      for i, t in ipairs(tests) do
+        local b = W.Button(row3, t[1], t[3], 22)
+        if W.Tint then W.Tint(b, ROLES[i]) end
+        if i == 1 then b:SetPoint("LEFT", row3, "LEFT", 0, 0) else b:SetPoint("LEFT", row3.last, "RIGHT", 4, 0) end
+        row3.last = b
+        local fn = t[2]
+        b:SetScript("OnClick", function() fn() end)
+        W.Tip(b, t[1], t[4])
+      end
+      local box = (W.ZoomBox or W.Box)(p, 250)
       MO.box = box
       -- the preview window, a real one
       local pw = M.CreateWindow(MO.cur, { parent = box, cfg = MO.cur })
@@ -321,15 +362,162 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   local COLORBY = { { "class", "Class colour" }, { "fixed", "One colour" } }
   local GROW = { { "down", "Top to bottom" }, { "up", "Bottom to top" } }
   local ICONS = { { "class", "Class icon" }, { "none", "None" } }
+  local ICONSIDE = { { "left", "Left of the name" }, { "right", "Right end of the bar" } }
   local OUTLINE = { { "OUTLINE", "Outline" }, { "THICKOUTLINE", "Thick outline" }, { "NONE", "None" } }
-  local NAMECOLOR = { { "white", "White" }, { "class", "Class colour" } }
+  local TEXTCOLOR = { { "white", "White" }, { "class", "Class colour" }, { "custom", "My own colour (set below)" } }
+  local SELFMARK = { { "0", "Not marked" }, { "border", "A border in my colour" }, { "tint", "The bar in my colour" } }
+  local ICO = "Interface\\Icons\\"
+  local function IconPx(v) return v <= 0 and "Bar height" or (v .. " px") end
+  local function ValuePx(v) return v <= 0 and "Same as names" or (v .. " px") end
 
+  -- (25 Oct 2026, user: "the options are a mess ... more custom stuff and it should be clear what stuff does here,
+  -- font colour changes, icons". One card per thing you can see, in the order you look at a window: pick a look,
+  -- what it shows, the frame, the title bar, the bars, the pictures, the words, their colours. Each card has a
+  -- picture, each setting says what it does in its tooltip, and the pinned preview shows every change at once.)
   local function BuildWindows(p)
-    W.Heading(p, "Meter windows", { on = { function() return C.meters.hidden ~= "1" end, function(v) M.ShowAll(v) end, "Show or hide every meter window (the same as the meters button)." }, about = "Pick a window with the tabs (or make a new one), then its look. Every window has "
-      .. "its own settings; the preview shows the one you are editing." })
+    W.Heading(p, "Meter windows", { on = { function() return C.meters.hidden ~= "1" end, function(v) M.ShowAll(v) end,
+      "Show or hide every meter window (the same as the meters button)." },
+      about = "Pick a window with the tabs above the preview (or make a new one), then change it card by card: "
+      .. "each card is one part of the window - the picture on its title says which. Every window has its own settings; "
+      .. "the preview shows the one you are editing and every change shows at once. Click a part of the preview to jump "
+      .. "to its card. Hover any setting for what it does." })
     Preview(p)
+
+    W.Card(p, "Start with a look", { icon = ICO .. "INV_Misc_Eye_01", tip = "Ready-made looks: background, border, title bar, bar texture, "
+      .. "spacing and icons in one click. Change anything afterwards in the cards below." })
+    Looks(p)
+
+    W.Card(p, "What it shows", { icon = ICO .. "INV_Misc_Book_09", tip = "The display this window opens with and the fight it follows "
+      .. "(its title bar changes both while you play)." })
+    Drop(p, "Display", "Damage done, healing, interrupts, deaths, threat... the same list as the title bar's menu.", Modes(), S, "mode")
+    Drop(p, "Fight", "Current: the fight you are in (or the last one). Overall: everything since the last reset.",
+      List({ { "current", "Current fight" }, { "overall", "Overall" } }), S, "segment")
+
+    W.Card(p, "The window", { icon = ICO .. "INV_Banner_01", tip = "Size, background, border, and how it shows in and out of combat." })
+    Sld(p, "Width", "How wide the window is. You can also drag its corner. Docked in the panel: how much of the "
+      .. "panel it takes next to the other docked windows.", 150, 600, 1, S, "width", Px)
+    Sld(p, "Height", "How tall the window is (more height = more bars). Docked: the panel's height.", 60, 500, 1, S, "height", Px)
+    W.Live(p, function()
+      if not Docked() then return "" end
+      return "|cff73bfffThis window is docked in the panel:|r Width sets its share of the panel next to the other docked "
+        .. "windows; the height is the panel's. Undock it under \"Docked in the panel\" to give it its own size."
+    end)
+    Color(p, "Background", "The colour and see-through of the window behind the bars.", S, "bg")
+    Drop(p, "Border", "The edge round the window. Soft glow and Accent follow your accent colour.", List(BORDERS), S, "border")
+    Color(p, "Border colour", "Used by the border choice \"Own colour\".", S, "bordercolor")
+    Sld(p, "Opacity in combat", "How solid the whole window is while you fight.", .1, 1, .05, S, "alpha", Pct)
+    Sld(p, "Opacity out of combat", "How solid it is when nothing is going on. 0 hides it.", 0, 1, .05, S, "oocalpha", Pct)
+    Drop(p, "Hide", "Keep the window off the screen in or out of combat.", List(AUTOHIDE), S, "autohide")
+    Chk(p, "Lock size and place", "Locked: it cannot be dragged or resized by accident.", S, "lock")
+
+    -- (user, 26 Oct 2026: the panel arrow's meter docking "easily accessed in the meter section";
+    -- the arrow itself stays on Chat > Panel arrow)
+    local PN = pfUI.panel
+    if PN and PN.ArrowDock then
+      W.Card(p, "Docked in the panel", { icon = "Interface\\Icons\\INV_Misc_Bag_10", tip = "The arrow at the right end of the bottom-right "
+        .. "bar (time and fps) opens a window above it. It can hold your meter windows side by side: tick the ones to dock." })
+      W.Dropdown(p, "The arrow's window holds", "Loot & Spam (as pfUI had it) or your meter windows, docked side by side.",
+        { { key = "chat", label = "Loot & Spam" }, { key = "meters", label = "Meter windows, docked" } },
+        function() return C.panel.arrowmode or "chat" end,
+        function(v) if PN.ArrowMode then PN.ArrowMode(v) else C.panel.arrowmode = v end end)
+      W.Space(p, 2)
+      for i = 1, (M.windows and table.getn(M.windows) or 0) do
+        local n = i
+        W.Check(p, "Dock window " .. n, "Window " .. n .. " sits in the panel's window while it is open (when it holds meter windows).",
+          function() return PN.ArrowDocks(n) end, function(v) PN.ArrowDock(n, v) end)
+      end
+      W.Buttons(p, {
+        { "Open / shut it now", function() if PN.ArrowToggle then PN.ArrowToggle() end end, 150, "What a click on the arrow does.", role = "go" },
+        { "Panel arrow options  >", function() O:Open("chpanel") end, 170, "The arrow on or off (Chat > Panel arrow).", role = "open" },
+      })
+    end
+
+    W.Card(p, "Title bar", { icon = ICO .. "INV_Scroll_03", tip = "The strip at the top: the display's name, the fight, and the buttons." })
+    Chk(p, "Show the title bar", "Off: only the bars show. Right-click the window for its menu.", S, "title")
+    Sld(p, "Height", "How tall the strip is.", 10, 40, 1, S, "titleheight", Px)
+    Color(p, "Background", "The colour behind the title.", S, "titlebg")
+    Chk(p, "Title in the accent colour", "On: the title takes your accent colour. Off: the colour below.", S, "titleaccent")
+    Color(p, "Title colour", "The title's colour when it is not in the accent colour.", S, "titlecolor")
+    Drop(p, "Title font", "The writing of the title and the fight.", Fonts("pfUI's font"), S, "titlefont")
+    Sld(p, "Title size", "How big the title is.", 8, 20, 1, S, "titlesize", Px)
+    Chk(p, "Show the fight", "The time and name of the fight beside the title.", S, "showseg")
+    Chk(p, "Menu button", "The button that opens the display menu.", S, "btnmenu")
+    Chk(p, "Report button", "The button that sends the window to chat.", S, "btnreport")
+    Chk(p, "Reset button", "The button that clears the data (it asks first).", S, "btnreset")
+    Chk(p, "Padlock button", "Lock or unlock the window: unlocked, drag the title to move it and the corner to resize it.", S, "btnlock")
+
+    W.Card(p, "Bars", { icon = ICO .. "Ability_MeleeDamage", tip = "The coloured bars, one per player or row." })
+    Sld(p, "Height", "How tall each bar is.", 8, 40, 1, S, "barheight", Px)
+    Sld(p, "Spacing", "The gap between bars.", 0, 10, 1, S, "spacing", Px)
+    Drop(p, "Texture", "The pattern of the bar's fill.", Textures(), S, "texture")
+    Drop(p, "Colour", "Class colour: each bar takes its player's class. One colour: every bar the same.", List(COLORBY), S, "colorby")
+    Color(p, "One colour", "The colour used when Colour is \"One colour\".", S, "barcolor")
+    Sld(p, "Bar opacity", "How solid the coloured part is.", .1, 1, .05, S, "baralpha", Pct)
+    Color(p, "Behind the bars", "The empty part of each row (what is left of the bar).", S, "barbg")
+    Drop(p, "Grow", "Which end the first bar is at.", List(GROW), S, "grow")
+    Chk(p, "A border round each bar", "A thin line round every bar.", S, "barborder")
+    Color(p, "Bar border colour", "The colour of that line.", S, "barbordercolor")
+    Color(p, "Under the mouse", "The colour a bar lights up in when you point at it (click it for its breakdown).", S, "hovercolor")
+    Drop(p, "Mark my own bar", "Find yourself fast: a border or a different colour on your own bar.", List(SELFMARK), S, "selfmark")
+    Color(p, "My bar's colour", "The border or bar colour used by \"Mark my own bar\".", S, "selfcolor")
+
+    W.Card(p, "Pictures", { icon = ICO .. "Spell_Fire_FlameBolt", tip = "The class picture on each bar." })
+    Drop(p, "Class picture", "A small picture of each player's class on their bar.", List(ICONS), S, "icons")
+    Sld(p, "Picture size", "How big it is. Bar height: as tall as the bar.", 0, 32, 1, S, "iconsize", IconPx)
+    Drop(p, "Where", "On the left of the name, or at the right end of the bar.", List(ICONSIDE), S, "iconside")
+
+    W.Card(p, "Words", { icon = ICO .. "INV_Letter_15", tip = "The name on the left and the numbers on the right." })
+    Drop(p, "Font", "The writing of the names and numbers.", Fonts("Unit frame font"), S, "font")
+    Sld(p, "Name size", "How big the names are.", 6, 20, 1, S, "fontsize", Px)
+    Sld(p, "Number size", "How big the numbers on the right are.", 0, 20, 1, S, "valuesize", ValuePx)
+    Drop(p, "Outline", "A dark edge round the letters so they read on any bar.", List(OUTLINE), S, "outline")
+    Chk(p, "Shadow", "A soft shadow under the letters.", S, "shadow")
+    Chk(p, "Rank numbers", "1. 2. 3. before the names.", S, "rank")
+    Drop(p, "Numbers", "The order of total, per second and percent on the right.", List(M.ORDERS), S, "order")
+    Chk(p, "Per second", "Show the per-second figure.", S, "showps")
+    Chk(p, "Percent", "Show the share of the whole.", S, "showpct")
+    Chk(p, "In brackets", "(472, 22%) or just 472, 22%.", S, "brackets")
+
+    W.Card(p, "Colours of the words", { icon = ICO .. "Spell_Frost_FrostBolt02", tip = "A colour for each kind of text. "
+      .. "Pick \"My own colour\" and set it with the colour box beside it." })
+    Drop(p, "Names", "White, the player's class colour, or one colour of your own.", List(TEXTCOLOR), S, "namecolor")
+    Color(p, "Names: my colour", "Used when Names is \"My own colour\".", S, "namecustom")
+    Drop(p, "Numbers", "The main number on the right.", List(TEXTCOLOR), S, "valuecolor")
+    Color(p, "Numbers: my colour", "Used when Numbers is \"My own colour\".", S, "valuecustom")
+    Color(p, "Small numbers", "The per-second and percent figures and their brackets.", S, "subcolor")
+    Color(p, "Rank numbers", "The 1. 2. 3. before each name.", S, "rankcolor")
+
+    W.Card(p, "Status bar", { icon = ICO .. "INV_Misc_PocketWatch_01", tip = "A strip under the bars with three things of your choice." })
+    Chk(p, "Show the status bar", "The strip under the bars.", S, "status")
+    Drop(p, "Left", "What the left third shows (time, your value, fight, clock, fps, ping).", List(M.SLOTS), S, "statusleft")
+    Drop(p, "Middle", "What the middle shows.", List(M.SLOTS), S, "statusmid")
+    Drop(p, "Right", "What the right shows.", List(M.SLOTS), S, "statusright")
+
+    W.Card(p, "Share this look", { icon = ICO .. "INV_Misc_Ticket_Tarot_Maelstrom_01", tip = "Copy this window's look as text to give to a friend, or paste one in. "
+      .. "What the window shows, its fight and its lock are not part of it." })
+    W.Edit(p, "This window's look", "Click, then Ctrl+A and Ctrl+C to copy.", function() return M.ExportLook({ cfg = MO.cur }) end,
+      function() end)
+    if M.CanCopy and M.CanCopy() then
+      W.Buttons(p, { { "Copy this look", function()
+        local lc = pfUI.api and pfUI.api.libclient
+        if lc and lc.Copy and lc.Copy(M.ExportLook({ cfg = MO.cur })) then
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: the look is on your clipboard - paste it with Ctrl+V.")
+        end
+      end, 140, "ClassicAPI puts the look on your clipboard: paste it anywhere with Ctrl+V.", role = "save" } })
+    end
+    W.Edit(p, "Paste a look here", "Paste (Ctrl+V) and press Enter: this window takes it.", function() return "" end, function(v)
+      local n = M.ImportLook({ cfg = MO.cur }, v)
+      if n > 0 then
+        MO.Apply()
+        O:Refresh()
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: window " .. MO.cur .. " took " .. n .. " settings of the look.")
+      elseif v and v ~= "" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: that is not a meter look (it starts with OCTOMETER1:).")
+      end
+    end)
+
     -- (user, 24 Oct 2026: a meter went off the screen, "a reset positions button")
-    W.Card(p, "Where they are", { tip = "Lost a window off the screen? Reset puts it back." })
+    W.Card(p, "Where they are", { icon = ICO .. "INV_Misc_Map_01", tip = "Lost a window off the screen? Reset puts it back." })
     W.Buttons(p, {
       { "Reset positions", function() if M.ResetPositions then M.ResetPositions() end end, 140,
         "Every meter window back to its starting place in the middle of the screen." },
@@ -343,11 +531,13 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       C.meters.togglebtn = v and "1" or "0"
       if M.toggle then if v then M.toggle:Show() else M.toggle:Hide() end end
     end)
+
     -- (user, 23 Oct 2026: "a full test mode ... click on test bars in the
     -- meter and look at the extra frames with information")
-    W.Card(p, "Test mode", { on = { function() return M.testOn and true or false end,
+    W.Card(p, "Try it without a fight", { icon = ICO .. "Spell_Nature_WispSplode", on = { function() return M.testOn and true or false end,
       function(v) if M.TestMode then M.TestMode(v) end end,
-      "Every window shows a made-up Onyxia fight with everything a real one has. Click any bar for its breakdown." } })
+      "Every window shows a made-up Onyxia fight with everything a real one has. Click any bar for its breakdown." },
+      tip = "A made-up fight so you can try every display and its breakdown." })
     W.Live(p, function()
       if M.testOn then
         return "|cff55ff55On|r - every window shows a made-up 2 minute Onyxia fight. Click any bar: every name in the "
@@ -364,82 +554,8 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
         if rows[1] then M.ShowDetails(w, rows[1]) end
       end, 150, "Turns test mode on and opens the breakdown of window 1's top bar." },
     })
-    W.Card(p, "Looks", { tip = "Ready-made looks for this window." })
-    Looks(p)
 
-    W.Card(p, "Shows", { tip = "What this window shows when it opens (its title bar changes it while playing)." })
-    Drop(p, "Shows", nil, Modes(), S, "mode")
-    Drop(p, "Fight", nil, List({ { "current", "Current fight" }, { "overall", "Overall" } }), S, "segment")
-
-    W.Card(p, "Window", { tip = "Size, background, border, and how it shows in and out of combat." })
-    Sld(p, "Width", "When it floats.", 150, 600, 1, S, "width", Px)
-    Sld(p, "Height", "When it floats.", 60, 500, 1, S, "height", Px)
-    Color(p, "Background", nil, S, "bg")
-    Drop(p, "Border", nil, List(BORDERS), S, "border")
-    Color(p, "Border colour", "For Own colour.", S, "bordercolor")
-    Sld(p, "Opacity in combat", nil, .1, 1, .05, S, "alpha", Pct)
-    Sld(p, "Opacity out of combat", nil, 0, 1, .05, S, "oocalpha", Pct)
-    Drop(p, "Hide", nil, List(AUTOHIDE), S, "autohide")
-    Chk(p, "Lock size and place", nil, S, "lock")
-
-    W.Card(p, "Title bar", { tip = "The bar at the top: what it shows, its look and its buttons." })
-    Chk(p, "Show the title bar", nil, S, "title")
-    Sld(p, "Height", nil, 10, 40, 1, S, "titleheight", Px)
-    Color(p, "Background", nil, S, "titlebg")
-    Chk(p, "Title in the accent colour", nil, S, "titleaccent")
-    Color(p, "Title colour", "When not in the accent colour.", S, "titlecolor")
-    Sld(p, "Title size", nil, 8, 20, 1, S, "titlesize", Px)
-    Chk(p, "Show the fight", "Its time and name beside the title.", S, "showseg")
-    Chk(p, "Menu button", nil, S, "btnmenu")
-    Chk(p, "Report button", nil, S, "btnreport")
-    Chk(p, "Reset button", nil, S, "btnreset")
-    Chk(p, "Padlock button", "Lock or unlock the window: unlocked, drag the title to move it and the corner to resize it.", S, "btnlock")
-
-    W.Card(p, "Bars")
-    Sld(p, "Height", nil, 8, 40, 1, S, "barheight", Px)
-    Sld(p, "Spacing", nil, 0, 10, 1, S, "spacing", Px)
-    Drop(p, "Texture", nil, Textures(), S, "texture")
-    Drop(p, "Colour", nil, List(COLORBY), S, "colorby")
-    Color(p, "One colour", nil, S, "barcolor")
-    Sld(p, "Bar opacity", nil, .1, 1, .05, S, "baralpha", Pct)
-    Color(p, "Behind the bars", "The empty part of each row.", S, "barbg")
-    Drop(p, "Grow", nil, List(GROW), S, "grow")
-    Drop(p, "Icon", nil, List(ICONS), S, "icons")
-    Chk(p, "Rank numbers", nil, S, "rank")
-
-    W.Card(p, "Texts", { tip = "The name on the left, the value on the right." })
-    Drop(p, "Font", nil, Fonts(), S, "font")
-    Sld(p, "Size", nil, 6, 20, 1, S, "fontsize", Px)
-    Drop(p, "Outline", nil, List(OUTLINE), S, "outline")
-    Chk(p, "Shadow", nil, S, "shadow")
-    Drop(p, "Name colour", nil, List(NAMECOLOR), S, "namecolor")
-    Drop(p, "Value", "The order of total, per second and percent.", List(M.ORDERS), S, "order")
-    Chk(p, "Per second", nil, S, "showps")
-    Chk(p, "Percent", nil, S, "showpct")
-    Chk(p, "In brackets", nil, S, "brackets")
-
-    W.Card(p, "Status bar", { tip = "A strip under the bars with three things of your choice (Details' status bar)." })
-    Chk(p, "Show the status bar", nil, S, "status")
-    Drop(p, "Left", nil, List(M.SLOTS), S, "statusleft")
-    Drop(p, "Middle", nil, List(M.SLOTS), S, "statusmid")
-    Drop(p, "Right", nil, List(M.SLOTS), S, "statusright")
-
-    W.Card(p, "Share this look", { tip = "Copy this window's look as text to give to a friend, or paste one in. What the "
-      .. "window shows, its fight and its lock are not part of it." })
-    W.Edit(p, "This window's look", "Click, then Ctrl+A and Ctrl+C to copy.", function() return M.ExportLook({ cfg = MO.cur }) end,
-      function() end)
-    W.Edit(p, "Paste a look here", "Paste (Ctrl+V) and press Enter: this window takes it.", function() return "" end, function(v)
-      local n = M.ImportLook({ cfg = MO.cur }, v)
-      if n > 0 then
-        MO.Apply()
-        O:Refresh()
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: window " .. MO.cur .. " took " .. n .. " settings of the look.")
-      elseif v and v ~= "" then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff33ffccpfUI Octo|r: that is not a meter look (it starts with OCTOMETER1:).")
-      end
-    end)
-
-    W.Card(p, "Remove this window")
+    W.Card(p, "Remove this window", { icon = ICO .. "Ability_Rogue_FeignDeath", tip = "Window 1 stays; the others can go." })
     W.Buttons(p, { { "Remove window", function()
       if MO.cur <= 1 then return end
       CreateQuestionDialog("Remove meter window " .. MO.cur .. "?", function()
@@ -448,7 +564,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
         MO.Apply()
         O:Refresh()
       end)
-    end } })
+    end, 150, "Takes this window away for good (window 1 cannot be removed)." } })
   end
 
   -- ---------------------------------------------------------------- data, threat
@@ -459,6 +575,14 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     W.Card(p, "Meters")
     Chk(p, "Use the meters", "After a reload.", G, "enable", Reload)
     Chk(p, "Ask to reset in a new instance", nil, G, "resetask", function() end)
+    -- (25 Oct 2026, the user updated ClassicAPI: "use it wherever it makes pfUI Octo better")
+    W.Card(p, "Combat log source", { icon = "Interface\\Icons\\INV_Misc_Book_09", tip = "Where the meters read what happens. ClassicAPI's "
+      .. "combat log gives every hit, heal, cast, interrupt, dispel and aura exactly - with the spell's own number, who cast a debuff "
+      .. "and what a dispel removed. Without it the meters read the chat log's text lines, which works with less detail." })
+    Chk(p, "Use ClassicAPI's combat log", "On: exact events when ClassicAPI is installed. Off: always the chat log's text lines.", G, "clog",
+      function() if M.ClogApply then M.ClogApply() end end)
+    W.Live(p, function() return M.ClogStatus and M.ClogStatus() or "" end, 2)
+
     W.Card(p, "Tracking")
     Chk(p, "Merge pets into their owner", nil, G, "mergepets", function() M.who = {} end)
     Chk(p, "Everyone nearby (battlegrounds)", nil, G, "trackall", function() M.who = {} end)

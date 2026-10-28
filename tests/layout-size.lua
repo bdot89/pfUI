@@ -436,6 +436,41 @@ do
     bar.buttons, bar.formfactor = ob, of
     pfUI.bars:UpdateConfig()
   end
+  -- (user, 26 Oct 2026: "making a frame wider ... nothing happens") docked meter windows share the
+  -- panel by their own widths
+  local PN, M = pfUI.panel, pfUI.meters
+  -- (chat does not start in the mock: a stand-in right chat window)
+  local hadChat = pfUI.chat
+  if not (pfUI.chat and pfUI.chat.right) then
+    pfUI.chat = pfUI.chat or {}
+    pfUI.chat.right = CreateFrame("Frame", nil, UIParent)
+    pfUI.chat.right:SetWidth(400)
+    pfUI.chat.right:SetHeight(180)
+  end
+  if PN and PN.ArrowDock and M and M.windows and M.windows[2] and pfUI.chat and pfUI.chat.right then
+    local om, oo, ow = C.panel.arrowmode, C.panel.arrowopen, C.panel.arrowwins
+    local w1, w2 = C.meters.win1.width, C.meters.win2.width
+    C.panel.arrowmode, C.panel.arrowopen, C.panel.arrowwins = "meters", "1", ""
+    PN.ArrowDock(1, true)
+    PN.ArrowDock(2, true)
+    ok(PN.ArrowDocks(1) and PN.ArrowDocks(2) and C.panel.arrowwins == "m1,m2", "both windows docked (" .. C.panel.arrowwins .. ")")
+    C.meters.win1.width, C.meters.win2.width = "300", "100"
+    PN.ArrowLayout()
+    local a, b = M.windows[1], M.windows[2]
+    local pa, pb = a.points and a.points[2], b.points and b.points[1]
+    local function X(pt) return pt and pt[4] end
+    ok(a.arrowDocked and pa and pb and X(pa) and X(pb) and math.abs(X(pa) - X(pb)) < .01 and X(pa) > (pfUI.chat.right:GetWidth() or 0) * .7,
+      "a wider docked window takes more of the panel")
+    PN.ArrowDock(2, false)
+    ok(not PN.ArrowDocks(2), "undock from the Meters page")
+    C.panel.arrowopen = "0"
+    PN.ArrowSet(false)
+    C.panel.arrowmode, C.panel.arrowopen, C.panel.arrowwins = om, oo, ow
+    C.meters.win1.width, C.meters.win2.width = w1, w2
+  else
+    ok(false, "panel arrow docking helpers")
+  end
+  pfUI.chat = hadChat
   -- (user, 26 Oct 2026) right-click a bar in layout mode: the Bars page on that bar's tab
   local O = pfUI.octoui and pfUI.octoui.Options
   local AB = pfUI.barsOcto

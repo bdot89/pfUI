@@ -30,13 +30,20 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   M.breakdown = B
 
   -- ---------------------------------------------------------------- the frame
+  -- 25 Oct 2026 (user: "looks bad ... a lot more professional and easier to
+  -- select what category ... some icons ... link all the bars up ... hover
+  -- links and descriptions"): a header, a rail on the left (the views, each
+  -- with a picture, then what is shown), a strip of figures that open their
+  -- tab, the list of bars and the detail panel. Every part has a tooltip.
 
-  local W, H = 900, 530
+  local W, H = 940, 560
+  local RAIL, HEAD, X0 = 176, 48, 186
+  local WHITE = "Interface\\Buttons\\WHITE8X8"
   local f = CreateFrame("Frame", "pfMeterBreakdown", UIParent)
   f:SetWidth(W)
   f:SetHeight(H)
   f:SetPoint("CENTER", 0, 40)
-  f:SetFrameStrata("DIALOG")
+  f:SetFrameStrata("FULLSCREEN_DIALOG") -- above the options window (DIALOG), 25 Oct 2026
   f:SetMovable(true)
   f:EnableMouse(true)
   f:SetClampedToScreen(true)
@@ -58,11 +65,52 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     table.insert(texts, t)
     return t
   end
+  local function Strip(s) return gsub(gsub(tostring(s or ""), "|c%x%x%x%x%x%x%x%x", ""), "|r", "") end
+
+  -- the dark bands: header and rail
+  f.headbg = f:CreateTexture(nil, "BACKGROUND")
+  f.headbg:SetTexture(WHITE)
+  f.headbg:SetVertexColor(0, 0, 0, .35)
+  f.headbg:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+  f.headbg:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
+  f.headbg:SetHeight(HEAD - 1)
+  f.railbg = f:CreateTexture(nil, "BACKGROUND")
+  f.railbg:SetTexture(WHITE)
+  f.railbg:SetVertexColor(0, 0, 0, .22)
+  f.railbg:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -HEAD)
+  f.railbg:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+  f.railbg:SetWidth(RAIL)
+  f.rule = f:CreateTexture(nil, "ARTWORK")
+  f.rule:SetTexture(WHITE)
+  f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -HEAD)
+  f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -HEAD)
+  f.rule:SetHeight(2)
+  f.rail = f:CreateTexture(nil, "ARTWORK")
+  f.rail:SetTexture(WHITE)
+  f.rail:SetVertexColor(1, 1, 1, .08)
+  f.rail:SetPoint("TOPLEFT", f, "TOPLEFT", RAIL + 1, -HEAD)
+  f.rail:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", RAIL + 1, 1)
+  f.rail:SetWidth(1)
 
   f.icon = f:CreateTexture(nil, "OVERLAY")
-  f.icon:SetWidth(22)
-  f.icon:SetHeight(22)
-  f.icon:SetPoint("TOPLEFT", 10, -8)
+  f.icon:SetWidth(30)
+  f.icon:SetHeight(30)
+  f.icon:SetPoint("TOPLEFT", 12, -9)
+
+  -- a tooltip: the first line is the title, the rest explains
+  local function Tip(owner, tip, anchor)
+    if not tip or tip == "" then return end
+    GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+    local _, _, head, rest = string.find(tip, "^(.-)\n(.*)$")
+    if head then
+      GameTooltip:AddLine(head, 1, 1, 1)
+      GameTooltip:AddLine(rest, .7, .85, 1, 1)
+    else
+      GameTooltip:AddLine(tip, 1, 1, 1)
+    end
+    GameTooltip:Show()
+  end
+  B.Tip = Tip
 
   -- a small text button
   local function Button(parent, label, width, func, tip)
@@ -77,11 +125,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     b:SetScript("OnEnter", function()
       local r, g, bb = GetAccentColor()
       if this.backdrop then this.backdrop:SetBackdropBorderColor(r, g, bb, 1) end
-      if this.tip then
-        GameTooltip:SetOwner(this, "ANCHOR_TOP")
-        GameTooltip:SetText(this.tip, 1, 1, 1)
-        GameTooltip:Show()
-      end
+      Tip(this, this.tip, "ANCHOR_BOTTOM")
     end)
     b:SetScript("OnLeave", function()
       if this.backdrop then
@@ -92,6 +136,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
           this.backdrop:SetBackdropBorderColor(0, 0, 0, 1)
         end
       end
+      if this.PaintRole and not this.lit then this.PaintRole() end
       GameTooltip:Hide()
     end)
     b.tip = tip
@@ -100,40 +145,105 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   B.Button = Button
 
   -- the header: the name opens a list of everyone in the fight
-  f.who = Button(f, "", 200, function() B.PeopleMenu(this) end, "Everyone in this fight: click one to open them")
-  f.who:SetPoint("LEFT", f.icon, "RIGHT", 6, 0)
+  f.who = Button(f, "", 200, function() B.PeopleMenu(this) end,
+    "Everyone in this fight\nClick to pick another player: the same view opens for them.")
+  f.who:SetPoint("LEFT", f.icon, "RIGHT", 8, 0)
   f.name = f.who.text
   f.name:ClearAllPoints()
   f.name:SetPoint("LEFT", f.who, "LEFT", 6, 0)
   f.who.text.base = C.global.font_size + 4
   f.name:SetFont(pfUI.font_default, C.global.font_size + 4, "OUTLINE")
+  f.who:SetHeight(24)
   f.sub = Text(f, C.global.font_size)
-  f.sub:SetPoint("LEFT", f.who, "RIGHT", 10, 0)
-  f.sub:SetTextColor(.6, .6, .6)
+  f.sub:SetPoint("LEFT", f.who, "RIGHT", 12, 0)
+  f.sub:SetTextColor(.65, .65, .65)
 
-  f.close = Button(f, "X", 20, function() f:Hide() end)
-  f.close:SetPoint("TOPRIGHT", -8, -8)
-  f.report = Button(f, "Report", 64, function() B.ReportMenu(this) end, "Send this tab to chat")
-  f.report:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
-  f.next = Button(f, ">", 22, function() B.Step(1) end, "Next in the window")
-  f.next:SetPoint("RIGHT", f.report, "LEFT", -8, 0)
-  f.prev = Button(f, "<", 22, function() B.Step(-1) end, "Previous in the window")
+  f.close = Button(f, "X", 22, function() f:Hide() end, "Close\nEscape closes it too.")
+  f.close:SetPoint("TOPRIGHT", -10, -14)
+  f.report = Button(f, "Report", 64, function() B.ReportMenu(this) end,
+    "Report\nSend what this view shows (the top lines) to say, party, raid, guild, officers or a whisper.")
+  f.report:SetPoint("RIGHT", f.close, "LEFT", -6, 0)
+  f.next = Button(f, ">", 24, function() B.Step(1) end, "Next\nThe next bar of the meter window, in the same view.")
+  f.next:SetPoint("RIGHT", f.report, "LEFT", -10, 0)
+  f.prev = Button(f, "<", 24, function() B.Step(-1) end, "Previous\nThe bar above this one in the meter window.")
   f.prev:SetPoint("RIGHT", f.next, "LEFT", -2, 0)
-  f.foes = Button(f, "Enemies", 70, function() B.FoeMenu(this) end, "Every enemy in this fight: click one to open it")
-  f.foes:SetPoint("RIGHT", f.prev, "LEFT", -8, 0)
-  f.back = Button(f, "< Back", 60, function() B.Back() end, "Back to what was open before")
+  f.foes = Button(f, "Enemies", 70, function() B.FoeMenu(this) end,
+    "Enemies\nEvery enemy in this fight: what hit it, what it hit, its spells.")
+  f.foes:SetPoint("RIGHT", f.prev, "LEFT", -10, 0)
+  f.back = Button(f, "< Back", 60, function() B.Back() end, "Back\nTo what was open before you followed a link.")
   f.back:SetPoint("RIGHT", f.foes, "LEFT", -4, 0)
+  -- (25 Oct 2026, test mode for everything) a tour: every view of what is open, one every two seconds
+  f.tour = Button(f, "Tour", 48, function() B.Tour() end,
+    "Tour the views\nSteps through every view of what is open, one every two seconds, so you can see them all. Click again to stop.")
+  f.tour:SetPoint("RIGHT", f.back, "LEFT", -4, 0)
+  function B.Tour(on)
+    if on == nil then on = not B.touring end
+    B.touring = on and true or nil
+    B.tourIndex = 0
+    f.tour.lit = B.touring
+    if f.tour.backdrop then
+      if B.touring then
+        local r, g, b = GetAccentColor()
+        f.tour.backdrop:SetBackdropBorderColor(r, g, b, 1)
+      else
+        f.tour.backdrop:SetBackdropBorderColor(0, 0, 0, 1)
+      end
+    end
+    f.nextTour = 0
+  end
+  f:SetScript("OnUpdate", function()
+    if not B.touring then return end
+    if (this.nextTour or 0) > GetTime() then return end
+    this.nextTour = GetTime() + 2
+    local set = (B.foe and B.FOETABS) or (B.bspell and B.SPELLTABS) or B.TABS
+    local i = (B.tourIndex or 0) + 1
+    if i > table.getn(set) then i = 1 end
+    B.tourIndex = i
+    B.tab, B.offset, B.lineOffset = set[i][1], 0, 0
+    B.Draw()
+  end)
+  f:SetScript("OnHide", function() B.touring = nil f.tour.lit = nil end)
+  -- one colour language (25 Oct 2026): blue opens something, green runs, red closes
+  do
+    local OW = pfUI.octoui and pfUI.octoui.W
+    if OW and OW.Tint then
+      OW.Tint(f.close, "danger")
+      OW.Tint(f.tour, "go")
+      for _, b in ipairs({ f.report, f.next, f.prev, f.foes, f.back }) do OW.Tint(b, "open") end
+    end
+  end
 
-  -- tabs (the set depends on what is open)
+  -- ------------------------------------------------------------ the rail
+
+  -- views: one picture and one sentence each (for the tooltip)
   B.TABS = { { "summary", "Summary" }, { "spells", "Spells" }, { "targets", "Targets" }, { "taken", "Taken" },
              { "casts", "Casts" }, { "auras", "Auras" }, { "utility", "Utility" }, { "deaths", "Deaths" },
              { "chart", "Chart" }, { "compare", "Compare" } }
   B.FOETABS = { { "fsummary", "Summary" }, { "fhitby", "Hit by" }, { "ftaken", "Spells on it" }, { "fhit", "It hit" },
                 { "fspells", "Its spells" } }
   B.SPELLTABS = { { "ssummary", "Who it hit" }, { "sfrom", "Who cast it" } }
-  -- what is shown: every display of the windows, by group (user, 23 Oct
-  -- 2026: "add in here at the top selectors for all the options so we can
-  -- quickly look all in this window"); the group in use is lit
+  local ICON = "Interface\\Icons\\"
+  B.TABINFO = {
+    summary = { "INV_Misc_Note_01", "Everything about them at a glance. Click a line to jump to its view." },
+    spells = { "Spell_Fire_FlameBolt", "Every spell and attack with its total. Click one for hits, crits, misses, averages and targets." },
+    targets = { "Ability_Marksmanship", "Who they hit (or healed). Click one for the spells used on it." },
+    taken = { "Ability_Warrior_DefensiveStance", "What hit them: the attacks, who made them, what they avoided, who healed them." },
+    casts = { "INV_Misc_Book_09", "Every cast, with cooldowns used and resurrections." },
+    auras = { "Spell_Holy_WordFortitude", "Buffs on them and their debuffs on enemies, with uptime." },
+    utility = { "Ability_Kick", "Interrupts, dispels, kills, resurrects, mana and rage gained." },
+    deaths = { "INV_Misc_Bone_HumanSkull_01", "Each death with the last hits and heals before it." },
+    chart = { "Spell_Nature_Lightning", "Damage or healing per second through the fight." },
+    compare = { "Ability_DualWield", "Spell by spell against another player." },
+    fsummary = { "INV_Misc_Note_01", "The enemy at a glance." },
+    fhitby = { "Ability_Marksmanship", "Who hit it, and how much." },
+    ftaken = { "Spell_Fire_FlameBolt", "The spells that hit it." },
+    fhit = { "Ability_Warrior_DefensiveStance", "Who it hit." },
+    fspells = { "Spell_Shadow_ShadowWordPain", "What it cast." },
+    ssummary = { "Ability_Marksmanship", "Who this spell hit." },
+    sfrom = { "Spell_Shadow_ShadowWordPain", "Who cast this spell." },
+  }
+
+  -- what is shown: every display of the windows, by group; the group in use is lit
   B.GROUPS = {}
   local seenGroup = {}
   for _, m in ipairs(M.MODES) do
@@ -142,16 +252,92 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       table.insert(B.GROUPS, m.group)
     end
   end
-  f.showing = Text(f, C.global.font_size)
-  f.showing:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -42)
-  f.showing:SetText("Showing")
-  f.showing:SetTextColor(.6, .6, .6)
+  B.GROUPINFO = {
+    Damage = { "Ability_MeleeDamage", "Damage done and taken, per second, friendly fire, enemies, frags." },
+    Healing = { "Spell_Holy_Heal", "Healing, overhealing and healing taken." },
+    Resources = { "Spell_Nature_Regeneration", "Mana, rage and energy gained." },
+    Misc = { "Spell_Holy_DispelMagic", "Interrupts, dispels, deaths, resurrects, cooldowns, buff and debuff uptime." },
+    Custom = { "INV_Misc_Gear_01", "Your own displays (set them in the meter options)." },
+  }
+
+  -- a rail row: a picture, a word, a bar down the left edge when it is the one in use
+  local function RailButton(parent, h)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetHeight(h)
+    b:SetWidth(RAIL - 14)
+    b.sel = b:CreateTexture(nil, "BACKGROUND")
+    b.sel:SetAllPoints(b)
+    b.sel:SetTexture(WHITE)
+    b.sel:Hide()
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints(b)
+    b.hl:SetTexture(WHITE)
+    b.hl:SetVertexColor(1, 1, 1, .07)
+    b.bar = b:CreateTexture(nil, "OVERLAY")
+    b.bar:SetTexture(WHITE)
+    b.bar:SetWidth(3)
+    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+    b.bar:Hide()
+    b.ico = b:CreateTexture(nil, "ARTWORK")
+    b.ico:SetWidth(h - 6)
+    b.ico:SetHeight(h - 6)
+    b.ico:SetPoint("LEFT", b, "LEFT", 8, 0)
+    b.ico:SetTexCoord(.08, .92, .08, .92)
+    b.text = Text(b, C.global.font_size, "LEFT")
+    b.text:SetPoint("LEFT", b.ico, "RIGHT", 7, 0)
+    b.text:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+    b:SetScript("OnEnter", function() Tip(this, this.tip, "ANCHOR_RIGHT") end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+  end
+  -- lit or not: the accent on the bar, the word and a faint wash
+  local function Lit(b, on)
+    b.lit = on
+    if on then
+      local ar, ag, ab = GetAccentColor()
+      b.sel:SetVertexColor(ar, ag, ab, .2)
+      b.sel:Show()
+      b.bar:SetVertexColor(ar, ag, ab, 1)
+      b.bar:Show()
+      b.text:SetTextColor(ar * .5 + .5, ag * .5 + .5, ab * .5 + .5)
+    else
+      b.sel:Hide()
+      b.bar:Hide()
+      b.text:SetTextColor(.85, .85, .85)
+    end
+  end
+
+  f.viewlabel = Text(f, C.global.font_size - 1)
+  f.viewlabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -(HEAD + 10))
+  f.viewlabel:SetText("VIEW")
+  f.viewlabel:SetTextColor(.5, .5, .5)
+  f.tabs = {}
+  for i = 1, 10 do
+    local b = RailButton(f, 24)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 7, -(HEAD + 26 + (i - 1) * 25))
+    b:SetScript("OnClick", function()
+      B.tab = this.key
+      B.offset = 0
+      B.Draw()
+    end)
+    f.tabs[i] = b
+  end
+
+  f.showing = Text(f, C.global.font_size - 1)
+  f.showing:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -(HEAD + 290))
+  f.showing:SetText("SHOWING")
+  f.showing:SetTextColor(.5, .5, .5)
   f.groups = {}
   for i, g in ipairs(B.GROUPS) do
     local group = g
-    local b = Button(f, group, 150, function() B.ModeMenu(this, group) end, "Pick a " .. string.lower(group) .. " display")
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 70 + (i - 1) * 156, -38)
+    local b = RailButton(f, 24)
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", 7, -(HEAD + 306 + (i - 1) * 25))
+    b:SetScript("OnClick", function() B.ModeMenu(this, group) end)
     b.group = group
+    local info = B.GROUPINFO[group]
+    b.ico:SetTexture(ICON .. (info and info[1] or "INV_Misc_Gear_01"))
+    b.tip = group .. " displays\n" .. (info and info[2] or "") .. "\nClick to pick one: the breakdown follows the display."
     f.groups[i] = b
   end
   function B.ModeMenu(anchor, group)
@@ -187,56 +373,72 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     local cur = MODE[B.mode]
     for _, b in ipairs(f.groups) do
       local on = cur and cur.group == b.group
-      b.lit = on
+      Lit(b, on and true or false)
       b.text:SetText(on and (cur.name .. "  v") or (b.group .. "  v"))
-      if b.backdrop then
-        if on then
-          local ar, ag, ab = GetAccentColor()
-          b.backdrop:SetBackdropBorderColor(ar, ag, ab, 1)
-          b.backdrop:SetBackdropColor(ar * .45, ag * .45, ab * .45, .9)
-        else
-          b.backdrop:SetBackdropBorderColor(0, 0, 0, 1)
-          b.backdrop:SetBackdropColor(0, 0, 0, .8)
-        end
-      end
     end
   end
   B.PaintGroups = PaintGroups
 
-  f.tabs = {}
-  for i = 1, 10 do
-    local b = Button(f, "", 84, function()
-      B.tab = this.key
-      B.offset = 0
-      B.Draw()
-    end)
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 88, -64)
-    b.line = b:CreateTexture(nil, "OVERLAY")
-    b.line:SetTexture("Interface\\Buttons\\WHITE8X8")
-    b.line:SetHeight(2)
-    b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 1, 1)
-    b.line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
-    f.tabs[i] = b
+  -- ------------------------------------------------------------ the figures
+
+  -- five tiles over the list (a player): damage, healing, taken, active, deaths; a click opens that view
+  f.tiles = {}
+  local TILEW = floor((W - X0 - 12 - 4 * 6) / 5)
+  for i = 1, 5 do
+    local t = CreateFrame("Button", nil, f)
+    t:SetWidth(TILEW)
+    t:SetHeight(42)
+    t:SetPoint("TOPLEFT", f, "TOPLEFT", X0 + (i - 1) * (TILEW + 6), -(HEAD + 10))
+    t.bg = t:CreateTexture(nil, "BACKGROUND")
+    t.bg:SetAllPoints(t)
+    t.bg:SetTexture(WHITE)
+    t.bg:SetVertexColor(1, 1, 1, .06)
+    t.hl = t:CreateTexture(nil, "HIGHLIGHT")
+    t.hl:SetAllPoints(t)
+    t.hl:SetTexture(WHITE)
+    t.hl:SetVertexColor(1, 1, 1, .08)
+    t.line = t:CreateTexture(nil, "OVERLAY")
+    t.line:SetTexture(WHITE)
+    t.line:SetHeight(2)
+    t.line:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", 0, 0)
+    t.line:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", 0, 0)
+    t.label = Text(t, C.global.font_size - 1)
+    t.label:SetPoint("TOPLEFT", t, "TOPLEFT", 8, -5)
+    t.label:SetTextColor(.6, .6, .6)
+    t.value = Text(t, C.global.font_size + 3)
+    t.value:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", 8, 5)
+    t.sub = Text(t, C.global.font_size - 1, "RIGHT")
+    t.sub:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -8, 6)
+    t.sub:SetTextColor(.6, .6, .6)
+    t:SetScript("OnClick", function() if this.go then this.go() end end)
+    t:SetScript("OnEnter", function() Tip(this, this.tip, "ANCHOR_BOTTOM") end)
+    t:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.tiles[i] = t
   end
 
-  -- damage / healing / friendly fire, over the list of the tabs that use it
-  B.KINDS = { { "damage", "Damage" }, { "heal", "Healing" }, { "ff", "Friendly fire" } }
+  -- damage / healing / friendly fire, as one strip of three over the tabs that use it
+  B.KINDS = { { "damage", "Damage", "Ability_MeleeDamage", "Damage they did." },
+              { "heal", "Healing", "Spell_Holy_Heal", "Healing they did." },
+              { "ff", "Friendly fire", "Spell_Fire_Fire", "Damage they did to their own group." } }
   f.kinds = {}
   for i, k in ipairs(B.KINDS) do
     local key = k[1]
-    local b = Button(f, k[2], 96, function() B.kind = key B.spell = nil B.offset = 0 B.Draw() end)
-    b:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + (i - 1) * 100, -90)
+    local b = RailButton(f, 22)
+    b:SetWidth(122)
     b.key = key
+    b.ico:SetTexture(ICON .. k[3])
+    b.text:SetText(k[2])
+    b.tip = k[2] .. "\n" .. k[4] .. "\nSwitches the list below."
+    b:SetScript("OnClick", function() B.kind = this.key B.spell = nil B.offset = 0 B.Draw() end)
     f.kinds[i] = b
   end
   local KINDTABS = { spells = true, targets = true, chart = true, compare = true }
 
-  -- the body: a list of bars on the left, a panel of lines on the right
-  local BODY_TOP, ROWH = -116, 18
-  local LIST_W = 470
+  -- ------------------------------------------------------------ the body
+
+  local ROWH, LINEH = 22, 18
+  local LIST_W = 420
   f.list = CreateFrame("Frame", nil, f)
-  f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP)
-  f.list:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
   f.list:SetWidth(LIST_W)
   f.list:EnableMouseWheel(true)
   f.list:SetScript("OnMouseWheel", function()
@@ -244,8 +446,6 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     B.Draw()
   end)
   f.panel = CreateFrame("Frame", nil, f)
-  f.panel:SetPoint("TOPLEFT", f.list, "TOPRIGHT", 10, 0)
-  f.panel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
   CreateBackdrop(f.panel, nil, true, .5)
   f.panel:EnableMouseWheel(true)
   f.panel:SetScript("OnMouseWheel", function()
@@ -253,9 +453,70 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     B.Draw()
   end)
   f.rows, f.lines = {}, {}
-  local MAXROWS = floor((H + BODY_TOP - 10) / (ROWH + 2))
-  local MAXLINES = floor((H + BODY_TOP - 22) / 16)
-  B.MAXROWS = MAXROWS
+  B.maxrows, B.maxlines = 18, 24
+
+  -- where the body starts: under the figures and the kind strip when they show
+  local function LayoutBody(tiles, kinds)
+    local top = HEAD + 10
+    for _, t in ipairs(f.tiles) do if tiles then t:Show() else t:Hide() end end
+    if tiles then top = top + 50 end
+    for i, k in ipairs(f.kinds) do
+      if kinds then
+        k:ClearAllPoints()
+        k:SetPoint("TOPLEFT", f, "TOPLEFT", X0 + (i - 1) * 124, -top)
+        k:Show()
+      else
+        k:Hide()
+      end
+    end
+    if kinds then top = top + 28 end
+    f.list:ClearAllPoints()
+    f.list:SetPoint("TOPLEFT", f, "TOPLEFT", X0, -top)
+    f.list:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", X0, 12)
+    f.list:SetWidth(LIST_W)
+    f.panel:ClearAllPoints()
+    f.panel:SetPoint("TOPLEFT", f.list, "TOPRIGHT", 10, 0)
+    f.panel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
+    f.chart:ClearAllPoints()
+    f.chart:SetPoint("TOPLEFT", f, "TOPLEFT", X0, -top)
+    f.chart:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
+    B.maxrows = max(3, floor((H - top - 12) / (ROWH + 2)))
+    B.maxlines = max(3, floor((H - top - 12 - 8) / LINEH))
+    B.chartW, B.chartH = W - X0 - 12 - 16, H - top - 12 - 40
+  end
+
+  -- a picture for a spell by its name: from your spell book, a few fixed ones
+  local spellTex
+  local FIXED = {}
+  FIXED[T["Melee"] or "Melee"] = ICON .. "Ability_MeleeDamage"
+  FIXED["Auto Shot"] = ICON .. "Ability_Whirlwind"
+  FIXED["Shoot"] = ICON .. "Ability_ShootWand"
+  local function SpellIcon(name)
+    name = Strip(name)
+    if name == "" then return end
+    -- ClassicAPI: the spell id the combat log gave -> its own picture (any spell, not only yours)
+    local id = M.spellIds and M.spellIds[name]
+    local CS = _G.C_Spell
+    if id and CS and CS.GetSpellTexture then
+      local good, tex = pcall(CS.GetSpellTexture, id)
+      if good and tex and tex ~= "" then return tex end
+    end
+    if not spellTex then
+      spellTex = {}
+      if GetSpellName and GetSpellTexture then
+        for i = 1, 600 do
+          local n = GetSpellName(i, "spell")
+          if not n then break end
+          spellTex[n] = GetSpellTexture(i, "spell") or spellTex[n]
+        end
+      end
+    end
+    return spellTex[name] or FIXED[name]
+  end
+  B.SpellIcon = SpellIcon
+  local spellWatch = CreateFrame("Frame")
+  spellWatch:RegisterEvent("SPELLS_CHANGED")
+  spellWatch:SetScript("OnEvent", function() spellTex = nil end)
 
   local function Row(i)
     local r = f.rows[i]
@@ -274,19 +535,30 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     r.sel:SetAllPoints(r)
     r.sel:SetTexture(1, 1, 1, .12)
     r.sel:Hide()
+    r.mark = r:CreateTexture(nil, "OVERLAY")
+    r.mark:SetTexture(WHITE)
+    r.mark:SetWidth(3)
+    r.mark:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
+    r.mark:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
+    r.mark:Hide()
     r.hl = r:CreateTexture(nil, "HIGHLIGHT")
     r.hl:SetAllPoints(r)
-    r.hl:SetTexture(1, 1, 1, .08)
+    r.hl:SetTexture(1, 1, 1, .1)
+    r.ico = r.bar:CreateTexture(nil, "OVERLAY")
+    r.ico:SetWidth(ROWH - 4)
+    r.ico:SetHeight(ROWH - 4)
+    r.ico:SetPoint("LEFT", r, "LEFT", 4, 0)
+    r.ico:SetTexCoord(.08, .92, .08, .92)
     r.left = Text(r.bar, C.global.font_size)
-    r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
     r.right = Text(r.bar, C.global.font_size, "RIGHT")
-    r.right:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.right:SetPoint("RIGHT", r, "RIGHT", -6, 0)
     r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
     r:SetScript("OnClick", function() if this.onclick then this.onclick() end end)
     r:SetScript("OnEnter", function()
-      if not this.tip then return end
       GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-      GameTooltip:SetText(this.tip, 1, 1, 1)
+      GameTooltip:AddLine(Strip(this.title), 1, 1, 1)
+      if this.sub and this.sub ~= "" then GameTooltip:AddLine(Strip(this.sub), .8, .8, .8) end
+      if this.tip then GameTooltip:AddLine(this.tip, .5, .75, 1, 1) end
       GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -299,18 +571,43 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     local l = f.lines[i]
     if l then return l end
     l = {}
+    local y = -6 - (i - 1) * LINEH
+    l.zebra = f.panel:CreateTexture(nil, "BACKGROUND")
+    l.zebra:SetTexture(WHITE)
+    l.zebra:SetVertexColor(1, 1, 1, .035)
+    l.zebra:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 2, y + 2)
+    l.zebra:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", -2, y + 2)
+    l.zebra:SetHeight(LINEH)
+    l.rule = f.panel:CreateTexture(nil, "ARTWORK")
+    l.rule:SetTexture(WHITE)
+    l.rule:SetHeight(1)
+    l.rule:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 6, y - LINEH + 3)
+    l.rule:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", -6, y - LINEH + 3)
     l.btn = CreateFrame("Button", nil, f.panel)
-    l.btn:SetHeight(16)
-    l.btn:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 4, -4 - (i - 1) * 16)
-    l.btn:SetPoint("RIGHT", f.panel, "RIGHT", -4, 0)
+    l.btn:SetHeight(LINEH)
+    l.btn:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 2, y + 2)
+    l.btn:SetPoint("RIGHT", f.panel, "RIGHT", -2, 0)
     l.btn.hl = l.btn:CreateTexture(nil, "HIGHLIGHT")
     l.btn.hl:SetAllPoints(l.btn)
-    l.btn.hl:SetTexture(1, 1, 1, .08)
+    l.btn.hl:SetTexture(1, 1, 1, .1)
     l.btn:SetScript("OnClick", function() if this.go then this.go() end end)
+    l.btn:SetScript("OnEnter", function()
+      if this.tip then
+        GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+        GameTooltip:AddLine(Strip(this.title), 1, 1, 1)
+        GameTooltip:AddLine(this.tip, .7, .85, 1, 1)
+        GameTooltip:Show()
+      end
+    end)
+    l.btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     l.label = Text(f.panel, C.global.font_size)
-    l.label:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 8, -6 - (i - 1) * 16)
+    l.label:SetPoint("TOPLEFT", f.panel, "TOPLEFT", 8, y)
     l.value = Text(f.panel, C.global.font_size, "RIGHT")
-    l.value:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", -8, -6 - (i - 1) * 16)
+    l.value:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", -8, y)
+    l.arrow = Text(f.panel, C.global.font_size, "RIGHT")
+    l.arrow:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", -8, y)
+    l.arrow:SetText(">")
+    l.arrow:SetTextColor(.5, .75, 1)
     f.lines[i] = l
     return l
   end
@@ -320,22 +617,60 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   local texture = "Interface\\AddOns\\pfUI\\img\\bar_elvui"
   local cr, cg, cb = .6, .6, .6
 
-  -- list: { { name, value, text, onclick, selected, color, tip } }
+  -- list: { { name, value, text, onclick, selected, color, tip, class, icon, spell } }
+  -- a picture is the class (a player of the fight), the skull (an enemy), the spell's own
+  -- (`spell = true` or a name that is a spell of yours) or none
   local function FillList(list, maxv)
+    local seg = B.seg
+    local max_rows = B.maxrows or 18
     local off = B.offset or 0
-    if off > max(0, table.getn(list) - MAXROWS) then off = max(0, table.getn(list) - MAXROWS) B.offset = off end
-    for i = 1, MAXROWS do
-      local e = list[i + off]
+    if off > max(0, table.getn(list) - max_rows) then off = max(0, table.getn(list) - max_rows) B.offset = off end
+    local ar, ag, ab = GetAccentColor()
+    for i = 1, max(max_rows, table.getn(f.rows)) do
+      local e = i <= max_rows and list[i + off]
       local r = Row(i)
       if e then
         r.bar:SetStatusBarTexture(texture)
         local c = e.color
         r.bar:SetStatusBarColor(c and c[1] or cr, c and c[2] or cg, c and c[3] or cb, .8)
         r.bar:SetValue((maxv and maxv > 0 and e.value) and e.value / maxv or 0)
+        -- the picture
+        local plain = Strip(e.name)
+        local tex, coords
+        if e.icon then tex = e.icon
+        else
+          local actor = seg and seg.actors and (seg.actors[plain] or (e.class and { class = e.class }))
+          local cls = e.class or (actor and actor.class)
+          local cc = cls and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[cls]
+          if cc then tex, coords = pfUI.media["img:classicons"], cc
+          elseif seg and seg.foes and seg.foes[plain] then tex = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull"
+          elseif e.spell then tex = SpellIcon(plain) or (ICON .. "INV_Misc_QuestionMark")
+          end
+        end
+        if tex then
+          r.ico:SetTexture(tex)
+          if coords then r.ico:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+          else r.ico:SetTexCoord(.08, .92, .08, .92) end
+          r.ico:Show()
+        else
+          r.ico:Hide()
+        end
+        r.left:ClearAllPoints()
+        r.left:SetPoint("LEFT", r, "LEFT", tex and (ROWH + 3) or 7, 0)
+        r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
         r.left:SetText((e.link and LINK or "") .. e.name .. (e.link and "|r" or ""))
         r.right:SetText(e.text or "")
-        r.onclick, r.tip = e.onclick, e.tip
-        if e.selected then r.sel:Show() else r.sel:Hide() end
+        r.onclick = e.onclick
+        r.title, r.sub = e.name, e.text
+        r.tip = e.tip or (e.onclick and (e.link and ("Click: open " .. plain) or "Click: its details on the right")) or nil
+        if e.selected then
+          r.sel:Show()
+          r.mark:SetVertexColor(ar, ag, ab, 1)
+          r.mark:Show()
+        else
+          r.sel:Hide()
+          r.mark:Hide()
+        end
         r:Show()
       else
         r:Hide()
@@ -344,27 +679,42 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     B.listShown = list
   end
 
-  -- lines: { { label, value, head, go } }
+  -- lines: { { label, value, head, go, tip } }
   local function FillLines(lines)
     local ar, ag, ab = GetAccentColor()
+    local max_lines = B.maxlines or 24
     local off = B.lineOffset or 0
-    if off > max(0, table.getn(lines) - MAXLINES) then off = max(0, table.getn(lines) - MAXLINES) B.lineOffset = off end
-    for i = 1, max(MAXLINES, table.getn(f.lines)) do
-      local e = i <= MAXLINES and lines[i + off]
+    if off > max(0, table.getn(lines) - max_lines) then off = max(0, table.getn(lines) - max_lines) B.lineOffset = off end
+    for i = 1, max(max_lines, table.getn(f.lines)) do
+      local e = i <= max_lines and lines[i + off]
       local l = Line(i)
       if e then
         l.label:SetText(e[1] or "")
         l.value:SetText(e[2] or "")
-        if e.head then l.label:SetTextColor(ar, ag, ab)
-        elseif e.go then l.label:SetTextColor(.5, .75, 1)
-        else l.label:SetTextColor(.85, .85, .85) end
+        l.value:ClearAllPoints()
+        l.value:SetPoint("TOPRIGHT", f.panel, "TOPRIGHT", e.go and -20 or -8, -6 - (i - 1) * LINEH)
+        if e.head then
+          l.label:SetTextColor(ar, ag, ab)
+          l.rule:SetVertexColor(ar, ag, ab, .45)
+          l.rule:Show()
+        else
+          l.rule:Hide()
+          if e.go then l.label:SetTextColor(.5, .75, 1) else l.label:SetTextColor(.85, .85, .85) end
+        end
+        if not e.head and math.mod(i, 2) == 0 then l.zebra:Show() else l.zebra:Hide() end
         l.label:Show()
         l.value:Show()
+        if e.go then l.arrow:Show() else l.arrow:Hide() end
         l.btn.go = e.go
-        if e.go then l.btn:Show() else l.btn:Hide() end
+        l.btn.title = e[1]
+        l.btn.tip = e.tip or (e.go and ("Click: open " .. Strip(e[1]))) or nil
+        if e.go or e.tip then l.btn:Show() else l.btn:Hide() end
       else
         l.label:Hide()
         l.value:Hide()
+        l.arrow:Hide()
+        l.rule:Hide()
+        l.zebra:Hide()
         l.btn:Hide()
       end
     end
@@ -467,22 +817,29 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     local act = max(1, a.active or 0)
     local function Go(tab, kind) return function() B.kind = kind or B.kind B.tab = tab B.offset = 0 B.Draw() end end
     local lines = { { "Damage and healing", "", head = true },
-      { "Damage done", Num(a.damage) .. "   (" .. Num(a.damage / act) .. " dps)", go = Go("spells", "damage") },
-      { "Healing done", Num(a.heal) .. "   (" .. Num(a.heal / act) .. " hps)", go = Go("spells", "heal") },
-      { "Overhealing", Num(a.overheal) .. "  (" .. Pct(a.overheal, a.heal + a.overheal) .. ")", go = Go("spells", "heal") },
-      { "Damage taken", Num(a.taken), go = Go("taken") },
-      { "Healing taken", Num(a.htaken or 0), go = Go("taken") },
-      { "Friendly fire", Num(a.ff or 0), go = Go("spells", "ff") },
+      { "Damage done", Num(a.damage) .. "   (" .. Num(a.damage / act) .. " dps)", go = Go("spells", "damage"),
+        tip = "All damage they did, and per second of their active time. Click: the spells." },
+      { "Healing done", Num(a.heal) .. "   (" .. Num(a.heal / act) .. " hps)", go = Go("spells", "heal"),
+        tip = "Healing that actually healed something. Click: the spells." },
+      { "Overhealing", Num(a.overheal) .. "  (" .. Pct(a.overheal, a.heal + a.overheal) .. ")", go = Go("spells", "heal"),
+        tip = "Healing that was more than the target was missing. A little is normal; a lot means heals went to waste." },
+      { "Damage taken", Num(a.taken), go = Go("taken"), tip = "All damage that hit them. Click: what it was and who made it." },
+      { "Healing taken", Num(a.htaken or 0), go = Go("taken"), tip = "Healing others did on them. Click: who healed them." },
+      { "Friendly fire", Num(a.ff or 0), go = Go("spells", "ff"), tip = "Damage they did to their own group (it is not counted as damage done)." },
       { "Time", "", head = true },
       { "Fight", Clock(fight) },
-      { "Active", Clock(act) .. "  (" .. Pct(min(act, fight), fight) .. ")", go = Go("chart") },
+      { "Active", Clock(act) .. "  (" .. Pct(min(act, fight), fight) .. ")", go = Go("chart"),
+        tip = "How long they were attacking, healing or casting (gaps over a few seconds do not count). Click: the chart." },
       { "Utility", "", head = true },
-      { "Interrupts / dispels", (a.interrupts or 0) .. " / " .. (a.dispels or 0), go = Go("utility") },
-      { "Cooldowns used", a.cds or 0, go = Go("casts") },
-      { "Resurrects", a.ress or 0, go = Go("casts") },
-      { "Kills / deaths", (a.frags or 0) .. " / " .. (a.deaths or 0), go = Go((a.deaths or 0) > 0 and "deaths" or "utility") },
-      { "Casts", a.ncasts or 0, go = Go("casts") },
-      { "Buff / debuff uptime", Clock(a.buffsum or 0) .. " / " .. Clock(a.debuffsum or 0), go = Go("auras") },
+      { "Interrupts / dispels", (a.interrupts or 0) .. " / " .. (a.dispels or 0), go = Go("utility"),
+        tip = "Spells they stopped, and effects they removed. Click: each one, with what it was." },
+      { "Cooldowns used", a.cds or 0, go = Go("casts"), tip = "Big cooldowns they pressed. Click: when." },
+      { "Resurrects", a.ress or 0, go = Go("casts"), tip = "Players they brought back. Click: who and when." },
+      { "Kills / deaths", (a.frags or 0) .. " / " .. (a.deaths or 0), go = Go((a.deaths or 0) > 0 and "deaths" or "utility"),
+        tip = "Kills they landed the last blow on, and times they died. Click: the death log." },
+      { "Casts", a.ncasts or 0, go = Go("casts"), tip = "Every spell they cast. Click: the list." },
+      { "Buff / debuff uptime", Clock(a.buffsum or 0) .. " / " .. Clock(a.debuffsum or 0), go = Go("auras"),
+        tip = "How long buffs were on them, and how long their debuffs were on enemies. Click: each aura." },
     }
     -- resources gained
     for pow, v in pairs(a.power or {}) do table.insert(lines, { pow .. " gained", Num(v), go = Go("utility") }) end
@@ -492,7 +849,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     local list = {}
     for _, e in ipairs(Sorted(spells, "total")) do
       local name = e.name
-      table.insert(list, { name = name, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total),
+      table.insert(list, { name = name, spell = true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, total),
         onclick = function() B.spell = name B.tab = "spells" B.Draw() end })
     end
     FillList(list, list[1] and list[1].value)
@@ -506,7 +863,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     for _, e in ipairs(sorted) do
       local name = e.name
       local s = e.data
-      table.insert(list, { name = name, value = e.v,
+      table.insert(list, { name = name, spell = true, value = e.v,
         text = Num(e.v) .. "  " .. Pct(e.v, total) .. "  |cff888888" .. (s.hits + s.ticks) .. "x|r",
         selected = name == B.spell, onclick = function() B.spell = name B.lineOffset = 0 B.Draw() end })
     end
@@ -558,7 +915,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     for _, e in ipairs(sorted) do
       local name = e.name
       local spell, who = SourceOf(name)
-      table.insert(list, { name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
+      table.insert(list, { icon = SpellIcon(spell), spell = true, name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
         text = Num(e.v) .. "  " .. Pct(e.v, a.taken) .. "  |cff888888" .. e.data.hits .. "x|r", color = { .7, .25, .25 },
         selected = name == B.spell, onclick = function() B.spell = name B.lineOffset = 0 B.Draw() end })
     end
@@ -597,7 +954,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       local name = e.name
       -- a spell with numbers opens its detail
       local kind = (a.spells and a.spells[name] and "damage") or (a.hspells and a.hspells[name] and "heal")
-      table.insert(list, { name = name, value = e.v, text = e.v .. "  " .. Pct(e.v, a.ncasts or 0),
+      table.insert(list, { name = name, spell = true, value = e.v, text = e.v .. "  " .. Pct(e.v, a.ncasts or 0),
         tip = kind and "Click: its numbers" or nil,
         onclick = kind and function() B.kind = kind B.spell = name B.tab = "spells" B.Draw() end or nil })
     end
@@ -707,7 +1064,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       top = max(top, x, y)
       local gap = y > 0 and string.format("%+.0f%%", (x - y) / y * 100) or "new"
       local color = x >= y and "|cff66ff66" or "|cffff6666"
-      table.insert(list, { name = n, value = x, sort = max(x, y),
+      table.insert(list, { name = n, spell = true, value = x, sort = max(x, y),
         text = Num(x) .. "  |cff888888vs|r " .. Num(y) .. "  " .. color .. gap .. "|r" })
     end
     table.sort(list, function(p, q) return p.sort > q.sort end)
@@ -726,8 +1083,8 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   -- Chart: the player's damage (or healing) per second through the fight,
   -- as columns, with the group's in grey behind (Details' charts)
   f.chart = CreateFrame("Frame", nil, f)
-  f.chart:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP)
-  f.chart:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
+  f.chart:SetPoint("TOPLEFT", f, "TOPLEFT", X0, -(HEAD + 10))
+  f.chart:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
   CreateBackdrop(f.chart, nil, true, .5)
   f.chart.cols, f.chart.back = {}, {}
   f.chart.top = Text(f.chart, C.global.font_size - 1)
@@ -739,7 +1096,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   f.chart.endtime = Text(f.chart, C.global.font_size - 1, "RIGHT")
   f.chart.endtime:SetPoint("BOTTOMRIGHT", f.chart, "BOTTOMRIGHT", -6, 4)
   f.chart:Hide()
-  local CHART_W, CHART_H = W - 20 - 16, H + BODY_TOP - 10 - 40
+
 
   local function Column(list, i, parent)
     local c = list[i]
@@ -751,6 +1108,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   end
 
   local function Chart(a, seg)
+    local CHART_W, CHART_H = B.chartW or 700, B.chartH or 300
     local heal = Kind() == "heal"
     local mine = M.Curve and M.Curve(seg, a.name, heal) or {}
     local all = M.Curve and M.Curve(seg, nil, heal) or {}
@@ -866,7 +1224,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     elseif tab == "ftaken" then
       for _, e in ipairs(Sorted(foe.tspells, "total")) do
         local spell, who = SourceOf(e.name)
-        table.insert(list, { name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
+        table.insert(list, { icon = SpellIcon(spell), spell = true, name = spell .. "  |cff888888" .. (who or "") .. "|r", value = e.v,
           text = Num(e.v) .. "  " .. Pct(e.v, foe.taken), onclick = Link(who) })
       end
     else
@@ -874,7 +1232,7 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       if not B.spell or not foe.dspells[B.spell] then B.spell = sorted[1] and sorted[1].name end
       for _, e in ipairs(sorted) do
         local sname = e.name
-        table.insert(list, { name = sname, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, foe.done), color = { .7, .25, .25 },
+        table.insert(list, { name = sname, spell = true, value = e.v, text = Num(e.v) .. "  " .. Pct(e.v, foe.done), color = { .7, .25, .25 },
           selected = sname == B.spell, onclick = function() B.spell = sname B.Draw() end })
       end
       if B.spell and foe.dspells[B.spell] then
@@ -948,25 +1306,47 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
   end
   B.Look = Look
 
+  -- the rail's views, each with its picture and a sentence for the tooltip
   local function Tabs(set)
-    local ar, ag, ab = GetAccentColor()
     for i, b in ipairs(f.tabs) do
       local t = set[i]
       if t then
         b.key = t[1]
         b.text:SetText(t[2])
-        if b.key == B.tab then
-          b.text:SetTextColor(ar, ag, ab)
-          b.line:SetVertexColor(ar, ag, ab, 1)
-          b.line:Show()
-        else
-          b.text:SetTextColor(1, 1, 1)
-          b.line:Hide()
-        end
+        local info = B.TABINFO[t[1]]
+        b.ico:SetTexture(ICON .. (info and info[1] or "INV_Misc_QuestionMark"))
+        b.tip = t[2] .. "\n" .. (info and info[2] or "")
+        Lit(b, b.key == B.tab)
         b:Show()
       else
         b:Hide()
       end
+    end
+  end
+
+  -- the figures over the list (a player): each one opens the view it comes from
+  local function Tiles(a, seg)
+    local fight = seg and M.Duration(seg) or 1
+    local act = max(1, a.active or 0)
+    local function Go(tab, kind) return function() B.kind = kind or B.kind B.tab = tab B.offset = 0 B.spell = nil B.Draw() end end
+    local defs = {
+      { "DAMAGE", Num(a.damage), Num(a.damage / act) .. " dps", "spells", "damage", "Damage done\nTotal and per second. Click for the spells." },
+      { "HEALING", Num(a.heal), Num(a.heal / act) .. " hps", "spells", "heal", "Healing done\nTotal and per second. Click for the spells." },
+      { "TAKEN", Num(a.taken), Num(a.htaken or 0) .. " healed", "taken", nil, "Damage taken\nAnd what healed them. Click for what hit them." },
+      { "ACTIVE", Clock(act), Pct(min(act, fight), fight), "chart", nil, "Active time\nHow long they were doing something, and the share of the fight. Click for the chart." },
+      { "DEATHS", tostring(a.deaths or 0), (a.frags or 0) .. " kills", (a.deaths or 0) > 0 and "deaths" or "utility", nil,
+        "Deaths and kills\nClick for the death log (or the utility view when there is none)." },
+    }
+    local ar, ag, ab = GetAccentColor()
+    for i, d in ipairs(defs) do
+      local t = f.tiles[i]
+      t.label:SetText(d[1])
+      t.value:SetText(d[2])
+      t.sub:SetText(d[3])
+      t.tip = d[6]
+      t.go = Go(d[4], d[5])
+      local on = (d[4] == B.tab) and (not d[5] or d[5] == Kind())
+      if on then t.line:SetVertexColor(ar, ag, ab, 1) t.line:Show() else t.line:Hide() end
     end
   end
 
@@ -981,6 +1361,8 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     if B.stack and table.getn(B.stack) > 0 then f.back:Show() else f.back:Hide() end
     f.icon:Hide()
     cr, cg, cb = .6, .6, .6
+    local ar, ag, ab = GetAccentColor()
+    f.rule:SetVertexColor(ar, ag, ab, .8)
 
     -- an enemy, or a spell that hit the group
     if B.foe or B.bspell then
@@ -989,15 +1371,20 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       for _, t in ipairs(set) do if t[1] == B.tab then ok = true end end
       if not ok then B.tab = set[1][1] end
       Tabs(set)
-      for _, k in ipairs(f.kinds) do k:Hide() end
+      LayoutBody(false, false)
       f.name:SetText(B.foe or B.bspell)
       f.name:SetTextColor(1, .45, .45)
       f.who:SetWidth(max(80, (f.name:GetStringWidth() or 60) + 14))
       f.sub:SetText((B.foe and "enemy" or "spell on your group") .. "  -  " .. segname)
+      local tex = B.foe and "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" or SpellIcon(B.bspell)
+      if tex then
+        f.icon:SetTexture(tex)
+        f.icon:SetTexCoord(B.foe and 0 or .08, B.foe and 1 or .92, B.foe and 0 or .08, B.foe and 1 or .92)
+        f.icon:Show()
+      end
       f.chart:Hide()
       f.list:Show()
       f.panel:Show()
-      f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, BODY_TOP + 26)
       if B.foe then FoeDraw(B.foe, seg) else SpellDraw(B.bspell, seg) end
       f:Show()
       return
@@ -1027,16 +1414,9 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
     f.sub:SetText(mode.name .. "  -  " .. segname)
     -- damage / healing / friendly fire switch on the tabs that use it
     local kinds = KINDTABS[B.tab]
-    local ar, ag, ab = GetAccentColor()
-    for _, k in ipairs(f.kinds) do
-      if kinds then
-        k:Show()
-        if k.key == Kind() then k.text:SetTextColor(ar, ag, ab) else k.text:SetTextColor(1, 1, 1) end
-      else
-        k:Hide()
-      end
-    end
-    f.list:SetPoint("TOPLEFT", f, "TOPLEFT", 10, kinds and BODY_TOP or (BODY_TOP + 26))
+    for _, k in ipairs(f.kinds) do Lit(k, k.key == Kind()) end
+    LayoutBody(true, kinds)
+    Tiles(a, seg)
     -- the chart takes the whole body
     if B.tab == "chart" then
       f.list:Hide()
@@ -1222,6 +1602,15 @@ pfUI:RegisterModule("meters-breakdown", "vanilla", function ()
       { "Raid", function() B.Report("RAID") end },
       { "Guild", function() B.Report("GUILD") end },
       { "Officer", function() B.Report("OFFICER") end } }
+    -- (ClassicAPI) the same text on the Windows clipboard, to paste into Discord or a forum
+    if M.CanCopy and M.CanCopy() then
+      table.insert(items, { "Copy to the clipboard", function()
+        local lc = pfUI.api and pfUI.api.libclient
+        if lc and lc.Copy and lc.Copy(table.concat(B.ReportLines(), "\n"), true) then
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r: the report is on your clipboard - paste it with Ctrl+V.")
+        end
+      end })
+    end
     if UnitIsPlayer("target") and UnitIsFriend("player", "target") then
       local name = UnitName("target")
       table.insert(items, { "Whisper " .. name, function() B.Report("WHISPER", name) end })

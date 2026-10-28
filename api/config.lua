@@ -220,6 +220,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("meters",     nil,           "reportlines",      "10")
   pfUI:UpdateConfig("meters",     nil,           "tooltip",          "1")
   pfUI:UpdateConfig("meters",     nil,           "tooltiplines",     "8")
+  pfUI:UpdateConfig("meters",     nil,           "clog",             "1")
   pfUI:UpdateConfig("meters",     nil,           "snap",             "1")
   pfUI:UpdateConfig("meters",     nil,           "recent",           "")
   -- custom displays: a spell's damage / healing / casts / damage taken, a buff's or debuff's uptime
@@ -283,6 +284,22 @@ function pfUI:LoadConfig()
     pfUI:UpdateConfig("meters", w, "showps",      "1")
     pfUI:UpdateConfig("meters", w, "showpct",     "1")
     pfUI:UpdateConfig("meters", w, "brackets",    "1")
+    -- 25 Oct 2026 (user: "more custom stuff ... font colour changes, icons"): colours of every text,
+    -- icon size / side, bar border, your own bar marked, hover colour, title font
+    pfUI:UpdateConfig("meters", w, "namecustom",  "1,1,1,1")
+    pfUI:UpdateConfig("meters", w, "valuecolor",  "white")
+    pfUI:UpdateConfig("meters", w, "valuecustom", "1,1,1,1")
+    pfUI:UpdateConfig("meters", w, "subcolor",    "0.67,0.67,0.67,1")
+    pfUI:UpdateConfig("meters", w, "rankcolor",   "0.67,0.67,0.67,1")
+    pfUI:UpdateConfig("meters", w, "valuesize",   "0")
+    pfUI:UpdateConfig("meters", w, "iconside",    "left")
+    pfUI:UpdateConfig("meters", w, "iconsize",    "0")
+    pfUI:UpdateConfig("meters", w, "barborder",   "0")
+    pfUI:UpdateConfig("meters", w, "barbordercolor", "0,0,0,1")
+    pfUI:UpdateConfig("meters", w, "selfmark",    "0")
+    pfUI:UpdateConfig("meters", w, "selfcolor",   "1,0.82,0.2,1")
+    pfUI:UpdateConfig("meters", w, "hovercolor",  "1,1,1,0.12")
+    pfUI:UpdateConfig("meters", w, "titlefont",   "")
   end
   -- octo-blizzard.lua: "1" = that section uses Blizzard's own frames
   for _, k in pairs({ "unitframes", "castbar", "actionbars", "minimap", "buffs", "nameplates", "bags", "loot",
