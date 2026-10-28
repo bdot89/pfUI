@@ -5255,11 +5255,21 @@ do
       _G.this = pf
       local good, err = pcall(pf:GetScript("OnUpdate"))
       local _, _, _, x = pf.incHeal:GetPoint(1)
-      ok(good and pf.incHeal:IsShown(), "a heal on you shows the green bar: " .. tostring(err))
-      -- (the frame reads health through pfUI's health library: the start is checked to be inside the bar)
-      ok(x and x > 0 and x < w and math.abs(pf.incHeal:GetWidth() - w / 4) < .5,
-        "it starts where your health ends and is as wide as the heal (" .. tostring(x) .. ", " .. tostring(pf.incHeal:GetWidth()) .. " of " .. w .. ")")
+      -- (the frame reads health through pfUI's health library: the heal part and the overheal part
+      -- together are checked to be the whole heal, inside the bar)
+      local fillW = pf.incHeal:IsShown() and pf.incHeal:GetWidth() or 0
+      local overW = pf.overHeal and pf.overHeal:IsShown() and pf.overHeal:GetWidth() or 0
+      ok(good and (fillW > 0 or overW > 0), "a heal on you shows green on the bar: " .. tostring(err))
+      ok(math.abs(fillW + overW - w / 4) < 1 and fillW <= w and (not x or x + fillW <= w + .5),
+        "the heal part and the overheal part make the whole heal, inside the bar (" .. fillW .. " + " .. overW .. " of " .. w .. ")")
       ok(pf.incHeal:GetFrameLevel() > pf.hp.bar:GetFrameLevel(), "and sits over the health bar, not behind it")
+      -- a heal bigger than the whole bar: the overheal shows, capped at the bar, from its far end
+      LP.UnitGetIncomingHeals = function() return 5000 end
+      pf.predictAt, pf.predictstate = nil, nil
+      pcall(pf:GetScript("OnUpdate"))
+      local p1, _, p3, ox = pf.overHeal:GetPoint(1)
+      ok(pf.overHeal:IsShown() and math.abs(pf.overHeal:GetWidth() - w) < .5 and p1 == "TOPRIGHT" and (ox or 0) == 0,
+        "a big overheal shows inside the bar, no wider than it (" .. tostring(pf.overHeal:GetWidth()) .. " of " .. w .. ")")
       _G.UnitHealth, _G.UnitHealthMax, LP.UnitGetIncomingHeals = uh, uhm, uig
       pf.predictAt, pf.predictstate = nil, nil
     end

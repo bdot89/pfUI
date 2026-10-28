@@ -669,6 +669,13 @@ function pfUI.uf:UpdateConfig()
   cr, cg, cb, ca = tonumber(cr), tonumber(cg), tonumber(cb), tonumber(ca)
   f.incHeal.texture:SetVertexColor(cr, cg, cb, ca)
   f.incHeal:Hide()
+  -- (overheal: the heal colour, lighter and more see-through, so it reads as "past full")
+  if f.overHeal then
+    f.overHeal.texture:SetTexture(pfUI.media["img:bar"])
+    f.overHeal.texture:SetVertexColor(math.min(1, cr + .35), math.min(1, cg + .35), math.min(1, cb + .35), math.max(.25, (ca or 1) * .55))
+    f.overHeal:Hide()
+  end
+  f.predictstate = nil
 
   if f.config.verticalbar == "0" then
     f.incHeal:ClearAllPoints()
@@ -1102,52 +1109,64 @@ function pfUI.uf.OnUpdate()
       local overhealperc = tonumber(this.config.overhealperc)
       this.predictstate = heal - health - maxHealth
 
-      if heal > 0 and (health < maxHealth or overhealperc > 0 ) then
+      if heal > 0 and maxHealth and maxHealth > 0 then
         -- (the health bar as drawn: the width / height settings miss its border and pixel scale)
         local width = (this.hp and this.hp.bar and this.hp.bar:GetWidth() or 0) > 0 and this.hp.bar:GetWidth() or tonumber(this.config.width) or 100
         local height = (this.hp and this.hp.bar and this.hp.bar:GetHeight() or 0) > 0 and this.hp.bar:GetHeight() or tonumber(this.config.height) or 20
+        -- octo (28 Oct 2026; user: "It should show overhealing ... on ALL versions of raid frames and all
+        -- sizes of frames ... just overlay and work"). Both drawn OVER the health bar, inside it, under
+        -- the texts (pfUI drew one block behind the bar, showing only through its empty part, and let it
+        -- run past the frame's end):
+        --   incHeal   the part that fills missing health: solid, from where the health ends
+        --   overHeal  the part past full health: lighter, from the bar's far end inwards, as long as the
+        --             overheal (never longer than the bar). Overheal % 0 on the frame = not shown.
+        local missing = math.max(0, maxHealth - health)
+        local fill = math.min(heal, missing)
+        local over = (overhealperc or 0) > 0 and math.max(0, heal - missing) or 0
+        local invert = this.config.invert_healthbar == "1"
+        local level = this.hp.bar.GetFrameLevel and math.min(15, this.hp.bar:GetFrameLevel() + 2)
+        local ov = this.overHeal
 
         if this.config.verticalbar == "0" then
           local healthWidth = width * (health / maxHealth)
-          local incWidth = width * heal / maxHealth
-          if healthWidth + incWidth > width * (1+(overhealperc/100)) then
-            incWidth = width * (1+overhealperc/100) - healthWidth
-          end
-
-          -- octo (28 Oct 2026; user: "still no green glow on the frames"): the green is drawn OVER the
-          -- health bar, from where the health ends and only as wide as the heal. pfUI drew it behind,
-          -- as wide as health + heal, showing through the bar's empty part - which pfUI Octo fills
-          -- (empty part colour, shade, fading bar), so the green was never seen.
+          local fillW = width * fill / maxHealth
+          local overW = math.min(width, width * over / maxHealth)
           this.incHeal:ClearAllPoints()
           this.incHeal:SetHeight(height)
-          if this.config.invert_healthbar == "1" then
-            this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", 0, 0)
-          else
-            this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", healthWidth, 0)
+          this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", invert and 0 or healthWidth, 0)
+          this.incHeal:SetWidth(math.max(1, fillW))
+          if ov then
+            ov:ClearAllPoints()
+            ov:SetHeight(height)
+            ov:SetPoint(invert and "TOPLEFT" or "TOPRIGHT", this.hp.bar, invert and "TOPLEFT" or "TOPRIGHT", 0, 0)
+            ov:SetWidth(math.max(1, overW))
           end
-          this.incHeal:SetWidth(math.max(1, incWidth))
+          if fillW >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
+          if ov then if overW >= 1 then ov:Show() else ov:Hide() end end
         else
           local healthHeight = height * (health / maxHealth)
-          local incHeight = height * heal / maxHealth
-          if healthHeight + incHeight > height * (1+(overhealperc/100)) then
-            incHeight = height * (1+overhealperc/100) - healthHeight
-          end
-
+          local fillH = height * fill / maxHealth
+          local overH = math.min(height, height * over / maxHealth)
           this.incHeal:ClearAllPoints()
           this.incHeal:SetWidth(width)
-          if this.config.invert_healthbar == "1" then
-            this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, 0)
-          else
-            this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, healthHeight)
+          this.incHeal:SetPoint("BOTTOM", this.hp.bar, "BOTTOM", 0, invert and 0 or healthHeight)
+          this.incHeal:SetHeight(math.max(1, fillH))
+          if ov then
+            ov:ClearAllPoints()
+            ov:SetWidth(width)
+            ov:SetPoint(invert and "BOTTOM" or "TOP", this.hp.bar, invert and "BOTTOM" or "TOP", 0, 0)
+            ov:SetHeight(math.max(1, overH))
           end
-          this.incHeal:SetHeight(math.max(1, incHeight))
+          if fillH >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
+          if ov then if overH >= 1 then ov:Show() else ov:Hide() end end
         end
-        -- (over the bar's fill and its background art, under the texts at level 16)
-        if this.hp.bar.GetFrameLevel then this.incHeal:SetFrameLevel(math.min(15, this.hp.bar:GetFrameLevel() + 2)) end
-
-        this.incHeal:Show()
+        if level then
+          this.incHeal:SetFrameLevel(level)
+          if ov then ov:SetFrameLevel(level) end
+        end
       else
         this.incHeal:Hide()
+        if this.overHeal then this.overHeal:Hide() end
       end
     end
 
@@ -1384,6 +1403,11 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
   f.incHeal = CreateFrame("Frame", nil, f.hp)
   f.incHeal.texture = f.incHeal:CreateTexture(nil, "ARTWORK")
   f.incHeal.texture:SetAllPoints()
+  -- octo: the heal past full health, drawn inside the bar from its far end (OnUpdate)
+  f.overHeal = CreateFrame("Frame", nil, f.hp)
+  f.overHeal.texture = f.overHeal:CreateTexture(nil, "ARTWORK")
+  f.overHeal.texture:SetAllPoints()
+  f.overHeal:Hide()
 
   f.ressIcon = CreateFrame("Frame", nil, f.hp.bar)
   f.ressIcon.texture = f.ressIcon:CreateTexture(nil,"BACKGROUND")
