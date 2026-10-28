@@ -856,16 +856,25 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
       chat:Show()
       -- (28 Oct 2026, user: "resized naturally to FILL the right panel not leaving spaces") the
       -- docked windows split the panel evenly, edge to edge: one takes it all, two halves, three thirds
-      local full = chat:GetWidth() or 400
+      -- (seen in game 28 Oct: a strip at the right stayed empty - the width was read before the
+      -- chat had its real size. Now its measured edges, the last window pinned to its right edge,
+      -- and placed again whenever the panel's width changes: pfUI.panel.arrowWatch)
+      local l, r = chat:GetLeft(), chat:GetRight()
+      local full = (l and r and r > l) and (r - l) or chat:GetWidth() or 400
+      pfUI.panel.arrowWidth = full
       local bottom = pfUI.panel.right:GetHeight() or 0
       local x = 0
       local each = full / math.max(1, table.getn(wins))
       for i, win in ipairs(wins) do
-        local w = (i == table.getn(wins)) and (full - x) or each
+        local last = i == table.getn(wins)
         win:ClearAllPoints()
         win:SetPoint("TOPLEFT", chat, "TOPLEFT", x, 0)
-        win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", x + w, bottom)
-        x = x + w
+        if last then
+          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMRIGHT", 0, bottom)
+        else
+          win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", x + each, bottom)
+        end
+        x = x + each
         win:SetFrameStrata(chat:GetFrameStrata())
         win:SetFrameLevel(chat:GetFrameLevel() + 5)
         if win.grip then win.grip:Hide() end
@@ -958,6 +967,17 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   function pfUI.panel.ArrowLayout()
     if C.panel.arrowmode == "meters" and C.panel.arrowopen == "1" then MetersIn(true) end
   end
+  -- the docked windows follow the panel's width (login, chat resized, UI scale)
+  pfUI.panel.arrowWatch = CreateFrame("Frame")
+  pfUI.panel.arrowWatch:SetScript("OnUpdate", function()
+    this.t = (this.t or 0) + arg1
+    if this.t < .5 then return end
+    this.t = 0
+    local chat = pfUI.chat and pfUI.chat.right
+    if not chat or C.panel.arrowmode ~= "meters" or C.panel.arrowopen ~= "1" then return end
+    local l, r = chat:GetLeft(), chat:GetRight()
+    if l and r and math.abs((r - l) - (pfUI.panel.arrowWidth or 0)) > 1 then MetersIn(true) end
+  end)
   -- the mode changed on the options page: shut the one before, open the new one
   function pfUI.panel.ArrowMode(mode)
     local was = pfUI.panel.ArrowIsOpen()

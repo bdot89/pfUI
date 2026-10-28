@@ -460,11 +460,11 @@ do
     local a, b = M.windows[1], M.windows[2]
     local pa, pb = a.points and a.points[2], b.points and b.points[1]
     local function X(pt) return pt and pt[4] end
-    local full = pfUI.chat.right:GetWidth() or 0
+    local full = PN.arrowWidth or pfUI.chat.right:GetWidth() or 0
     ok(a.arrowDocked and pa and pb and X(pa) and X(pb) and math.abs(X(pa) - X(pb)) < .01 and math.abs(X(pa) - full / 2) < .5,
       "two docked windows split the panel evenly, edge to edge (" .. tostring(X(pa)) .. " of " .. full .. ")")
     local pz = b.points and b.points[2]
-    ok(pz and math.abs(X(pz) - full) < .5, "the last one reaches the panel's right edge")
+    ok(pz and pz[1] == "BOTTOMRIGHT" and pz[3] == "BOTTOMRIGHT" and X(pz) == 0, "the last one is pinned to the panel's right edge")
     -- three at most
     if M.windows[4] then
       PN.ArrowDock(3, true)
