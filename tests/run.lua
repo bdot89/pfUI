@@ -5223,7 +5223,24 @@ do
     Fire("UNIT_SPELLCAST_START", "player", "cast-me3", 25314)
     ok(LP:UnitGetIncomingHeals("party1") == 1800 and LP:UnitGetIncomingHeals("player") == 0, "your heal on a friend shows on their frame only")
     Fire("UNIT_SPELLCAST_STOP", "player", "cast-me3", 25314)
+    -- the button-click way drew first (the original pfUI way, on a wrong target here): the cast
+    -- event replaces it - one bar, on the right frame
+    LP:Heal(me, "Bob", 500, 2000)
+    _G.UnitSpellTargetName = function() return nil end
+    Fire("UNIT_SPELLCAST_START", "player", "cast-me4", 25314)
+    ok(LP:UnitGetIncomingHeals("party1") == 0 and LP:UnitGetIncomingHeals("player") == 1800,
+      "the cast event replaces the button-click guess (one bar, right frame)")
+    Fire("UNIT_SPELLCAST_STOP", "player", "cast-me4", 25314)
     _G.UnitName = un2
+    -- the first cast of a spell: its own base heal plus your healing power x cast time / 3.5 s
+    local bh, gsbh = LP.BaseHeal, GetSpellBonusHealing
+    LP.BaseHeal = function() return 1000 end
+    _G.GetSpellBonusHealing = function() return 350 end
+    ok(LP:Guess("Flash Heal", "Flash HealRank 9", nil, me, 1500) == 1150, "first cast: base 1000 + 350 healing x 1.5 / 3.5 = 1150 ("
+      .. tostring(LP:Guess("Flash Heal", "Flash HealRank 9", nil, me, 1500)) .. ")")
+    LP.BaseHeal, _G.GetSpellBonusHealing = bh, gsbh
+    -- /pfheal readout
+    ok(SlashCmdList.PFHEAL ~= nil, "/pfheal readout is there")
     LP.ownByCast = own
     -- your own heal lines: the critical ones read right (they used to read the name as the amount)
     local sender = LP.sender:GetScript("OnEvent")

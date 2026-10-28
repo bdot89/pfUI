@@ -487,28 +487,28 @@ libpredict.sender:SetScript("OnEvent", function()
     local spell, _, heal = cmatch(arg1, HEALEDCRITSELFOTHER) -- "Your %s critically heals %s for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
-      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal, true) end
+      if libpredict.Learn and not libpredict.clogLearns then libpredict.Learn(player, spell, nil, heal, true) end
       return
     end
 
     local spell, heal = cmatch(arg1, HEALEDCRITSELFSELF) -- "Your %s critically heals you for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
-      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal, true) end
+      if libpredict.Learn and not libpredict.clogLearns then libpredict.Learn(player, spell, nil, heal, true) end
       return
     end
 
     local spell, _, heal = cmatch(arg1, HEALEDSELFOTHER) -- "Your %s heals %s for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal) end
-      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal) end
+      if libpredict.Learn and not libpredict.clogLearns then libpredict.Learn(player, spell, nil, heal) end
       return
     end
 
     local spell, heal = cmatch(arg1, HEALEDSELFSELF) -- "Your %s heals you for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal) end
-      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal) end
+      if libpredict.Learn and not libpredict.clogLearns then libpredict.Learn(player, spell, nil, heal) end
       return
     end
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" and arg2 == "SPELL_HEAL" and arg4 == player then -- tbc
@@ -539,8 +539,10 @@ libpredict.sender:SetScript("OnEvent", function()
       spell, time = spellname, endtime - starttime
     end
 
-    -- (octo: the first cast of a spell has no healed amount yet - its own text gives one)
-    local known = cache[spell_queue[2]] and cache[spell_queue[2]][1] or libpredict:Guess(spell, spell_queue[2])
+    -- (octo, 28 Oct 2026: the size your heals really have (running average), else the spell's text
+    -- plus your healing power; pfUI's biggest-heal cache only for spells that guess cannot read)
+    local known = libpredict:Guess(spell, spell_queue[2], nil, player, time)
+      or (cache[spell_queue[2]] and cache[spell_queue[2]][1])
     if spell_queue[1] == spell and known then
       local sender = player
       local target = senttarget or spell_queue[3]
@@ -560,7 +562,7 @@ libpredict.sender:SetScript("OnEvent", function()
 
         for i=1,4 do
           if CheckInteractDistance("party"..i, 4) then
-            if not libpredict.ownByCast then libpredict:Heal(player, UnitName("party"..i), amount, casttime) end
+            libpredict:Heal(player, UnitName("party"..i), amount, casttime)
             if pfUI.client < 20000 then -- vanilla
               libpredict.sender:SendHealCommMsg("Heal/" .. UnitName("party"..i) .. "/" .. amount .. "/" .. casttime .. "/")
             else -- tbc
@@ -571,8 +573,11 @@ libpredict.sender:SetScript("OnEvent", function()
         end
       end
 
-      -- (with ClassicAPI / SuperWoW your heal is drawn from the cast itself: "everyone's heals" below)
-      if not libpredict.ownByCast then libpredict:Heal(player, target, amount, casttime) end
+      -- (octo: drawn here always - the original pfUI way, which worked; ClassicAPI / SuperWoW cast
+      -- events (below) replace it with exact data when they come. HealStop first: one bar, never two)
+      if spell ~= PRAYER_OF_HEALING then libpredict:HealStop(player) end
+      libpredict:Heal(player, target, amount, casttime)
+      if libpredict.Note then libpredict.Note("click", spell, target, amount, casttime) end
       if pfUI.client < 20000 then -- vanilla
         libpredict.sender:SendHealCommMsg("Heal/" .. target .. "/" .. amount .. "/" .. casttime .. "/")
       else -- tbc
@@ -675,9 +680,35 @@ do
     if not old then return amount end
     return math.floor(old + (amount - old) / 3 + .5)
   end
+  -- /pfheal: each of your predictions and what the heal really did, in chat (user, 28 Oct 2026:
+  -- "STILL NOT WORKING" - one cast with this on shows where it goes wrong)
+  local function Say(msg) DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI heal|r " .. msg) end
+  function libpredict.Note(source, spell, target, amount, ms)
+    if not libpredict.debug then return end
+    Say(string.format("%s on |cffffffff%s|r: |cff55ff55%d|r in %.1f s  |cff999999(from the %s%s, healing power %d)|r",
+      tostring(spell), tostring(target), tonumber(amount) or 0, (tonumber(ms) or 0) / 1000,
+      source == "cast" and "cast event" or "button click", source == "cast" and "" or "",
+      libpredict.HealPower and libpredict.HealPower() or 0))
+  end
+  _G.SLASH_PFHEAL1 = "/pfheal"
+  _G.SlashCmdList.PFHEAL = function()
+    libpredict.debug = not libpredict.debug
+    Say(libpredict.debug and "readout on: cast a heal - each prediction and what it landed for shows here. /pfheal again: off."
+      or "readout off.")
+    if libpredict.debug then
+      Say(string.format("ClassicAPI cast events: %s   SuperWoW: %s   own heals from the cast: %s   sending HealComm: %s",
+        (type(_G.UnitSpellTargetName) == "function" and C_Spell and C_Spell.UnitCastingInfo) and "yes" or "no",
+        SUPERWOW_VERSION and "yes" or "no", libpredict.ownByCast and "yes" or "no",
+        libpredict.sender and libpredict.sender.enabled and "yes" or "no (another HealComm addon does it)"))
+    end
+  end
+
   local function Learn(caster, name, rank, amount, crit)
     amount = tonumber(amount)
     if not caster or not name or not amount or amount <= 0 then return end
+    if libpredict.debug and caster == player then
+      Say(string.format("%s landed for |cffffd100%d|r%s", name, amount, crit and " (critical)" or ""))
+    end
     learned[caster] = learned[caster] or {}
     local mine = learned[caster]
     mine[name] = Blend(mine[name], amount, crit)
@@ -717,13 +748,61 @@ do
     return best
   end
 
-  -- a heal's size before it lands; key = name .. rank as the own cast queue keeps it
-  function libpredict:Guess(name, key, spellId, caster)
+  -- your +healing: ClassicAPI's GetSpellBonusHealing, else the "Increases healing done ... by up to X"
+  -- lines of what you wear (read again when your gear changes)
+  local gearScan = CreateFrame("GameTooltip", "pfPredictGear", UIParent, "GameTooltipTemplate")
+  local bonus
+  local function HealPower()
+    if type(_G.GetSpellBonusHealing) == "function" then
+      local ok, v = pcall(_G.GetSpellBonusHealing)
+      if ok and tonumber(v) then return tonumber(v) end
+    end
+    if bonus then return bonus end
+    bonus = 0
+    for slot = 1, 19 do
+      gearScan:SetOwner(UIParent, "ANCHOR_NONE")
+      gearScan:ClearLines()
+      if GetInventoryItemLink("player", slot) then
+        gearScan:SetInventoryItem("player", slot)
+        for l = 1, (gearScan:NumLines() or 0) do
+          local fs = _G["pfPredictGearTextLeft" .. l]
+          local t = fs and fs:GetText()
+          if t and string.find(string.lower(t), "healing") then
+            local _, _, n = string.find(t, "up to (%d+)")
+            if not n then _, _, n = string.find(t, "%+(%d+) [Hh]ealing") end
+            if n then bonus = bonus + tonumber(n) end
+          end
+        end
+      end
+    end
+    return bonus
+  end
+  local gearWatch = CreateFrame("Frame")
+  gearWatch:RegisterEvent("UNIT_INVENTORY_CHANGED")
+  gearWatch:SetScript("OnEvent", function() if arg1 == "player" then bonus = nil end end)
+  libpredict.HealPower = HealPower
+
+  -- a heal's size before it lands; key = name .. rank as the own cast queue keeps it.
+  -- Known sizes (running average of real heals) first. Else, as LibHealComm does it: the spell's
+  -- own base heal plus, for your own, your +healing times its coefficient (cast time / 3.5 s)
+  function libpredict:Guess(name, key, spellId, caster, ms)
     if not name or not HEALS[name] then return nil end
     key = key or name
     local c = caster and learned[caster]
     if c and (c[key] or c[name]) then return c[key] or c[name] end
+    local base = libpredict:BaseHeal(name, key, spellId)
+    if base and caster == player then
+      local secs = math.min(3.5, math.max(1.5, (tonumber(ms) or 2500) / 1000))
+      -- (Prayer of Healing / Chain Heal spread over several: a third of the usual share)
+      if name == PRAYER_OF_HEALING or name == "Chain Heal" then secs = secs / 3 end
+      return math.floor(base + HealPower() * secs / 3.5 + .5)
+    end
     if anyone[key] or anyone[name] then return anyone[key] or anyone[name] end
+    return base
+  end
+  -- the spell's own "heals for X to Y" average (no gear), remembered per spell and rank
+  function libpredict:BaseHeal(name, key, spellId)
+    key = key or name
     if guessed[key] == nil then
       local v
       if spellId and C_Spell and C_Spell.GetSpellDescription then
@@ -765,9 +844,14 @@ do
   -- (your own heals go this way too when ClassicAPI or SuperWoW tells the cast: libpredict.ownByCast)
   local function Start(key, caster, target, name, rank, spellId, ms)
     if not caster or (caster == player and not libpredict.ownByCast) or not HEALS[name] or not ms or ms <= 0 then return end
-    local amount = libpredict:Guess(name, name .. (rank or ""), spellId, caster)
+    local amount = libpredict:Guess(name, name .. (rank or ""), spellId, caster, ms)
     if not amount then return end
     local targets = (name == PRAYER_OF_HEALING) and GroupOf(caster) or { target or caster }
+    -- (yours: this replaces what the button-click way drew, so there is one bar)
+    if caster == player then
+      libpredict:HealStop(player)
+      if libpredict.Note then libpredict.Note("cast", name .. (rank and rank ~= "" and (" (" .. rank .. ")") or ""), targets[1], amount, ms) end
+    end
     for _, t in ipairs(targets) do libpredict:Heal(caster, t, amount, ms) end
     casting[key] = { caster = caster, targets = targets }
   end
@@ -794,6 +878,8 @@ do
   -- your own heals from the cast itself (exact spell, rank, target and time) instead of
   -- guessing them from the button clicked
   libpredict.ownByCast = (capi or (pfUI.client < 20000 and SUPERWOW_VERSION ~= nil)) and true or nil
+  -- (with the combat log your heals are learnt there: the chat lines would count each twice)
+  libpredict.clogLearns = capi and type(_G.CombatLogGetCurrentEventInfo) == "function" or nil
   -- an own cast with no target named: the unit it was sent at (UNIT_SPELLCAST_SENT), else yourself
   local function OwnTarget(unit)
     local ok, t = pcall(_G.UnitSpellTargetName, unit)
