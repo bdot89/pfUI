@@ -454,15 +454,34 @@ do
     PN.ArrowDock(1, true)
     PN.ArrowDock(2, true)
     ok(PN.ArrowDocks(1) and PN.ArrowDocks(2) and C.panel.arrowwins == "m1,m2", "both windows docked (" .. C.panel.arrowwins .. ")")
+    -- (user, 28 Oct 2026: they FILL the panel, no gaps; their own widths do not matter in it)
     C.meters.win1.width, C.meters.win2.width = "300", "100"
     PN.ArrowLayout()
     local a, b = M.windows[1], M.windows[2]
     local pa, pb = a.points and a.points[2], b.points and b.points[1]
     local function X(pt) return pt and pt[4] end
-    ok(a.arrowDocked and pa and pb and X(pa) and X(pb) and math.abs(X(pa) - X(pb)) < .01 and X(pa) > (pfUI.chat.right:GetWidth() or 0) * .7,
-      "a wider docked window takes more of the panel")
+    local full = pfUI.chat.right:GetWidth() or 0
+    ok(a.arrowDocked and pa and pb and X(pa) and X(pb) and math.abs(X(pa) - X(pb)) < .01 and math.abs(X(pa) - full / 2) < .5,
+      "two docked windows split the panel evenly, edge to edge (" .. tostring(X(pa)) .. " of " .. full .. ")")
+    local pz = b.points and b.points[2]
+    ok(pz and math.abs(X(pz) - full) < .5, "the last one reaches the panel's right edge")
+    -- three at most
+    if M.windows[4] then
+      PN.ArrowDock(3, true)
+      ok(PN.ArrowDock(4, true) == false and not PN.ArrowDocks(4), "a fourth window is refused (three at most)")
+      PN.ArrowDock(3, false)
+    end
+    -- set floating: a spot of its own, saved, so it never jumps to the middle
+    local name = b:GetName()
+    local was = C.position[name]
+    C.position[name] = nil
     PN.ArrowDock(2, false)
-    ok(not PN.ArrowDocks(2), "undock from the Meters page")
+    ok(not PN.ArrowDocks(2) and C.position[name] and C.position[name].xpos, "a window set floating keeps a saved spot of its own")
+    local saved = C.position[name] and C.position[name].xpos
+    PN.ArrowDock(2, true)
+    PN.ArrowDock(2, false)
+    ok(C.position[name] and C.position[name].xpos == saved, "and that spot stays when it goes in and out again")
+    C.position[name] = was
     C.panel.arrowopen = "0"
     PN.ArrowSet(false)
     C.panel.arrowmode, C.panel.arrowopen, C.panel.arrowwins = om, oo, ow

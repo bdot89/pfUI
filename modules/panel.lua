@@ -835,11 +835,14 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     end
   end
 
+  -- at most this many meter windows share the panel (user, 28 Oct 2026: "3 max")
+  pfUI.panel.ARROWMAX = 3
   function pfUI.panel.ArrowMeters()
     local out, M = {}, pfUI.meters
     for key in string.gfind(C.panel.arrowwins or "", "[^,]+") do
       local n = tonumber(string.sub(key, 2))
-      if string.sub(key, 1, 1) == "m" and n and M and M.windows and M.windows[n] then table.insert(out, M.windows[n]) end
+      if string.sub(key, 1, 1) == "m" and n and M and M.windows and M.windows[n]
+        and table.getn(out) < pfUI.panel.ARROWMAX then table.insert(out, M.windows[n]) end
     end
     return out
   end
@@ -851,19 +854,14 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     local wins = pfUI.panel.ArrowMeters()
     if on then
       chat:Show()
-      -- (26 Oct 2026, user: "making a frame wider ... nothing happens") each window's share of the
-      -- panel follows its own width setting: a wider window takes more of it, the others less
-      local ws, total = {}, 0
-      for i, win in ipairs(wins) do
-        local s = M.S and M.S(win)
-        ws[i] = math.max(40, tonumber(s and s.width) or 260)
-        total = total + ws[i]
-      end
+      -- (28 Oct 2026, user: "resized naturally to FILL the right panel not leaving spaces") the
+      -- docked windows split the panel evenly, edge to edge: one takes it all, two halves, three thirds
       local full = chat:GetWidth() or 400
       local bottom = pfUI.panel.right:GetHeight() or 0
       local x = 0
+      local each = full / math.max(1, table.getn(wins))
       for i, win in ipairs(wins) do
-        local w = full * ws[i] / math.max(1, total)
+        local w = (i == table.getn(wins)) and (full - x) or each
         win:ClearAllPoints()
         win:SetPoint("TOPLEFT", chat, "TOPLEFT", x, 0)
         win:SetPoint("BOTTOMRIGHT", chat, "BOTTOMLEFT", x + w, bottom)
@@ -903,19 +901,58 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
     end
   end
   function pfUI.panel.ArrowToggle() pfUI.panel.ArrowSet(not pfUI.panel.ArrowIsOpen()) end
-  -- meter window n docked in the arrow's window or not (Meters > Windows, "Docked in the panel")
+  -- meter window n docked in the arrow's window or not (Meters > Windows, "Where your windows go")
   function pfUI.panel.ArrowDocks(n)
     for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k == "m" .. n then return true end end
     return false
   end
+  -- where a window goes when it leaves the panel and has no spot of its own: just above where it
+  -- sat in the panel, saved at once (user, 28 Oct 2026: "they should never move after you place them
+  -- never reset position" - it used to jump to the middle of the screen)
+  local function FloatSpot(win, n)
+    if not win or not win.GetName or not win:GetName() then return end
+    local name = win:GetName()
+    if C.position[name] and C.position[name].xpos then return end
+    local k = (win:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    local l, t = win:GetLeft(), win:GetTop()
+    if not (win.arrowDocked and l and t) then
+      -- (not on show: above the panel, side by side by number)
+      local chat = pfUI.chat and pfUI.chat.right
+      local cl, ct = chat and chat:GetLeft(), chat and chat:GetTop()
+      if not (cl and ct) then return end
+      local ck = (chat:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+      l, t, k = cl + math.mod(n - 1, 3) * 90, ct + 30, ck
+    end
+    local h = tonumber(pfUI.meters and pfUI.meters.S and pfUI.meters.S(win).height) or 160
+    C.position[name] = { anchor = "BOTTOMLEFT", xpos = math.floor(l * k + .5), ypos = math.floor(t * k + 12 + .5) }
+    -- (its own height above that spot stays on the screen)
+    if C.position[name].ypos + h > (GetScreenHeight() or 768) then C.position[name].ypos = math.max(0, (GetScreenHeight() or 768) - h - 4) end
+  end
+  pfUI.panel.FloatSpot = FloatSpot
+
+  -- window n in the panel (on) or floating (off); false when the panel is full
   function pfUI.panel.ArrowDock(n, on)
+    if on and not pfUI.panel.ArrowDocks(n) and table.getn(pfUI.panel.ArrowMeters()) >= pfUI.panel.ARROWMAX then
+      DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI Octo|r meters: the bottom panel holds " .. pfUI.panel.ARROWMAX
+        .. " windows - set one of them to Floating first.")
+      return false
+    end
+    local M = pfUI.meters
+    local win = M and M.windows and M.windows[n]
+    if not on then FloatSpot(win, n) end
+    -- (docking: the panel holds meter windows from now on)
+    if on and C.panel.arrowmode ~= "meters" and pfUI.panel.ArrowMode then pfUI.panel.ArrowMode("meters") end
     local open = C.panel.arrowmode == "meters" and pfUI.panel.ArrowIsOpen()
     if open then pfUI.panel.ArrowSet(false) end
     local out = {}
     for k in string.gfind(C.panel.arrowwins or "", "[^,]+") do if k ~= "m" .. n then table.insert(out, k) end end
     if on then table.insert(out, "m" .. n) end
     C.panel.arrowwins = table.concat(out, ",")
+    if on and not open then C.panel.arrowopen = "1" open = true end
     if open then pfUI.panel.ArrowSet(true) end
+    -- (a window set floating shows at once, at its spot)
+    if not on and win and C.meters.hidden ~= "1" then win:Show() end
+    return true
   end
   -- docked meter windows placed again (a width changed on the Meters page or in Move frames)
   function pfUI.panel.ArrowLayout()

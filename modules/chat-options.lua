@@ -762,11 +762,11 @@ pfUI:RegisterModule("chat-options", "vanilla:tbc", function ()
       { { key = "chat", label = "Loot & Spam (as before)" }, { key = "meters", label = "Meter windows, docked" } },
       function() return C.panel.arrowmode or "chat" end,
       function(v) if pfUI.panel and pfUI.panel.ArrowMode then pfUI.panel.ArrowMode(v) else C.panel.arrowmode = v end end)
-    -- (26 Oct 2026: which meter windows dock moved to Meters > Windows, "Docked in the panel")
+    -- (which meter windows dock: Meters > Windows, "Where your windows go")
     W.Buttons(p, { { "Open / shut it now", function() if pfUI.panel and pfUI.panel.ArrowToggle then pfUI.panel.ArrowToggle() end end,
       150, "What a click on the arrow does.", role = "go" },
       { "Which meter windows dock  >", function()
-        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtwindows", "Docked in the panel") else O:Open("mtwindows") end
+        if pfUI.plates and pfUI.plates.OpenSection then pfUI.plates.OpenSection("mtwindows", "Where your windows go") else O:Open("mtwindows") end
       end, 200, "Meters > Windows: tick the meter windows that sit in the panel's window.", role = "open" } })
   end
 

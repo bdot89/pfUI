@@ -374,6 +374,77 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
   -- font colour changes, icons". One card per thing you can see, in the order you look at a window: pick a look,
   -- what it shows, the frame, the title bar, the bars, the pictures, the words, their colours. Each card has a
   -- picture, each setting says what it does in its tooltip, and the pinned preview shows every change at once.)
+  -- every window in one list: in the bottom panel (up to three, splitting it edge to edge) or floating
+  -- where you put it (user, 28 Oct 2026: "the menu should state clear which meters you want in the
+  -- bottom 3 max ... Any you dont want in the bottom window you can select float mode ... all on one page")
+  local function DisplayName(win)
+    local s = M.S and M.S(win)
+    for _, m in ipairs(M.MODES or {}) do if s and m.key == s.mode then return m.name end end
+    return ""
+  end
+  function MO.WhereCard(p)
+    local PN = pfUI.panel
+    if not (PN and PN.ArrowDock) then return end
+    W.Card(p, "Where your windows go", { icon = "Interface\\Icons\\INV_Misc_Bag_10", tip = "Bottom panel: the window "
+      .. "sits in the window above the bottom-right bar, sharing it edge to edge with the others there (one fills it, "
+      .. "two take half each, three a third) - up to " .. PN.ARROWMAX .. ". Floating: it stays exactly where you put it on "
+      .. "the screen (Move frames, or drag its title bar)." })
+    local box = W.Box(p, 28 * M.MAXWIN + 34)
+    local rows = {}
+    local function Paint()
+      local n = M.windows and table.getn(M.windows) or 0
+      local docked = table.getn(PN.ArrowMeters())
+      for i, r in ipairs(rows) do
+        local win = M.windows and M.windows[i]
+        if win then
+          local inPanel = PN.ArrowDocks(i)
+          r.label:SetText("Window " .. i .. "  |cff999999" .. DisplayName(win) .. "|r")
+          W.Lit(r.dock, inPanel)
+          W.Lit(r.float, not inPanel)
+          r.label:Show() r.dock:Show() r.float:Show()
+        else
+          r.label:Hide() r.dock:Hide() r.float:Hide()
+        end
+      end
+      box.count:SetText("Bottom panel: |cffffffff" .. docked .. " of " .. PN.ARROWMAX .. "|r     Floating: |cffffffff"
+        .. math.max(0, n - docked) .. "|r" .. ((C.panel.arrowopen ~= "1" and docked > 0) and
+        "     |cffffd100The panel is shut - the arrow at the right end of the bottom-right bar opens it.|r" or ""))
+    end
+    for i = 1, M.MAXWIN do
+      local r = {}
+      r.label = box:CreateFontString(nil, "OVERLAY")
+      r.label:SetFont(W.UIFont(), 12, "OUTLINE")
+      r.label:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -10 - (i - 1) * 28)
+      r.dock = W.Button(box, "Bottom panel", 130, 22)
+      r.dock:SetPoint("TOPLEFT", box, "TOPLEFT", 230, -6 - (i - 1) * 28)
+      r.float = W.Button(box, "Floating", 110, 22)
+      r.float:SetPoint("LEFT", r.dock, "RIGHT", 6, 0)
+      local n = i
+      r.dock:SetScript("OnClick", function() PN.ArrowDock(n, true) Paint() O:Refresh() end)
+      r.float:SetScript("OnClick", function() PN.ArrowDock(n, false) Paint() O:Refresh() end)
+      W.Tip(r.dock, "Bottom panel", "Window " .. n .. " goes in the window above the bottom-right bar, sharing it edge to edge (up to " .. PN.ARROWMAX .. ").")
+      W.Tip(r.float, "Floating", "Window " .. n .. " stays where you put it on the screen.")
+      if W.Tint then pcall(W.Tint, r.dock, "pick") pcall(W.Tint, r.float, "pick") end
+      rows[i] = r
+    end
+    box.count = box:CreateFontString(nil, "OVERLAY")
+    box.count:SetFont(W.UIFont(), 11, "OUTLINE")
+    box.count:SetTextColor(.7, .7, .75)
+    box.count:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 12, 8)
+    MO.PaintWhere = Paint
+    Paint()
+    if p.items then table.insert(p.items, { Refresh = Paint }) end
+    W.Buttons(p, {
+      { "Open / shut the bottom panel", function()
+        if C.panel.arrowmode ~= "meters" and PN.ArrowMode then PN.ArrowMode("meters") end
+        if PN.ArrowToggle then PN.ArrowToggle() end
+        Paint()
+      end, 230, "The same as the arrow at the right end of the bottom-right bar.", role = "go",
+        on = function() return C.panel.arrowmode == "meters" and C.panel.arrowopen == "1" end },
+      { "Panel arrow options  >", function() O:Open("chpanel") end, 190, "The arrow on or off (Chat > Panel arrow).", role = "open" },
+    })
+  end
+
   local function BuildWindows(p)
     W.Heading(p, "Meter windows", { on = { function() return C.meters.hidden ~= "1" end, function(v) M.ShowAll(v) end,
       "Show or hide every meter window (the same as the meters button)." },
@@ -382,6 +453,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       .. "the preview shows the one you are editing and every change shows at once. Click a part of the preview to jump "
       .. "to its card. Hover any setting for what it does." })
     Preview(p)
+    MO.WhereCard(p)
 
     W.Card(p, "Start with a look", { icon = ICO .. "INV_Misc_Eye_01", tip = "Ready-made looks: background, border, title bar, bar texture, "
       .. "spacing and icons in one click. Change anything afterwards in the cards below." })
@@ -394,13 +466,13 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
       List({ { "current", "Current fight" }, { "overall", "Overall" } }), S, "segment")
 
     W.Card(p, "The window", { icon = ICO .. "INV_Banner_01", tip = "Size, background, border, and how it shows in and out of combat." })
-    Sld(p, "Width", "How wide the window is. You can also drag its corner. Docked in the panel: how much of the "
-      .. "panel it takes next to the other docked windows.", 150, 600, 1, S, "width", Px)
-    Sld(p, "Height", "How tall the window is (more height = more bars). Docked: the panel's height.", 60, 500, 1, S, "height", Px)
+    Sld(p, "Width", "How wide the window is when it floats. You can also drag its corner. In the bottom panel the "
+      .. "windows share the panel evenly instead.", 150, 600, 1, S, "width", Px)
+    Sld(p, "Height", "How tall the window is when it floats (more height = more bars). In the bottom panel: the panel's height.", 60, 500, 1, S, "height", Px)
     W.Live(p, function()
       if not Docked() then return "" end
-      return "|cff73bfffThis window is docked in the panel:|r Width sets its share of the panel next to the other docked "
-        .. "windows; the height is the panel's. Undock it under \"Docked in the panel\" to give it its own size."
+      return "|cff73bfffThis window is in the bottom panel:|r it shares the panel evenly with the windows there. "
+        .. "Set it to Floating (top card, \"Where your windows go\") to give it its own size and place."
     end)
     Color(p, "Background", "The colour and see-through of the window behind the bars.", S, "bg")
     Drop(p, "Border", "The edge round the window. Soft glow and Accent follow your accent colour.", List(BORDERS), S, "border")
@@ -410,27 +482,7 @@ pfUI:RegisterModule("meters-options", "vanilla", function ()
     Drop(p, "Hide", "Keep the window off the screen in or out of combat.", List(AUTOHIDE), S, "autohide")
     Chk(p, "Lock size and place", "Locked: it cannot be dragged or resized by accident.", S, "lock")
 
-    -- (user, 26 Oct 2026: the panel arrow's meter docking "easily accessed in the meter section";
-    -- the arrow itself stays on Chat > Panel arrow)
-    local PN = pfUI.panel
-    if PN and PN.ArrowDock then
-      W.Card(p, "Docked in the panel", { icon = "Interface\\Icons\\INV_Misc_Bag_10", tip = "The arrow at the right end of the bottom-right "
-        .. "bar (time and fps) opens a window above it. It can hold your meter windows side by side: tick the ones to dock." })
-      W.Dropdown(p, "The arrow's window holds", "Loot & Spam (as pfUI had it) or your meter windows, docked side by side.",
-        { { key = "chat", label = "Loot & Spam" }, { key = "meters", label = "Meter windows, docked" } },
-        function() return C.panel.arrowmode or "chat" end,
-        function(v) if PN.ArrowMode then PN.ArrowMode(v) else C.panel.arrowmode = v end end)
-      W.Space(p, 2)
-      for i = 1, (M.windows and table.getn(M.windows) or 0) do
-        local n = i
-        W.Check(p, "Dock window " .. n, "Window " .. n .. " sits in the panel's window while it is open (when it holds meter windows).",
-          function() return PN.ArrowDocks(n) end, function(v) PN.ArrowDock(n, v) end)
-      end
-      W.Buttons(p, {
-        { "Open / shut it now", function() if PN.ArrowToggle then PN.ArrowToggle() end end, 150, "What a click on the arrow does.", role = "go" },
-        { "Panel arrow options  >", function() O:Open("chpanel") end, 170, "The arrow on or off (Chat > Panel arrow).", role = "open" },
-      })
-    end
+    -- (where each window goes - bottom panel or floating - is the card at the top: MO.WhereCard)
 
     W.Card(p, "Title bar", { icon = ICO .. "INV_Scroll_03", tip = "The strip at the top: the display's name, the fight, and the buttons." })
     Chk(p, "Show the title bar", "Off: only the bars show. Right-click the window for its menu.", S, "title")
