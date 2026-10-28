@@ -1124,7 +1124,7 @@ function pfUI.uf.OnUpdate()
         local fill = math.min(heal, missing)
         local over = (overhealperc or 0) > 0 and math.max(0, heal - missing) or 0
         local invert = this.config.invert_healthbar == "1"
-        local level = this.hp.bar.GetFrameLevel and math.min(15, this.hp.bar:GetFrameLevel() + 2)
+        local level = this.hp.bar.GetFrameLevel and (this.hp.bar:GetFrameLevel() + 1)
         local ov = this.overHeal
 
         if this.config.verticalbar == "0" then
@@ -1400,11 +1400,13 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
   f.powerRightText = f.texts:CreateFontString("Status", "OVERLAY", "GameFontNormalSmall")
   f.powerCenterText = f.texts:CreateFontString("Status", "OVERLAY", "GameFontNormalSmall")
 
-  f.incHeal = CreateFrame("Frame", nil, f.hp)
+  -- octo (28 Oct 2026): children of the health bar itself, so they always draw over it - as
+  -- children of f.hp a raid layout with the bar at a high frame level hid them under it
+  f.incHeal = CreateFrame("Frame", nil, f.hp.bar)
   f.incHeal.texture = f.incHeal:CreateTexture(nil, "ARTWORK")
   f.incHeal.texture:SetAllPoints()
   -- octo: the heal past full health, drawn inside the bar from its far end (OnUpdate)
-  f.overHeal = CreateFrame("Frame", nil, f.hp)
+  f.overHeal = CreateFrame("Frame", nil, f.hp.bar)
   f.overHeal.texture = f.overHeal:CreateTexture(nil, "ARTWORK")
   f.overHeal.texture:SetAllPoints()
   f.overHeal:Hide()
