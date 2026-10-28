@@ -480,27 +480,35 @@ libpredict.sender:RegisterEvent("SKILL_LINES_CHANGED")
 
 libpredict.sender:SetScript("OnEvent", function()
   if event == "CHAT_MSG_SPELL_SELF_BUFF" then -- vanilla
+    -- octo (28 Oct 2026): the critical lines first ("Your X critically heals Y" also fits
+    -- "Your %s heals %s", with "X critically" as the spell), and each line's own captures (the two
+    -- critical ones read the target's name / nothing as the amount, so crits never counted).
+    -- Every heal also teaches libpredict.Learn the typical size of that spell for you.
+    local spell, _, heal = cmatch(arg1, HEALEDCRITSELFOTHER) -- "Your %s critically heals %s for %d."
+    if spell and heal then
+      if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
+      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal, true) end
+      return
+    end
+
+    local spell, heal = cmatch(arg1, HEALEDCRITSELFSELF) -- "Your %s critically heals you for %d."
+    if spell and heal then
+      if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
+      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal, true) end
+      return
+    end
+
     local spell, _, heal = cmatch(arg1, HEALEDSELFOTHER) -- "Your %s heals %s for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal) end
+      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal) end
       return
     end
 
     local spell, heal = cmatch(arg1, HEALEDSELFSELF) -- "Your %s heals you for %d."
     if spell and heal then
       if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal) end
-      return
-    end
-
-    local spell, heal = cmatch(arg1, HEALEDCRITSELFOTHER) -- "Your %s critically heals %s for %d."
-    if spell and heal then
-      if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
-      return
-    end
-
-    local spell, _, heal = cmatch(arg1, HEALEDCRITSELFSELF) -- "Your %s critically heals you for %d."
-    if spell and heal then
-      if spell == spell_queue[1] then UpdateCache(spell_queue[2], heal, true) end
+      if libpredict.Learn then libpredict.Learn(player, spell, nil, heal) end
       return
     end
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" and arg2 == "SPELL_HEAL" and arg4 == player then -- tbc
@@ -552,7 +560,7 @@ libpredict.sender:SetScript("OnEvent", function()
 
         for i=1,4 do
           if CheckInteractDistance("party"..i, 4) then
-            libpredict:Heal(player, UnitName("party"..i), amount, casttime)
+            if not libpredict.ownByCast then libpredict:Heal(player, UnitName("party"..i), amount, casttime) end
             if pfUI.client < 20000 then -- vanilla
               libpredict.sender:SendHealCommMsg("Heal/" .. UnitName("party"..i) .. "/" .. amount .. "/" .. casttime .. "/")
             else -- tbc
@@ -563,7 +571,8 @@ libpredict.sender:SetScript("OnEvent", function()
         end
       end
 
-      libpredict:Heal(player, target, amount, casttime)
+      -- (with ClassicAPI / SuperWoW your heal is drawn from the cast itself: "everyone's heals" below)
+      if not libpredict.ownByCast then libpredict:Heal(player, target, amount, casttime) end
       if pfUI.client < 20000 then -- vanilla
         libpredict.sender:SendHealCommMsg("Heal/" .. target .. "/" .. amount .. "/" .. casttime .. "/")
       else -- tbc
@@ -658,17 +667,24 @@ do
 
   -- learned[caster][key] = amount; anyone[key] = amount (key = name or "name rank")
   local learned, anyone, guessed = {}, {}, {}
+  -- (user, 28 Oct 2026: own heals must show "acuratly". A typical heal, not the biggest one:
+  -- each normal heal moves the size a third of the way to itself; a critical one only counts
+  -- (as 1/1.5 of itself) while nothing else is known)
+  local function Blend(old, amount, crit)
+    if crit then return old or math.floor(amount / 1.5) end
+    if not old then return amount end
+    return math.floor(old + (amount - old) / 3 + .5)
+  end
   local function Learn(caster, name, rank, amount, crit)
     amount = tonumber(amount)
     if not caster or not name or not amount or amount <= 0 then return end
-    -- (a critical heal is 1.5 times a normal one)
-    if crit then amount = math.floor(amount / 1.5) end
     learned[caster] = learned[caster] or {}
-    learned[caster][name] = amount
-    anyone[name] = amount
+    local mine = learned[caster]
+    mine[name] = Blend(mine[name], amount, crit)
+    anyone[name] = Blend(anyone[name], amount, crit)
     if rank and rank ~= "" then
-      learned[caster][name .. rank] = amount
-      anyone[name .. rank] = amount
+      mine[name .. rank] = Blend(mine[name .. rank], amount, crit)
+      anyone[name .. rank] = Blend(anyone[name .. rank], amount, crit)
     end
   end
   libpredict.Learn = Learn
@@ -746,8 +762,9 @@ do
 
   -- a heal being cast by someone else: on its target(s) until it lands or stops
   local casting = {}   -- key (cast GUID / caster GUID) -> { caster, targets, amount }
+  -- (your own heals go this way too when ClassicAPI or SuperWoW tells the cast: libpredict.ownByCast)
   local function Start(key, caster, target, name, rank, spellId, ms)
-    if not caster or caster == player or not HEALS[name] or not ms or ms <= 0 then return end
+    if not caster or (caster == player and not libpredict.ownByCast) or not HEALS[name] or not ms or ms <= 0 then return end
     local amount = libpredict:Guess(name, name .. (rank or ""), spellId, caster)
     if not amount then return end
     local targets = (name == PRAYER_OF_HEALING) and GroupOf(caster) or { target or caster }
@@ -774,6 +791,15 @@ do
     and C_Spell and C_Spell.GetSpellName and C_Spell.UnitCastingInfo
   local others = CreateFrame("Frame", "pfPredictionOthers", UIParent)
   libpredict.others = others
+  -- your own heals from the cast itself (exact spell, rank, target and time) instead of
+  -- guessing them from the button clicked
+  libpredict.ownByCast = (capi or (pfUI.client < 20000 and SUPERWOW_VERSION ~= nil)) and true or nil
+  -- an own cast with no target named: the unit it was sent at (UNIT_SPELLCAST_SENT), else yourself
+  local function OwnTarget(unit)
+    local ok, t = pcall(_G.UnitSpellTargetName, unit)
+    if ok and t and t ~= "" then return t end
+    return senttarget or player
+  end
   if capi then
     for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
                          "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED", "COMBAT_LOG_EVENT_UNFILTERED" }) do
@@ -792,13 +818,20 @@ do
     if event == "UNIT_SPELLCAST_START" then
       -- (every unit token a caster has fires its own copy: the cast GUID says it is one cast)
       local unit, guid, id = arg1, arg2, arg3
-      if not unit or not guid or casting[guid] or UnitIsUnit(unit, "player") then return end
+      if not unit or not guid or casting[guid] then return end
+      -- (yours come as "player"; your other tokens - target of target... - are copies)
+      local mine = UnitIsUnit(unit, "player")
+      if mine and unit ~= "player" then return end
       local name = C_Spell.GetSpellName(id)
       if not name or not HEALS[name] then return end
-      local ok, target = pcall(_G.UnitSpellTargetName, unit)
+      local target
+      if mine then target = OwnTarget(unit) else
+        local ok, t = pcall(_G.UnitSpellTargetName, unit)
+        target = ok and t or nil
+      end
       local _, _, _, s, e = C_Spell.UnitCastingInfo(unit)
       local rank = C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id) or ""
-      Start(guid, UnitName(unit), ok and target or nil, name, rank, id, (s and e) and (e - s) or nil)
+      Start(guid, UnitName(unit), target, name, rank, id, (s and e) and (e - s) or nil)
     elseif event == "UNIT_SPELLCAST_DELAYED" then
       local _, _, _, _, e = C_Spell.UnitCastingInfo(arg1)
       if e then Delay(arg2, e / 1000) end
@@ -809,17 +842,21 @@ do
       local info = _G.CombatLogGetCurrentEventInfo
       if type(info) ~= "function" then return end
       local _, sub, _, _, src, _, _, _, _, _, _, id, name, _, amount, _, _, crit = info()
-      if sub == "SPELL_HEAL" and src and src ~= player then
+      -- (your own too: the sizes your gear really gives)
+      if sub == "SPELL_HEAL" and src then
         local rank = id and C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id) or ""
         Learn(src, name, rank, amount, crit)
       end
     elseif event == "UNIT_CASTEVENT" then
       -- SuperWoW: arg1 caster GUID, arg2 target GUID, arg3 START / CAST / FAIL..., arg4 spell id, arg5 ms
       if arg3 == "START" then
-        local name, rank = SpellInfo and SpellInfo(arg4)
+        -- (not "SpellInfo and SpellInfo(x)": an "and" keeps only the first of its returns - the rank was lost)
+        local name, rank
+        if SpellInfo then name, rank = SpellInfo(arg4) end
         if not name or not HEALS[name] then return end
         local caster = UnitName(arg1)
         local target = arg2 and arg2 ~= "" and arg2 ~= "0x0000000000000000" and UnitName(arg2) or nil
+        if caster == player and not target then target = senttarget or player end
         Start(arg1, caster, target, name, rank, arg4, arg5)
       elseif arg3 == "CAST" or arg3 == "FAIL" then
         Stop(arg1)

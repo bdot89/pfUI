@@ -5168,7 +5168,8 @@ do
     ok(LP:Guess("Flash Heal", "Flash Heal", nil, "Anna") == 900, "a healer's heal size learned from chat")
     Fire("CHAT_MSG_SPELL_PARTY_BUFF", "Anna's Greater Heal critically heals you for 3000.")
     ok(LP:Guess("Greater Heal", "Greater Heal", nil, "Anna") == 2000, "a critical heal counts as its normal size")
-    ok(LP:Guess("Flash Heal", "Flash Heal", nil, "Carl") == 900, "another healer's same spell is used until theirs is known")
+    local carl = LP:Guess("Flash Heal", "Flash Heal", nil, "Carl")
+    ok(carl and carl > 500 and carl < 900, "another healer's same spell: the average of everyone's until theirs is known (" .. tostring(carl) .. ")")
     ok(LP:Guess("Fireball", "Fireball", nil, "Anna") == nil, "only heals are predicted")
     -- SuperWoW: Anna starts a Flash Heal on you
     local si, un = SpellInfo, UnitName
@@ -5195,6 +5196,40 @@ do
       .. LP:UnitGetIncomingHeals("player") .. ")")
     Fire("UNIT_SPELLCAST_INTERRUPTED", "party1", "cast-1", 25314)
     ok(LP:UnitGetIncomingHeals("player") == 0, "an interrupted heal goes")
+    -- a typical size, not the biggest one (user, 28 Oct 2026: "acuratly")
+    LP.Learn("Carl", "Renewal Light", nil, 1000)
+    LP.HEALS["Renewal Light"] = true
+    LP.Learn("Carl", "Renewal Light", nil, 1300)
+    ok(LP:Guess("Renewal Light", "Renewal Light", nil, "Carl") == 1100, "heal sizes average out (" .. tostring(LP:Guess("Renewal Light", "Renewal Light", nil, "Carl")) .. ")")
+    -- YOUR heals from the cast itself (ClassicAPI): the size your gear gives, the real target
+    local own = LP.ownByCast
+    LP.ownByCast = true
+    _G.UnitSpellTargetName = function(u) return nil end
+    _G.UnitIsUnit = function(a, b) return a == b or (a == "target" and b == "player") end
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 0, "SPELL_HEAL", false, "0xME", me, 0, 0, "0xME", me, 0, 0, 25314, "Greater Heal", 2, 1800, 0, 0, nil
+    end
+    Fire("COMBAT_LOG_EVENT_UNFILTERED")
+    Fire("UNIT_SPELLCAST_START", "player", "cast-me", 25314)
+    Fire("UNIT_SPELLCAST_START", "target", "cast-me2", 25314)
+    ok(LP:UnitGetIncomingHeals("player") == 1800, "your own Greater Heal shows, at the size it healed you for, once ("
+      .. LP:UnitGetIncomingHeals("player") .. ")")
+    Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-me", 25314)
+    ok(LP:UnitGetIncomingHeals("player") == 0, "and goes when it lands")
+    -- on a friend: the target the cast went at
+    _G.UnitSpellTargetName = function(u) if u == "player" then return "Bob" end end
+    local un2 = UnitName
+    _G.UnitName = function(u) if u == "party1" then return "Bob" end return un2(u) end
+    Fire("UNIT_SPELLCAST_START", "player", "cast-me3", 25314)
+    ok(LP:UnitGetIncomingHeals("party1") == 1800 and LP:UnitGetIncomingHeals("player") == 0, "your heal on a friend shows on their frame only")
+    Fire("UNIT_SPELLCAST_STOP", "player", "cast-me3", 25314)
+    _G.UnitName = un2
+    LP.ownByCast = own
+    -- your own heal lines: the critical ones read right (they used to read the name as the amount)
+    local sender = LP.sender:GetScript("OnEvent")
+    _G.event, _G.arg1 = "CHAT_MSG_SPELL_SELF_BUFF", "Your Holy Light critically heals Bob for 1500."
+    sender()
+    ok(LP:Guess("Holy Light", "Holy Light", nil, me) == 1000, "your critical heal line teaches its normal size")
     _G.C_Spell, _G.UnitSpellTargetName, _G.UnitIsUnit, _G.CombatLogGetCurrentEventInfo = cs, ust, uiu, clog
     _G.SpellInfo, _G.UnitName = si, un
   end
