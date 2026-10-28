@@ -652,8 +652,21 @@ function pfUI.api.LoadMovable(frame, init)
   end
 
   if pfUI_config["position"][frame:GetName()] then
-    if pfUI_config["position"][frame:GetName()]["parent"] then
-      frame:SetParent(_G[pfUI_config["position"][frame:GetName()]["parent"]])
+    -- octo (28 Oct 2026, crashes #132 reported after moving frames / old settings): a saved
+    -- parent that is the frame itself or one of its own children makes a parent loop the
+    -- client cannot draw and it crashes; such a parent (or a missing one) is not used
+    local pname = pfUI_config["position"][frame:GetName()]["parent"]
+    local p = pname and _G[pname]
+    local loop = false
+    local walk = p
+    while walk do
+      if walk == frame then loop = true break end
+      walk = walk.GetParent and walk:GetParent()
+    end
+    if p and not loop and p.GetObjectType then
+      frame:SetParent(p)
+    else
+      pfUI_config["position"][frame:GetName()]["parent"] = nil
     end
 
     if pfUI_config["position"][frame:GetName()]["scale"] then
