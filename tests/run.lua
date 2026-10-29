@@ -5254,22 +5254,25 @@ do
       if not w or w <= 0 then w = tonumber(pf.config.width) or 100 end
       _G.this = pf
       local good, err = pcall(pf:GetScript("OnUpdate"))
-      local _, _, _, x = pf.incHeal:GetPoint(1)
-      -- (the frame reads health through pfUI's health library: the heal part and the overheal part
-      -- together are checked to be the whole heal, inside the bar)
+      -- (user, 29 Oct 2026: it must START where the health ends) pinned to the health fill's right end
+      local q1, rel, q3 = pf.incHeal:GetPoint(1)
       local fillW = pf.incHeal:IsShown() and pf.incHeal:GetWidth() or 0
-      local overW = pf.overHeal and pf.overHeal:IsShown() and pf.overHeal:GetWidth() or 0
-      ok(good and (fillW > 0 or overW > 0), "a heal on you shows green on the bar: " .. tostring(err))
-      ok(math.abs(fillW + overW - w / 4) < 1 and fillW <= w and (not x or x + fillW <= w + .5),
-        "the heal part and the overheal part make the whole heal, inside the bar (" .. fillW .. " + " .. overW .. " of " .. w .. ")")
+      ok(good and fillW > 0, "a heal on you shows green on the bar: " .. tostring(err))
+      ok(rel == pf.hp.bar.bar and q1 == "TOPLEFT" and q3 == "TOPRIGHT", "the green starts at the end of the health fill")
+      ok(fillW <= w / 4 + .5, "and is no longer than the heal (" .. fillW .. " of " .. w .. ")")
       ok(pf.incHeal:GetFrameLevel() > pf.hp.bar:GetFrameLevel(), "and sits over the health bar, not behind it")
-      -- a heal bigger than the whole bar: the overheal shows, capped at the bar, from its far end
+      -- a heal bigger than the whole bar: the overheal glows past the bar's end, as long as the frame's
+      -- overheal % of the bar, with its amount on it
       LP.UnitGetIncomingHeals = function() return 5000 end
       pf.predictAt, pf.predictstate = nil, nil
       pcall(pf:GetScript("OnUpdate"))
-      local p1, _, p3, ox = pf.overHeal:GetPoint(1)
-      ok(pf.overHeal:IsShown() and math.abs(pf.overHeal:GetWidth() - w) < .5 and p1 == "TOPRIGHT" and (ox or 0) == 0,
-        "a big overheal shows inside the bar, no wider than it (" .. tostring(pf.overHeal:GetWidth()) .. " of " .. w .. ")")
+      local p1, orel, p3 = pf.overHeal:GetPoint(1)
+      local maxGlow = w * (tonumber(pf.config.overhealperc) or 0) / 100
+      ok(pf.overHeal:IsShown() and p1 == "TOPLEFT" and orel == pf.hp.bar and p3 == "TOPRIGHT"
+        and math.abs(pf.overHeal:GetWidth() - math.max(maxGlow, math.min(6, maxGlow))) < .5,
+        "a big overheal glows past the bar's end, as far as the overheal % allows (" .. tostring(pf.overHeal:GetWidth()) .. " of " .. maxGlow .. ")")
+      ok(maxGlow < 18 or (pf.overHeal.text:IsShown() and string.find(pf.overHeal.text:GetText() or "", "^%+")),
+        "with the overheal amount on it (" .. tostring(pf.overHeal.text:GetText()) .. ")")
       _G.UnitHealth, _G.UnitHealthMax, LP.UnitGetIncomingHeals = uh, uhm, uig
       pf.predictAt, pf.predictstate = nil, nil
     end

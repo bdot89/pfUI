@@ -671,8 +671,8 @@ function pfUI.uf:UpdateConfig()
   f.incHeal:Hide()
   -- (overheal: the heal colour, lighter and more see-through, so it reads as "past full")
   if f.overHeal then
-    f.overHeal.texture:SetTexture(pfUI.media["img:bar"])
-    f.overHeal.texture:SetVertexColor(math.min(1, cr + .35), math.min(1, cg + .35), math.min(1, cb + .35), math.max(.25, (ca or 1) * .55))
+    -- (the glow takes the heal colour, brightened)
+    f.overHeal.r, f.overHeal.g, f.overHeal.b = math.min(1, cr + .2), math.min(1, cg + .2), math.min(1, cb + .2)
     f.overHeal:Hide()
   end
   f.predictstate = nil
@@ -1110,66 +1110,89 @@ function pfUI.uf.OnUpdate()
       this.predictstate = heal - health - maxHealth
 
       if heal > 0 and maxHealth and maxHealth > 0 then
-        -- (the health bar as drawn: the width / height settings miss its border and pixel scale)
-        local width = (this.hp and this.hp.bar and this.hp.bar:GetWidth() or 0) > 0 and this.hp.bar:GetWidth() or tonumber(this.config.width) or 100
-        local height = (this.hp and this.hp.bar and this.hp.bar:GetHeight() or 0) > 0 and this.hp.bar:GetHeight() or tonumber(this.config.height) or 20
-        -- octo (28 Oct 2026; user: "It should show overhealing ... on ALL versions of raid frames and all
-        -- sizes of frames ... just overlay and work"). Both drawn OVER the health bar, inside it, under
-        -- the texts (pfUI drew one block behind the bar, showing only through its empty part, and let it
-        -- run past the frame's end):
-        --   incHeal   the part that fills missing health: solid, from where the health ends
-        --   overHeal  the part past full health: lighter, from the bar's far end inwards, as long as the
-        --             overheal (never longer than the bar). Overheal % 0 on the frame = not shown.
+        -- octo (29 Oct 2026; user: "should start on the end of the HP bar ... over the empty red bit" and
+        -- "a new ingenious way of showing the overheal"):
+        --   incHeal   the heal that fills missing health: solid, pinned to the end of the health fill
+        --             itself (a width worked out from settings put it short of the end on some frames)
+        --   overHeal  the heal past full health: a glow spilling out past the bar's end and fading
+        --             away, as long as the overheal up to the frame's "overheal %" of the bar (0 = off),
+        --             with the amount on it when there is room
+        local bar = this.hp.bar
+        local fillTex = bar.bar
+        local vertical = this.config.verticalbar ~= "0"
+        local invert = this.config.invert_healthbar == "1"
+        -- the bar's length as drawn (the fill can be mid-animation: only a fallback, its length being
+        -- health / max of the bar)
+        local along = vertical and (bar:GetHeight() or 0) or (bar:GetWidth() or 0)
+        if along <= 0 and fillTex and health > 0 and not invert then
+          local f = vertical and (fillTex:GetHeight() or 0) or (fillTex:GetWidth() or 0)
+          if f > 1 then along = f * maxHealth / health end
+        end
+        if along <= 0 then along = tonumber(vertical and this.config.height or this.config.width) or 100 end
+
         local missing = math.max(0, maxHealth - health)
         local fill = math.min(heal, missing)
-        local over = (overhealperc or 0) > 0 and math.max(0, heal - missing) or 0
-        local invert = this.config.invert_healthbar == "1"
-        local level = this.hp.bar.GetFrameLevel and (this.hp.bar:GetFrameLevel() + 1)
+        local over = math.max(0, heal - missing)
+        local fillL = along * fill / maxHealth
+        local overMax = along * math.max(0, overhealperc or 0) / 100
+        local overL = math.min(overMax, along * over / maxHealth)
+        -- (a small overheal still shows: at least a few pixels of glow)
+        if over > 0 and overMax > 0 then overL = math.max(overL, math.min(6, overMax)) end
         local ov = this.overHeal
 
-        if this.config.verticalbar == "0" then
-          local healthWidth = width * (health / maxHealth)
-          local fillW = width * fill / maxHealth
-          local overW = math.min(width, width * over / maxHealth)
-          -- (pinned to the bar's top AND bottom edge: a set height came out a few pixels short of the
-          -- bar - user, 28 Oct 2026, "should fill the bottom of the bar")
-          local hx = invert and 0 or healthWidth
-          this.incHeal:ClearAllPoints()
-          this.incHeal:SetPoint("TOPLEFT", this.hp.bar, "TOPLEFT", hx, 0)
-          this.incHeal:SetPoint("BOTTOMLEFT", this.hp.bar, "BOTTOMLEFT", hx, 0)
-          this.incHeal:SetWidth(math.max(1, fillW))
-          if ov then
-            local s = invert and "LEFT" or "RIGHT"
-            ov:ClearAllPoints()
-            ov:SetPoint("TOP" .. s, this.hp.bar, "TOP" .. s, 0, 0)
-            ov:SetPoint("BOTTOM" .. s, this.hp.bar, "BOTTOM" .. s, 0, 0)
-            ov:SetWidth(math.max(1, overW))
+        this.incHeal:ClearAllPoints()
+        if not vertical then
+          if invert or not fillTex then
+            local hx = invert and 0 or along * health / maxHealth
+            this.incHeal:SetPoint("TOPLEFT", bar, "TOPLEFT", hx, 0)
+            this.incHeal:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", hx, 0)
+          else
+            this.incHeal:SetPoint("TOPLEFT", fillTex, "TOPRIGHT", 0, 0)
+            this.incHeal:SetPoint("BOTTOMLEFT", fillTex, "BOTTOMRIGHT", 0, 0)
           end
-          if fillW >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
-          if ov then if overW >= 1 then ov:Show() else ov:Hide() end end
+          this.incHeal:SetWidth(math.max(1, fillL))
         else
-          local healthHeight = height * (health / maxHealth)
-          local fillH = height * fill / maxHealth
-          local overH = math.min(height, height * over / maxHealth)
-          -- (pinned to the bar's left AND right edge, as above)
-          local hy = invert and 0 or healthHeight
-          this.incHeal:ClearAllPoints()
-          this.incHeal:SetPoint("BOTTOMLEFT", this.hp.bar, "BOTTOMLEFT", 0, hy)
-          this.incHeal:SetPoint("BOTTOMRIGHT", this.hp.bar, "BOTTOMRIGHT", 0, hy)
-          this.incHeal:SetHeight(math.max(1, fillH))
-          if ov then
-            local s = invert and "BOTTOM" or "TOP"
-            ov:ClearAllPoints()
-            ov:SetPoint(s .. "LEFT", this.hp.bar, s .. "LEFT", 0, 0)
-            ov:SetPoint(s .. "RIGHT", this.hp.bar, s .. "RIGHT", 0, 0)
-            ov:SetHeight(math.max(1, overH))
+          if invert or not fillTex then
+            local hy = invert and 0 or along * health / maxHealth
+            this.incHeal:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, hy)
+            this.incHeal:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, hy)
+          else
+            this.incHeal:SetPoint("BOTTOMLEFT", fillTex, "TOPLEFT", 0, 0)
+            this.incHeal:SetPoint("BOTTOMRIGHT", fillTex, "TOPRIGHT", 0, 0)
           end
-          if fillH >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
-          if ov then if overH >= 1 then ov:Show() else ov:Hide() end end
+          this.incHeal:SetHeight(math.max(1, fillL))
         end
-        if level then
-          this.incHeal:SetFrameLevel(level)
-          if ov then ov:SetFrameLevel(level) end
+        if fillL >= 1 then this.incHeal:Show() else this.incHeal:Hide() end
+
+        if ov then
+          ov:ClearAllPoints()
+          if not vertical then
+            local s, o = invert and "LEFT" or "RIGHT", invert and "RIGHT" or "LEFT"
+            ov:SetPoint("TOP" .. o, bar, "TOP" .. s, 0, 0)
+            ov:SetPoint("BOTTOM" .. o, bar, "BOTTOM" .. s, 0, 0)
+            ov:SetWidth(math.max(1, overL))
+          else
+            local s, o = invert and "BOTTOM" or "TOP", invert and "TOP" or "BOTTOM"
+            ov:SetPoint(o .. "LEFT", bar, s .. "LEFT", 0, 0)
+            ov:SetPoint(o .. "RIGHT", bar, s .. "RIGHT", 0, 0)
+            ov:SetHeight(math.max(1, overL))
+          end
+          if ov.Paint then ov:Paint(vertical, invert) end
+          -- the overheal amount on the glow when it fits
+          if ov.text then
+            if not vertical and overL >= 18 then
+              ov.text:SetText("+" .. (over >= 1000 and string.format("%.1fk", over / 1000) or tostring(math.floor(over + .5))))
+              ov.text:Show()
+            else
+              ov.text:Hide()
+            end
+          end
+          if overL >= 1 then ov:Show() else ov:Hide() end
+        end
+        -- (one level over the health bar; the glow too, so a neighbouring frame does not hide it)
+        if bar.GetFrameLevel then
+          this.incHeal:SetFrameLevel(bar:GetFrameLevel() + 1)
+          if ov then ov:SetFrameLevel(bar:GetFrameLevel() + 2) end
         end
       else
         this.incHeal:Hide()
@@ -1413,9 +1436,41 @@ function pfUI.uf:CreateUnitFrame(unit, id, config, tick)
   f.incHeal.texture = f.incHeal:CreateTexture(nil, "ARTWORK")
   f.incHeal.texture:SetAllPoints()
   -- octo: the heal past full health, drawn inside the bar from its far end (OnUpdate)
+  -- the overheal glow past the bar's end: bright at the bar, fading away (and its amount)
   f.overHeal = CreateFrame("Frame", nil, f.hp.bar)
   f.overHeal.texture = f.overHeal:CreateTexture(nil, "ARTWORK")
   f.overHeal.texture:SetAllPoints()
+  f.overHeal.texture:SetTexture("Interface\\Buttons\\WHITE8X8")
+  f.overHeal.texture:SetBlendMode("ADD")
+  f.overHeal.edge = f.overHeal:CreateTexture(nil, "OVERLAY")
+  f.overHeal.edge:SetTexture("Interface\\Buttons\\WHITE8X8")
+  f.overHeal.text = f.overHeal:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+  f.overHeal.text:SetFont(pfUI.font_unit or STANDARD_TEXT_FONT, 9, "OUTLINE")
+  f.overHeal.text:SetPoint("LEFT", f.overHeal, "LEFT", 2, 0)
+  f.overHeal.r, f.overHeal.g, f.overHeal.b = .3, 1, .4
+  function f.overHeal:Paint(vertical, invert)
+    local r, g, b = self.r, self.g, self.b
+    -- (bright where it leaves the bar, nothing at its far end)
+    if vertical then
+      if invert then self.texture:SetGradientAlpha("VERTICAL", r, g, b, 0, r, g, b, .9)
+      else self.texture:SetGradientAlpha("VERTICAL", r, g, b, .9, r, g, b, 0) end
+    else
+      if invert then self.texture:SetGradientAlpha("HORIZONTAL", r, g, b, 0, r, g, b, .9)
+      else self.texture:SetGradientAlpha("HORIZONTAL", r, g, b, .9, r, g, b, 0) end
+    end
+    -- a bright line where the bar ends: "this much more than full"
+    self.edge:ClearAllPoints()
+    if vertical then
+      self.edge:SetHeight(2)
+      self.edge:SetPoint(invert and "TOPLEFT" or "BOTTOMLEFT", self, invert and "TOPLEFT" or "BOTTOMLEFT", 0, 0)
+      self.edge:SetPoint(invert and "TOPRIGHT" or "BOTTOMRIGHT", self, invert and "TOPRIGHT" or "BOTTOMRIGHT", 0, 0)
+    else
+      self.edge:SetWidth(2)
+      self.edge:SetPoint(invert and "TOPRIGHT" or "TOPLEFT", self, invert and "TOPRIGHT" or "TOPLEFT", 0, 0)
+      self.edge:SetPoint(invert and "BOTTOMRIGHT" or "BOTTOMLEFT", self, invert and "BOTTOMRIGHT" or "BOTTOMLEFT", 0, 0)
+    end
+    self.edge:SetVertexColor(math.min(1, r + .4), math.min(1, g + .2), math.min(1, b + .4), 1)
+  end
   f.overHeal:Hide()
 
   f.ressIcon = CreateFrame("Frame", nil, f.hp.bar)
