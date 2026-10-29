@@ -781,7 +781,19 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   pfUI.panel.right.hide = CreatePanelHide(pfUI.panel.right, "RIGHT", 5)
   pfUI.panel.right.hide.texture = CreatePanelHideTexture(pfUI.panel.right.hide, "pfPanelRightHide", "right")
 
-  if pfUI.chat then
+  local ownPlace = C.position["pfPanelRight"] and C.position["pfPanelRight"].xpos
+  if pfUI.chat and not ownPlace then
+    -- octo (29 Oct 2026; user: the bar "should stay true to the box above it when i resize the box"):
+    -- pinned to the window's left and right edges, so it always has the window's width. pfUI set a
+    -- width once from the setting and it ran past the window after a resize. Moved or sized in Move
+    -- frames (a saved place): it keeps that instead.
+    pfUI.panel.right:SetScale(pfUI.chat.right:GetScale())
+    pfUI.panel.right:ClearAllPoints()
+    pfUI.panel.right:SetPoint("BOTTOMLEFT", pfUI.chat.right, "BOTTOMLEFT", 2, 2)
+    pfUI.panel.right:SetPoint("BOTTOMRIGHT", pfUI.chat.right, "BOTTOMRIGHT", -2, 2)
+    -- (a width too, for anything that reads it before the window is laid out)
+    pfUI.panel.right:SetWidth(tonumber(C.chat.right.width) - 4)
+  elseif pfUI.chat then
     pfUI.panel.right:SetScale(pfUI.chat.right:GetScale())
     pfUI.panel.right:SetWidth(tonumber(C.chat.right.width) - 4)
     pfUI.panel.right:SetPoint("BOTTOM", pfUI.chat.right, "BOTTOM", 0, 2)
@@ -1038,6 +1050,20 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   pfUI.panel.right.left = CreatePanelButton(pfUI.panel.right, width, "LEFT", "CENTER")
   pfUI.panel.right.center = CreatePanelButton(pfUI.panel.right, width, "CENTER", "CENTER")
   pfUI.panel.right.right = CreatePanelButton(pfUI.panel.right, width, "RIGHT", "CENTER")
+
+  -- octo: its three parts follow its width when the window above is resized
+  local function RightParts()
+    local w = pfUI.panel.right:GetWidth() or 0
+    if w <= 0 then return end
+    local each = w / 3 - 2
+    if C.panel.right.left == "none" and C.panel.right.right == "none" then each = w - 2
+    elseif C.panel.right.center == "none" then each = w / 2 - 2 end
+    for _, b in ipairs({ pfUI.panel.right.left, pfUI.panel.right.center, pfUI.panel.right.right }) do
+      if b and b.SetWidth then b:SetWidth(each) end
+    end
+  end
+  pfUI.panel.RightParts = RightParts
+  pfUI.panel.right:SetScript("OnSizeChanged", RightParts)
 
   if C.panel.right.left == "none"
   and C.panel.right.center == "none"
