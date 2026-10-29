@@ -571,7 +571,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("unitframes", nil,           "layout",           "default")
   pfUI:UpdateConfig("unitframes", nil,           "rangecheck",       "0")
   pfUI:UpdateConfig("unitframes", nil,           "losfade",          "1")
-  pfUI:UpdateConfig("unitframes", nil,           "buffdetect",       "0")
+  pfUI:UpdateConfig("unitframes", nil,           "buffdetect",       "1")
   pfUI:UpdateConfig("unitframes", nil,           "druidmanabar",     "1")
   pfUI:UpdateConfig("unitframes", nil,           "druidmanaheight",  "2")
   pfUI:UpdateConfig("unitframes", nil,           "druidmanatext",    "0")
@@ -1345,7 +1345,14 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("plates",     nil,           "eliteicon",        "1")
   pfUI:UpdateConfig("plates",     nil,           "auras",            "1")
   pfUI:UpdateConfig("plates",     nil,           "debuffshow",       "mine_cc")
-  pfUI:UpdateConfig("plates",     nil,           "buffshow",         "important")
+  pfUI:UpdateConfig("plates",     nil,           "buffshow",         "all")
+  -- octo (29 Oct 2026; user: "SHOW ENEMY BUFFS ... all ENEMY NPC AND PLAYERS buffs"): on once for
+  -- everyone - every enemy buff on nameplates and the hidden ones found for the target frame
+  if pfUI_config.unitframes and pfUI_config.plates and pfUI_config.unitframes.octoenemybuffs ~= "1" then
+    pfUI_config.unitframes.buffdetect = "1"
+    pfUI_config.plates.buffshow = "all"
+    pfUI_config.unitframes.octoenemybuffs = "1"
+  end
   pfUI:UpdateConfig("plates",     nil,           "aurawidth",        "20")
   pfUI:UpdateConfig("plates",     nil,           "auraheight",       "16")
   pfUI:UpdateConfig("plates",     nil,           "auraperrow",       "6")

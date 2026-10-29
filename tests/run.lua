@@ -3056,6 +3056,9 @@ do
         { name = "Polymorph", kind = "debuff", cc = true },
       }
       local specials = S.specialauras
+      -- (enemy buffs "Important ones" here: the default is All since 29 Oct 2026)
+      local bshow = S.buffshow
+      S.buffshow = "important"
       S.specialauras = "Polymorph"
       A.ReadLists()
       local row, big = A.Pick(list, true)
@@ -3066,6 +3069,7 @@ do
       row = A.Pick(list, true)
       ok(table.getn(row) == 4, "all debuffs (" .. table.getn(row) .. ")")
       S.debuffshow = "mine_cc"
+      S.buffshow = bshow
       row = A.Pick(list, false)
       ok(table.getn(row) == 2, "no enemy buffs on a friend")
       pfUI_config.nameplates.debuffs.filter = "blacklist"

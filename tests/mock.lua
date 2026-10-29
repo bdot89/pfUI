@@ -75,6 +75,8 @@ function methods:SetWidth(v) self.w = tonumber(v) or v end
 function methods:SetHeight(v) self.h = tonumber(v) or v end
 function methods:GetWidth() return self.w end
 function methods:GetHeight() return self.h end
+-- (a tooltip used as a scanner: no lines in the mock; pfUI's enemy buff detection asks)
+function methods:NumLines() return 0 end
 function methods:SetPoint(p, rel, rp, x, y)
   assert(type(p) == "string", "SetPoint needs a point")
   self.point = { p, rel, rp, x, y }

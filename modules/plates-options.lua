@@ -574,11 +574,17 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
         .. "With SuperWoW every plate knows its auras; without it only your target does. Timers are known for your own "
         .. "debuffs (and others' when ClassicAPI tells)." })
     Preview(p)
+    -- (user, 29 Oct 2026: "SHOW ENEMY BUFFS clear somewhere ... all ENEMY NPC AND PLAYERS buffs")
+    W.Card(p, "Enemy buffs", { tip = "Buffs on enemies - NPCs and players. The same switches are on Unit frames > Frames." })
+    W.Dropdown(p, "Enemy buffs on nameplates", "All: every buff an enemy has. Important: big cooldowns only (Ice Block, Shield Wall...).",
+      { { key = "all", label = "All of them" }, { key = "important", label = "Important ones" }, { key = "none", label = "None" } },
+      function() return C.plates.buffshow end, function(v) C.plates.buffshow = v; U() end)
+    W.Check(p, "Show every enemy buff on your target's frame", "Buffs the game hides on enemy players are found too (pfUI's "
+      .. "enemy buff detection). Changes after a reload.", function() return C.unitframes.buffdetect == "1" end,
+      function(v) C.unitframes.buffdetect = v and "1" or "0" if pfUI.gui then pfUI.gui.settingChanged = true end end)
     W.Card(p, "What shows")
     W.Dropdown(p, "Debuffs", nil, { { key = "mine_cc", label = "Yours and crowd control" }, { key = "mine", label = "Only yours" },
       { key = "all", label = "All" } }, function() return C.plates.debuffshow end, function(v) C.plates.debuffshow = v; U() end)
-    W.Dropdown(p, "Enemy buffs", nil, { { key = "important", label = "Important ones" }, { key = "all", label = "All" },
-      { key = "none", label = "None" } }, function() return C.plates.buffshow end, function(v) C.plates.buffshow = v; U() end)
     W.Dropdown(p, "Filter", "Applies to debuffs.",
       { { key = "none", label = "No list" }, { key = "blacklist", label = "Hide the black list" }, { key = "whitelist", label = "Only the white list" } },
       function() return C.nameplates.debuffs.filter end, function(v) C.nameplates.debuffs.filter = v; U() end)

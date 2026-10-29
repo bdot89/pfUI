@@ -138,7 +138,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   UF.SECTIONS = {
     { "size", "Size", "Spell_Holy_Heal", { "Frame", "Health bar", "Power bar", "Portrait" } },
     { "text", "Text", "INV_Misc_Note_01", { "All frames: text", "Texts", "Text colours and font" } },
-    { "auras", "Buffs", "Spell_Holy_WordFortitude", { "Buffs", "Debuffs", "Buff and dispel markers" } },
+    { "auras", "Buffs", "Spell_Holy_WordFortitude", { "Enemy buffs", "Buffs", "Debuffs", "Buff and dispel markers" } },
     { "icons", "Icons", "INV_Banner_01", { "Icons", "Class and status", "Glow and indicators" } },
     { "look", "Look", "INV_Misc_Gem_Variety_01", { "Try it on the preview", "Border and background", "Colours", "All frames: colours" } },
     { "raid", "Raid layout", "Spell_Holy_PrayerOfHealing", { "Raid layout", "All frames: party and raid" } },
@@ -154,7 +154,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   UF.CARDICON = {
     ["Frame"] = "INV_Misc_Head_Human_01", ["Health bar"] = "Spell_Holy_Heal02", ["Power bar"] = "INV_Potion_51",
     ["Portrait"] = "INV_Misc_Head_Dragon_01", ["All frames: text"] = "INV_Letter_15", ["Texts"] = "INV_Misc_Note_01",
-    ["Text colours and font"] = "INV_Fabric_Silk_02", ["Buffs"] = "Spell_Holy_WordFortitude",
+    ["Text colours and font"] = "INV_Fabric_Silk_02", ["Buffs"] = "Spell_Holy_WordFortitude", ["Enemy buffs"] = "Spell_Holy_PowerWordShield",
     ["Debuffs"] = "Spell_Shadow_ShadowWordPain", ["Buff and dispel markers"] = "Spell_Holy_DispelMagic",
     ["Icons"] = "INV_Banner_01", ["Class and status"] = "INV_Misc_Bone_HumanSkull_01",
     ["Glow and indicators"] = "Spell_Nature_WispSplode", ["Border and background"] = "INV_Misc_StoneTablet_05",
@@ -1152,6 +1152,20 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
   end
   UF.FontNow = FontNow
 
+  -- (user, 29 Oct 2026: "an option to SHOW ENEMY BUFFS clear somewhere ... all ENEMY NPC AND PLAYERS
+  -- buffs") the same two settings as on Nameplates > Auras, together
+  function UF.EnemyBuffsCard(p)
+    Card(p, "Enemy buffs", { tip = "Buffs on enemies - NPCs and players - on your target's frame and on nameplates." })
+    Chk(p, "Show every enemy buff (NPCs and players)", "On: buffs the game hides on enemy players are found too (pfUI's enemy buff "
+      .. "detection), so your target's frame shows all of them. Changes after a reload.", G, "buffdetect", Reload)
+    Drop(p, "Buffs on the target frame", "Where your target's buffs (and an enemy's) sit. Off: none on the target frame.",
+      DD("uf_buff_position"), function() return C.unitframes.target end, "buffs")
+    W.Dropdown(p, "Enemy buffs on nameplates", "All: every buff an enemy has. Important: big cooldowns only (Ice Block, Shield Wall...).",
+      { { key = "all", label = "All of them" }, { key = "important", label = "Important ones" }, { key = "none", label = "None" } },
+      function() return C.plates and C.plates.buffshow end,
+      function(v) if C.plates then C.plates.buffshow = v end if pfUI.plates and pfUI.plates.Refresh then pcall(pfUI.plates.Refresh) end end)
+  end
+
   local function SharedTop(p)
     Card(p, "All frames: text", { tip = "The font of every unit frame; try it on the preview above. A frame can use its own on Text colours and font." })
     Drop(p, "Font", nil, DD("fonts", "font"), GL, "font_unit", FontNow)
@@ -1160,6 +1174,7 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Short numbers", "12.3k instead of 12345.", G, "abbrevnum", UF.ApplyAll)
     Chk(p, "Short names", "Long names are cut.", G, "abbrevname", UF.ApplyAll)
     Drop(p, "Health bar speed", "How fast bars slide to a new value.", DD("uf_animationspeed"), G, "animation_speed", UF.ApplyAll)
+    UF.EnemyBuffsCard(p)
   end
 
   local function SharedBottom(p)
@@ -1197,7 +1212,6 @@ pfUI:RegisterModule("unitframes-options", "vanilla:tbc", function ()
     Chk(p, "Druid mana bar", "Your mana while in a form (SuperWoW).", G, "druidmanabar", Reload)
     Sld(p, "Druid mana bar height", nil, 1, 10, 1, G, "druidmanaheight", Px, Reload)
     Chk(p, "Druid mana text", nil, G, "druidmanatext", Reload)
-    Chk(p, "Show enemy buffs", "Shows enemies' buffs on their frames (pfUI's Detect Enemy Buffs).", G, "buffdetect", Reload)
     Card(p, "All frames: party and raid")
     Chk(p, "Range check", "Fades members more than 40 yards away.", G, "rangecheck", Reload)
     Drop(p, "Range check every", nil, DD("uf_rangecheckinterval"), G, "rangechecki", Reload)
