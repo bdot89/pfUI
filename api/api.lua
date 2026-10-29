@@ -712,6 +712,29 @@ end
 -- [ Save Movable ]
 -- Save the positions of a Frame.
 -- 'frame'      [frame]        the frame that should be saved.
+-- [ Player Buff Index ]
+-- octo (29 Oct 2026): the slot of your n-th buff to show. On 1.12 a tracking
+-- ability (Find Herbs, Track Beasts...) is a buff too; with C.buffs.hidetracking
+-- it is skipped, so the buff bar and the player frame leave it out.
+-- 'n'          [number]       which shown buff (1 = first)
+-- 'btype'      [string]       "HELPFUL" or "HARMFUL"
+-- return:      [number]       the index for GetPlayerBuff(PLAYER_BUFF_START_ID + index, btype)
+function pfUI.api.PlayerBuffIndex(n, btype)
+  if btype ~= "HELPFUL" or not C.buffs or C.buffs.hidetracking ~= "1" or not GetTrackingTexture then return n end
+  local track = GetTrackingTexture()
+  if not track then return n end
+  local seen = 0
+  for k = 1, 32 do
+    local bid = GetPlayerBuff(PLAYER_BUFF_START_ID + k, "HELPFUL")
+    if not bid or bid < 0 then return k end
+    if GetPlayerBuffTexture(bid) ~= track then
+      seen = seen + 1
+      if seen == n then return k end
+    end
+  end
+  return 33
+end
+
 -- [ Hand Drag ]
 -- octo (28 Oct 2026): moves a frame with the mouse without the client's mover.
 -- StartMoving on the meter windows and the world map crashed the client (#132,

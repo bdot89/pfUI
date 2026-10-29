@@ -17,7 +17,8 @@ pfUI:RegisterModule("buff", "vanilla:tbc", function ()
     else
       buff.id = buff.gid
     end
-    buff.bid = GetPlayerBuff(PLAYER_BUFF_START_ID+buff.id, buff.btype)
+    -- (octo: a tracking ability's buff can be left out - pfUI.api.PlayerBuffIndex)
+    buff.bid = GetPlayerBuff(PLAYER_BUFF_START_ID + pfUI.api.PlayerBuffIndex(buff.id, buff.btype), buff.btype)
 
     if not buff.backdrop then
       CreateBackdrop(buff)

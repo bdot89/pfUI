@@ -5156,6 +5156,24 @@ do
   ok(reversed == true, "a sweep set to the other way turns the other way (ClassicAPI's SetReverse)")
 end
 
+-- the tracking buff can stay off the buff bar and the player frame (29 Oct 2026)
+do
+  local PBI = pfUI.api.PlayerBuffIndex
+  local gb, gt, gtt, pbs = GetPlayerBuff, GetPlayerBuffTexture, GetTrackingTexture, rawget(_G, "PLAYER_BUFF_START_ID")
+  _G.PLAYER_BUFF_START_ID = -1
+  local texs = { "Interface\\Icons\\Fort", "Interface\\Icons\\INV_Misc_Flower_02", "Interface\\Icons\\Kings" }
+  _G.GetPlayerBuff = function(i) local k = i - (PLAYER_BUFF_START_ID or 0) if texs[k] then return k end return -1 end
+  _G.GetPlayerBuffTexture = function(bid) return texs[bid] end
+  _G.GetTrackingTexture = function() return "Interface\\Icons\\INV_Misc_Flower_02" end
+  pfUI_config.buffs.hidetracking = "0"
+  ok(PBI(2, "HELPFUL") == 2, "tracking shown: the second buff is the second slot")
+  pfUI_config.buffs.hidetracking = "1"
+  ok(PBI(2, "HELPFUL") == 3 and PBI(1, "HELPFUL") == 1 and PBI(3, "HELPFUL") > 3, "tracking hidden: it is skipped, the rest move up")
+  ok(PBI(2, "HARMFUL") == 2, "debuffs are untouched")
+  pfUI_config.buffs.hidetracking = "0"
+  _G.GetPlayerBuff, _G.GetPlayerBuffTexture, _G.GetTrackingTexture, _G.PLAYER_BUFF_START_ID = gb, gt, gtt, pbs
+end
+
 -- heal prediction from everyone (libpredict; user, 28 Oct 2026: "MUST SHOW ALL HEALS IN ALL FRAMES")
 do
   local LP = pfUI.api.libpredict

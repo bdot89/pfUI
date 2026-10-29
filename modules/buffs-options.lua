@@ -348,6 +348,7 @@ pfUI:RegisterModule("buffs-options", "vanilla", function ()
     Sld(p, "Buffs per row", nil, 1, 32, 1, B, "buffrowsize", UB)
     Sld(p, "Debuffs per row", nil, 1, 16, 1, B, "debuffrowsize", UB)
     Chk(p, "Time inside the icon", "Off: under it.", B, "textinside", UB)
+    Chk(p, "Hide the tracking buff", "Find Herbs, Find Minerals, Track Beasts... count as buffs on 1.12. On: they stay off the buff bar and your player frame (the tracking button by the map still shows them).", B, "hidetracking", function() UB() if pfUI.uf and pfUI.uf.player and pfUI.uf.player.UpdateConfig then pfUI.uf.player:UpdateConfig() end end)
     Chk(p, "Time left as a sweep", "A clock wipe over each buff as it runs out.", B, "cooldown_anim", UB)
     Chk(p, "Sweep the other way", "The dark part grows as the time runs out (with ClassicAPI).", B, "cooldown_reverse", UB)
     Sld(p, "Text size", "-1 = pfUI's own text size.", -1, 24, 1, B, "fontsize", UB,

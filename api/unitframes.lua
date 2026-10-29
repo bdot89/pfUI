@@ -1696,8 +1696,11 @@ function pfUI.uf:RefreshUnit(unit, component)
       if not unit.buffs[i] then break end
 
       if unit.label == "player" then
-        stacks = GetPlayerBuffApplications(GetPlayerBuff(PLAYER_BUFF_START_ID+i,"HELPFUL"))
-        texture = GetPlayerBuffTexture(GetPlayerBuff(PLAYER_BUFF_START_ID+i,"HELPFUL"))
+        -- (octo: the tracking buff can be left out; the button keeps the real slot)
+        local k = pfUI.api.PlayerBuffIndex(i, "HELPFUL")
+        unit.buffs[i].id = k
+        stacks = GetPlayerBuffApplications(GetPlayerBuff(PLAYER_BUFF_START_ID+k,"HELPFUL"))
+        texture = GetPlayerBuffTexture(GetPlayerBuff(PLAYER_BUFF_START_ID+k,"HELPFUL"))
       else
         texture, stacks = pfUI.uf:DetectBuff(unitstr, i)
       end

@@ -79,6 +79,7 @@ function pfUI:LoadConfig()
   pfUI:UpdateConfig("buffs",      nil,           "fontsize",         "-1")
   -- octo (28 Oct 2026; brues-code's fork): a sweep on your buffs, and the sweep's
   -- direction (needs ClassicAPI's cooldown frames) per kind of icon
+  pfUI:UpdateConfig("buffs",      nil,           "hidetracking",     "0")
   pfUI:UpdateConfig("buffs",      nil,           "cooldown_anim",    "1")
   pfUI:UpdateConfig("buffs",      nil,           "cooldown_reverse", "1")
   pfUI:UpdateConfig("appearance", "bags",        "cooldown_reverse", "0")
