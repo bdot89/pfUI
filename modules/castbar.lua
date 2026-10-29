@@ -64,6 +64,14 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
     cb.bar.lag:SetPoint("BOTTOMRIGHT", cb.bar, "BOTTOMRIGHT", 0, 0)
     cb.bar.lag:SetTexture(1,.2,.2,.2)
 
+    -- octo: the time a cast lost to pushback, a red stretch at the end of the bar
+    cb.bar.push = cb.bar:CreateTexture(nil, "OVERLAY")
+    cb.bar.push:SetPoint("TOPRIGHT", cb.bar, "TOPRIGHT", 0, 0)
+    cb.bar.push:SetPoint("BOTTOMRIGHT", cb.bar, "BOTTOMRIGHT", 0, 0)
+    cb.bar.push:SetTexture("Interface\\Buttons\\WHITE8X8")
+    cb.bar.push:SetVertexColor(1, .15, .15, .55)
+    cb.bar.push:Hide()
+
     cb:SetScript("OnUpdate", function()
       if this.drag and this.drag:IsShown() then
         this:SetAlpha(1)
@@ -100,6 +108,23 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         cast = channel
       end
       if delayMs and delayMs > 0 then this.delay = delayMs / 1000 end
+
+      -- octo (29 Oct 2026; user: pushback "available for both players ... a live count of the knockback on
+      -- his target"): for anyone but you, the pushback is how far the cast's end moved since it began
+      -- (ClassicAPI moves it on every hit; its own pushback figure is only for your casts). Channels lose
+      -- time instead: their end comes nearer.
+      if cast then
+        if this.castStart ~= startTime then
+          this.castStart, this.origEnd, this.otherDelay = startTime, endTime, nil
+          if this.unitstr ~= "player" then this.delay = 0 end
+        end
+        if not delayMs and this.origEnd and this.unitstr and this.unitstr ~= "player" and not UnitIsUnit(this.unitstr, "player") then
+          local d = (channel and (this.origEnd - endTime) or (endTime - this.origEnd)) / 1000
+          if d > .05 then this.delay, this.otherDelay = d, true end
+        end
+      else
+        this.castStart, this.origEnd = nil, nil
+      end
 
       if cast then
         local duration = endTime - startTime
@@ -151,6 +176,22 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
 
         this.bar:SetValue(cur)
 
+        -- the pushback as a red stretch at the end: the part of the cast that is extra time
+        -- (casts; a channel just loses time, shown by the "-" in the timer)
+        if this.showpush and not channel and this.delay and this.delay > 0 and max > 0 then
+          local bw = this.bar:GetWidth() or 0
+          if bw <= 0 then bw = this:GetWidth() or 0 end
+          local w = bw * math.min(1, this.delay / max)
+          if w >= 1 then
+            this.bar.push:SetWidth(w)
+            this.bar.push:Show()
+          else
+            this.bar.push:Hide()
+          end
+        else
+          this.bar.push:Hide()
+        end
+
         -- the timer text only when its tenth of a second (or the delay) changes
         local tenth = math.floor(cur * 10)
         if this.showtimer and (tenth ~= this.lasttenth or this.delay ~= this.lastdelay) then
@@ -177,6 +218,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         this.failedAt = nil
         this.fadeout = 1
         this.delay = 0
+        this.bar.push:Hide()
       end
       if cast then this.idle = nil end
     end)
@@ -213,6 +255,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         this.delay = ( this.delay or 0 ) + this.bar:GetValue() - (endTime/1000 - GetTime())
       elseif playerarg then
         this.delay = 0
+        this.bar.push:Hide()
       end
     end)
 
@@ -236,6 +279,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
     pfUI.castbar.player.showname = C.castbar.player.showname == "1" and true or nil
     pfUI.castbar.player.showtimer = C.castbar.player.showtimer == "1" and true or nil
     pfUI.castbar.player.showlag = C.castbar.player.showlag == "1" and true or nil
+    pfUI.castbar.player.showpush = C.castbar.player.showpush ~= "0" and true or nil
     pfUI.castbar.player.showrank = C.castbar.player.showrank == "1" and true or nil
     pfUI.castbar.player.spacing = default_border * 2 + tonumber(C.unitframes.player.pspace) * GetPerfectPixel()
 
@@ -302,6 +346,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
     pfUI.castbar.target.showname = C.castbar.target.showname == "1" and true or nil
     pfUI.castbar.target.showtimer = C.castbar.target.showtimer == "1" and true or nil
     pfUI.castbar.target.showlag = C.castbar.target.showlag == "1" and true or nil
+    pfUI.castbar.target.showpush = C.castbar.target.showpush ~= "0" and true or nil
     pfUI.castbar.target.showrank = C.castbar.target.showrank == "1" and true or nil
     pfUI.castbar.target.spacing = default_border * 2 + tonumber(C.unitframes.target.pspace) * GetPerfectPixel()
 
@@ -330,6 +375,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
     pfUI.castbar.focus.showname = C.castbar.focus.showname == "1" and true or nil
     pfUI.castbar.focus.showtimer = C.castbar.focus.showtimer == "1" and true or nil
     pfUI.castbar.focus.showlag = C.castbar.focus.showlag == "1" and true or nil
+    pfUI.castbar.focus.showpush = C.castbar.focus.showpush ~= "0" and true or nil
     pfUI.castbar.focus.showrank = C.castbar.focus.showrank == "1" and true or nil
     pfUI.castbar.focus.spacing = default_border * 2 + tonumber(C.unitframes.focus.pspace) * GetPerfectPixel()
 

@@ -53,6 +53,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
       cb.showname = s.showname == "1" and true or nil
       cb.showtimer = s.showtimer == "1" and true or nil
       cb.showlag = s.showlag == "1" and true or nil
+      cb.showpush = s.showpush ~= "0" and true or nil
       cb.showrank = s.showrank == "1" and true or nil
       local w, h = CB.Size(unit)
       cb:SetWidth(w)
@@ -481,6 +482,7 @@ pfUI:RegisterModule("castbar-options", "vanilla:tbc", function ()
     W.Card(p, "Icon and lag")
     Chk(p, "Spell icon", "At the left of the bar, as tall as it.", S, "showicon")
     Chk(p, "Lag", "Your latency in red at the end of the bar: you can start the next spell there.", S, "showlag")
+    Chk(p, "Pushback", "Time a cast lost to hits: \"+0.5\" in the timer and a red stretch at the end of the bar. Your own casts, and with ClassicAPI anyone's (your target's too).", S, "showpush")
     PfChk(p, "Queued spell", "Your cast bar: the spell you queued shows at its right end until it goes off (needs nampower; after a reload).",
       function() return C.castbar.player end, "spellqueue", Reload)
     W.Card(p, "All cast bars", { tip = "For the player, target and focus cast bars." })

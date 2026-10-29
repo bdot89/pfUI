@@ -5309,6 +5309,30 @@ do
   end
 end
 
+-- cast bar pushback on someone else's cast (user, 29 Oct 2026: "a live count of the knockback on his target")
+do
+  local cb = pfUI.castbar and pfUI.castbar.target
+  if cb and cb:GetScript("OnUpdate") and cb.bar and cb.bar.push then
+    local uci, ue, uiu, uch = UnitCastingInfo, UnitExists, UnitIsUnit, UnitChannelInfo
+    local endMs = 3000
+    _G.UnitCastingInfo = function() return "Frostbolt", "", "", "Interface\\Icons\\Spell_Frost_FrostBolt02", 1000, endMs end
+    _G.UnitChannelInfo = function() end
+    _G.UnitExists = function() return true end
+    _G.UnitIsUnit = function() return false end
+    local was = { cb.showpush, cb.showtimer, cb.castStart, cb.origEnd, cb.delay }
+    cb.showpush, cb.showtimer, cb.castStart, cb.origEnd, cb.delay = true, true, nil, nil, 0
+    _G.this = cb
+    pcall(cb:GetScript("OnUpdate"))
+    endMs = 3500
+    local good, err = pcall(cb:GetScript("OnUpdate"))
+    ok(good and math.abs((cb.delay or 0) - .5) < .01, "a pushed-back cast on your target counts its pushback (" .. tostring(cb.delay) .. " " .. tostring(err) .. ")")
+    ok(cb.bar.push:IsShown(), "and shows it as a red stretch at the end of the bar")
+    ok(string.find(cb.bar.right:GetText() or "", "+0.5", 1, true), "and as +0.5 in the timer (" .. tostring(cb.bar.right:GetText()) .. ")")
+    _G.UnitCastingInfo, _G.UnitExists, _G.UnitIsUnit, _G.UnitChannelInfo = uci, ue, uiu, uch
+    cb.showpush, cb.showtimer, cb.castStart, cb.origEnd, cb.delay = was[1], was[2], was[3], was[4], was[5]
+  end
+end
+
 -- SuperWoW / ClassicAPI use across the modules (libs\libclient.lua)
 octo_ok, octo_dir = ok, DIR
 dofile(DIR .. "/tests/clientapi.lua")
