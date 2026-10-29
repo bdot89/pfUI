@@ -11,8 +11,9 @@ param(
 #   SuperWoW      GUIDs, cast events, the focus frame, mouseover casts
 #   nampower      spell events for combat text and meters
 #   UnitXP_SP3    distances and line of sight
+#   WeirdUtils    world markers, outlines, crash and FPS fixes, bigger cursor... (Codeberg)
 #
-# Each comes from its author's GitHub releases (the newest one), is checked to
+# Each comes from its author's GitHub (or Codeberg) releases (the newest one), is checked to
 # be a Windows DLL, and is only copied when it differs from the one in the
 # game folder - the old one is kept in <game>\DLL-backups first. A DLL that
 # is not in dlls.txt yet is added (VanillaFixes, which OctoLauncher starts the
@@ -49,7 +50,9 @@ $DLLS = @(
   @{ Name = "ClassicAPI";  Repo = "brues-code/ClassicAPI";    File = "ClassicAPI.dll" },
   @{ Name = "SuperWoW";    Repo = "balakethelock/SuperWoW";   File = "SuperWoWhook.dll" },
   @{ Name = "nampower";    Repo = "brues-code/nampower";      File = "nampower.dll" },
-  @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" }
+  @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
+  # (on Codeberg, whose release API answers like GitHub's; weirdutils.dll = every module)
+  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -107,9 +110,10 @@ try {
   foreach ($d in $DLLS) {
     $name, $file = $d.Name, $d.File
     try {
-      $rel = Invoke-RestMethod -Uri ("https://api.github.com/repos/" + $d.Repo + "/releases/latest") -Headers $headers -TimeoutSec 30
+      $api = if ($d.Api) { $d.Api } else { "https://api.github.com/repos/" }
+      $rel = Invoke-RestMethod -Uri ($api + $d.Repo + "/releases/latest") -Headers $headers -TimeoutSec 30
     } catch {
-      Write-Host ("  {0}: couldn't reach GitHub ({1}) - left as it is." -f $name, $_.Exception.Message) -ForegroundColor Yellow
+      Write-Host ("  {0}: couldn't reach its download site ({1}) - left as it is." -f $name, $_.Exception.Message) -ForegroundColor Yellow
       continue
     }
     $tag = $rel.tag_name
@@ -139,7 +143,8 @@ try {
     } catch {
       # (an antivirus that blocks it is not worked around: this one is skipped)
       $why = $_.Exception.Message
-      if ($why -match "virus|unwanted") { $why = "your antivirus blocked the download - allow it there to install it, or get it from github.com/" + $d.Repo }
+      $site = if ($d.Site) { $d.Site } else { "github.com/" }
+      if ($why -match "virus|unwanted") { $why = "your antivirus blocked the download - allow it there to install it, or get it from " + $site + $d.Repo }
       Write-Host ("  {0} {1}: skipped - {2}." -f $name, $tag, $why.Trim()) -ForegroundColor Yellow
       continue
     }
