@@ -55,7 +55,9 @@ $DLLS = @(
   @{ Name = "nampower";    Repo = "brues-code/nampower";      File = "nampower.dll" },
   @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
   # (on Codeberg, whose release API answers like GitHub's; the noperf build = every module but weirdperformance)
-  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
+  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" },
+  # (the noperf build has no interact module - seen in game 29 Oct; OctoBG's Interact key needs it)
+  @{ Name = "WeirdUtils interact"; Repo = "MarcelineVQ/WeirdUtils"; File = "interact.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
