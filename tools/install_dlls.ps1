@@ -1,7 +1,10 @@
 param(
   [string]$GameDir = "",
   [switch]$Check,
-  [switch]$Force
+  [switch]$Force,
+  # WeirdUtils only on request (29 Oct 2026: with it on, the game stopped at a quarter of
+  # the loading bar on this client); kept up to date once it is in dlls.txt
+  [switch]$WeirdUtils
 )
 # pfUI Octo: puts the newest client DLLs pfUI Octo uses into the game folder
 # (user, 26 Oct 2026: "an install bat that installs the newest version of
@@ -52,7 +55,7 @@ $DLLS = @(
   @{ Name = "nampower";    Repo = "brues-code/nampower";      File = "nampower.dll" },
   @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
   # (on Codeberg, whose release API answers like GitHub's; weirdutils.dll = every module)
-  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
+  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils.dll"; Optional = $true; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -110,6 +113,10 @@ $changed = 0
 try {
   foreach ($d in $DLLS) {
     $name, $file = $d.Name, $d.File
+    if ($d.Optional -and -not $WeirdUtils -and @($lines | Where-Object { $_.Trim() -ieq $file }).Count -eq 0) {
+      "  {0}: not installed (optional - add -WeirdUtils to install it)." -f $name
+      continue
+    }
     try {
       $api = if ($d.Api) { $d.Api } else { "https://api.github.com/repos/" }
       $rel = Invoke-RestMethod -Uri ($api + $d.Repo + "/releases/latest") -Headers $headers -TimeoutSec 30
