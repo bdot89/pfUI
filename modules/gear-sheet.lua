@@ -543,6 +543,7 @@ pfUI:RegisterModule("gear-sheet", "vanilla", function ()
         else GameTooltip:AddLine("Right-click: its trinket queue", .6, .8, 1) end
         GameTooltip:AddLine("Alt-click: queue on / off - the cog does the same", .6, .8, 1)
         GameTooltip:AddLine("Shift-click: link it in chat", .6, .8, 1)
+        GameTooltip:AddLine("Hide this bar: Gear > Gear sets > Trinket bar > Show the trinket bar", .6, .6, .6, 1)
         GameTooltip:Show()
       end
       if C.gear.trinketmenu ~= "0" and C.gear.trinketmenuclick ~= "1" and (C.gear.trinketshift ~= "1" or IsShiftKeyDown()) then GR.TrinketMenu(this) end
