@@ -563,21 +563,34 @@ pfUI:RegisterModule("share", "vanilla:tbc", function ()
       f.exportButton.text:SetText(T["Export"])
       f.exportButton:SetScript("OnClick", function()
         -- generate a default config
+        -- (octo: the real table goes back afterwards, not a copy - modules keep references to its parts)
+        local original = pfUI_config
         local myconfig = CopyTable(pfUI_config)
         _G.pfUI_config = {}
         pfUI:LoadConfig()
         local defconfig = CopyTable(pfUI_config)
 
         -- restore config and references
-        _G.pfUI_config = CopyTable(myconfig)
-        C = _G.pfUI_config
+        _G.pfUI_config = original
+        C = original
+        pfUI.env.C = original
 
         local ignored = {}
         ignored["position"] = f.ignorePosition:GetChecked()
         ignored["disabled"] = f.ignorePosition:GetChecked()
+        -- octo (29 Oct 2026, "pressing profiles ... crashing the game"): the UI layouts keep a
+        -- copy of every setting per layout (500 KB and more) - too big for the text box, and they
+        -- are this character's screens, not a look to share
+        ignored["layouts"] = true
 
         local compressed = enc(compress(serialize(myconfig, defconfig, "pfUI_config", ignored)))
-        f.scroll.text:SetText(compressed)
+        -- (a text box with megabytes in it takes the client down: such a string only goes to the clipboard)
+        if string.len(compressed) > 120000 then
+          f.scroll.text:SetText("")
+          DEFAULT_CHAT_FRAME:AddMessage("|cff33ccffpfUI|r profile: too big to show (" .. math.floor(string.len(compressed) / 1000) .. " KB).")
+        else
+          f.scroll.text:SetText(compressed)
+        end
         f.scroll.text.value = compressed
         f.scroll:SetVerticalScroll(0)
         -- octo (ClassicAPI CopyToClipboard, 25 Oct 2026): straight onto the
