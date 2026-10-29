@@ -83,3 +83,18 @@ do -- RunMacroText
     ChatEdit_ParseText(obj, 1)
   end
 end
+
+do -- octo (29 Oct 2026): OctoWoW's own TargetFrame.lua decodes the server's "TW_Debuff"
+  -- addon messages with its FrameXML json.lua. A message without text made it print
+  -- "expected argument of type string, got nil" / "json.lua:166 ... strlen" in chat
+  -- (reported in group combat). Empty or broken ones are skipped now.
+  local handle = _G.HandleMessage
+  if type(handle) == "function" and _G.json and _G.json.decode then
+    _G.HandleMessage = function(msg)
+      if type(msg) ~= "string" or msg == "" then return end
+      local ok, decoded = pcall(_G.json.decode, msg)
+      if not ok or type(decoded) ~= "table" then return end
+      return handle(msg)
+    end
+  end
+end
