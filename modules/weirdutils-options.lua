@@ -151,6 +151,14 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
       })
     end
     W.Buttons(p, { { "Remove all markers", function() WU.Clear() end, 190, "Takes every marker away." } })
+    local MB = pfUI.markbar
+    if MB then
+      W.Check(p, "Marker bar on screen", "A small bar with the five marks: left-click = on you, right-click then click the ground = "
+        .. "there, Shift-click = remove. Drag it to move it.",
+        function() return C.weirdutils.bar == "1" end, function(v) C.weirdutils.bar = v and "1" or "0" MB.Apply() end)
+      W.Check(p, "Lock the bar", "It stays where it is (Move Frames still moves it).",
+        function() return C.weirdutils.lock == "1" end, function(v) C.weirdutils.lock = v and "1" or "0" end)
+    end
     for _, m in ipairs(WU.MARKS) do
       W.KeyBind(p, m[1] .. " at the mouse", "Press the key with the mouse over the ground. Right-click the box to clear the key.", m[2])
     end
