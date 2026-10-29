@@ -21,8 +21,8 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
   function WU.Loaded() return Has("GetWeirdUtilsVersion") end
   function WU.Version(mod)
     if not WU.Loaded() then return nil end
-    local ok, v = pcall(_G.GetWeirdUtilsVersion, mod)
-    if ok then return v end
+    -- (never through pcall: WeirdUtils functions crashed the client when called that way, 29 Oct 2026)
+    return _G.GetWeirdUtilsVersion(mod)
   end
 
   -- what each module does, in the order the page lists them
@@ -48,12 +48,15 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
   }
   function WU.Place(i, unit)
     if not Has("WorldMarker") then return end
-    local ok, x = pcall(_G.WorldMarker, i, unit)
-    if ok and x == nil then UIErrorsFrame:AddMessage("World markers: you must be the group leader or an assistant.", 1, .4, .2) end
+    local ui = type(_G.WorldMarkers) == "table" and _G.WorldMarkers.UI_WorldMarker
+    if ui then ui(i, unit) return end
+    local x = _G.WorldMarker(i, unit)
+    if x == nil then UIErrorsFrame:AddMessage("World markers: you must be the group leader or an assistant.", 1, .4, .2) end
   end
   function WU.Clear(i)
     if not Has("ClearWorldMarker") then return end
-    if i then pcall(_G.ClearWorldMarker, i) else pcall(_G.ClearWorldMarker) end
+    local ui = type(_G.WorldMarkers) == "table" and _G.WorldMarkers.UI_ClearWorldMarker
+    if ui then ui(i) elseif i then _G.ClearWorldMarker(i) else _G.ClearWorldMarker() end
   end
   function WU.MarkerText()
     if not Has("GetWorldMarker") then return "|cffff5555World markers are not loaded.|r" end
@@ -61,8 +64,8 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
     local out = can and "|cff55ff55You can place markers.|r" or "|cffffcc00Only the group leader or an assistant can place markers - you still see theirs.|r"
     local on = {}
     for i, m in ipairs(WU.MARKS) do
-      local ok, x = pcall(_G.GetWorldMarker, i)
-      if ok and x then table.insert(on, string.format("|cff%02x%02x%02x%s|r", m[3] * 255, m[4] * 255, m[5] * 255, m[1])) end
+      local x = _G.GetWorldMarker(i)
+      if x then table.insert(on, string.format("|cff%02x%02x%02x%s|r", m[3] * 255, m[4] * 255, m[5] * 255, m[1])) end
     end
     if table.getn(on) > 0 then return out .. "\nOn the ground now: " .. table.concat(on, ", ") end
     return out .. "\nNo markers on the ground."
@@ -96,15 +99,15 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
     local inc, exc
     local cls = UnitClass("player")
     if t[5] == "class" then inc = cls elseif t[5] == "prof" then exc = cls end
-    if on then pcall(api.SetObjectTypeBlip, t[2], TR .. t[3], t[4] or 1.5, inc, exc)
-    else pcall(api.SetObjectTypeBlip, t[2], nil, nil, inc, exc) end
+    if on then api.SetObjectTypeBlip(t[2], TR .. t[3], t[4] or 1.5, inc, exc)
+    else api.SetObjectTypeBlip(t[2], nil, nil, inc, exc) end
   end
   function WU.SetCityHide(on)
     local s = _G.WeirdUtils_MinimapIconsSettings
     if not s then return end
     s["City Toggle"] = on and 1 or nil
     local api = _G.WeirdUtils
-    if type(api) == "table" and api.SetMinimapCityToggle then pcall(api.SetMinimapCityToggle, on and 1 or 0) end
+    if type(api) == "table" and api.SetMinimapCityToggle then api.SetMinimapCityToggle(on and 1 or 0) end
   end
 
   -- ------------------------------------------------------------------ cvars
@@ -168,8 +171,8 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
     if WU.Version("bigcursor") and Has("SetCursorScale") then
       W.Card(p, "Big cursor", { icon = "Interface\\Icons\\INV_Misc_Spyglass_02", tip = "1x = the normal cursor. Changes with the next cursor change." })
       W.Slider(p, "Cursor size", nil, 1, 4, .1,
-        function() local ok, v = pcall(_G.GetCursorScale) return ok and tonumber(v) or 1 end,
-        function(v) pcall(_G.SetCursorScale, v) end,
+        function() return tonumber(_G.GetCursorScale()) or 1 end,
+        function(v) _G.SetCursorScale(v) end,
         function(v) return string.format("%.1fx", v) end)
     end
 
