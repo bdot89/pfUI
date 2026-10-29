@@ -22,7 +22,6 @@ pfUI:RegisterModule("addonbuttons", "vanilla:tbc", function ()
     "pfMiniMapPin",
     "MiniMapBattlefieldFrame",
     "pfMinimapButton",
-    "pfGearMinimapButton",
     "GatherNote",
     "MiniNotePOI",
     "FWGMinimapPOI",

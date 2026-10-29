@@ -907,7 +907,7 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   Clicks(btn)
   GR.button = btn
 
-  -- the minimap button (kept out of pfUI's addon button panel: addonbuttons.lua)
+  -- the minimap button (pfUI's addon button bar takes it in like any other, 29 Oct 2026)
   local mm = CreateFrame("Button", "pfGearMinimapButton", Minimap)
   mm:SetWidth(26)
   mm:SetHeight(26)
@@ -931,6 +931,8 @@ pfUI:RegisterModule("gear", "vanilla", function ()
   Clicks(mm)
   GR.minimap = mm
   function GR.PlaceMinimap()
+    -- (in the addon button bar: it places it there)
+    if mm:GetParent() ~= Minimap then return end
     local a = math.rad(tonumber(C.gear.mmangle) or 200)
     local r = (Minimap:GetWidth() or 140) / 2 + 6
     mm:ClearAllPoints()
