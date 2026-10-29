@@ -15,6 +15,7 @@ param(
 #   nampower      spell events for combat text and meters
 #   UnitXP_SP3    distances and line of sight
 #   WeirdUtils    world markers, minimap icons, transmog fix, bigger cursor... (Codeberg)
+#   Interact      one key to right-click the nearest NPC, object, herb, vein or corpse
 #
 # Each comes from its author's GitHub (or Codeberg) releases (the newest one), is checked to
 # be a Windows DLL, and is only copied when it differs from the one in the
@@ -56,7 +57,10 @@ $DLLS = @(
   @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
   # (on Codeberg, whose release API answers like GitHub's. The noperf build: the full one hung this
   # client at the loading bar. v0.7.1 has no interact module; our build of newer source crashed, 29 Oct)
-  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
+  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" },
+  # (the interact key: InteractNearest(), as OctoBG's Interact key calls it - MIT, github.com/lookino/Interact.
+  # It extends UnitXP like UnitXP_SP3 does, so it loads after it: new lines go at the end of dlls.txt)
+  @{ Name = "Interact";    Repo = "lookino/Interact";         File = "Interact.dll"; Addon = "Interact" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -148,6 +152,11 @@ try {
         Expand-Archive -Path $zpath -DestinationPath $zdir -Force
         $inside = Get-ChildItem -Path $zdir -Recurse -Filter $file | Select-Object -First 1
         if ($inside) { Copy-Item $inside.FullName $got -Force }
+        # (a release that brings its own addon - Interact: its key bindings - puts it in Interface\AddOns)
+        if ($d.Addon -and -not $Check) {
+          $adir = Get-ChildItem -Path $zdir -Recurse -Directory -Filter $d.Addon | Where-Object { $_.Parent.Name -ieq "AddOns" } | Select-Object -First 1
+          if ($adir) { Copy-Item $adir.FullName (Join-Path $GameDir ("Interface\AddOns\" + $d.Addon)) -Recurse -Force }
+        }
       }
     } catch {
       # (an antivirus that blocks it is not worked around: this one is skipped)
