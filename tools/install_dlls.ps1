@@ -79,7 +79,8 @@ if (-not $Check) {
   $running = @(Get-Process -Name "WoW" -ErrorAction SilentlyContinue | Where-Object {
     $path = $null
     try { $path = $_.Path } catch { }
-    $path -and ([IO.Path]::GetDirectoryName($path) -ieq $GameDir)
+    # (a game whose folder Windows won't say counts as running too)
+    (-not $path) -or ([IO.Path]::GetDirectoryName($path) -ieq $GameDir)
   })
   if ($running.Count -gt 0) { throw "The game is running. Close it completely, then run this again." }
 }
