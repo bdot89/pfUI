@@ -1065,6 +1065,21 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     h.text:SetText(label)
     h:EnableMouseWheel(true)
     h:SetScript("OnMouseWheel", O.navFrame:GetScript("OnMouseWheel"))
+    -- (29 Oct 2026) About flashes NEW while a newer pfUI Octo was seen
+    if label == "About" then
+      local new = W.Font(h:CreateFontString(nil, "OVERLAY"), 12, 1, .82, .25)
+      new:SetPoint("RIGHT", h, "RIGHT", -8, 0)
+      new:SetText("NEW")
+      new:Hide()
+      h.newMark = new
+      local tick = CreateFrame("Frame", nil, h)
+      tick:SetScript("OnUpdate", function()
+        local newer = pfUI.octoUpdate and pfUI.octoUpdate.Newer()
+        if not newer then new:Hide() return end
+        new:Show()
+        new:SetAlpha(.35 + .65 * math.abs(math.sin(GetTime() * 3)))
+      end)
+    end
     return h
   end
 

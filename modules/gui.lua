@@ -1906,13 +1906,62 @@ pfUI:RegisterModule("gui", "vanilla:tbc", function ()
       thanks:SetPoint("TOP", page, "TOP", 0, -424)
       thanks:SetText(T["Thanks to Shagu for pfUI, and to everyone on OctoWoW who tries it out."])
 
+      -- octo (29 Oct 2026): a newer pfUI Octo seen on another player
+      -- (updatenotify.lua) gets a box with the link for the OctoWoW launcher
+      local upd = CreateFrame("Frame", nil, page)
+      upd:SetWidth(640)
+      upd:SetHeight(84)
+      upd:SetPoint("TOP", page, "TOP", 0, -446)
+      upd:SetBackdrop({ bgFile = "Interface\\BUTTONS\\WHITE8X8", edgeFile = "Interface\\BUTTONS\\WHITE8X8", edgeSize = 1 })
+      upd:SetBackdropColor(.16, .12, .04, 1)
+      upd:SetBackdropBorderColor(1, .72, .2, 1)
+      local updTitle = Text(upd, C.global.font_size + 3, 1, .8, .3)
+      updTitle:SetPoint("TOPLEFT", 10, -8)
+      local updText = Text(upd, C.global.font_size, .85, .86, .9)
+      updText:SetPoint("TOPLEFT", 10, -28)
+      updText:SetPoint("TOPRIGHT", -10, -28)
+      updText:SetJustifyH("LEFT")
+      updText:SetText(T["Copy this link and add it in the OctoWoW launcher: it then keeps pfUI Octo up to date for you."])
+      local box = CreateFrame("EditBox", nil, upd)
+      box:SetHeight(20)
+      box:SetPoint("BOTTOMLEFT", 10, 8)
+      box:SetPoint("BOTTOMRIGHT", -10, 8)
+      box:SetAutoFocus(false)
+      box:SetFontObject(GameFontWhite)
+      box:SetFont(pfUI.font_default, C.global.font_size + 1, "OUTLINE")
+      box:SetTextInsets(6, 6, 0, 0)
+      box:SetBackdrop({ bgFile = "Interface\\BUTTONS\\WHITE8X8", edgeFile = "Interface\\BUTTONS\\WHITE8X8", edgeSize = 1 })
+      box:SetBackdropColor(0, 0, 0, .6)
+      box:SetBackdropBorderColor(.35, .7, 1, 1)
+      local url = pfUI.octoUpdate and pfUI.octoUpdate.url or "https://github.com/bdot89/pfUI-Octo"
+      box:SetText(url)
+      -- always the link; click selects it all for Ctrl+C
+      box:SetScript("OnTextChanged", function() if this:GetText() ~= url then this:SetText(url) this:HighlightText() end end)
+      box:SetScript("OnEditFocusGained", function() this:HighlightText() end)
+      box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+      box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
+      upd:Hide()
+      page.octoUpdateBox = upd
+
       -- the numbers that can change, once a second while the page shows
       local f = CreateFrame("Frame", nil, page)
       f:SetScript("OnUpdate", function()
         if ( this.tick or 0) > GetTime() then return else this.tick = GetTime() + 1 end
+        -- the scroll child keeps the width it was made with: fill the panel so
+        -- the centred logo, cards and links are not cut off at the left
+        local holder = page.parent or page:GetParent()
+        local w = holder and holder:GetWidth()
+        if w and w > 200 and math.abs((page:GetWidth() or 0) - w) > 1 then page:SetWidth(w) end
+        local newer = pfUI.octoUpdate and pfUI.octoUpdate.Newer()
+        if newer then
+          updTitle:SetText(string.format(T["pfUI Octo %s is out - you have %s"], newer, pfUI.version.octo))
+          upd:Show()
+        else
+          upd:Hide()
+        end
         local localversion  = tonumber(pfUI.version.major*10000 + pfUI.version.minor*100 + pfUI.version.fix)
         local remoteversion = tonumber(pfUI_init.updateavailable) or 0
-        version:SetText("|cff33b3ffv" .. pfUI.version.octo .. "|r")
+        version:SetText("|cff33b3ffv" .. pfUI.version.octo .. "|r" .. (newer and (" |cffffc840(" .. newer .. " " .. T["is out"] .. ")|r") or ""))
         based:SetText("pfUI " .. pfUI.version.string .. " " .. T["by"] .. " Shagu" ..
           (localversion < remoteversion and (" |cffffc840(" .. T["newer pfUI out"] .. ")|r") or ""))
         screen:SetText(GetCVar("gxResolution"))

@@ -166,7 +166,10 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       .. "Sample plates drawn by the real nameplate code with your settings: your target "
       .. "casting (every other cast is interrupted), a mob going through the threat colours, one at low health and "
       .. "a friendly player. Changes show here at once. Click this bar to fold it away.", function(p)
-    local box = (W.ZoomBox or W.Box)(p, h or 215)
+    -- (29 Oct 2026, user: the preview "takes up too much room"): the full one
+    -- on General and Look and size; a short box without the legend elsewhere
+    local full = not p.key or p.key == "npgeneral" or p.key == "nplook"
+    local box = (W.ZoomBox or W.Box)(p, h or (full and 215 or 110))
     local samples = P.AttachPreview(box)
     -- Shift + wheel anywhere on the box sizes the part under the mouse; the
     -- plain wheel scrolls the page
@@ -175,6 +178,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
       local hot = IsShiftKeyDown() and P.HotUnderMouse(samples)
       if hot and P.SIZE[hot.what] then P.Resize(hot.what, arg1 or 0, hot.region) else P.PassWheel(this) end
     end)
+    if full then
     -- what the marks mean, in your own art and colours
     Legend(p)
     -- what the mouse does, in an accent band so it stands out
@@ -207,6 +211,7 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     band:SetScript("OnUpdate", function()
       if P.Testing() then status:SetText("|cff55ff55Test " .. math.ceil(P.testUntil - GetTime()) .. " s|r") else status:SetText("") end
     end)
+    end
     W.Buttons(p, {
       { "Reset everything", function()
         -- a second click within 4 s does it
@@ -300,6 +305,9 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     W.Card(p, "Show")
     PfChk(p, "Enemies", "Nameplates on hostile units at login (V turns them on and off in game).", N, "showhostile", P.ApplyShow)
     PfChk(p, "Friends", "Nameplates on friendly units at login (Shift-V in game).", N, "showfriendly", P.ApplyShow)
+    if pfUI.client <= 11200 then
+      Chk(p, "Overlap - no jumping (stacking off)", "Plates cross over each other smoothly instead of jumping apart to make room. Best with many targets.", N, "overlap")
+    end
     Chk(p, "Totems as icons", "A totem shows its icon instead of a bar.", N, "totemicons")
     Chk(p, "Guild names", "The guild under a player's name.", N, "showguildname")
     Chk(p, "Combo points", "Your combo points under the target's plate.", N, "cpdisplay")
@@ -320,7 +328,6 @@ pfUI:RegisterModule("plates-options", "vanilla:tbc", function ()
     if pfUI.client <= 11200 then
       W.Card(p, "Clicks", { folded = true })
       Chk(p, "Click through", "Plates ignore the mouse.", N, "clickthrough")
-      Chk(p, "Overlap", "Plates may sit on top of each other instead of spreading out.", N, "overlap")
       Chk(p, "Right-click turns the camera", "Hold right-click on a plate to turn; a quick click targets and attacks.", N, "rightclick")
       Sld(p, "Quick click under", "How short a right-click must be to count as a click.", 0.1, 1, 0.05, N, "clickthreshold", function(v) return v .. " s" end)
       Sld(p, "Raise plates by", "Moves every plate up (or down) from where the game puts it.", -50, 50, 1, N, "vertical_offset", Px)
