@@ -46,6 +46,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     { "Bags & Loot", { "Bags", "Bags & Bank", "Loot" } },
     { "Tooltip", { "Tooltip" } },
     { "Add-ons", { "Thirdparty", "Components" } },
+    { "WeirdUtils", { "WeirdUtils" } },
     { "About", { "About" } },
   }
 
@@ -1031,7 +1032,7 @@ pfUI:RegisterModule("octo-options", "vanilla:tbc", function ()
     thirdparty = "INV_Gizmo_01", components = "Trade_Engineering", about = "INV_Misc_QuestionMark",
     skins = "INV_Misc_Orb_01", threat = "Ability_Warrior_DefensiveStance", uilayouts = "INV_Misc_Map_01",
     actionbars = "Ability_DualWield", chatpanels = "INV_Scroll_03", minimapbuffs = "INV_Misc_Map_01",
-    bagsloot = "INV_Misc_Bag_08", addons = "INV_Gizmo_01", swingtimer = "INV_Sword_04", gear = "INV_Chest_Plate06",
+    bagsloot = "INV_Misc_Bag_08", addons = "INV_Gizmo_01", swingtimer = "INV_Sword_04", gear = "INV_Chest_Plate06", weirdutils = "Ability_Hunter_MarkedForDeath",
   }
   function O.IconFor(name)
     local k = string.gsub(string.lower(name or ""), "[^%a]", "")
