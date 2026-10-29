@@ -60,7 +60,8 @@ $DLLS = @(
   @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" },
   # (the interact key: InteractNearest(), as OctoBG's Interact key calls it - MIT, github.com/lookino/Interact.
   # It extends UnitXP like UnitXP_SP3 does, so it loads after it: new lines go at the end of dlls.txt)
-  @{ Name = "Interact";    Repo = "lookino/Interact";         File = "Interact.dll"; Addon = "Interact" }
+  # (29 Oct 2026: v1.0.4 crashed the game, #132 inside Interact.dll, on every key press here - left out)
+  # @{ Name = "Interact";    Repo = "lookino/Interact";         File = "Interact.dll"; Addon = "Interact" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
