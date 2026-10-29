@@ -5305,6 +5305,24 @@ do
   end
 end
 
+-- meters: totems, guardians and item pets count for their owner (user, 29 Oct 2026: "TOTEMS TOO")
+do
+  local M = pfUI.meters
+  if M and M.SummonCast and M.Who then
+    local me = UnitName("player")
+    M.SummonCast(me, "Searing Totem")
+    local w = M.Who("Searing Totem III")
+    ok(w and w.kind == "PET" and w.owner == me, "a totem (any rank) belongs to the one who cast it")
+    M.SummonCast(me, "Arcanite Dragonling")
+    w = M.Who("Arcanite Dragonling")
+    ok(w and w.owner == me, "an item pet belongs to the one who used the item")
+    M.SetOwner("Infernal", me)
+    ok(M.Who("Infernal") and M.Who("Infernal").owner == me, "a summon from the combat log belongs to its summoner")
+    M.owners["Searing Totem"], M.owners["Arcanite Dragonling"], M.owners["Infernal"] = nil, nil, nil
+    M.who["Searing Totem III"], M.who["Arcanite Dragonling"], M.who["Infernal"] = nil, nil, nil
+  end
+end
+
 -- cast bar pushback on someone else's cast (user, 29 Oct 2026: "a live count of the knockback on his target")
 do
   local cb = pfUI.castbar and pfUI.castbar.target

@@ -333,6 +333,32 @@ pfUI:RegisterModule("meters", "vanilla", function ()
 
   -- name -> { kind = "PLAYER" | "PET" | "OTHER", class, owner }
   M.who = {}
+
+  -- octo (29 Oct 2026; user: "all players pets should be tracked ... any summoned pets even pets from item
+  -- procs ... TOTEMS TOO"): who summoned what, for creatures without a unit of their own - totems,
+  -- guardians, summons, item pets. Filled from ClassicAPI's SPELL_SUMMON (meters-clog.lua), your group's
+  -- guardian flags there, and the cast lines (M.Record below: "X casts Searing Totem").
+  M.owners = {}
+  -- summon spells whose creature has another name (item pets included)
+  M.SUMMONS = {
+    ["Inferno"] = "Infernal", ["Ritual of Doom"] = "Doomguard", ["Force of Nature"] = "Treant",
+    ["Summon Water Elemental"] = "Water Elemental", ["Gnomish Battle Chicken"] = "Battle Chicken",
+    ["Arcanite Dragonling"] = "Arcanite Dragonling", ["Mechanical Dragonling"] = "Mechanical Dragonling",
+    ["Mithril Mechanical Dragonling"] = "Mithril Mechanical Dragonling", ["Lifelike Mechanical Toad"] = "Lifelike Toad",
+    ["Summon Felguard"] = "Felguard", ["Eye of Kilrogg"] = "Eye of Kilrogg", ["Summon Treant Allies"] = "Treant",
+    ["Summon Spirit Wolf"] = "Spirit Wolf", ["Feral Spirit"] = "Spirit Wolf", ["Summon Skeleton"] = "Skeleton",
+  }
+  function M.SetOwner(creature, owner)
+    if not creature or not owner or creature == owner then return end
+    M.owners[creature] = owner
+    M.who[creature] = nil
+  end
+  -- a cast that makes a creature: its name -> the caster (totems are named as their spell)
+  function M.SummonCast(caster, spell)
+    if not caster or not spell then return end
+    local creature = M.SUMMONS[spell] or (strfind(spell, "Totem") and spell)
+    if creature then M.SetOwner(creature, caster) end
+  end
   local function Who(name)
     if not name then return end
     local w = M.who[name]
@@ -354,7 +380,12 @@ pfUI:RegisterModule("meters", "vanilla", function ()
     else
       -- SuperWoW names pets "Wolf (Owner)"
       local _, _, owner = strfind(name, "%((.+)%)$")
-      if owner and UnitByName(owner) then
+      -- totems carry their rank: "Searing Totem III" is the Searing Totem
+      local base = gsub(name, " [IVX]+$", "")
+      local summoned = M.owners[name] or M.owners[base]
+      if summoned and (UnitByName(summoned) or Who(summoned)) then
+        w.kind, w.owner = "PET", summoned
+      elseif owner and UnitByName(owner) then
         w.kind, w.owner = "PET", owner
       elseif C.meters.trackall == "1" then
         w.kind = "OTHER"
@@ -619,6 +650,8 @@ pfUI:RegisterModule("meters", "vanilla", function ()
   function M.Record(r)
     if not r or not r.kind then return end
     local now = GetTime()
+    -- (a cast that summons a totem / guardian: who it belongs to, before its first hit)
+    if (r.kind == "cast" or r.kind == "start") and r.src and r.spl then M.SummonCast(r.src, r.spl) end
     local srcname, srcpet = Owner(r.src)
     local tgtname = Owner(r.tgt)
 

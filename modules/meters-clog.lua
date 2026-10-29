@@ -51,6 +51,14 @@ pfUI:RegisterModule("meters-clog", "vanilla", function ()
     if not M.clog then M.clog = true end   -- the text lines step aside from now on
     local src, tgt = Name(sn), Name(dn)
     local mine = Group(sf) or Group(df)
+    -- octo (29 Oct 2026): who owns totems, guardians and summons - the summon names both; and a guardian or
+    -- pet flagged as yours (affiliation bit 1, type bits 0x3000) is yours when nothing else says
+    if M.SetOwner then
+      if (sub == "SPELL_SUMMON" or sub == "SPELL_CREATE") and src and tgt then M.SetOwner(tgt, src) end
+      local me = UnitName("player")
+      if src and sf and mod(sf, 2) == 1 and mod(floor(sf / 4096), 4) ~= 0 and src ~= me and not M.owners[src] then M.SetOwner(src, me) end
+      if tgt and df and mod(df, 2) == 1 and mod(floor(df / 4096), 4) ~= 0 and tgt ~= me and not M.owners[tgt] then M.SetOwner(tgt, me) end
+    end
     -- who is worth the work: your group (and pets), anyone with "everyone nearby" on; an enemy's death only
     -- when the group hit it
     if not mine and C.meters.trackall ~= "1" then
