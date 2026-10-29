@@ -107,6 +107,8 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
         channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill, noint = UnitChannelInfo(query)
         cast = channel
       end
+      -- (ClassicAPI's own figure wins: the delay events would count the same pushback a second time)
+      if delayMs then this.capiDelay = true end
       if delayMs and delayMs > 0 then this.delay = delayMs / 1000 end
 
       -- octo (29 Oct 2026; user: pushback "available for both players ... a live count of the knockback on
@@ -116,6 +118,7 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
       if cast then
         if this.castStart ~= startTime then
           this.castStart, this.origEnd, this.otherDelay = startTime, endTime, nil
+          this.capiDelay = delayMs and true or nil
           if this.unitstr ~= "player" then this.delay = 0 end
         end
         if not delayMs and this.origEnd and this.unitstr and this.unitstr ~= "player" and not UnitIsUnit(this.unitstr, "player") then
@@ -176,12 +179,19 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
 
         this.bar:SetValue(cur)
 
-        -- the pushback as a red stretch at the end: the part of the cast that is extra time
-        -- (casts; a channel just loses time, shown by the "-" in the timer)
-        if this.showpush and not channel and this.delay and this.delay > 0 and max > 0 then
+        -- the pushback as a red stretch: the time it cost, to scale with the bar. A cast's end moved
+        -- out, so its last part is the extra time (red at the right end); a channel's end came nearer,
+        -- so the time it lost is shown where it would have run on to (red at the left end, where a
+        -- channel bar runs out), as a share of the whole channel it was
+        if this.showpush and this.delay and this.delay > 0 and max > 0 then
           local bw = this.bar:GetWidth() or 0
           if bw <= 0 then bw = this:GetWidth() or 0 end
-          local w = bw * math.min(1, this.delay / max)
+          local share = channel and (this.delay / (max + this.delay)) or (this.delay / max)
+          local w = bw * math.min(1, share)
+          this.bar.push:ClearAllPoints()
+          local side = channel and "LEFT" or "RIGHT"
+          this.bar.push:SetPoint("TOP" .. side, this.bar, "TOP" .. side, 0, 0)
+          this.bar.push:SetPoint("BOTTOM" .. side, this.bar, "BOTTOM" .. side, 0, 0)
           if w >= 1 then
             this.bar.push:SetWidth(w)
             this.bar.push:Show()
@@ -244,7 +254,9 @@ pfUI:RegisterModule("castbar", "vanilla:tbc", function ()
       if this.unitstr and not UnitIsUnit(this.unitstr, "player") then return end
       playerarg = pfUI.client <= 11200 or arg1 == "player" and true or nil
 
-      if event == CASTBAR_EVENT_CAST_DELAY and playerarg then
+      if event == CASTBAR_EVENT_CAST_DELAY and playerarg and this.capiDelay then
+        -- (ClassicAPI already gives the pushback: not counted twice)
+      elseif event == CASTBAR_EVENT_CAST_DELAY and playerarg then
         local isCast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(this.unitstr or this.unitname)
         if not isCast then return end
         if not this.endTime then return end
