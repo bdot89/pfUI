@@ -2,9 +2,9 @@ param(
   [string]$GameDir = "",
   [switch]$Check,
   [switch]$Force,
-  # WeirdUtils only on request (29 Oct 2026: with it on, the game stopped at a quarter of
-  # the loading bar on this client); kept up to date once it is in dlls.txt
-  [switch]$WeirdUtils
+  # (29 Oct 2026: the full weirdutils.dll stopped this client at a quarter of the loading bar;
+  # the installer takes weirdutils_noperf.dll - every module but weirdperformance - instead)
+  [switch]$WeirdUtils   # (no longer needed: WeirdUtils installs by default again)
 )
 # pfUI Octo: puts the newest client DLLs pfUI Octo uses into the game folder
 # (user, 26 Oct 2026: "an install bat that installs the newest version of
@@ -54,8 +54,8 @@ $DLLS = @(
   @{ Name = "SuperWoW";    Repo = "balakethelock/SuperWoW";   File = "SuperWoWhook.dll" },
   @{ Name = "nampower";    Repo = "brues-code/nampower";      File = "nampower.dll" },
   @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
-  # (on Codeberg, whose release API answers like GitHub's; weirdutils.dll = every module)
-  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils.dll"; Optional = $true; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
+  # (on Codeberg, whose release API answers like GitHub's; the noperf build = every module but weirdperformance)
+  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -205,6 +205,20 @@ try {
         $listChanged = $true
         "  {0}: added to dlls.txt." -f $file
       }
+    }
+  }
+
+  # the full weirdutils.dll (an earlier installer added it) never loads beside the noperf build
+  $full = @($lines | Where-Object { $_.Trim() -ieq "weirdutils.dll" })
+  if ($full.Count -gt 0) {
+    if ($Check) {
+      "  weirdutils.dll: would be taken out of dlls.txt (the noperf build replaces it)."
+    } else {
+      $keep = New-Object System.Collections.ArrayList
+      foreach ($l in $lines) { if ($l.Trim() -ine "weirdutils.dll") { [void]$keep.Add($l) } }
+      $lines = $keep
+      $listChanged = $true
+      "  weirdutils.dll: taken out of dlls.txt (the noperf build replaces it)."
     }
   }
 
