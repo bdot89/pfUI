@@ -2,8 +2,8 @@ param(
   [string]$GameDir = "",
   [switch]$Check,
   [switch]$Force,
-  # (29 Oct 2026: the full weirdutils.dll stopped this client at a quarter of the loading bar;
-  # the installer takes weirdutils_noperf.dll - every module but weirdperformance - instead)
+  # (29 Oct 2026: the official weirdutils.dll stopped this client at a quarter of the loading bar;
+  # WeirdUtils now comes from our own build, bdot89/WeirdUtils-Octo, without weirdperformance)
   [switch]$WeirdUtils   # (no longer needed: WeirdUtils installs by default again)
 )
 # pfUI Octo: puts the newest client DLLs pfUI Octo uses into the game folder
@@ -14,7 +14,7 @@ param(
 #   SuperWoW      GUIDs, cast events, the focus frame, mouseover casts
 #   nampower      spell events for combat text and meters
 #   UnitXP_SP3    distances and line of sight
-#   WeirdUtils    world markers, outlines, crash and FPS fixes, bigger cursor... (Codeberg)
+#   WeirdUtils    world markers, outlines, crash and FPS fixes, bigger cursor... (our own build)
 #
 # Each comes from its author's GitHub (or Codeberg) releases (the newest one), is checked to
 # be a Windows DLL, and is only copied when it differs from the one in the
@@ -54,8 +54,9 @@ $DLLS = @(
   @{ Name = "SuperWoW";    Repo = "balakethelock/SuperWoW";   File = "SuperWoWhook.dll" },
   @{ Name = "nampower";    Repo = "brues-code/nampower";      File = "nampower.dll" },
   @{ Name = "UnitXP_SP3";  Repo = "brues-code/UnitXP_SP3";    File = "UnitXP_SP3.dll" },
-  # (on Codeberg, whose release API answers like GitHub's; the noperf build = every module but weirdperformance)
-  @{ Name = "WeirdUtils";  Repo = "MarcelineVQ/WeirdUtils";   File = "weirdutils_noperf.dll"; Api = "https://codeberg.org/api/v1/repos/"; Site = "codeberg.org/" }
+  # (our own build since 29 Oct 2026: github.com/bdot89/WeirdUtils-Octo - every module incl. interact,
+  # outline and framecrash, no weirdperformance (it hung this client at the loading bar) or dpslog)
+  @{ Name = "WeirdUtils";  Repo = "bdot89/WeirdUtils-Octo";   File = "weirdutils_octo.dll" }
 )
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -208,17 +209,18 @@ try {
     }
   }
 
-  # the full weirdutils.dll (an earlier installer added it) never loads beside the noperf build
-  $full = @($lines | Where-Object { $_.Trim() -ieq "weirdutils.dll" })
+  # the official weirdutils.dll / weirdutils_noperf.dll (earlier installers added them) never load beside ours
+  $old = @("weirdutils.dll", "weirdutils_noperf.dll")
+  $full = @($lines | Where-Object { $old -contains $_.Trim().ToLower() })
   if ($full.Count -gt 0) {
     if ($Check) {
-      "  weirdutils.dll: would be taken out of dlls.txt (the noperf build replaces it)."
+      "  the official WeirdUtils DLL: would be taken out of dlls.txt (weirdutils_octo.dll replaces it)."
     } else {
       $keep = New-Object System.Collections.ArrayList
-      foreach ($l in $lines) { if ($l.Trim() -ine "weirdutils.dll") { [void]$keep.Add($l) } }
+      foreach ($l in $lines) { if ($old -notcontains $l.Trim().ToLower()) { [void]$keep.Add($l) } }
       $lines = $keep
       $listChanged = $true
-      "  weirdutils.dll: taken out of dlls.txt (the noperf build replaces it)."
+      "  the official WeirdUtils DLL: taken out of dlls.txt (weirdutils_octo.dll replaces it)."
     }
   }
 
