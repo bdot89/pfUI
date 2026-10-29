@@ -5289,12 +5289,8 @@ do
       pf.predictAt, pf.predictstate = nil, nil
       pcall(pf:GetScript("OnUpdate"))
       local p1, orel, p3 = pf.overHeal:GetPoint(1)
-      local maxGlow = w * (tonumber(pf.config.overhealperc) or 0) / 100
-      ok(pf.overHeal:IsShown() and p1 == "TOPLEFT" and orel == pf.hp.bar and p3 == "TOPRIGHT"
-        and math.abs(pf.overHeal:GetWidth() - math.max(maxGlow, math.min(6, maxGlow))) < .5,
-        "a big overheal glows past the bar's end, as far as the overheal % allows (" .. tostring(pf.overHeal:GetWidth()) .. " of " .. maxGlow .. ")")
-      ok(maxGlow < 18 or (pf.overHeal.text:IsShown() and string.find(pf.overHeal.text:GetText() or "", "^%+")),
-        "with the overheal amount on it (" .. tostring(pf.overHeal.text:GetText()) .. ")")
+      ok(pf.overHeal:IsShown() and p1 == "TOPRIGHT" and orel == pf.hp.bar and p3 == "TOPRIGHT" and pf.overHeal:GetWidth() == 3,
+        "a big overheal is a thin mark inside the bar's end (nothing past it)")
       _G.UnitHealth, _G.UnitHealthMax, LP.UnitGetIncomingHeals = uh, uhm, uig
       pf.predictAt, pf.predictstate = nil, nil
     end

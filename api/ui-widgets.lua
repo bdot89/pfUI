@@ -48,8 +48,11 @@ do -- statusbars
       self.val_ = val
 
       if self.mode == "vertical" then
-        height = self:GetHeight()
-        if pfUI.expansion == "vanilla" then height = height / self:GetEffectiveScale() end
+        -- octo (29 Oct 2026; user: "% and Bars must BE ON POINT"): the bar's own edges, in the units its
+        -- points use. pfUI divided by the effective scale on vanilla, so every scaled frame filled short.
+        local t, b = self:GetTop(), self:GetBottom()
+        height = (t and b and t > b) and (t - b) or self:GetHeight()
+
         point = height / (self.max - self.min) * (val - self.min)
 
         -- keep values in limits
@@ -67,8 +70,9 @@ do -- statusbars
         self.bg:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
         self.bg:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, point)
       else
-        width = self:GetWidth()
-        if pfUI.expansion == "vanilla" then width = width / self:GetEffectiveScale() end
+        local l, r = self:GetLeft(), self:GetRight()
+        width = (l and r and r > l) and (r - l) or self:GetWidth()
+
         point = width / (self.max - self.min) * (val - self.min)
 
         -- keep values in limits

@@ -1168,19 +1168,20 @@ function pfUI.uf.OnUpdate()
           ov:ClearAllPoints()
           if not vertical then
             local s, o = invert and "LEFT" or "RIGHT", invert and "RIGHT" or "LEFT"
-            ov:SetPoint("TOP" .. o, bar, "TOP" .. s, 0, 0)
-            ov:SetPoint("BOTTOM" .. o, bar, "BOTTOM" .. s, 0, 0)
-            ov:SetWidth(math.max(1, overL))
+            ov:SetPoint("TOP" .. s, bar, "TOP" .. s, 0, 0)
+            ov:SetPoint("BOTTOM" .. s, bar, "BOTTOM" .. s, 0, 0)
+            -- (29 Oct: inside the bar, a thin mark - the glow past the end covered portraits and text)
+            ov:SetWidth(3)
           else
             local s, o = invert and "BOTTOM" or "TOP", invert and "TOP" or "BOTTOM"
-            ov:SetPoint(o .. "LEFT", bar, s .. "LEFT", 0, 0)
-            ov:SetPoint(o .. "RIGHT", bar, s .. "RIGHT", 0, 0)
-            ov:SetHeight(math.max(1, overL))
+            ov:SetPoint(s .. "LEFT", bar, s .. "LEFT", 0, 0)
+            ov:SetPoint(s .. "RIGHT", bar, s .. "RIGHT", 0, 0)
+            ov:SetHeight(3)
           end
           if ov.Paint then ov:Paint(vertical, invert) end
           -- the overheal amount on the glow when it fits
           if ov.text then
-            if not vertical and overL >= 18 then
+            if false then
               ov.text:SetText("+" .. (over >= 1000 and string.format("%.1fk", over / 1000) or tostring(math.floor(over + .5))))
               ov.text:Show()
             else
