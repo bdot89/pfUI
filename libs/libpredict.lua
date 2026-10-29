@@ -893,6 +893,24 @@ do
   end
   libpredict.OtherStart, libpredict.OtherStop = Start, Stop
 
+  -- (user, 28 Oct 2026: party members ressing someone must show, so nobody casts a second res)
+  -- a res being cast by someone else: the res icon on the dead target until it lands or stops.
+  -- Yours already go out through the cast queue and HealComm.
+  local ressing = {}   -- key -> caster
+  local function RessStart(key, caster, target, name)
+    if not caster or caster == player or not target or not name or not L["resurrections"][name] then return end
+    libpredict:Ress(caster, target)
+    ressing[key] = caster
+    return true
+  end
+  local function RessEnd(key)
+    local caster = key and ressing[key]
+    if not caster then return end
+    ressing[key] = nil
+    libpredict:RessStop(caster)
+  end
+  libpredict.OtherRess, libpredict.OtherRessEnd = RessStart, RessEnd
+
   local capi = pfUI.client < 20000 and type(_G.UnitSpellTargetName) == "function"
     and C_Spell and C_Spell.GetSpellName and C_Spell.UnitCastingInfo
   local others = CreateFrame("Frame", "pfPredictionOthers", UIParent)
@@ -931,12 +949,13 @@ do
       local mine = UnitIsUnit(unit, "player")
       if mine and unit ~= "player" then return end
       local name = C_Spell.GetSpellName(id)
-      if not name or not HEALS[name] then return end
+      if not name then return end
       local target
       if mine then target = OwnTarget(unit) else
         local ok, t = pcall(_G.UnitSpellTargetName, unit)
         target = ok and t or nil
       end
+      if RessStart(guid, UnitName(unit), target, name) or not HEALS[name] then return end
       local _, _, _, s, e = C_Spell.UnitCastingInfo(unit)
       local rank = C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(id) or ""
       Start(guid, UnitName(unit), target, name, rank, id, (s and e) and (e - s) or nil)
@@ -946,6 +965,7 @@ do
     elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_FAILED"
         or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_SUCCEEDED" then
       Stop(arg2)
+      RessEnd(arg2)
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
       local info = _G.CombatLogGetCurrentEventInfo
       if type(info) ~= "function" then return end
@@ -961,13 +981,15 @@ do
         -- (not "SpellInfo and SpellInfo(x)": an "and" keeps only the first of its returns - the rank was lost)
         local name, rank
         if SpellInfo then name, rank = SpellInfo(arg4) end
-        if not name or not HEALS[name] then return end
+        if not name then return end
         local caster = UnitName(arg1)
         local target = arg2 and arg2 ~= "" and arg2 ~= "0x0000000000000000" and UnitName(arg2) or nil
+        if RessStart(arg1, caster, target, name) or not HEALS[name] then return end
         if caster == player and not target then target = senttarget or player end
         Start(arg1, caster, target, name, rank, arg4, arg5)
       elseif arg3 == "CAST" or arg3 == "FAIL" then
         Stop(arg1)
+        RessEnd(arg1)
       end
     elseif cmatch and arg1 then
       -- the critical lines first: "X's Y critically heals Z" also fits "X's Y heals Z"
