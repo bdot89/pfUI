@@ -429,6 +429,22 @@ do
   _G.this, _G.event, _G.arg1, _G.UnitIsVisible = saved.this, saved.event, saved.arg1, saved.vis
 end
 
+-- ---------------------------------------------------------------- info panels: own size, never a scale
+local PL = pfUI.panel and pfUI.panel.left
+ok(PL and pfUI.panel.Size, "panels have their own size")
+if PL and pfUI.panel.Size then
+  local cfg = pfUI_config.panel.left
+  local ow, oh = cfg.pwidth, cfg.pheight
+  PL:SetScale(1.3)
+  cfg.pwidth, cfg.pheight = "300", "30"
+  pfUI.panel.Size("left")
+  ok(PL:GetWidth() == 300 and PL:GetHeight() == 30, "width and height set apart (" .. tostring(PL:GetWidth()) .. " x " .. tostring(PL:GetHeight()) .. ")")
+  ok(PL:GetScale() ~= 1.3, "a scale of its own is dropped")
+  ok(PL.left and PL.left:GetHeight() == 30, "its texts are as tall as the bar")
+  cfg.pwidth, cfg.pheight = ow, oh
+  pfUI.panel.Size("left")
+end
+
 -- ---------------------------------------------------------------- back to the plain mock
 C_UnitAuras, C_Spell = nil, nil
 for k, v in pairs(savedG) do rawset(_G, k, v) end

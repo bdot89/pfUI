@@ -63,8 +63,9 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
 
     -- panel
     ["PanelLeft"]        = { T["Panel"], T["General"] },
-    -- (octo: its arrow and what that shows and hides)
-    ["PanelRight"]       = { "chpanel", nil },
+    -- (octo, 29 Oct 2026: its width and height are on the Panel page, like the
+    -- left one; the arrow stays on Chat > Panel arrow)
+    ["PanelRight"]       = { T["Panel"], T["General"] },
     ["PanelMinimap"]     = { T["Panel"], T["General"] },
     ["PanelMicroButton"] = { T["Panel"], T["General"] },
 
@@ -817,6 +818,8 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     if sb.editing ~= sb.wbox then sb.wbox:SetText(floor(w + .5)) end
     if sb.editing ~= sb.hbox then sb.hbox:SetText(floor(h + .5)) end
     if sb.editing ~= sb.pbox then sb.pbox:SetText(floor(d.frame:GetScale() * 100 + .5) .. "%") end
+    -- (the info panels have no scale: - / + change their width)
+    if d.frame == _G.pfPanelLeft or d.frame == _G.pfPanelRight then sb.pbox:Hide() else sb.pbox:Show() end
     local info = SizeInfo(d.frame)
     sb.info:SetText(info)
     sb:SetWidth(math.max(150, (sb.info:GetStringWidth() or 0) + 16))
@@ -873,6 +876,13 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
       return
     end
     local frame = d.frame
+    -- (the info panels: 10 px wider / narrower a notch, Shift 1 px; never a scale)
+    if frame == _G.pfPanelLeft or frame == _G.pfPanelRight then
+      local w, _, s = ScreenSize(frame)
+      SetBoxSize(frame, w + dir * (IsShiftKeyDown() and 1 or 10) * s, nil)
+      ShowSize(d)
+      return
+    end
     local scale = SZ.Next(frame:GetScale(), dir, SZ.Step(IsShiftKeyDown(), IsControlKeyDown()))
     pfUI.unlock.selection = GetFrames(frame)
     KeepPlaces(pfUI.unlock.selection, function()
@@ -1207,7 +1217,19 @@ pfUI:RegisterModule("unlock", "vanilla:tbc", function ()
     local tk = SIZES[name]
     local _, _, meter = string.find(name, "^pfMeter(%d)$")
     local raid = pfUI.uf and pfUI.uf.raid
-    if scale then
+    -- octo (29 Oct 2026, a player: "narrower but just as tall", never scaled):
+    -- the info panels take a width and a height of their own; no scale (the
+    -- % box is hidden for them, - / + change the width)
+    local side = (name == "pfPanelLeft" and "left") or (name == "pfPanelRight" and "right")
+    if side and pfUI.panel and pfUI.panel.Size then
+      local cfg = C.panel[side]
+      if scale then return end
+      KeepPlaces({ f }, function()
+        if w then cfg.pwidth = tostring(math.max(40, floor(w / s + .5))) end
+        if h then cfg.pheight = tostring(math.max(8, floor(h / s + .5))) end
+        pfUI.panel.Size(side)
+      end)
+    elseif scale then
       scale = math.max(SZ.MIN, math.min(SZ.MAX, scale))
       KeepPlaces({ f }, function() SaveScale(f, floor(scale * 1000 + .5) / 1000) end)
     elseif f == _G.pfRaidCluster and raid and raid[1] and raid.UpdateConfig then

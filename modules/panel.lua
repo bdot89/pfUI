@@ -804,6 +804,47 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
 
   UpdateMovable(pfUI.panel.right)
 
+  -- octo (29 Oct 2026, a player: a narrower bar "just as tall", never
+  -- scaled): each panel's own width and height in C.panel.<side>.pwidth /
+  -- pheight ("0" = as before: the chat's width, 1.5x the font). Layout mode's
+  -- size box and wheel change these, not the scale (unlock.lua SetBoxSize).
+  local function Default(side)
+    local chat = pfUI.chat and pfUI.chat[side]
+    return chat and (tonumber(C.chat[side].width) - 4) or tonumber(C.chat[side].width), C.global.font_size * 1.5
+  end
+  function pfUI.panel.Size(side)
+    local p = pfUI.panel[side]
+    local cfg = C.panel[side]
+    if not p or not cfg then return end
+    local dw, dh = Default(side)
+    local w, h = tonumber(cfg.pwidth) or 0, tonumber(cfg.pheight) or 0
+    if w <= 0 then w = dw end
+    if h <= 0 then h = dh end
+    -- never a scale of its own: the chat's, as pfUI does
+    local chat = pfUI.chat and pfUI.chat[side]
+    p:SetScale(chat and chat:GetScale() or 1)
+    if C.position[p:GetName()] then C.position[p:GetName()].scale = nil end
+    -- a width needs one anchor: the right bar pinned to both window edges
+    -- keeps that only while it has no width of its own
+    if (tonumber(cfg.pwidth) or 0) > 0 and p:GetNumPoints() > 1 and not (C.position[p:GetName()] and C.position[p:GetName()].xpos) then
+      p:ClearAllPoints()
+      if chat then p:SetPoint("BOTTOM", chat, "BOTTOM", 0, 2) end
+    end
+    p:SetWidth(w)
+    p:SetHeight(h)
+    -- the three texts share the width, each as tall as the bar
+    local bw = w / 3 - 2
+    if C.panel[side].left == "none" and C.panel[side].right == "none" then bw = w - 2 end
+    if C.panel[side].center == "none" then bw = w / 2 - 2 end
+    for _, k in ipairs({ "left", "center", "right" }) do
+      if p[k] then p[k]:SetWidth(bw) p[k]:SetHeight(h) end
+    end
+  end
+  function pfUI.panel:UpdateConfig()
+    pfUI.panel.Size("left")
+    pfUI.panel.Size("right")
+  end
+
   -- octo: the arrow (24 Oct 2026 the user had it removed - "it just confuses";
   -- 25 Oct: back, on by default - "more people use it than not"). As pfUI's
   -- old one: it opens and shuts the right chat window. C.panel.arrowmode:
@@ -1064,6 +1105,8 @@ pfUI:RegisterModule("panel", "vanilla:tbc", function()
   end
   pfUI.panel.RightParts = RightParts
   pfUI.panel.right:SetScript("OnSizeChanged", RightParts)
+  -- (each bar's own width / height, once both bars have their parts)
+  pfUI.panel:UpdateConfig()
 
   if C.panel.right.left == "none"
   and C.panel.right.center == "none"
