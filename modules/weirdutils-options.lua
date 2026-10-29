@@ -176,6 +176,23 @@ pfUI:RegisterModule("weirdutils-options", "vanilla", function ()
       W.Buttons(p, { { "Reload now", function() ReloadUI() end, 130, "Applies the vendor kinds.", on = function() return WU.needReload end } })
     end
 
+    local TB = pfUI.trackbutton
+    if TB then
+      W.Card(p, "Tracking button", { icon = "Interface\\Icons\\INV_Misc_Spyglass_02",
+        tip = "The round button that opens the tracking menu (find herbs, the people above)." })
+      local function Up() TB.Apply() end
+      W.Dropdown(p, "Where it goes", "On the map: where the game puts it. Free: put it anywhere with Move Frames. "
+        .. "Addon bar: with your other addon buttons. Hidden: gone (the menu is then only on this page).",
+        { { key = "map", label = "On the map" }, { key = "free", label = "Free - Move Frames" },
+          { key = "bar", label = "In the addon button bar" }, { key = "hide", label = "Hidden" } },
+        function() return C.weirdutils.track end, function(v) C.weirdutils.track = v Up() end)
+      W.Check(p, "Gold ring", "Off: a square icon in pfUI's thin frame.",
+        function() return C.weirdutils.track_border ~= "0" end, function(v) C.weirdutils.track_border = v and "1" or "0" Up() end)
+      W.Slider(p, "Size", "0 = the game's own size.", 0, 64, 1,
+        function() return tonumber(C.weirdutils.track_size) or 0 end, function(v) C.weirdutils.track_size = v Up() end,
+        function(v) return v == 0 and "Game's" or (v .. " px") end)
+    end
+
     if WU.Version("bigcursor") and Has("SetCursorScale") then
       W.Card(p, "Big cursor", { icon = "Interface\\Icons\\INV_Misc_Spyglass_02", tip = "1x = the normal cursor. Changes with the next cursor change." })
       W.Slider(p, "Cursor size", nil, 1, 4, .1,
