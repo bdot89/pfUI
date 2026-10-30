@@ -1150,6 +1150,11 @@ function pfUI.api.CreateBackdrop(f, inset, legacy, transp, backdropSetting)
       else
         b:SetFrameLevel(level - 1)
       end
+      -- octo (30 Oct 2026): addons that tuck a backdrop under its frame with
+      -- SetFrameLevel(frame level - 1) printed "Passed negative frame level"
+      -- for frames at level 0 (Atlas-CFM's AtlaspfUI.lua); below 0 = 0
+      local setLevel = b.SetFrameLevel
+      b.SetFrameLevel = function(self, n) setLevel(self, (tonumber(n) or 0) < 0 and 0 or n) end
 
       f.backdrop = b
     end
