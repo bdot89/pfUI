@@ -2,6 +2,9 @@
 -- What each pfUI Octo version brought: { version, { { title, text }, ... } }, newest first.
 -- updatenotify.lua shows them in the update window and sends the titles to older versions.
 pfUI.octoNotes = {
+  { "1.2.93", {
+    { "Battleground queue times reach the boards", "not one queue time was arriving although BGs popped all day - this client reports 0 waited the moment a queue pops, so pfUI Octo now remembers the wait while you are queued (or times it itself). Battleground results are also caught while you are still inside, not only when someone opens the scoreboard." },
+  } },
   { "1.2.92", {
     { "Auto Attack works with Auto Shot", "starting Auto Shot switches melee off, and Auto Attack took that as you stopping on purpose and left the mob alone. Now a mob that runs into melee range gets your swing while Auto Shot is on. Stopping melee yourself still leaves that mob alone. /autoattack why also says when Auto Shot is on." },
   } },
@@ -172,12 +175,5 @@ pfUI.octoNotes = {
     { "Rage in combat text is right", "Bloodrage showed a \"10\" for every point of rage; it shows \"+1 Rage\" now. With the Blizzard numbers look, power gains use the colour you picked for them instead of always blue." },
     { "Map dots stay the same size when you zoom the world map", "pfQuest's dots and your party and raid dots no longer grow and shrink with the zoom." },
     { "Smoother raids", "sorting the raid frames only redraws the frames whose player changed (it redrew all 40 twice), and bars you can't see skip their slide." },
-  } },
-  { "1.2.53", {
-    { "Safer sharing (from Emp's code review)", "auction prices shared by others count only when two players agree and never fill your sell price; the \"new version\" popup needs three players saying a sensible next version; fake threat lines from guild or whispers are ignored; broken boat messages throw no error." },
-    { "Fixes", "overall DPS stays right past 10 fights and merged trash counts only fighting time; OctoLazy stack split never swaps items or skips into quivers; bag shortcuts only on real bag clicks; cooldown bars never use a bag item at a vendor; loading a profile makes it current; the Bulwark keeps your width; no false \"+800 Mana\" after a form change; a rule can no longer freeze the game." },
-    { "Lighter", "meters, OctoDoTs, the Bulwark and combat text do less work, and saved data that grew for ever is pruned." },
-    { "DLL installer", "each DLL pinned to a tested version and checked by its SHA-256, a list and a question before anything changes, AuctionQueryThrottle optional." },
-    { "World map", "coordinates back with the map zoom, your own position bottom left." },
   } },
 }

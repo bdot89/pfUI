@@ -122,6 +122,10 @@ All optional: pfUI Octo works without them.
 | `/pfperf` | performance numbers (`on`, `off`, `reset`, `clean`) |
 | `/export`, `/import` | share your whole setup |
 
+## 📜 New in 1.2.93
+
+- ⚔️ **Battleground queue times reach the boards:** not one queue time was arriving although BGs popped all day - this client reports 0 waited the moment a queue pops, so pfUI Octo now remembers the wait while you are queued (or times it itself). Battleground results are also caught while you are still inside, not only when someone opens the scoreboard.
+
 ## 📜 New in 1.2.92
 
 - 🏹 **Auto Attack works with Auto Shot:** starting Auto Shot switches melee off, and Auto Attack took that as you stopping on purpose and left the mob alone. Now a mob that runs into melee range gets your swing while Auto Shot is on. Stopping melee yourself still leaves that mob alone. `/autoattack why` also says when Auto Shot is on.

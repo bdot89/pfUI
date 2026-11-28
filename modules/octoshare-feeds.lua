@@ -22,24 +22,42 @@ pfUI:RegisterModule("octoshare-feeds", "vanilla:tbc", function ()
   OS.feeds = F
 
   -- queue pop: the moment a queue turns to "confirm", read how long it waited
+  -- (28 Nov 2026, user: "BGs have been popping all day" - yet not one queue time reached the boards) this client already
+  -- reports 0 waited the moment a queue pops ("confirm"), so the wait is remembered WHILE queued: the game's own
+  -- figure when it gives one, else our own clock from the moment the queue started.
+  F.queuedAt, F.waited, F.waitedAt = {}, {}, {}
   function F.CheckQueues()
+    local now = GetTime and GetTime() or 0
     for i = 1, 3 do
       local ok, status, map = pcall(GetBattlefieldStatus, i)
       if not ok then status = nil end
       local was = F.status[i]
-      if status == "confirm" and was ~= "confirm" then
-        local secs = 0
+      if status == "queued" then
+        if was ~= "queued" or not F.queuedAt[i] then F.queuedAt[i] = now end
         local ok2, ms = pcall(GetBattlefieldTimeWaited, i)
-        if ok2 and ms and ms > 0 then secs = math.floor(ms / 1000) end
+        if ok2 and ms and ms > 0 then F.waited[i], F.waitedAt[i] = ms / 1000, now end
+      elseif status == "confirm" and was ~= "confirm" then
+        local secs = 0
+        if F.waited[i] then secs = F.waited[i] + (now - (F.waitedAt[i] or now))    -- the game's figure, brought up to now
+        elseif F.queuedAt[i] then secs = now - F.queuedAt[i] end                 -- or our own clock
+        secs = math.floor(secs)
         if map and secs > 0 and secs < 36000 then
           OS.Emit("bgq", Clean(map) .. "^" .. Faction() .. "^" .. secs)
         end
       end
+      if status ~= "queued" then F.queuedAt[i], F.waited[i], F.waitedAt[i] = nil, nil, nil end
       F.status[i] = status
     end
   end
 
   -- result: when a battleground has a winner, report win / loss once for this match
+  function F.InBattleground()
+    for i = 1, 3 do
+      local ok, status = pcall(GetBattlefieldStatus, i)
+      if ok and status == "active" then return true end
+    end
+    return false
+  end
   function F.CheckResult()
     local ok, winner = pcall(GetBattlefieldWinner)
     if not ok or winner == nil then F.reported = nil return end
@@ -361,6 +379,12 @@ pfUI:RegisterModule("octoshare-feeds", "vanilla:tbc", function ()
       if not (UnitAffectingCombat and UnitAffectingCombat("player")) then F.ScanPlates() end
     end
     if F.sgAt and now - F.sgAt >= F.SG_WAIT then F.FlushSightings() end
+    -- (28 Nov 2026) battleground results: the scoreboard event only fires when someone opens it, so while inside a
+    -- battleground the winner is checked every 3 s (one report per match, F.reported)
+    if (this.bgAt or 0) <= now then
+      this.bgAt = now + 3
+      if F.InBattleground() then F.CheckResult() end
+    end
     if (this.popAt or 0) > now then return end
     this.popAt = now + F.POP_EVERY + math.random() * 60   -- jitter so a whole guild logging in together does not ping at once
     F.Ping()
