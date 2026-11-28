@@ -107,15 +107,27 @@ pfUI:RegisterModule("autoattack", "vanilla", function ()
   f:RegisterEvent("PLAYER_ENTER_COMBAT")
   f:RegisterEvent("PLAYER_LEAVE_COMBAT")
   f:RegisterEvent("PLAYER_TARGET_CHANGED")
+  -- (28 Nov 2026, Лев on Discord, hunter: with Auto Shot on, a mob that runs into melee got no swing) Starting Auto
+  -- Shot (or a wand) switches melee off, and that PLAYER_LEAVE_COMBAT was read as "you stopped attacking this one", so
+  -- the target was left alone for good. Auto-repeat starting is not you stopping: it never marks the target, clears a
+  -- mark made just before it (the two events may come either way round), and melee starts again once it is in reach.
+  f:RegisterEvent("START_AUTOREPEAT_SPELL")
+  f:RegisterEvent("STOP_AUTOREPEAT_SPELL")
   f:SetScript("OnEvent", function()
     if event == "PLAYER_ENTER_COMBAT" then
       AA.attacking = true
       AA.stopped = nil
+    elseif event == "START_AUTOREPEAT_SPELL" then
+      AA.autoshot = true
+      if AA.stoppedAt and GetTime() - AA.stoppedAt < 1 then AA.stopped = nil end
+    elseif event == "STOP_AUTOREPEAT_SPELL" then
+      AA.autoshot = nil
     elseif event == "PLAYER_LEAVE_COMBAT" then
       AA.attacking = false
       -- you stopped it yourself (the target is still there and fair game): leave this one alone
-      if UnitExists("target") and not UnitIsDead("target") and UnitCanAttack("player", "target") then
+      if not AA.autoshot and UnitExists("target") and not UnitIsDead("target") and UnitCanAttack("player", "target") then
         AA.stopped = AA.Key()
+        AA.stoppedAt = GetTime()
       end
     elseif event == "PLAYER_TARGET_CHANGED" then
       AA.stopped = nil
@@ -144,7 +156,7 @@ pfUI:RegisterModule("autoattack", "vanilla", function ()
       local reach = AA.InReach()
       Say((G().enable == "1" and "on" or "off") .. "; target: " .. (ok and "fair game" or tostring(why))
         .. "; reach: " .. (reach == nil and "unknown" or (reach and "in reach" or "too far"))
-        .. (AA.attacking and "; attacking" or "") .. (AA.stopped and "; you stopped it on this target" or ""))
+        .. (AA.attacking and "; attacking" or "") .. (AA.autoshot and "; auto shot on" or "") .. (AA.stopped and "; you stopped it on this target" or ""))
     else AA.Toggle() end
   end
 end)

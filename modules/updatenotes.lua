@@ -2,6 +2,9 @@
 -- What each pfUI Octo version brought: { version, { { title, text }, ... } }, newest first.
 -- updatenotify.lua shows them in the update window and sends the titles to older versions.
 pfUI.octoNotes = {
+  { "1.2.92", {
+    { "Auto Attack works with Auto Shot", "starting Auto Shot switches melee off, and Auto Attack took that as you stopping on purpose and left the mob alone. Now a mob that runs into melee range gets your swing while Auto Shot is on. Stopping melee yourself still leaves that mob alone. /autoattack why also says when Auto Shot is on." },
+  } },
   { "1.2.91", {
     { "No more \"You cannot whisper yet (too low level)\"", "pfUI Octo sends nothing to the realm data bot below level 5, and if the server still refuses, it hides the line and waits until your next level." },
     { "Everything off means nothing sent", "with every switch on the Data sharing page off, nothing goes to the data bot (the leaderboards included)." },
@@ -176,8 +179,5 @@ pfUI.octoNotes = {
     { "Lighter", "meters, OctoDoTs, the Bulwark and combat text do less work, and saved data that grew for ever is pruned." },
     { "DLL installer", "each DLL pinned to a tested version and checked by its SHA-256, a list and a question before anything changes, AuctionQueryThrottle optional." },
     { "World map", "coordinates back with the map zoom, your own position bottom left." },
-  } },
-  { "1.2.52", {
-    { "Nameplate distance margin (thanks Javelin)", "plates set to 41 yd went at 38.9 while his shots still reached 41. A \"Margin\" slider (0 - 6 yd) now goes on top of the distance, so plates stay up as far as your spells reach (Nameplates > Target & casts > How far away plates show)." },
   } },
 }

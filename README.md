@@ -122,6 +122,10 @@ All optional: pfUI Octo works without them.
 | `/pfperf` | performance numbers (`on`, `off`, `reset`, `clean`) |
 | `/export`, `/import` | share your whole setup |
 
+## 📜 New in 1.2.92
+
+- 🏹 **Auto Attack works with Auto Shot:** starting Auto Shot switches melee off, and Auto Attack took that as you stopping on purpose and left the mob alone. Now a mob that runs into melee range gets your swing while Auto Shot is on. Stopping melee yourself still leaves that mob alone. `/autoattack why` also says when Auto Shot is on.
+
 ## 📜 New in 1.2.91
 
 - 🔇 **No more "You cannot whisper yet (too low level)":** pfUI Octo sends nothing to the realm data bot below level 5, and if the server still refuses, it hides the line and waits until your next level.
