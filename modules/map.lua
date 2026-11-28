@@ -365,9 +365,14 @@ pfUI:RegisterModule("map", "vanilla:tbc", function ()
         Z.mouseOn = want
         WorldMapButton:EnableMouse(want)
       end
+      -- (27 Nov 2026) IsMouseButtonDown is not in the 1.12 client: calling it errored on every frame of a drag
+      -- ("attempt to call global 'IsMouseButtonDown' (a nil value)") and the view never moved. The drag ends on
+      -- WorldMapButton's OnMouseUp; leaving the map ends it too, in case the button-up lands somewhere else.
       local d = Z.drag
+      if d and not want then Z.drag, Z.dragged, d = nil, nil, nil end
       if d then
-        if not IsMouseButtonDown("LeftButton") then Z.drag = nil return end
+        local down = rawget(_G, "IsMouseButtonDown")
+        if down and not down("LeftButton") then Z.drag = nil return end
         local x, y = GetCursorPosition()
         local es = s:GetEffectiveScale() or 1
         local dx, dy = (x - d.x) / es, (y - d.y) / es
