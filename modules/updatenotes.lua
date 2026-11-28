@@ -2,6 +2,9 @@
 -- What each pfUI Octo version brought: { version, { { title, text }, ... } }, newest first.
 -- updatenotify.lua shows them in the update window and sends the titles to older versions.
 pfUI.octoNotes = {
+  { "1.2.94", {
+    { "Update popup reaches everyone", "an outdated pfUI Octo asking the realm for the newest version now gets enough answers for its update window to open (it needed three players and only one answered)." },
+  } },
   { "1.2.93", {
     { "Battleground queue times reach the boards", "not one queue time was arriving although BGs popped all day - this client reports 0 waited the moment a queue pops, so pfUI Octo now remembers the wait while you are queued (or times it itself). Battleground results are also caught while you are still inside, not only when someone opens the scoreboard." },
   } },
@@ -168,12 +171,5 @@ pfUI.octoNotes = {
   { "1.2.55", {
     { "Fixed the pfQuest map error", "\"pfquest map.lua:2398: attempt to perform arithmetic on field queue_update\" after zooming the world map (a bug from 1.2.54) is gone, and pfQuest can no longer hit it another way." },
     { "The \"Show / hide map icons\" button makes room", "it moves down past other add-ons' map buttons (Softspoken's lore button, Atlas...) instead of covering them. Gathering > \"Where the button goes\" can put it in a corner of its own instead." },
-  } },
-  { "1.2.54", {
-    { "Procs in the meters", "a new Procs display (Misc > Procs) counts every proc and says what set it off, like \"Engulfing Shadows <- Shadow Bolt\". For your own procs it also names the weapon or enchant when its tooltip names the proc (\"Holy Strength <- Melee (Arcanite Reaper)\")." },
-    { "Shorter names on nameplates", "Nameplates > Name has \"Longest name\" (in letters, 0 = any length) and \"Too long\": cut with \"...\" or turn the first words into initials (\"I. Riftweaver\")." },
-    { "Rage in combat text is right", "Bloodrage showed a \"10\" for every point of rage; it shows \"+1 Rage\" now. With the Blizzard numbers look, power gains use the colour you picked for them instead of always blue." },
-    { "Map dots stay the same size when you zoom the world map", "pfQuest's dots and your party and raid dots no longer grow and shrink with the zoom." },
-    { "Smoother raids", "sorting the raid frames only redraws the frames whose player changed (it redrew all 40 twice), and bars you can't see skip their slide." },
   } },
 }

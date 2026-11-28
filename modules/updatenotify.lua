@@ -198,13 +198,21 @@ pfUI:RegisterModule("updatenotify", "vanilla:tbc", function ()
     if head == "OA1 " or head == "OA2 " then U.Heard(from, nil) end
   end
   -- planned answer to a "?": only newer than the asker, and only until someone at least as new answers
+  -- (28 Nov 2026, user: "make sure everyone gets an update popup") the asker's update window needs RC.ENOUGH different
+  -- players to say the newer version (UP.VOUCH, against a made-up "OV1 99.0.0"), but only ONE used to answer, so on
+  -- the realm channel the window almost never opened. Now answers go on until RC.ENOUGH at least as new were heard.
+  RC.ENOUGH = 3
   function RC.Asked(theirs)
     if OctoNum(theirs) >= OctoNum(pfUI.version.octo) or RC.answerAt then return end
     if GetTime() - (RC.answered or -100) < 60 then return end
     RC.answerAt = GetTime() + 2 + math.random() * 8
+    RC.heardN = 0
   end
   function RC.HeardAnswer(v)
-    if RC.answerAt and OctoNum(v) >= OctoNum(pfUI.version.octo) then RC.answerAt = nil RC.answered = GetTime() end
+    if RC.answerAt and OctoNum(v) >= OctoNum(pfUI.version.octo) then
+      RC.heardN = (RC.heardN or 0) + 1
+      if RC.heardN >= RC.ENOUGH then RC.answerAt = nil RC.answered = GetTime() end
+    end
   end
   -- every half second from the updater: answer, send one waiting line (one every 1.5 s), refresh the list
   function RC.Tick(now)

@@ -122,6 +122,10 @@ All optional: pfUI Octo works without them.
 | `/pfperf` | performance numbers (`on`, `off`, `reset`, `clean`) |
 | `/export`, `/import` | share your whole setup |
 
+## 📜 New in 1.2.94
+
+- 🔔 **Update popup reaches everyone:** an outdated pfUI Octo asking the realm for the newest version now gets enough answers for its update window to open (it needed three players and only one answered).
+
 ## 📜 New in 1.2.93
 
 - ⚔️ **Battleground queue times reach the boards:** not one queue time was arriving although BGs popped all day - this client reports 0 waited the moment a queue pops, so pfUI Octo now remembers the wait while you are queued (or times it itself). Battleground results are also caught while you are still inside, not only when someone opens the scoreboard.
