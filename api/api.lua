@@ -788,8 +788,18 @@ function pfUI.api.SaveMovable(frame, scale)
   C.position[frame:GetName()]["ypos"] = round(ypos)
   C.position[frame:GetName()]["anchor"] = anchor
   -- octo: placed on another movable frame = locked to it (see LoadMovable)
-  local relname = type(rel) == "table" and rel ~= frame:GetParent() and rel.GetName and rel:GetName()
-  if type(rel) == "string" then relname = rel end
+  -- (25 Nov 2026) never index `rel`: a frame without a parent (WorldMapFrame) placed by
+  -- SetPoint(anchor, x, y) hangs on the screen itself, and GetPoint hands back a table for
+  -- it that is no real frame - `rel.GetName` on it crashed the client (#132 at 0x0070211C,
+  -- on every mouse wheel over the world map). Look it up among the movables instead.
+  local relname
+  if type(rel) == "string" then
+    relname = rel
+  elseif type(rel) == "table" and pfUI.movables and not rawequal(rel, frame:GetParent()) then
+    for name, f in pairs(pfUI.movables) do
+      if rawequal(f, rel) then relname = name break end
+    end
+  end
   if relname and pfUI.movables and pfUI.movables[relname] and relname ~= frame:GetName() then
     C.position[frame:GetName()]["attach"] = relname
     C.position[frame:GetName()]["relpoint"] = relpoint
